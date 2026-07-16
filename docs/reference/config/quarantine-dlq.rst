@@ -20,6 +20,10 @@ them. It is enabled per action, and both DLQ tables are user-managed DDL::
        dlq_table: <fully.qualified.name>
        source_table: <fully.qualified.name>
 
+.. seealso::
+
+   How-to guide: :doc:`/guides/transform/quarantine`.
+
 Action fields
 -------------
 

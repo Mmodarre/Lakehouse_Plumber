@@ -23,6 +23,10 @@ values and expands the template into the flowgroup's actions.
        type: <load|transform|write|test>
        ...
 
+.. seealso::
+
+   How-to guide: :doc:`/guides/reuse-and-scale/templates`.
+
 Template file fields
 --------------------
 

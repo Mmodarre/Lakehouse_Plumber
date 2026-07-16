@@ -15,6 +15,10 @@ pipeline (``generated/<env>/<pipeline_name>/monitoring.py``), and a Databricks
 job (``resources/<pipeline_name>.job.yml`` — written directly under
 ``resources/``, not a ``resources/lhp/`` subdirectory).
 
+.. seealso::
+
+   How-to guide: :doc:`/guides/ops/monitoring`.
+
 Event log fields
 ----------------
 

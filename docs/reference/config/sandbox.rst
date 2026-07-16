@@ -10,6 +10,10 @@ those pipelines produce. It draws on three surfaces: the ``--sandbox`` flag,
 an optional ``sandbox:`` block in ``lhp.yaml`` (team policy), and a gitignored
 ``.lhp/profile.yaml`` (personal scope).
 
+.. seealso::
+
+   How-to guide: :doc:`/guides/develop/sandbox`.
+
 Activation flag
 ---------------
 

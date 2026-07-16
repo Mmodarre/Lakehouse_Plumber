@@ -1,6 +1,6 @@
-=========================
-Test action reference
-=========================
+============
+Test actions
+============
 
 .. meta::
    :description: Field reference for every LHP test action type — row_count, uniqueness, referential_integrity, completeness, range, schema_match, all_lookups_found, custom_sql, custom_expectations.
@@ -10,6 +10,10 @@ action. Test actions are skipped by default — they are validated and generated
 only when ``lhp generate`` / ``lhp validate`` is run with ``--include-tests``.
 Each test action emits one temporary Lakeflow table (``@dp.table(..., temporary=True)``)
 whose query returns violation rows, with expectation decorators attached.
+
+.. seealso::
+
+   How-to guides: :doc:`/guides/test/data-tests`, :doc:`/guides/test/test-reporting`.
 
 Base fields
 -----------

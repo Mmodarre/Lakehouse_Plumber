@@ -11,6 +11,10 @@ view (or, for ``temp_table``, a temporary table). Every transform sets
 ``data_quality``, ``temp_table``, or ``schema``. Type-specific fields are flat
 on the action.
 
+.. seealso::
+
+   How-to guides: :doc:`/guides/transform/sql`, :doc:`/guides/transform/python`, :doc:`/guides/transform/schema`, :doc:`/guides/transform/temp-table`, :doc:`/guides/transform/data-quality`.
+
 Common fields
 =============
 

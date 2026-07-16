@@ -23,6 +23,10 @@ yields ``N × M`` generated flowgroups. A blueprint file has the shape::
        actions:
          - ...
 
+.. seealso::
+
+   How-to guide: :doc:`/guides/reuse-and-scale/blueprints`.
+
 Blueprint file fields
 ---------------------
 

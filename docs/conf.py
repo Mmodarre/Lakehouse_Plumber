@@ -65,6 +65,10 @@ exclude_patterns = [
     "Thumbs.db",
     ".DS_Store",
     "DOCS_REORGANIZATION_PLAN.md",
+    # Fixture projects are pulled in via literalinclude, never as standalone
+    # docs. Exclude their prose files (READMEs) so Sphinx doesn't treat them
+    # as orphan documents.
+    "_fixtures/**/*.md",
 ]
 
 # -- Redirects for retired page URLs -----------------------------------------
@@ -73,9 +77,10 @@ exclude_patterns = [
 # new home (works on GitHub Pages and Read the Docs). Where an old page split
 # into two homes, the redirect targets the more task/user-facing one.
 redirects = {
+    # --- Diátaxis-era single-page URLs (pre-DSPy IA) ---
     "quickstart": "get-started/index.html",
     "tutorials/sample_quickstart": "get-started/index.html",
-    "requirements": "get-started/01-install-and-init.html",
+    "requirements": "get-started/01-install-and-scaffold.html",
     "editor_setup": "guides/develop/editor-setup.html",
     "how_to_index": "guides/index.html",
     "ingest_with_autoloader": "guides/ingest/auto-loader.html",
@@ -89,20 +94,20 @@ redirects = {
     "presets_reference": "reference/config/presets.html",
     "configure_bundles": "guides/ship/ci-cd.html",
     "bundle_config_reference": "reference/config/bundle.html",
-    "package_pipelines_as_wheels": "guides/ship/package-as-wheels.html",
+    "package_pipelines_as_wheels": "guides/deploy/package-as-wheels.html",
     "cicd": "guides/ship/ci-cd.html",
     "develop_in_a_sandbox": "guides/develop/sandbox.html",
     "sandbox_reference": "reference/config/sandbox.html",
     "develop_in_the_web_ide": "guides/develop/web-ide.html",
     "use_the_ai_assistant": "guides/develop/ai-assistant.html",
-    "enable_monitoring": "guides/quality-and-ops/monitoring.html",
+    "enable_monitoring": "guides/ops/monitoring.html",
     "monitoring_reference": "reference/config/monitoring.html",
-    "quarantine_records": "guides/quality-and-ops/quarantine.html",
+    "quarantine_records": "guides/transform/quarantine.html",
     "quarantine": "reference/config/quarantine-dlq.html",
-    "dependency_analysis": "guides/quality-and-ops/dependency-analysis.html",
-    "actions/test_reporting": "guides/quality-and-ops/test-reporting.html",
+    "dependency_analysis": "guides/ops/dependency-analysis.html",
+    "actions/test_reporting": "guides/test/test-reporting.html",
     "migrate_from_dlt": "guides/ship/migrate-from-dlt.html",
-    "troubleshooting": "guides/index.html",
+    "troubleshooting": "reference/errors.html",
     "architecture": "concepts/how-lhp-works.html",
     "skills_concept": "concepts/coding-agents-and-the-skill.html",
     "decisions": "concepts/presets-templates-blueprints.html",
@@ -122,7 +127,25 @@ redirects = {
     "best_practices/project_structure": "concepts/how-lhp-works.html",
     "best_practices/performance": "concepts/how-lhp-works.html",
     "best_practices/governance": "concepts/how-lhp-works.html",
-    "best_practices/testing": "guides/quality-and-ops/test-reporting.html",
+    "best_practices/testing": "guides/test/data-tests.html",
+    # --- First-generation DSPy IA URLs retired in the IA reorg (2026-07) ---
+    # Get Started renumbered around the sample project.
+    "get-started/01-install-and-init": "get-started/01-install-and-scaffold.html",
+    "get-started/02-your-first-pipeline": "get-started/index.html",
+    "get-started/03-transform-and-quality": "get-started/03-explore-the-pipelines.html",
+    "get-started/04-reuse-with-presets": "concepts/presets-templates-blueprints.html",
+    "get-started/05-templates": "guides/reuse-and-scale/templates.html",
+    "get-started/06-scale-with-blueprints": "guides/reuse-and-scale/blueprints.html",
+    "get-started/07-deploy-with-bundles": "get-started/05-deploy-and-run.html",
+    # Guides regrouped: quality-and-ops split into test / ops / transform.
+    "guides/quality-and-ops/monitoring": "guides/ops/monitoring.html",
+    "guides/quality-and-ops/dependency-analysis": "guides/ops/dependency-analysis.html",
+    "guides/quality-and-ops/quarantine": "guides/transform/quarantine.html",
+    "guides/quality-and-ops/test-reporting": "guides/test/data-tests.html",
+    # Wheel packaging moved from Ship to its own Deploy category.
+    "guides/ship/package-as-wheels": "guides/deploy/package-as-wheels.html",
+    # Get Started gained an "Explore LHP Web" step; where-to-next shifted 06→07.
+    "get-started/06-where-to-next": "get-started/07-where-to-next.html",
 }
 
 # -- Options for HTML output -------------------------------------------------

@@ -3,105 +3,85 @@ Guides
 ======
 
 .. meta::
-   :description: Task-oriented guides for Lakehouse Plumber — ingest from any source, choose a write mode, reuse and scale patterns, and operate your pipelines.
+   :description: Task-oriented guides for Lakehouse Plumber, grouped by the four action kinds plus reuse, operations, development, and shipping. Ingest from any source, choose a write mode, test your data, and operate your pipelines.
 
 The Get Started course walks the whole path once. These guides go deep on one
-task at a time — a specific source to ingest, a write mode to choose, a reuse
-tool to reach for. Each is self-contained and **fixture-backed**: the YAML, the
+task at a time. They're grouped by what you're doing — the four **action kinds**
+(ingest, transform, write, test), then reuse, operations, development, and
+shipping. Each guide is self-contained and **fixture-backed**: the YAML, the
 command output, and the generated Lakeflow are real and regenerated on every
 build, so nothing here can drift from what Lakehouse Plumber actually emits.
 
-Ingest
-======
+Start at the category that matches your task — each opens with a chooser or a
+short map of its guides.
 
-Read data into a pipeline from a specific source.
+.. grid:: 1 2 2 2
+   :gutter: 3
 
-.. toctree::
-   :maxdepth: 1
+   .. grid-item-card:: Ingest →
+      :link: ingest/index
+      :link-type: doc
 
-   ingest/auto-loader
-   ingest/delta
-   ingest/sql
-   ingest/jdbc
-   ingest/kafka
-   ingest/custom-datasource
+      Read data in — Auto Loader, Delta, SQL, JDBC, Kafka, or a custom source.
 
-Transform
-=========
+   .. grid-item-card:: Transform →
+      :link: transform/index
+      :link-type: doc
 
-Reshape, enrich, and validate rows between a load and a write.
+      Reshape between load and write — SQL, Python, schema, quality, quarantine.
 
-.. toctree::
-   :maxdepth: 1
+   .. grid-item-card:: Write →
+      :link: write/index
+      :link-type: doc
 
-   transform/sql
-   transform/python
-   transform/schema
-   transform/temp-table
-   transform/data-quality
+      Choose a target — streaming table, CDC, snapshot CDC, materialized view, sink.
 
-Write
-=====
+   .. grid-item-card:: Test →
+      :link: test/index
+      :link-type: doc
 
-Persist results in the right kind of target.
+      Unit-test your data with test actions, and report the results.
 
-.. toctree::
-   :maxdepth: 1
+   .. grid-item-card:: Reuse and scale →
+      :link: reuse-and-scale/index
+      :link-type: doc
 
-   write/streaming-table-standard
-   write/streaming-table-cdc
-   write/streaming-table-snapshot-cdc
-   write/materialized-view
-   write/sinks
+      Remove duplication, then multiply — substitutions, templates, blueprints.
 
-Reuse and scale
-===============
+   .. grid-item-card:: Operate →
+      :link: ops/index
+      :link-type: doc
 
-Remove duplication, then multiply your pipelines.
+      Monitoring, logging, and dependency analysis for running pipelines.
 
-.. toctree::
-   :maxdepth: 1
+   .. grid-item-card:: Develop →
+      :link: develop/index
+      :link-type: doc
 
-   reuse-and-scale/substitutions-and-secrets
-   reuse-and-scale/templates
-   reuse-and-scale/blueprints
-   reuse-and-scale/multi-flowgroup
+      Author locally — web IDE, AI assistant, sandbox, editor, coding agents.
 
-Quality and ops
-===============
+   .. grid-item-card:: Deploy →
+      :link: deploy/index
+      :link-type: doc
 
-Guard data quality and see what your pipelines are doing.
+      Package pipeline code for a workspace — bundles and Python wheels.
 
-.. toctree::
-   :maxdepth: 1
+   .. grid-item-card:: Ship →
+      :link: ship/index
+      :link-type: doc
 
-   quality-and-ops/quarantine
-   quality-and-ops/monitoring
-   quality-and-ops/test-reporting
-   quality-and-ops/dependency-analysis
-
-Develop
-=======
-
-Author, run, and iterate on pipelines locally.
+      Validate and ship in CI, and migrate an existing DLT pipeline.
 
 .. toctree::
-   :maxdepth: 1
+   :maxdepth: 2
+   :hidden:
 
-   develop/web-ide
-   develop/ai-assistant
-   develop/sandbox
-   develop/editor-setup
-   develop/coding-agents
-
-Ship
-====
-
-Test, package, and deploy — and migrate what you already have.
-
-.. toctree::
-   :maxdepth: 1
-
-   ship/ci-cd
-   ship/package-as-wheels
-   ship/migrate-from-dlt
+   ingest/index
+   transform/index
+   write/index
+   test/index
+   reuse-and-scale/index
+   ops/index
+   develop/index
+   deploy/index
+   ship/index

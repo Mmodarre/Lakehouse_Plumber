@@ -24,6 +24,10 @@ list order. A preset file has the shape::
        <target_type>:
          ...
 
+.. seealso::
+
+   Concept: :doc:`/concepts/presets-templates-blueprints`.
+
 Top-level fields
 ----------------
 
