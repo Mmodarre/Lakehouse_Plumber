@@ -19,6 +19,13 @@ Lakeflow code next to the YAML that produced it, and run ``validate`` and
 code are exactly what the CLI produces — a guided visual workspace instead of
 hand-editing YAML and re-running the CLI blind.
 
+.. figure:: /_static/lhp_web.png
+   :alt: The Lakehouse Plumber web IDE showing the project map — every pipeline as a medallion dependency graph, with the run history panel below and the validation panel on the right.
+   :width: 100%
+
+   The **project map**: every pipeline in the project as a dependency graph,
+   with run history below and validation on the right.
+
 Let's install the extra, launch it, and walk the edit-generate loop.
 
 Install the web extra
@@ -79,6 +86,24 @@ in the IDE: you browse it, you never hand-edit it.
 Alongside the editor, the workspace shows the two things the terminal loop makes
 you reconstruct by hand: the **dependency graph** of your flowgroups, redrawn as
 you save, and the **generated Lakeflow code** beside the YAML that produced it.
+
+.. figure:: /_static/lhp_web_designer.png
+   :alt: A single flowgroup shown as a graph of its actions — a Kafka load feeding two SQL transforms and a sink — with a Graph/Code toggle and an Add action button.
+   :width: 100%
+
+   A flowgroup as its **action chain**: load → transform → transform → write.
+   Toggle between the graph and the generated code, or click **Add action** to
+   extend the chain.
+
+Click a node to edit that action in a form — every field for its type, with the
+``${...}`` tokens and options laid out instead of hand-typed into YAML:
+
+.. figure:: /_static/lhp_web_designer_actions.png
+   :alt: The action editor modal for a Kafka load action, showing source-type tabs and grouped connection, subscription, read mode, advanced options, and operational-metadata fields.
+   :width: 100%
+
+   The **action editor**: pick the source or target type, fill the fields, and
+   the IDE writes the YAML for you.
 
 Run ``validate`` and ``generate`` from the browser:
 

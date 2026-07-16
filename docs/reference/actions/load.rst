@@ -15,6 +15,10 @@ sub-type, and a ``target:`` naming the view it creates::
        ...
      target: <view_name>
 
+.. seealso::
+
+   How-to guides: :doc:`/guides/ingest/auto-loader`, :doc:`/guides/ingest/delta`, :doc:`/guides/ingest/sql`, :doc:`/guides/ingest/jdbc`, :doc:`/guides/ingest/kafka`, :doc:`/guides/ingest/custom-datasource`.
+
 Action-level fields
 -------------------
 

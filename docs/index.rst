@@ -91,8 +91,22 @@ Where to next
       :link: get-started/index
       :link-type: doc
 
-      From an empty folder to a reusable, deployable pipeline — one primitive at
-      a time. Every step is fixture-backed and generates the code it shows.
+      Run the sample project end to end — scaffold a complete medallion pipeline,
+      configure it, generate the Lakeflow code, and deploy it to Databricks.
+
+   .. grid-item-card:: Guides →
+      :link: guides/index
+      :link-type: doc
+
+      One task at a time, grouped by action kind: ingest from any source, choose
+      a write mode, test your data, reuse and scale, and operate.
+
+   .. grid-item-card:: Concepts →
+      :link: concepts/index
+      :link-type: doc
+
+      The reasoning behind the design — how LHP compiles pipelines, the action
+      model, dependency inference, and the reuse ladder.
 
    .. grid-item-card:: Reference →
       :link: reference/index
@@ -101,8 +115,11 @@ Where to next
       CLI flags, the Python API, every action option, error codes, and
       configuration schemas. Pure lookup, generated from the code itself.
 
-Task-shaped recipes live in the :doc:`Guides <guides/index>`; the reasoning
-behind LHP's design lives in :doc:`Concepts <concepts/index>`.
+.. admonition:: Coming from DLT?
+   :class: tip
+
+   Already have Delta Live Tables pipelines? See
+   :doc:`Migrate a DLT pipeline to Lakehouse Plumber <guides/ship/migrate-from-dlt>`.
 
 .. toctree::
    :maxdepth: 1

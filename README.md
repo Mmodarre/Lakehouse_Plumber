@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="https://raw.githubusercontent.com/Mmodarre/Lakehouse_Plumber/main/lhp_colour.png" alt="LakehousePlumber Logo" width="50%">
+  <img src="https://raw.githubusercontent.com/Mmodarre/Lakehouse_Plumber/main/lhp_colour.png" alt="LakehousePlumber Logo" width="20%">
 </div>
 
 # Lakehouse Plumber
@@ -19,6 +19,33 @@
 [![PyPI Downloads](https://static.pepy.tech/badge/lakehouse-plumber/month)](https://pepy.tech/projects/lakehouse-plumber)
 
 </div>
+
+## LHP Web IDE (Beta)
+
+<div align="center">
+  <img src="https://raw.githubusercontent.com/Mmodarre/Lakehouse_Plumber/lhp_web.png" alt="LakehousePlumber Web IDE" width="80%">
+</div>
+
+Introducing LHP Web Idea, the best place to configure, monitor and develop LHP flowgroups and pipelines. 
+
+- Local and no dependency:
+    
+```
+pip install "lakehouse-plumber[webapp]"
+lhp web --port 8000
+```
+
+- Built in Dependency analyzer and DAG builder
+- AI assistant using Databricks AI gateway FMAPI or Claude subscription
+- Code Editor
+- Flowgroup designer UI
+
+<table>
+<tr>
+<td><img src="https://raw.githubusercontent.com/Mmodarre/Lakehouse_Plumber/lhp_web_designer.png" alt="LakehousePlumber Web IDE" width="100%"></td>
+<td><img src="https://raw.githubusercontent.com/Mmodarre/Lakehouse_Plumber/lhp_web_designer_actions.png" alt="LakehousePlumber Web IDE — action editor" width="100%"></td>
+</tr>
+</table>
 
 ## What it looks like
 

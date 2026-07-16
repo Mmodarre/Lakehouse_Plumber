@@ -17,6 +17,10 @@ tokens when generating a pipeline for environment ``<env>`` (selected by
      scopes:
        <alias>: <databricks_scope>
 
+.. seealso::
+
+   How-to guide: :doc:`/guides/reuse-and-scale/substitutions-and-secrets`.
+
 Top-level keys
 --------------
 

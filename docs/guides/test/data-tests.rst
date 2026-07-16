@@ -1,14 +1,20 @@
-=================================
-Test data quality in the pipeline
-=================================
+====================================
+Write a data test with a test action
+====================================
 
 .. meta::
-   :description: Declare a data-quality test as a Lakehouse Plumber test action — a uniqueness, row-count, or referential check that runs inside the pipeline and reports pass/fail — instead of hand-writing an assertion query and expectation decorator.
+   :description: Declare a Lakehouse Plumber test action — a uniqueness, row-count, or referential-integrity assertion that runs inside the pipeline as a unit test for your data — instead of hand-writing an assertion query and expectation decorator.
 
-Let's assert something you actually care about: every order in the bronze
-``orders`` table has a unique ``order_id``. Not in a notebook you run by hand
-after the fact, but as a check that lives in the pipeline, runs on every update,
-and reports its result alongside the data it guards.
+A **test action** is the fourth Lakehouse Plumber action kind, alongside load,
+transform, and write. Where a ``data_quality`` transform gates rows *inside* a
+flow, a test action is a standalone **unit test for your data**: it asserts a
+property you care about — uniqueness, a row count, a foreign key — runs on every
+pipeline update, and reports pass or fail.
+
+Let's assert something concrete: every order in the bronze ``orders`` table has a
+unique ``order_id``. Not in a notebook you run by hand after the fact, but as a
+check that lives in the pipeline, runs on every update, and reports its result
+alongside the data it guards.
 
 You could hand-write this. You'd author a ``@dp.table(temporary=True)`` function
 that runs a ``GROUP BY ... HAVING COUNT(*) > 1`` duplicate query, then decorate
@@ -133,12 +139,8 @@ What's next
 
 - **Reach for another test type** — compare counts across two tables with
   ``row_count``, check foreign keys with ``referential_integrity``, or bound a
-  column with ``range``. The full type list and every field lives in the test
-  action reference.
-- **Publish results to an external system** — add a ``test_reporting`` provider
-  to ``lhp.yaml`` and a ``test_id`` to each reported action. Lakehouse Plumber
-  then generates one per-pipeline event hook that collects the DQ results and
-  calls your provider function, forwarding them to a Delta audit table, Azure
-  DevOps Test Plans, or your own endpoint. Use ``on_violation: warn`` on those
-  actions so every outcome reaches the provider. See the test reporting
-  reference.
+  column with ``range``. The full type list and every field lives in the
+  :doc:`test action reference </reference/actions/test>`.
+- **Publish results to an external system** — forward every test outcome to a
+  Delta audit table, Azure DevOps Test Plans, or your own endpoint. See
+  :doc:`test-reporting`.

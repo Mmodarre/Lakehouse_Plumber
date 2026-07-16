@@ -1,15 +1,19 @@
 .. meta::
    :description: Reference for LHP write actions — streaming table (standard, CDC, snapshot CDC), materialized view, and sink (delta, kafka, Event Hubs, foreachbatch, custom) write_target fields and emitted Lakeflow constructs.
 
-======================
-Write action reference
-======================
+=============
+Write actions
+=============
 
 A write action has ``type: write`` and a ``write_target`` block. The
 ``write_target.type`` field selects the target: ``streaming_table``,
 ``materialized_view``, or ``sink``. This page lists every ``write_target``
 field, the mode-specific config blocks, and the Lakeflow construct each target
 emits.
+
+.. seealso::
+
+   How-to guides: :doc:`/guides/write/streaming-table-standard`, :doc:`/guides/write/streaming-table-cdc`, :doc:`/guides/write/streaming-table-snapshot-cdc`, :doc:`/guides/write/materialized-view`, :doc:`/guides/write/sinks`.
 
 Shared fields
 =============

@@ -17,6 +17,10 @@ key in ``lhp.yaml``, then add them to a flowgroup or action with the
        <group_name>:
          columns: [<name>, ...]
 
+.. seealso::
+
+   Concept: :doc:`/concepts/how-lhp-works`.
+
 Project block
 -------------
 

@@ -9,6 +9,10 @@ project root. Pass ``--no-bundle`` to ``lhp generate`` or ``lhp validate`` to
 disable it. LHP never reads or modifies ``databricks.yml``; it only detects the
 file's presence and writes pipeline resource YAML under ``resources/lhp/``.
 
+.. seealso::
+
+   How-to guides: :doc:`/guides/ship/ci-cd`, :doc:`/get-started/05-deploy-and-run`.
+
 Activation flags
 ----------------
 

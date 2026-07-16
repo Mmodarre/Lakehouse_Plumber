@@ -12,9 +12,9 @@ documentation click into place.
 .. toctree::
    :maxdepth: 1
 
-   how-lhp-works
-   the-action-model
-   flowgroups-and-dependencies
-   substitution-and-envs
-   presets-templates-blueprints
-   coding-agents-and-the-skill
+   How LHP works <how-lhp-works>
+   The action model <the-action-model>
+   Flowgroups & dependencies <flowgroups-and-dependencies>
+   Substitution & environments <substitution-and-envs>
+   Choosing a reuse tool <presets-templates-blueprints>
+   Coding agents & the skill <coding-agents-and-the-skill>
