@@ -1,0 +1,17 @@
+# File-based cloudFiles.schemaHints for the orders JSON ingestion.
+# Inference alone would type TPC-H decimals/dates as strings/doubles; these
+# hints pin them. (The lineitem CSV flowgroup shows the inline-DDL form.)
+name: orders_hints
+version: "1.0"
+description: "Type hints for orders JSON ingestion (pin decimals/dates)"
+columns:
+  - name: o_orderkey
+    type: BIGINT
+  - name: o_custkey
+    type: BIGINT
+  - name: o_totalprice
+    type: DECIMAL(15,2)
+  - name: o_orderdate
+    type: DATE
+  - name: received_at
+    type: TIMESTAMP

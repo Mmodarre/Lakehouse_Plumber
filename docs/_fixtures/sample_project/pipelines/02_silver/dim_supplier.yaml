@@ -1,0 +1,28 @@
+# Snapshot CDC — applies versioned full snapshots (bronze.supplier_snapshots,
+# one snapshot_id per demo round) as SCD2 history via a source function.
+# Note: snapshot_cdc write actions have NO action-level source; the source
+# function in functions/supplier_snapshot.py hands back (DataFrame, version)
+# pairs until the snapshots are exhausted.
+pipeline: sample_silver
+flowgroup: dim_supplier
+presets:
+  - silver_quality
+actions:
+  - name: write_dim_supplier
+    type: write
+    write_target:
+      type: streaming_table
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
+      table: dim_supplier
+      mode: snapshot_cdc
+      snapshot_cdc_config:
+        source_function:
+          file: functions/supplier_snapshot.py
+          function: next_supplier_snapshot
+          parameters:                          # resolved from substitutions, passed as kwargs
+            catalog: "${catalog}"
+            bronze_schema: "${bronze_schema}"
+        keys: [s_suppkey]
+        stored_as_scd_type: 2
+        track_history_column_list: [s_name, s_address, s_acctbal]

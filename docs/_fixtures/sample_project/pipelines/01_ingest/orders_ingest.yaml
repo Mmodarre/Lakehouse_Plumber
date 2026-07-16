@@ -1,0 +1,10 @@
+# Cloudfiles ingestion (JSON) via the cloudfiles_ingest template.
+# schema_hints is a PATH → file-based hints (auto-detected by LHP).
+pipeline: sample_ingest
+flowgroup: orders_ingest
+use_template: cloudfiles_ingest
+operational_metadata: ["_processing_timestamp", "_source_file_path", "_source_file_size"]
+template_parameters:
+  entity: orders
+  file_format: json
+  schema_hints: schemas/orders_hints.yaml       # path → file-based hints (auto-detected)

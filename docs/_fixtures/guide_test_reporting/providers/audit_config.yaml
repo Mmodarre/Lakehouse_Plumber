@@ -1,0 +1,3 @@
+# Passed verbatim to the provider function as its `config` argument.
+# ${...} tokens resolve per environment, like everywhere else in LHP.
+audit_table: "${catalog}.${bronze_schema}.test_audit_log"
