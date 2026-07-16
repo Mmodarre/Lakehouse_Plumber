@@ -1,0 +1,5 @@
+# Development environment tokens.
+# Referenced from the test action's source with ${token} syntax.
+dev:
+  catalog: dev_catalog
+  bronze_schema: bronze

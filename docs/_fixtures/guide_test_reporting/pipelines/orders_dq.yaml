@@ -1,0 +1,16 @@
+# A test flowgroup whose result is forwarded to an external system.
+# The test_id correlates this test with the entry the provider publishes.
+# on_violation: warn keeps the run alive so the metrics reach the hook
+# (a hard fail aborts the flow before its result is recorded).
+pipeline: bronze_dq
+flowgroup: orders_dq
+
+actions:
+  - name: orders_id_unique
+    type: test
+    test_type: uniqueness
+    source: "${catalog}.${bronze_schema}.orders"
+    columns: [order_id]
+    on_violation: warn
+    test_id: ORDERS-UNIQUE-001
+    description: "Every bronze order has a unique order_id"

@@ -205,6 +205,80 @@ tear the sandbox resources down:
    views, but Delta-sink tables created by sandbox runs are not removed. Drop
    those manually.
 
+Sandbox mode in the web IDE
+===========================
+
+Everything above runs sandbox mode from the command line. If you work in the
+visual workspace instead — see :doc:`web-ide` — you don't drop back to the
+terminal to get the same isolation. The ``lhp web`` header carries a **Sandbox**
+toggle, labelled *"Developer-sandbox mode — generate only your pipelines"*, with
+an info button beside it that says the same thing.
+
+Turn it on and every Validate and Generate you trigger from the IDE behaves
+exactly like ``--sandbox``: the run scopes to the pipelines in your
+``.lhp/profile.yaml``, and the tables your in-scope flowgroups produce are
+renamed into your namespace. The toggle is the visual equivalent of the CLI
+flag — it reads the same ``sandbox:`` block in ``lhp.yaml`` (the *Set the team
+policy* section above) and the same ``.lhp/profile.yaml`` (the *Declare your
+sandbox profile* section). There is no second place to configure it, and no
+opt-in beyond the switch. If there is no profile, an IDE sandbox run fails the
+same way the CLI does, with ``LHP-IO-025``.
+
+.. figure:: /_static/web-sandbox.png
+   :width: 100%
+   :alt: The lhp web header with the Sandbox toggle switched on and highlighted, an info button and a "13 pipelines" scope badge beside it, above the radio_play_bronze flowgroup graph.
+
+   The Sandbox control in the ``lhp web`` header, switched on: ① the Sandbox
+   toggle, ② the scoped-pipeline count and its info button. With the toggle on,
+   every Validate and Generate run from the IDE is a sandbox run.
+
+The clearest way to see the effect is the project map. With Sandbox **off**, the
+map draws the whole project — every pipeline and cross-pipeline edge, with a
+densely packed minimap in the corner:
+
+.. figure:: /_static/web-project-map-sandbox-off.png
+   :width: 100%
+   :alt: The lhp web project map with the Sandbox toggle off, showing the full project as dozens of pipeline chains across many domains, an "External sources (100)" filter, and a densely packed minimap in the top-right corner.
+
+   Sandbox off: the project map renders the full project — dozens of pipeline
+   chains across every domain, with the header toggle grey and the minimap dense.
+
+Turn Sandbox **on** and both the map and the explorer collapse to your slice —
+the header gains a ``13 pipelines`` scope badge and only the chains your profile
+covers are drawn:
+
+.. figure:: /_static/web-project-map-sandbox-on.png
+   :width: 100%
+   :alt: The same lhp web project map with the Sandbox toggle on, showing only the profile-scoped pipelines — a handful of domain chains plus kafka_perf_streaming, a "13 pipelines" badge in the header, and a sparse minimap.
+
+   Sandbox on: the same map scoped to the profile — the header shows the
+   in-scope count (``13 pipelines``) and only the ``kafka_perf_streaming``,
+   ``domain_a``, ``domain_b``, and ``domain_c`` chains remain, with a sparse
+   minimap.
+
+You set that scope without leaving the browser. Click the ``13 pipelines`` badge
+to open the **Sandbox scope** dialog: set your ``namespace``, tick the pipelines
+you own, and add optional glob patterns. It writes the same gitignored
+``.lhp/profile.yaml`` the CLI reads, so a scope you set here also applies to
+``lhp generate --sandbox`` from the terminal — one profile, either entry point.
+
+.. figure:: /_static/web-sandbox-settings.png
+   :width: 100%
+   :alt: The "Sandbox scope" dialog reading "Generate only your pipelines, namespaced to you. Saved to .lhp/profile.yaml (gitignored)", with a Namespace field set to mehdi, a checklist of pipelines with 13 selected, and an optional glob-patterns field, above Cancel and Save scope buttons.
+
+   The **Sandbox scope** dialog, opened from the scope badge: ① the ``namespace``,
+   ② the pipeline selection (``13 selected``), ③ optional glob patterns. Saving
+   writes ``.lhp/profile.yaml``.
+
+Nothing else on this page changes with the toggle. The read-shared, write-own
+rename rules, the ``.lhp/profile.yaml`` scope, the ``sandbox:`` policy in
+``lhp.yaml``, and the ``databricks bundle deploy`` / ``destroy`` workflow all
+apply identically whether you trigger the sandbox from the CLI flag or the
+header switch. The toggle runs at the default warning level, the same as a plain
+``lhp generate --sandbox``; to promote an in-scope read that could not be
+rewritten (``LHP-VAL-066``, ``LHP-VAL-067``) to a hard failure, run the CLI with
+``--strict``, which has no switch equivalent in this build.
+
 Where to go next
 ================
 

@@ -1,0 +1,6 @@
+# Data-quality expectations for orders_clean (mode: dqe).
+# NOTE: these run AFTER the schema transform, so they use the POST-RENAME
+# column names (order_id, total_price, order_status).
+order_id IS NOT NULL: {action: drop, name: valid_order_key}
+total_price > 0: {action: drop, name: positive_total}
+order_status IN ('O','F','P'): {action: warn, name: known_status}

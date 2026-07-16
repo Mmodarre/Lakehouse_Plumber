@@ -1,0 +1,13 @@
+# Lakehouse Plumber project configuration
+name: guide_test_reporting
+version: "1.0"
+description: "Test guide: publish test-action results to an external system."
+
+# A test_reporting provider forwards every test outcome to an external system.
+# module_path points at a Python module exporting the provider function;
+# function_name is the callable LHP invokes at pipeline terminal state;
+# config_file (optional) is a YAML file passed to the provider verbatim.
+test_reporting:
+  module_path: providers/audit_delta.py
+  function_name: publish_results
+  config_file: providers/audit_config.yaml

@@ -115,6 +115,37 @@ in your repository rather than a chat window on the side:
 Because the edits land on disk as ordinary files, everything the assistant
 writes is code you own: diff it, revert it, and commit it like anything else.
 
+.. figure:: /_static/web-assistant.png
+   :width: 100%
+   :alt: The Lakehouse Plumber web IDE assistant panel showing a completed conversation. A chat-session tab with a New-chat-tab plus button and a chat-history control sit in the panel header, next to a "42 files changed" badge. A stack of tool-activity cards traces the agent reasoning, finding the flowgroup file, and reading it. The answer is a table listing the radio_play_bronze flowgroup's six actions with their types, and a usage line at the bottom reads 26 in, 683 out, 89.0k cache, $0.12 est.
+
+   The assistant answering *show me the actions in the radio_play_bronze
+   flowgroup*: a chat-session tab and its New-chat-tab button sit at the top,
+   tool-activity cards trace the agent reasoning, finding the flowgroup file,
+   and reading it, the answer lists the flowgroup's six actions as a table, and
+   the per-turn usage line reports tokens in, out, and cache with an estimated
+   cost.
+
+Work across chat sessions
+=========================
+
+One long thread mixes unrelated work: the transform you fixed this morning and
+the write action you are debugging now share a single, ever-growing context.
+Keep them apart. The panel header carries a row of **chat-session tabs** — one
+per thread, each with its own history. Select **New chat tab** (the ``+`` next
+to the tabs) to start a fresh thread, and click a tab to switch back. The
+**chat-history** control in the header reopens earlier sessions, so a thread you
+closed is still there when you need it.
+
+See what each turn costs
+========================
+
+Every turn reports what it spent. The line at the bottom of the panel breaks
+down the turn's token use — tokens in, tokens out, and cache read — followed by
+an estimated dollar cost, for example ``26 in · 683 out · 89.0k cache · $0.12
+est.`` Watch it to catch a turn that reads far more than the task needs, or to
+compare what different providers cost you.
+
 Control what runs without asking
 ================================
 
