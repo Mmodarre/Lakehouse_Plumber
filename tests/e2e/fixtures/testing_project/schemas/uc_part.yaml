@@ -1,5 +1,6 @@
-# Schema for the uc_part_summary materialized view — per-column UC tags, used to
-# prove table + column tags can share one FQN.
+# Schema for the uc_part_summary materialized view. Per-column UC tags now live in
+# tags/uc_part.yaml (tags_file), alongside the table-level tags — proving table +
+# column tags share one FQN through a single tags_file. This file is DDL only.
 name: uc_part
 version: "1.0"
 description: "UC tagging E2E — part summary (column tags present)"
@@ -13,8 +14,6 @@ columns:
     type: STRING
     nullable: true
     comment: "Part name"
-    tags:
-      classification: confidential
   - name: p_size
     type: INT
     nullable: true
