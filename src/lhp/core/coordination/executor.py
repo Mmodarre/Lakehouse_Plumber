@@ -365,6 +365,7 @@ class PipelineExecutionService(BasePipelineExecutionService):
             project_root=project_root or Path.cwd(),
             env=env,
             packaging_modes=packaging_modes,
+            sandbox_active=worker_state.table_renames is not None,
         )
         # Commit writes UNFORMATTED source verbatim. The single terminal ruff
         # pass over the whole env tree runs on the orchestrator AFTER this
