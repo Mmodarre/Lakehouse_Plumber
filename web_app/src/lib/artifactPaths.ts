@@ -17,6 +17,7 @@ export type ArtifactKind =
   | 'source-schema'
   | 'source-python'
   | 'source-expectations'
+  | 'source-tags'
 
 export interface ArtifactRef {
   /** Project-relative path — unique per artifact (and per Monaco model). */
@@ -47,9 +48,9 @@ export interface ResolveArtifactsInput {
   sourceFilePath: string
   /** Active environment — scopes the `generated/<env>/…` lookup. */
   env: string
-  /** Files the flowgroup references. The `sql`, `schema`, `python`, and
-   * `expectations` categories are surfaced (existence-checked); anything else
-   * is ignored here. */
+  /** Files the flowgroup references. The `sql`, `schema`, `python`,
+   * `expectations`, and `tags` categories are surfaced (existence-checked);
+   * anything else is ignored here. */
   related?: RelatedArtifact[]
 }
 
@@ -64,6 +65,7 @@ const RELATED_KIND: Record<string, ArtifactKind> = {
   schema: 'source-schema',
   python: 'source-python',
   expectations: 'source-expectations',
+  tags: 'source-tags',
 }
 
 const EXT_TO_LANGUAGE: Record<string, string> = {
@@ -157,9 +159,9 @@ export function resolveArtifactPaths(
     })
   }
 
-  // 3. Referenced source files (sql / schema / python / expectations) that
-  //    actually exist — project sources shown read-only alongside the editable
-  //    yaml and the generated python.
+  // 3. Referenced source files (sql / schema / python / expectations / tags)
+  //    that actually exist — project sources shown read-only alongside the
+  //    editable yaml and the generated python.
   for (const rel of input.related ?? []) {
     const kind = RELATED_KIND[rel.category]
     if (!kind) continue

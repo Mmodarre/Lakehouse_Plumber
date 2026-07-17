@@ -38,6 +38,7 @@
 //   write_target.path                    streaming_table.py:248; models/_action.py:36
 //   write_target.table_properties        streaming_table.py:76-77; models/_action.py:27
 //   write_target.tags                    _field_catalog.py:71 (WriteTarget field; not emitted by the ST template)
+//   write_target.tags_file               core/validators/compatibility/dlt_table_options.py:82-88 (external UC tags sidecar; XOR tags)
 //   write_target.spark_conf              streaming_table.py:78; models/_action.py:32
 //   cdc_config.keys          required    core/validators/compatibility/cdc_config.py:41-52 (list)
 //   cdc_config.sequence_by               cdc_config.py:60-76 (string or list)
@@ -401,6 +402,17 @@ export const writeStreamingTableSpec: ActionSubTypeSpec = {
           label: 'Tags',
           widget: 'keyValue',
         },
+        {
+          // External UC tags sidecar (strict version/table/tags YAML). Mutually
+          // exclusive with inline `tags` (dlt_table_options.py:82-88 → LHP-CFG);
+          // the soft mutuallyExclusive rule below surfaces a both-set hint.
+          path: ['write_target', 'tags_file'],
+          label: 'Tags file',
+          widget: 'text',
+          monospace: true,
+          fileRef: { accept: ['.yaml', '.yml'] },
+          placeholder: 'tags/customer_dim.yaml',
+        },
         { path: ['write_target', 'spark_conf'], label: 'Spark conf', widget: 'keyValue' },
       ],
     },
@@ -421,6 +433,14 @@ export const writeStreamingTableSpec: ActionSubTypeSpec = {
         mode(raw) === 'snapshot_cdc'
           ? 'Snapshot CDC always creates the table — create_table is forced on.'
           : null,
+    },
+    {
+      kind: 'mutuallyExclusive',
+      paths: [
+        ['write_target', 'tags'],
+        ['write_target', 'tags_file'],
+      ],
+      message: 'Set inline tags or a tags file, not both.',
     },
     // cdc mode -----------------------------------------------------------
     {

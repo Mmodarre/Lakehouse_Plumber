@@ -36,6 +36,7 @@
 //   write_target.path                    generators/write/materialized_view.py:133
 //   write_target.table_properties        generators/write/materialized_view.py:58; dlt_table_options.py:42
 //   write_target.tags                    validators/compatibility/dlt_table_options.py:79; references/actions-write-materialized-view.md:11
+//   write_target.tags_file               validators/compatibility/dlt_table_options.py:82-88 (external UC tags sidecar; XOR tags)
 //   write_target.spark_conf              generators/write/materialized_view.py:59; dlt_table_options.py:26
 
 import type { ActionSubTypeSpec } from './types'
@@ -179,6 +180,17 @@ export const writeMaterializedViewSpec: ActionSubTypeSpec = {
           label: 'Tags',
           widget: 'keyValue',
         },
+        {
+          // External UC tags sidecar (strict version/table/tags YAML). Mutually
+          // exclusive with inline `tags` (dlt_table_options.py:82-88 → LHP-CFG);
+          // the soft mutuallyExclusive rule below surfaces a both-set hint.
+          path: [...WT, 'tags_file'],
+          label: 'Tags file',
+          widget: 'text',
+          monospace: true,
+          fileRef: { accept: ['.yaml', '.yml'] },
+          placeholder: 'tags/customer_summary.yaml',
+        },
         { path: [...WT, 'spark_conf'], label: 'Spark conf', widget: 'keyValue' },
       ],
     },
@@ -201,6 +213,14 @@ export const writeMaterializedViewSpec: ActionSubTypeSpec = {
         [...WT, 'cluster_by_auto'],
       ],
       message: 'Set only one of cluster columns / auto clustering.',
+    },
+    {
+      kind: 'mutuallyExclusive',
+      paths: [
+        [...WT, 'tags'],
+        [...WT, 'tags_file'],
+      ],
+      message: 'Set inline tags or a tags file, not both.',
     },
   ],
 }
