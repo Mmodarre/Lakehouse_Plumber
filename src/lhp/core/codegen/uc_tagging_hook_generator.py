@@ -288,7 +288,8 @@ class UCTaggingHookGenerator:
             resolved = resolve_external_file_path(
                 tags_file, self.project_root, file_type="tags file"
             )
-            declared_table, raw = parse_tags_file(resolved)
+            parsed = parse_tags_file(resolved)
+            declared_table, raw = parsed.table, parsed.tags
             if not self._sandbox_active:
                 actual_table = self._sub(str(wt("table") or ""), substitution_mgr)
                 if declared_table != actual_table:
