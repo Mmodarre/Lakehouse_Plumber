@@ -47,7 +47,9 @@ def _st_target(table="orders", **extra):
 _ENABLED = object()  # sentinel: default to an enabled uc_tagging block
 
 
-def _build(actions, uc_tagging=_ENABLED, root=None):
+def _build(
+    actions, uc_tagging=_ENABLED, root=None, sandbox_active=False, substitution_mgr=None
+):
     if uc_tagging is _ENABLED:
         uc_tagging = UCTaggingConfig()
     return build_uc_tagging_hook_files(
@@ -55,7 +57,107 @@ def _build(actions, uc_tagging=_ENABLED, root=None):
         flowgroups=[_flowgroup(actions)],
         project_config=_config(uc_tagging),
         project_root=root,
+        sandbox_active=sandbox_active,
+        substitution_mgr=substitution_mgr,
     )
+
+
+def _write_tags_file(tmp_path, rel, *, table="orders", tags=None, fmt="yaml"):
+    """Write a strict-format tags sidecar under ``tmp_path`` and return ``rel``."""
+    tags = {"team": "data-eng"} if tags is None else tags
+    path = tmp_path / rel
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if fmt == "json":
+        import json
+
+        path.write_text(json.dumps({"version": "1.0", "table": table, "tags": tags}))
+    else:
+        lines = ['version: "1.0"', f"table: {table}", "tags:"]
+        lines += [f'  {k}: "{v}"' for k, v in tags.items()]
+        path.write_text("\n".join(lines) + "\n")
+    return rel
+
+
+def _table_tags_line(content):
+    return next(
+        line for line in content.splitlines() if line.startswith("_TABLE_TAGS = ")
+    )
+
+
+@pytest.mark.unit
+class TestUCTaggingTagsFile:
+    """Task 3: table tags resolved from an external ``tags_file`` sidecar at
+    commit time, with a sandbox-aware literal ``table:`` cross-check.
+    """
+
+    def test_table_tags_from_yaml_file(self, tmp_path):
+        _write_tags_file(tmp_path, "tags/orders.yaml", tags={"team": "data-eng"})
+        action = _write_action(write_target=_st_target(tags_file="tags/orders.yaml"))
+        content = _build([action], root=tmp_path)[HOOK_FILENAME]
+        assert "_TABLE_TAGS = {'prod.sales.orders': {'team': 'data-eng'}}" in content
+
+    def test_table_tags_from_json_file(self, tmp_path):
+        _write_tags_file(
+            tmp_path, "tags/orders.json", tags={"team": "data-eng"}, fmt="json"
+        )
+        action = _write_action(write_target=_st_target(tags_file="tags/orders.json"))
+        content = _build([action], root=tmp_path)[HOOK_FILENAME]
+        assert "_TABLE_TAGS = {'prod.sales.orders': {'team': 'data-eng'}}" in content
+
+    def test_missing_file_raises_io_001(self, tmp_path):
+        action = _write_action(write_target=_st_target(tags_file="tags/missing.yaml"))
+        with pytest.raises(LHPError) as exc_info:
+            _build([action], root=tmp_path)
+        assert exc_info.value.code == "LHP-IO-001"
+
+    def test_table_mismatch_raises_cfg_067(self, tmp_path):
+        _write_tags_file(tmp_path, "tags/orders.yaml", table="other_table")
+        action = _write_action(
+            write_target=_st_target(table="orders", tags_file="tags/orders.yaml")
+        )
+        with pytest.raises(LHPError) as exc_info:
+            _build([action], root=tmp_path)
+        assert exc_info.value.code == "LHP-CFG-067"
+
+    def test_token_table_resolves_to_file_table(self, tmp_path):
+        from lhp.core.processing.substitution import EnhancedSubstitutionManager
+
+        _write_tags_file(
+            tmp_path, "tags/orders.yaml", table="orders", tags={"team": "data-eng"}
+        )
+        mgr = EnhancedSubstitutionManager()
+        mgr.mappings["tbl"] = "orders"
+        action = _write_action(
+            write_target=_st_target(table="${tbl}", tags_file="tags/orders.yaml")
+        )
+        content = _build([action], root=tmp_path, substitution_mgr=mgr)[HOOK_FILENAME]
+        assert "_TABLE_TAGS = {'prod.sales.orders': {'team': 'data-eng'}}" in content
+
+    def test_file_and_inline_byte_identical(self, tmp_path):
+        tags = {"team": "data-eng", "cost_center": "1234"}
+        _write_tags_file(tmp_path, "tags/orders.yaml", tags=tags)
+        file_action = _write_action(
+            write_target=_st_target(tags_file="tags/orders.yaml")
+        )
+        inline_action = _write_action(write_target=_st_target(tags=tags))
+        file_content = _build([file_action], root=tmp_path)[HOOK_FILENAME]
+        inline_content = _build([inline_action], root=tmp_path)[HOOK_FILENAME]
+        assert _table_tags_line(file_content) == _table_tags_line(inline_content)
+
+    def test_sandbox_skips_table_check(self, tmp_path):
+        # Deliberately non-matching table: under --sandbox the cross-check is
+        # skipped and the tags are still emitted.
+        _write_tags_file(
+            tmp_path,
+            "tags/orders.yaml",
+            table="renamed_table",
+            tags={"team": "data-eng"},
+        )
+        action = _write_action(
+            write_target=_st_target(table="orders", tags_file="tags/orders.yaml")
+        )
+        content = _build([action], root=tmp_path, sandbox_active=True)[HOOK_FILENAME]
+        assert "_TABLE_TAGS = {'prod.sales.orders': {'team': 'data-eng'}}" in content
 
 
 @pytest.mark.unit

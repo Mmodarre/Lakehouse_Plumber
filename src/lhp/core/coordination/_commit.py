@@ -185,11 +185,13 @@ def _generate_uc_tagging_hook(
     project_config: Optional["ProjectConfig"],
     project_root: Path,
     substitution_mgr: Optional["EnhancedSubstitutionManager"],
+    sandbox_active: bool = False,
 ) -> int:
     """Emit the per-pipeline UC tagging hook when tags are declared.
 
     Returns the artifact count written (0 when ``uc_tagging`` is disabled or no
     UC tags are declared). Dry-run (``output_dir is None``) emits nothing.
+    ``sandbox_active`` skips the ``tags_file`` table cross-check under ``--sandbox``.
     """
     if output_dir is None:
         return 0
@@ -200,6 +202,7 @@ def _generate_uc_tagging_hook(
         project_config=project_config,
         project_root=project_root,
         substitution_mgr=substitution_mgr,
+        sandbox_active=sandbox_active,
     )
 
 
@@ -234,6 +237,7 @@ def _commit_wheel_pipeline(
     include_tests: bool,
     env: str,
     substitution_mgr: Optional["EnhancedSubstitutionManager"],
+    sandbox_active: bool = False,
 ) -> PipelineDelta:
     """Package ONE pipeline as a deterministic wheel; synthesize its delta.
 
@@ -274,6 +278,7 @@ def _commit_wheel_pipeline(
         project_config=project_config,
         project_root=project_root,
         substitution_mgr=substitution_mgr,
+        sandbox_active=sandbox_active,
     )
     if uc_tagging_hook_files:
         extra_package_modules.update(uc_tagging_hook_files)
@@ -320,6 +325,7 @@ def commit_pipeline(
     env: str,
     packaging_mode: str = "source",
     substitution_mgr: Optional["EnhancedSubstitutionManager"] = None,
+    sandbox_active: bool = False,
     copier_factory: Callable[[], PythonFileCopier] = PythonFileCopier,
 ) -> PipelineDelta:
     """Write ONE pipeline's gate-approved outputs to disk; synthesize a delta.
@@ -349,6 +355,7 @@ def commit_pipeline(
                 include_tests=include_tests,
                 env=env,
                 substitution_mgr=substitution_mgr,
+                sandbox_active=sandbox_active,
             )
 
         copier = copier_factory()
@@ -376,6 +383,7 @@ def commit_pipeline(
             project_config=project_config,
             project_root=project_root,
             substitution_mgr=substitution_mgr,
+            sandbox_active=sandbox_active,
         )
 
     generated_filenames = _collect_generated_filenames(outcomes)
@@ -417,6 +425,7 @@ def commit_generate_results(
     project_root: Path,
     env: str,
     packaging_modes: Optional[Mapping[str, str]] = None,
+    sandbox_active: bool = False,
 ) -> Iterator[PipelineDelta]:
     """Commit every gate-approved pipeline to disk, YIELDING deltas in order.
 
@@ -446,4 +455,5 @@ def commit_generate_results(
             env=env,
             packaging_mode=modes.get(pipeline, "source"),
             substitution_mgr=substitution_managers.get(pipeline),
+            sandbox_active=sandbox_active,
         )

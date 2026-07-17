@@ -444,6 +444,58 @@ class TestConfigValidator:
         errors = validator.validate_action(action, 0)
         assert len(errors) == 0
 
+    def test_tags_and_tags_file_both_set(self):
+        validator = ConfigValidator()
+        action = Action(
+            name="write",
+            type=ActionType.WRITE,
+            source="v_data",
+            write_target={
+                "type": "streaming_table",
+                "catalog": "c",
+                "schema": "s",
+                "table": "t",
+                "tags": {"team": "x"},
+                "tags_file": "tags/t.yaml",
+            },
+        )
+        errors = validator.validate_action(action, 0)
+        assert any("cannot specify both" in error for error in errors)
+
+    def test_tags_file_non_string_dict(self):
+        validator = ConfigValidator()
+        action = Action(
+            name="write",
+            type=ActionType.WRITE,
+            source="v_data",
+            write_target={
+                "type": "streaming_table",
+                "catalog": "c",
+                "schema": "s",
+                "table": "t",
+                "tags_file": {"not": "a string"},
+            },
+        )
+        errors = validator.validate_action(action, 0)
+        assert any("must be a non-empty string" in error for error in errors)
+
+    def test_tags_file_empty_string(self):
+        validator = ConfigValidator()
+        action = Action(
+            name="write",
+            type=ActionType.WRITE,
+            source="v_data",
+            write_target={
+                "type": "streaming_table",
+                "catalog": "c",
+                "schema": "s",
+                "table": "t",
+                "tags_file": "",
+            },
+        )
+        errors = validator.validate_action(action, 0)
+        assert any("must be a non-empty string" in error for error in errors)
+
     def test_action_type_validation(self):
         validator = ConfigValidator()
 

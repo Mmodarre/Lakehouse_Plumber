@@ -21,11 +21,13 @@ def flowgroup_has_uc_tags(flowgroup: "FlowGroup") -> bool:
     """True if any taggable write action in the flowgroup may carry UC tags.
 
     Conservative by design: returns True when a streaming-table / MV write
-    target declares ``tags`` OR references a structured (YAML/JSON) ``table_schema``
-    that could hold column tags. Used by the pool to decide whether to retain a
-    resolved flowgroup for the commit-time tagging hook (so tagging works even
-    when ``include_tests`` is False). Imports nothing heavy, so it is safe to
-    call across the worker spawn boundary.
+    target declares ``tags``, references an external ``tags_file`` sidecar, OR
+    references a structured (YAML/JSON) ``table_schema`` that could hold column
+    tags. Used by the pool to decide whether to retain a resolved flowgroup for
+    the commit-time tagging hook (so tagging works even when ``include_tests``
+    is False). ``tags_file`` is resolved only at commit time, so it must be
+    honored here or a file-only-tag flowgroup would be silently dropped. Imports
+    nothing heavy, so it is safe to call across the worker spawn boundary.
     """
     from lhp.models import ActionType
 
@@ -39,6 +41,8 @@ def flowgroup_has_uc_tags(flowgroup: "FlowGroup") -> bool:
         if _get(wt, "type") not in _TAGGABLE_SUBTYPES:
             continue
         if _get(wt, "tags") is not None:
+            return True
+        if _get(wt, "tags_file"):
             return True
         table_schema = _get(wt, "table_schema")
         if isinstance(table_schema, str) and table_schema.lower().endswith(
@@ -55,16 +59,22 @@ def build_uc_tagging_hook_files(
     project_config: Optional["ProjectConfig"],
     project_root: Path,
     substitution_mgr: Optional["EnhancedSubstitutionManager"] = None,
+    sandbox_active: bool = False,
 ) -> Optional[Dict[str, str]]:
     """Build the per-pipeline tagging hook's files IN MEMORY, if applicable.
 
     Returns ``{"_uc_tagging_hook.py": <content>}`` or ``None`` when ``uc_tagging``
     is disabled or no UC tags are declared. Does NOT touch disk.
+
+    ``sandbox_active`` (True under ``--sandbox``) skips the ``tags_file`` /
+    write-target table cross-check, since sandbox renames the tables.
     """
     # Deferred import: pulls in Jinja machinery callers without tags never need.
     from .uc_tagging_hook_generator import UCTaggingHookGenerator
 
-    generator = UCTaggingHookGenerator(project_config, project_root)
+    generator = UCTaggingHookGenerator(
+        project_config, project_root, sandbox_active=sandbox_active
+    )
     return generator.build_hook_files(
         processed_flowgroups=flowgroups,
         pipeline_name=pipeline_name,
@@ -80,15 +90,21 @@ def generate_uc_tagging_hook(
     project_config: Optional["ProjectConfig"],
     project_root: Path,
     substitution_mgr: Optional["EnhancedSubstitutionManager"] = None,
+    sandbox_active: bool = False,
 ) -> int:
     """Generate the per-pipeline tagging hook artifact, if applicable.
 
     Returns the number of artifacts written (0 when ``uc_tagging`` is disabled or
     no UC tags are declared, 1 when the hook is written).
+
+    ``sandbox_active`` (True under ``--sandbox``) skips the ``tags_file`` /
+    write-target table cross-check, since sandbox renames the tables.
     """
     from .uc_tagging_hook_generator import UCTaggingHookGenerator
 
-    generator = UCTaggingHookGenerator(project_config, project_root)
+    generator = UCTaggingHookGenerator(
+        project_config, project_root, sandbox_active=sandbox_active
+    )
     content = generator.generate(
         processed_flowgroups=flowgroups,
         pipeline_name=pipeline_name,
