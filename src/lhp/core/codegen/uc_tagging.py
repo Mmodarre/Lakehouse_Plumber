@@ -14,20 +14,20 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 _TAGGABLE_SUBTYPES = {"streaming_table", "materialized_view"}
-_SCHEMA_FILE_SUFFIXES = (".yaml", ".yml", ".json")
 
 
 def flowgroup_has_uc_tags(flowgroup: "FlowGroup") -> bool:
     """True if any taggable write action in the flowgroup may carry UC tags.
 
-    Conservative by design: returns True when a streaming-table / MV write
-    target declares ``tags``, references an external ``tags_file`` sidecar, OR
-    references a structured (YAML/JSON) ``table_schema`` that could hold column
-    tags. Used by the pool to decide whether to retain a resolved flowgroup for
-    the commit-time tagging hook (so tagging works even when ``include_tests``
-    is False). ``tags_file`` is resolved only at commit time, so it must be
-    honored here or a file-only-tag flowgroup would be silently dropped. Imports
-    nothing heavy, so it is safe to call across the worker spawn boundary.
+    Returns True when a streaming-table / MV write target declares inline
+    ``tags`` or references an external ``tags_file`` sidecar. The sidecar now
+    carries BOTH table and column tags, so these two checks cover every tag
+    level; ``table_schema`` is no longer a tag source. Used by the pool to
+    decide whether to retain a resolved flowgroup for the commit-time tagging
+    hook (so tagging works even when ``include_tests`` is False). ``tags_file``
+    is resolved only at commit time, so it must be honored here or a
+    file-only-tag flowgroup would be silently dropped. Imports nothing heavy, so
+    it is safe to call across the worker spawn boundary.
     """
     from lhp.models import ActionType
 
@@ -43,11 +43,6 @@ def flowgroup_has_uc_tags(flowgroup: "FlowGroup") -> bool:
         if _get(wt, "tags") is not None:
             return True
         if _get(wt, "tags_file"):
-            return True
-        table_schema = _get(wt, "table_schema")
-        if isinstance(table_schema, str) and table_schema.lower().endswith(
-            _SCHEMA_FILE_SUFFIXES
-        ):
             return True
     return False
 

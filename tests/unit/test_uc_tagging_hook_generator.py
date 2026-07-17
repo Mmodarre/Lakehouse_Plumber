@@ -62,18 +62,41 @@ def _build(
     )
 
 
-def _write_tags_file(tmp_path, rel, *, table="orders", tags=None, fmt="yaml"):
-    """Write a strict-format tags sidecar under ``tmp_path`` and return ``rel``."""
-    tags = {"team": "data-eng"} if tags is None else tags
+_DEFAULT_TAGS = object()  # sentinel: default to {'team': 'data-eng'}
+
+
+def _write_tags_file(
+    tmp_path, rel, *, table="orders", tags=_DEFAULT_TAGS, columns=None, fmt="yaml"
+):
+    """Write a strict-format tags sidecar under ``tmp_path`` and return ``rel``.
+
+    ``tags`` defaults to ``{'team': 'data-eng'}``; pass ``tags=None`` to OMIT the
+    ``tags:`` key entirely (proves absent ≠ empty), or a dict for an explicit
+    block. ``columns`` (column-name -> tag map) is omitted when ``None``.
+    """
+    if tags is _DEFAULT_TAGS:
+        tags = {"team": "data-eng"}
     path = tmp_path / rel
     path.parent.mkdir(parents=True, exist_ok=True)
     if fmt == "json":
         import json
 
-        path.write_text(json.dumps({"version": "1.0", "table": table, "tags": tags}))
+        data = {"version": "1.0", "table": table}
+        if tags is not None:
+            data["tags"] = tags
+        if columns is not None:
+            data["columns"] = columns
+        path.write_text(json.dumps(data))
     else:
-        lines = ['version: "1.0"', f"table: {table}", "tags:"]
-        lines += [f'  {k}: "{v}"' for k, v in tags.items()]
+        lines = ['version: "1.0"', f"table: {table}"]
+        if tags is not None:
+            lines.append("tags:")
+            lines += [f'  {k}: "{v}"' for k, v in tags.items()]
+        if columns is not None:
+            lines.append("columns:")
+            for col, ctags in columns.items():
+                lines.append(f"  {col}:")
+                lines += [f'    {k}: "{v}"' for k, v in ctags.items()]
         path.write_text("\n".join(lines) + "\n")
     return rel
 
@@ -313,22 +336,15 @@ class TestUCTaggingHookGenerator:
         )[HOOK_FILENAME]
         assert "ThreadPoolExecutor(max_workers=20)" in custom
 
-    def test_column_tags_from_yaml_schema(self, tmp_path):
-        schema_file = tmp_path / "schemas" / "orders.yaml"
-        schema_file.parent.mkdir(parents=True)
-        schema_file.write_text(
-            "name: orders\n"
-            "columns:\n"
-            "  - name: id\n"
-            "    type: BIGINT\n"
-            "  - name: email\n"
-            "    type: STRING\n"
-            "    tags:\n"
-            "      classification: pii\n"
+    def test_column_tags_from_tags_file(self, tmp_path):
+        # Column tags now come from the tags_file ``columns:`` block.
+        _write_tags_file(
+            tmp_path,
+            "tags/orders.yaml",
+            tags={"team": "data-eng"},
+            columns={"email": {"classification": "pii"}},
         )
-        action = _write_action(
-            write_target=_st_target(table_schema="schemas/orders.yaml")
-        )
+        action = _write_action(write_target=_st_target(tags_file="tags/orders.yaml"))
         result = _build([action], root=tmp_path)
         assert result is not None
         content = result[HOOK_FILENAME]
@@ -336,12 +352,45 @@ class TestUCTaggingHookGenerator:
         assert "'email'" in content
         assert "'classification': 'pii'" in content
 
-    def test_column_tags_ignored_for_inline_ddl(self, tmp_path):
-        action = _write_action(
+    def test_column_tags_without_table_schema(self, tmp_path):
+        # Headline capability: column tags come from tags_file even when the write
+        # target declares NO table_schema at all.
+        _write_tags_file(
+            tmp_path,
+            "tags/orders.yaml",
+            tags={"team": "data-eng"},
+            columns={"email": {"classification": "pii"}},
+        )
+        action = _write_action(write_target=_st_target(tags_file="tags/orders.yaml"))
+        assert "table_schema" not in action.write_target
+        content = _build([action], root=tmp_path)[HOOK_FILENAME]
+        assert (
+            "_COLUMN_TAGS = {'prod.sales.orders': "
+            "{'email': {'classification': 'pii'}}}" in content
+        )
+
+    def test_table_schema_contributes_no_column_tags(self, tmp_path):
+        # table_schema is no longer a tag source: a YAML schema file with per-column
+        # tags contributes NOTHING, so with no tags/tags_file there is nothing to do.
+        schema_file = tmp_path / "schemas" / "orders.yaml"
+        schema_file.parent.mkdir(parents=True)
+        schema_file.write_text(
+            "name: orders\n"
+            "columns:\n"
+            "  - name: email\n"
+            "    type: STRING\n"
+            "    tags:\n"
+            "      classification: pii\n"
+        )
+        yaml_action = _write_action(
+            write_target=_st_target(table_schema="schemas/orders.yaml")
+        )
+        assert _build([yaml_action], root=tmp_path) is None
+        # Inline DDL likewise contributes no column tags.
+        ddl_action = _write_action(
             write_target=_st_target(table_schema="id BIGINT, email STRING")
         )
-        # Inline DDL carries no column tags, and no table tags here -> nothing to do
-        assert _build([action], root=tmp_path) is None
+        assert _build([ddl_action], root=tmp_path) is None
 
 
 @pytest.mark.unit
@@ -355,25 +404,14 @@ class TestUCTaggingHookContent:
     """
 
     def test_additive_table_and_column(self, tmp_path):
-        schema_file = tmp_path / "schemas" / "orders.yaml"
-        schema_file.parent.mkdir(parents=True)
-        schema_file.write_text(
-            "name: orders\n"
-            "columns:\n"
-            "  - name: id\n"
-            "    type: BIGINT\n"
-            "  - name: email\n"
-            "    type: STRING\n"
-            "    tags:\n"
-            "      classification: pii\n"
-            "      masked: ''\n"
+        # Both table and column tags come from ONE tags_file.
+        _write_tags_file(
+            tmp_path,
+            "tags/orders.yaml",
+            tags={"team": "data-eng", "pii": ""},
+            columns={"email": {"classification": "pii", "masked": ""}},
         )
-        action = _write_action(
-            write_target=_st_target(
-                tags={"team": "data-eng", "pii": ""},
-                table_schema="schemas/orders.yaml",
-            )
-        )
+        action = _write_action(write_target=_st_target(tags_file="tags/orders.yaml"))
         content = _build([action], root=tmp_path)[HOOK_FILENAME]
         # Table tags (key-only -> ''), column tags (incl. empty-string value),
         # additive mode. Raw render -> single-quoted repr() literals.
@@ -386,6 +424,29 @@ class TestUCTaggingHookContent:
             "{'email': {'classification': 'pii', 'masked': ''}}}" in content
         )
         assert "_REMOVE_UNDECLARED_TAGS = False" in content
+
+    def test_columns_only_tags_file_omits_table(self, tmp_path):
+        # A tags_file with a ``columns:`` block but NO ``tags:`` key. The absent
+        # ``tags:`` (parsed as None, not {}) omits the table from _TABLE_TAGS
+        # entirely — even under reconcile it is NOT emitted as a managed empty set
+        # that would wipe the table's live tags. Proves absent ≠ empty end to end.
+        _write_tags_file(
+            tmp_path,
+            "tags/orders.yaml",
+            tags=None,
+            columns={"email": {"classification": "pii"}},
+        )
+        action = _write_action(write_target=_st_target(tags_file="tags/orders.yaml"))
+        content = _build(
+            [action],
+            uc_tagging=UCTaggingConfig(remove_undeclared_tags=True),
+            root=tmp_path,
+        )[HOOK_FILENAME]
+        assert "_TABLE_TAGS = {}" in content
+        assert (
+            "_COLUMN_TAGS = {'prod.sales.orders': "
+            "{'email': {'classification': 'pii'}}}" in content
+        )
 
     def test_reconcile_with_empty_set(self, tmp_path):
         action = _write_action(write_target=_st_target(tags={}))
