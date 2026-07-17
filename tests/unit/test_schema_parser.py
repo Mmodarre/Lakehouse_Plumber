@@ -1,4 +1,5 @@
-"""Unit tests for SchemaParser column-tag extraction and validation."""
+"""Unit tests for SchemaParser schema-hints (DDL) generation and the
+column-tags migration guard."""
 
 import pytest
 import sqlglot
@@ -30,88 +31,6 @@ def _assert_well_formed_databricks_ddl(ddl: str, expected_columns: list[str]) ->
         f"parsed column identifiers {names} do not round-trip to "
         f"{expected_columns} for DDL {ddl!r}"
     )
-
-
-@pytest.mark.unit
-class TestToColumnTags:
-    def setup_method(self):
-        self.parser = SchemaParser()
-
-    def test_extracts_tags_and_normalizes_values(self):
-        schema = {
-            "name": "s",
-            "columns": [
-                {"name": "id", "type": "BIGINT"},  # no tags key -> omitted
-                {
-                    "name": "email",
-                    "type": "STRING",
-                    "tags": {"classification": "pii", "masked": "", "n": 1, "x": None},
-                },
-            ],
-        }
-        result = self.parser.to_column_tags(schema)
-        assert "id" not in result
-        assert result["email"] == {
-            "classification": "pii",
-            "masked": "",
-            "n": "1",
-            "x": "",
-        }
-
-    def test_preserves_explicit_empty_tags(self):
-        schema = {
-            "name": "s",
-            "columns": [{"name": "c", "type": "STRING", "tags": {}}],
-        }
-        assert self.parser.to_column_tags(schema) == {"c": {}}
-
-    def test_no_columns_returns_empty(self):
-        assert self.parser.to_column_tags({"name": "s"}) == {}
-
-    def test_non_dict_tags_raise_clean_error(self):
-        # A malformed `tags` (non-mapping) must raise a clean LHPError at
-        # generation time, not an AttributeError from `.items()`.
-        schema = {
-            "name": "s",
-            "columns": [{"name": "email", "type": "STRING", "tags": "pii"}],
-        }
-        with pytest.raises(LHPError) as exc_info:
-            self.parser.to_column_tags(schema)
-        message = str(exc_info.value)
-        assert "email" in message
-        assert "mapping" in message
-
-    def test_tagged_column_without_name_raises_clean_error(self):
-        # S-4: a column that carries `tags` but lacks `name` must raise a clean
-        # LHPError, not a bare KeyError from `column["name"]`.
-        schema = {
-            "name": "s",
-            "columns": [{"type": "STRING", "tags": {"classification": "pii"}}],
-        }
-        with pytest.raises(LHPError) as exc_info:
-            self.parser.to_column_tags(schema)
-        assert "name" in str(exc_info.value)
-
-
-@pytest.mark.unit
-class TestValidateSchemaColumnTags:
-    def setup_method(self):
-        self.parser = SchemaParser()
-
-    def test_valid_tags_pass(self):
-        schema = {
-            "name": "s",
-            "columns": [{"name": "c", "type": "STRING", "tags": {"a": "b"}}],
-        }
-        assert self.parser.validate_schema(schema) == []
-
-    def test_non_dict_tags_rejected(self):
-        schema = {
-            "name": "s",
-            "columns": [{"name": "c", "type": "STRING", "tags": "nope"}],
-        }
-        errors = self.parser.validate_schema(schema)
-        assert any("tags" in e and "mapping" in e for e in errors)
 
 
 @pytest.mark.unit
@@ -189,3 +108,40 @@ class TestToSchemaHints:
         }
         ddl = self.parser.to_schema_hints(schema)
         _assert_well_formed_databricks_ddl(ddl, ["gross $ amount"])
+
+
+@pytest.mark.unit
+class TestColumnTagsMigrationGuard:
+    def setup_method(self):
+        self.parser = SchemaParser()
+
+    def test_column_tags_in_schema_file_raise_val_016(self, tmp_path):
+        # Column tags are no longer a schema-file concern (they live in the
+        # write target's tags_file). A stray column `tags:` key must be a clear
+        # hard error at parse time, never a silent drop.
+        schema_file = tmp_path / "orders.yaml"
+        schema_file.write_text(
+            "name: orders\n"
+            "columns:\n"
+            "  - name: email\n"
+            "    type: STRING\n"
+            "    tags:\n"
+            "      classification: pii\n"
+        )
+        with pytest.raises(LHPError) as exc_info:
+            self.parser.parse_schema_file(schema_file)
+        assert exc_info.value.code == "LHP-VAL-016"
+
+    def test_schema_file_without_column_tags_parses_cleanly(self, tmp_path):
+        # A schema file with no column `tags:` key must parse without error.
+        schema_file = tmp_path / "orders.yaml"
+        schema_file.write_text(
+            "name: orders\n"
+            "columns:\n"
+            "  - name: id\n"
+            "    type: BIGINT\n"
+            "  - name: email\n"
+            "    type: STRING\n"
+        )
+        schema_data = self.parser.parse_schema_file(schema_file)
+        assert schema_data["name"] == "orders"
