@@ -70,13 +70,22 @@ class DltTableOptionsValidator:
         return errors
 
     def _validate_tags(self, action: Action, prefix: str) -> List[str]:
-        """Validate Unity Catalog ``tags``.
+        """Validate Unity Catalog ``tags`` / ``tags_file``.
 
-        ``tags`` absent (None) means the entity is unmanaged; an explicit empty
-        ``{}`` is a valid managed-with-empty-set signal — both pass here. Keys
-        must be strings; values must be strings or None (key-only tags).
+        ``tags`` and ``tags_file`` are mutually exclusive. ``tags`` absent (None)
+        means the entity is unmanaged; an explicit empty ``{}`` is a valid
+        managed-with-empty-set signal — both pass here. Keys must be strings;
+        values must be strings or None (key-only tags). ``tags_file`` must be a
+        non-empty string (the file itself is resolved and parsed at commit time).
         """
         tags = action.write_target.get("tags")
+        tags_file = action.write_target.get("tags_file")
+        if tags is not None and tags_file:
+            return [f"{prefix}: cannot specify both 'tags' and 'tags_file' — use one"]
+        if tags_file is not None and (
+            not isinstance(tags_file, str) or not tags_file.strip()
+        ):
+            return [f"{prefix}: 'tags_file' must be a non-empty string"]
 
         if tags is None:
             return []  # unmanaged

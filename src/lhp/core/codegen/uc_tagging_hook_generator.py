@@ -25,6 +25,7 @@ from ...core.loaders.external_file_loader import (
 )
 from ...errors import ErrorFactory, codes
 from ...parsers.schema_parser import SchemaParser
+from ...parsers.tags_file_parser import parse_tags_file
 from ...utils.file_header import write_normalized
 from ..processing.substitution import EnhancedSubstitutionManager
 from ..validators.compatibility.table_creation import action_creates_table
@@ -47,10 +48,14 @@ class UCTaggingHookGenerator:
     """Generates ``_uc_tagging_hook.py`` per pipeline."""
 
     def __init__(
-        self, project_config: Optional[ProjectConfig], project_root: Path
+        self,
+        project_config: Optional[ProjectConfig],
+        project_root: Path,
+        sandbox_active: bool = False,
     ) -> None:
         self.project_config = project_config
         self.project_root = project_root
+        self._sandbox_active = sandbox_active
         self._schema_parser = SchemaParser()
         self._jinja_env = Environment(  # nosec B701 — generates Python, not HTML
             loader=get_lhp_template_loader(),
@@ -268,10 +273,46 @@ class UCTaggingHookGenerator:
     def _collect_table_tags(self, wt, remove_undeclared_tags, substitution_mgr, fqn):
         """Normalized table tags to embed, or ``None`` to omit the table.
 
-        Returns ``{}`` (kept) for an explicit empty ``tags`` under reconcile mode;
-        ``None`` when ``tags`` is absent, or empty-and-additive (nothing to do).
+        Tags come from an external ``tags_file`` sidecar when set, else from
+        inline ``tags``. Validation guarantees at most one of the two is set
+        (§9.24), so no both-set check is needed here. When ``tags_file`` is set,
+        the sidecar's literal ``table:`` must equal the write target's table
+        name — skipped under ``--sandbox`` (``self._sandbox_active``), where
+        tables are renamed.
+
+        Returns ``{}`` (kept) for an explicit empty tag set under reconcile mode;
+        ``None`` when no tags are declared, or empty-and-additive (nothing to do).
         """
-        raw = wt("tags")
+        tags_file = wt("tags_file")
+        if tags_file:
+            resolved = resolve_external_file_path(
+                tags_file, self.project_root, file_type="tags file"
+            )
+            declared_table, raw = parse_tags_file(resolved)
+            if not self._sandbox_active:
+                actual_table = self._sub(str(wt("table") or ""), substitution_mgr)
+                if declared_table != actual_table:
+                    raise ErrorFactory.config_error(
+                        codes.CFG_067,
+                        title="Tags file table mismatch",
+                        details=(
+                            f"Tags file '{tags_file}' declares table "
+                            f"'{declared_table}', but the write target's table "
+                            f"is '{actual_table}'."
+                        ),
+                        suggestions=[
+                            "Set the tags file's 'table:' to the write target's "
+                            "table name",
+                            "Or point 'tags_file' at the sidecar for this table",
+                        ],
+                        example=f"table: {actual_table}",
+                        context={
+                            "Tags file": tags_file,
+                            "Write target table": actual_table,
+                        },
+                    )
+        else:
+            raw = wt("tags")
         if raw is None:
             return None
         normalized = self._normalize_tags(raw, substitution_mgr, context=fqn)
