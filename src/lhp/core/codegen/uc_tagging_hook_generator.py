@@ -19,12 +19,8 @@ from jinja2 import Environment
 
 from lhp.models import ActionType, ProjectConfig, UCTaggingConfig
 
-from ...core.loaders.external_file_loader import (
-    is_file_path,
-    resolve_external_file_path,
-)
+from ...core.loaders.external_file_loader import resolve_external_file_path
 from ...errors import ErrorFactory, codes
-from ...parsers.schema_parser import SchemaParser
 from ...parsers.tags_file_parser import parse_tags_file
 from ...utils.file_header import write_normalized
 from ..processing.substitution import EnhancedSubstitutionManager
@@ -36,7 +32,6 @@ logger = logging.getLogger(__name__)
 HOOK_FILENAME = "_uc_tagging_hook.py"
 
 _TAGGABLE_SUBTYPES = {"streaming_table", "materialized_view"}
-_SCHEMA_FILE_EXTS = {".yaml", ".yml", ".json"}
 
 # Map of fqn -> {tag_key: tag_value}
 TableTags = Dict[str, Dict[str, str]]
@@ -56,7 +51,6 @@ class UCTaggingHookGenerator:
         self.project_config = project_config
         self.project_root = project_root
         self._sandbox_active = sandbox_active
-        self._schema_parser = SchemaParser()
         self._jinja_env = Environment(  # nosec B701 — generates Python, not HTML
             loader=get_lhp_template_loader(),
             keep_trailing_newline=True,
@@ -228,26 +222,6 @@ class UCTaggingHookGenerator:
             ],
         )
 
-    def _load_column_tags(self, table_schema) -> Dict[str, Dict[str, str]]:
-        """Load column tags from a YAML/JSON ``table_schema`` file, else ``{}``.
-
-        Column tags are only honored for structured schema files (.yaml/.yml/
-        .json); ``.sql``/``.ddl`` files and inline DDL strings carry no per-column
-        tag structure and are skipped.
-        """
-        if not table_schema or not isinstance(table_schema, str):
-            return {}
-        if not is_file_path(table_schema):
-            return {}
-        if Path(table_schema).suffix.lower() not in _SCHEMA_FILE_EXTS:
-            return {}
-
-        resolved = resolve_external_file_path(
-            table_schema, self.project_root, file_type="table schema file"
-        )
-        schema_data = self._schema_parser.parse_schema_file(resolved)
-        return self._schema_parser.to_column_tags(schema_data)
-
     def _iter_taggable_writes(self, processed_flowgroups, substitution_mgr):
         """Yield ``(write_target_getter, fqn)`` for each WRITE action that creates a
         taggable (streaming_table / materialized_view), non-temporary table with a
@@ -270,18 +244,18 @@ class UCTaggingHookGenerator:
 
                 yield wt, self._sub(f"{catalog}.{schema}.{table}", substitution_mgr)
 
-    def _collect_table_tags(self, wt, remove_undeclared_tags, substitution_mgr, fqn):
-        """Normalized table tags to embed, or ``None`` to omit the table.
+    def _collect_raw_tags(self, wt, substitution_mgr):
+        """Raw ``(table_tags, column_tags)`` for one write target, single-sourced.
 
-        Tags come from an external ``tags_file`` sidecar when set, else from
-        inline ``tags``. Validation guarantees at most one of the two is set
-        (§9.24), so no both-set check is needed here. When ``tags_file`` is set,
-        the sidecar's literal ``table:`` must equal the write target's table
-        name — skipped under ``--sandbox`` (``self._sandbox_active``), where
-        tables are renamed.
-
-        Returns ``{}`` (kept) for an explicit empty tag set under reconcile mode;
-        ``None`` when no tags are declared, or empty-and-additive (nothing to do).
+        When ``tags_file`` is set, the sidecar is the sole source of BOTH table
+        and column tags: its ``tags:`` block (``None`` when the key is absent,
+        ``{}`` for an explicit empty set — absent ≠ empty) and its ``columns:``
+        block. The sidecar's literal ``table:`` must equal the write target's
+        table name — skipped under ``--sandbox`` (``self._sandbox_active``),
+        where tables are renamed. Otherwise inline ``tags`` supplies table tags
+        only; inline DDL / ``table_schema`` carries no column tags, so column
+        tags are always ``{}`` on the inline path. Validation guarantees at most
+        one of ``tags`` / ``tags_file`` is set (§9.24).
         """
         tags_file = wt("tags_file")
         if tags_file:
@@ -289,16 +263,15 @@ class UCTaggingHookGenerator:
                 tags_file, self.project_root, file_type="tags file"
             )
             parsed = parse_tags_file(resolved)
-            declared_table, raw = parsed.table, parsed.tags
             if not self._sandbox_active:
                 actual_table = self._sub(str(wt("table") or ""), substitution_mgr)
-                if declared_table != actual_table:
+                if parsed.table != actual_table:
                     raise ErrorFactory.config_error(
                         codes.CFG_067,
                         title="Tags file table mismatch",
                         details=(
                             f"Tags file '{tags_file}' declares table "
-                            f"'{declared_table}', but the write target's table "
+                            f"'{parsed.table}', but the write target's table "
                             f"is '{actual_table}'."
                         ),
                         suggestions=[
@@ -312,27 +285,24 @@ class UCTaggingHookGenerator:
                             "Write target table": actual_table,
                         },
                     )
-        else:
-            raw = wt("tags")
-        if raw is None:
+            return parsed.tags, parsed.columns
+        return wt("tags"), {}
+
+    def _finalize_tags(self, raw_table, remove_undeclared_tags, substitution_mgr, fqn):
+        """Normalized table tags to embed, or ``None`` to omit the table.
+
+        ``raw_table`` is ``None`` when no ``tags:`` were declared (absent
+        ``tags:`` key in a sidecar, or an inline write target without ``tags``)
+        → returns ``None`` so the table is omitted from ``_TABLE_TAGS``. An
+        explicit empty set (``{}``) is kept under ``remove_undeclared_tags`` (a
+        managed empty set that reconcile wipes) and dropped otherwise.
+        """
+        if raw_table is None:
             return None
-        normalized = self._normalize_tags(raw, substitution_mgr, context=fqn)
+        normalized = self._normalize_tags(raw_table, substitution_mgr, context=fqn)
         if normalized or remove_undeclared_tags:
             return normalized
         return None
-
-    def _collect_column_tags(self, wt, remove_undeclared_tags, substitution_mgr, fqn):
-        """Normalized ``{column: {k: v}}`` for the action's schema file; columns are
-        kept only when they have tags (or under reconcile mode, an empty set).
-        """
-        kept: Dict[str, Dict[str, str]] = {}
-        for col, tags in self._load_column_tags(wt("table_schema")).items():
-            normalized = self._normalize_tags(
-                tags, substitution_mgr, context=f"{fqn}.{col}"
-            )
-            if normalized or remove_undeclared_tags:
-                kept[col] = normalized
-        return kept
 
     def _build_tag_maps(
         self,
@@ -346,15 +316,20 @@ class UCTaggingHookGenerator:
         for wt, fqn in self._iter_taggable_writes(
             processed_flowgroups, substitution_mgr
         ):
-            tbl = self._collect_table_tags(
-                wt, remove_undeclared_tags, substitution_mgr, fqn
+            raw_table, raw_columns = self._collect_raw_tags(wt, substitution_mgr)
+            tbl = self._finalize_tags(
+                raw_table, remove_undeclared_tags, substitution_mgr, fqn
             )
             if tbl is not None:
                 table_tags[fqn] = tbl
 
-            cols = self._collect_column_tags(
-                wt, remove_undeclared_tags, substitution_mgr, fqn
-            )
+            cols: Dict[str, Dict[str, str]] = {}
+            for col, ctags in raw_columns.items():
+                normalized = self._normalize_tags(
+                    ctags, substitution_mgr, context=f"{fqn}.{col}"
+                )
+                if normalized or remove_undeclared_tags:
+                    cols[col] = normalized
             if cols:
                 column_tags[fqn] = cols
 

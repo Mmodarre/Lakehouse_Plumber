@@ -3,7 +3,9 @@
 The pool uses this predicate to decide whether to keep a resolved flowgroup for
 the commit-time tagging hook when ``include_tests`` is False. ``tags_file`` is
 resolved only at commit time, so it must count as a tag source here — otherwise
-a file-only-tag flowgroup is silently dropped.
+a file-only-tag flowgroup is silently dropped. Both table and column tags now
+live in inline ``tags`` / the ``tags_file`` sidecar; ``table_schema`` is no
+longer a tag source, so a ``table_schema``-only flowgroup is NOT retained.
 """
 
 import pytest
@@ -41,6 +43,13 @@ class TestFlowgroupHasUCTags:
 
     def test_tags_file_only_true(self):
         assert flowgroup_has_uc_tags(_fg(_st(tags_file="tags/orders.yaml"))) is True
+
+    def test_table_schema_only_false(self):
+        # table_schema is no longer a column-tag source, so a table_schema-only
+        # flowgroup (no tags / tags_file) is NOT retained.
+        assert (
+            flowgroup_has_uc_tags(_fg(_st(table_schema="schemas/orders.yaml"))) is False
+        )
 
     def test_neither_false(self):
         assert flowgroup_has_uc_tags(_fg(_st())) is False
