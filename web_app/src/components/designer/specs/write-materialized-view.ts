@@ -181,9 +181,10 @@ export const writeMaterializedViewSpec: ActionSubTypeSpec = {
           widget: 'keyValue',
         },
         {
-          // External UC tags sidecar (strict version/table/tags YAML). Mutually
-          // exclusive with inline `tags` (dlt_table_options.py:82-88 → LHP-CFG);
-          // the soft mutuallyExclusive rule below surfaces a both-set hint.
+          // External UC tags sidecar (strict version/table/tags[/columns] YAML;
+          // the single source of column-level tags). Mutually exclusive with
+          // inline `tags` (dlt_table_options.py:82-88 → LHP-CFG); the soft
+          // mutuallyExclusive rule below surfaces a both-set hint.
           path: [...WT, 'tags_file'],
           label: 'Tags file',
           widget: 'text',
