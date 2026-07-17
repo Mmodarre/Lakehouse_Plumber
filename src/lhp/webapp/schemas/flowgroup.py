@@ -206,7 +206,7 @@ class RelatedFileInfo(BaseModel):
     """A file referenced by a flowgroup action."""
 
     path: str
-    category: str  # "sql" | "python" | "schema" | "expectations"
+    category: str  # "sql" | "python" | "schema" | "expectations" | "tags"
     action_name: str
     field: str
     exists: bool

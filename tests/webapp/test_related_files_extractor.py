@@ -349,6 +349,67 @@ class TestWriteTargetFields:
         assert result[0].category == "python"
 
 
+class TestWriteTargetTagsFile:
+    """Extracts write_target.tags_file into the 'tags' category."""
+
+    def test_extracts_write_target_tags_file(self, tmp_path: Path):
+        (tmp_path / "tags").mkdir()
+        (tmp_path / "tags" / "table_tags.yaml").write_text("owner: data-eng")
+
+        fg = _make_fg(
+            [
+                _make_action(
+                    write_target={
+                        "type": "streaming_table",
+                        "tags_file": "tags/table_tags.yaml",
+                    }
+                )
+            ]
+        )
+        result = extract_related_files(fg, tmp_path)
+
+        assert len(result) == 1
+        assert result[0].path == "tags/table_tags.yaml"
+        assert result[0].category == "tags"
+        assert result[0].field == "write_target.tags_file"
+        assert result[0].exists is True
+
+    def test_write_target_tags_file_missing_marked_false(self, tmp_path: Path):
+        fg = _make_fg(
+            [
+                _make_action(
+                    write_target={
+                        "type": "streaming_table",
+                        "tags_file": "tags/absent.yaml",
+                    }
+                )
+            ]
+        )
+        result = extract_related_files(fg, tmp_path)
+
+        assert len(result) == 1
+        assert result[0].path == "tags/absent.yaml"
+        assert result[0].category == "tags"
+        assert result[0].field == "write_target.tags_file"
+        assert result[0].exists is False
+
+    def test_write_target_inline_tags_ignored(self, tmp_path: Path):
+        """An inline tags dict is not a file reference — yields nothing."""
+        fg = _make_fg(
+            [
+                _make_action(
+                    write_target={
+                        "type": "streaming_table",
+                        "tags": {"owner": "data-eng", "layer": "silver"},
+                    }
+                )
+            ]
+        )
+        result = extract_related_files(fg, tmp_path)
+
+        assert result == []
+
+
 class TestSqlAndPythonTogether:
     """A flowgroup referencing both a SQL file and a python source."""
 
