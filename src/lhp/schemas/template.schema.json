@@ -425,7 +425,7 @@
                 },
                 "tags_file": {
                     "type": "string",
-                    "description": "Path to an external UC tags file (strict version/table/tags format). Mutually exclusive with 'tags'."
+                    "description": "Path to an external UC tags file (strict version/table/tags[/columns] format; the single source of column-level tags). Mutually exclusive with 'tags'."
                 },
                 "table_schema": {
                     "type": "string",

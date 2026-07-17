@@ -68,7 +68,7 @@ These ``write_target`` fields apply to ``streaming_table`` and
    * - ``tags_file``
      - string
      - —
-     - Path to an external UC tags file (strict ``version``/``table``/``tags`` format). Mutually exclusive with ``tags``.
+     - Path to an external UC tags file (strict ``version``/``table``/``tags``/``columns`` format). Mutually exclusive with ``tags``.
    * - ``partition_columns``
      - list
      - —
@@ -111,17 +111,17 @@ Unity Catalog tags
 ==================
 
 .. versionadded:: 0.9.1
-   The external ``tags_file`` field.
+   The external ``tags_file`` field, and its ``columns:`` block as the single
+   source of column-level tags.
 
 A ``streaming_table`` or ``materialized_view`` write target can carry Unity
-Catalog tags at the table level (a ``tags`` mapping on ``write_target``, or an
-external ``tags_file``) and at the column level (a ``tags`` mapping on the
-columns of a YAML/JSON schema file referenced by ``table_schema`` — not
-``.sql``/``.ddl`` or inline DDL). Because Lakeflow Spark Declarative Pipelines
-(SDP) cannot set UC tags as part of table creation, Lakehouse Plumber (LHP)
-collects every declared tag and emits one per-pipeline ``_uc_tagging_hook.py``
-that applies them through the Unity Catalog *Entity Tag Assignments* REST API
-rather than table DDL.
+Catalog tags at the table level (a ``tags`` mapping on ``write_target``, or the
+``tags:`` block of an external ``tags_file``) and at the column level (the
+``columns:`` block of a ``tags_file`` — see :ref:`uc-tags-file` below). Because
+Lakeflow Spark Declarative Pipelines (SDP) cannot set UC tags as part of table
+creation, Lakehouse Plumber (LHP) collects every declared tag and emits one
+per-pipeline ``_uc_tagging_hook.py`` that applies them through the Unity Catalog
+*Entity Tag Assignments* REST API rather than table DDL.
 
 .. code-block:: yaml
 
@@ -196,24 +196,38 @@ the first ``RUNNING`` event, and tagging then proceeds create-only.
    ``system.information_schema`` to read existing tag state. LHP does not verify
    these grants; a missing grant surfaces as an event-log warning at run time.
 
+.. _uc-tags-file:
+
 UC tags file
 ------------
 
 ``tags_file`` points at an external sidecar in a strict format and is mutually
-exclusive with an inline ``tags`` mapping. The file must be a mapping with
-exactly three keys — ``version`` (``"1.0"`` or ``"1.0.0"``), ``table`` (the
-fully-qualified write target), and ``tags`` (a mapping of ``key: value``, which
-may be empty). Any other top-level key, a missing key, an unsupported
-``version``, or a wrong-typed ``table``/``tags`` raises ``LHP-CFG-067``.
+exclusive with an inline ``tags`` mapping. It is the single source of
+column-level tags. The file must be a mapping whose only keys are ``version``
+(required — ``"1.0"`` or ``"1.0.0"``), ``table`` (required — the
+fully-qualified write target), ``tags`` (optional — table-level tags), and
+``columns`` (optional — column-level tags); at least one of ``tags`` or
+``columns`` must be present. ``tags`` is a mapping of ``key: value`` (may be
+empty); ``columns`` maps each column name to its own ``{key: value}`` mapping.
+A value of ``""``, ``~``, or an omitted value is a key-only tag, at either
+level. ``LHP-CFG-067`` is raised for any unknown or missing top-level key, an
+unsupported ``version``, a wrong-typed ``table``/``tags``, a ``columns`` that
+is not a mapping, a column whose value is not a mapping, a non-string column
+name, or a file that declares neither ``tags`` nor ``columns``.
 
 .. code-block:: yaml
+   :caption: tags/orders.yaml
 
-   # tags/orders.yaml
    version: "1.0"
    table: main.silver.orders
-   tags:
+   tags:                       # table-level tags (optional)
      team: platform
      cost_center: "1234"
+   columns:                    # column-level tags (optional)
+     email:
+       pii: high
+     region:
+       classification: public
 
 .. code-block:: yaml
 
@@ -236,6 +250,14 @@ the renamed table.
 Because a preset's ``tags`` default deep-merges into the write target before
 validation, pairing a preset ``tags`` default with a flowgroup ``tags_file`` is
 rejected as both-set (``cannot specify both 'tags' and 'tags_file'``).
+
+.. note::
+
+   Column tags come only from the ``tags_file`` ``columns:`` block. A schema
+   file referenced by ``table_schema`` must not carry a column ``tags:`` key —
+   ``lhp generate`` raises ``LHP-VAL-016`` if it does, rather than silently
+   dropping it. (``lhp validate`` runs no code generation, so the error
+   surfaces at generate time.)
 
 Streaming table
 ===============

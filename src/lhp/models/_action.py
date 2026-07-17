@@ -27,7 +27,7 @@ class WriteTarget(BaseModel):
     table_properties: Optional[Dict[str, Any]] = None
     tags: Optional[Dict[str, Optional[str]]] = None
     tags_file: Optional[str] = (
-        None  # Path to external UC tags file (strict version/table/tags format)
+        None  # Path to external UC tags file (strict version/table/tags[/columns] format)
     )
     partition_columns: Optional[List[str]] = None
     cluster_columns: Optional[List[str]] = None
