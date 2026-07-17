@@ -416,6 +416,17 @@
                     "type": "string",
                     "description": "Table schema (legacy, use 'table_schema' instead. Can use template parameters with {{ }})"
                 },
+                "tags": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": ["string", "null"]
+                    },
+                    "description": "UC tags; applied during the run via the tagging hook."
+                },
+                "tags_file": {
+                    "type": "string",
+                    "description": "Path to an external UC tags file (strict version/table/tags format). Mutually exclusive with 'tags'."
+                },
                 "table_schema": {
                     "type": "string",
                     "description": "Table schema definition (DDL string or external file path. Can use template parameters with {{ }})"

@@ -598,6 +598,10 @@
                     },
                     "description": "UC tags; applied during the run via the tagging hook."
                 },
+                "tags_file": {
+                    "type": "string",
+                    "description": "Path to an external UC tags file (strict version/table/tags format). Mutually exclusive with 'tags'."
+                },
                 "partition_columns": {
                     "type": "array",
                     "items": {

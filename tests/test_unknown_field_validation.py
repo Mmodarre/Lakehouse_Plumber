@@ -162,6 +162,47 @@ class TestUnknownFieldValidation:
             in str(exc_info.value)
         )
 
+    def test_streaming_table_tags_file_valid(self):
+        """tags_file is a known field on streaming table write targets."""
+        write_target = {
+            "type": "streaming_table",
+            "catalog": "catalog",
+            "schema": "schema",
+            "table": "my_table",
+            "tags_file": "tags/orders_tags.yaml",
+        }
+
+        self.validator.validate_write_target(write_target, "test_action")
+
+    def test_materialized_view_tags_file_valid(self):
+        """tags_file is a known field on materialized view write targets."""
+        write_target = {
+            "type": "materialized_view",
+            "catalog": "catalog",
+            "schema": "schema",
+            "table": "my_view",
+            "sql": "SELECT * FROM source_table",
+            "tags_file": "tags/mv_tags.yaml",
+        }
+
+        self.validator.validate_write_target(write_target, "test_action")
+
+    def test_sink_rejects_tags_file(self):
+        """tags_file is unknown for sink write targets and must be rejected."""
+        write_target = {
+            "type": "sink",
+            "sink_type": "delta",
+            "sink_name": "external_delta",
+            "tags_file": "tags/sink_tags.yaml",
+        }
+
+        with pytest.raises(LHPError) as exc_info:
+            self.validator.validate_write_target(write_target, "test_action")
+
+        error = exc_info.value
+        assert error.code == "LHP-CFG-001"
+        assert "Unknown field 'tags_file' in write target (sink)" in str(error)
+
     def test_valid_action_fields(self):
         """Test valid action fields pass validation."""
         action_dict = {
