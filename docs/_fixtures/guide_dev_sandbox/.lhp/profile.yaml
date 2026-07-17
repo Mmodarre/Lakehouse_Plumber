@@ -1,0 +1,7 @@
+# Personal sandbox profile. In a real project .lhp/ is gitignored, so this file
+# never reaches version control — every developer keeps their own. It is tracked
+# HERE only so the guide can show it.
+sandbox:
+  namespace: alice
+  pipelines:
+    - bronze_*        # glob: every pipeline whose name starts with bronze_
