@@ -12,6 +12,7 @@ from lhp.models import (
     TestActionType,
     TransformType,
     ViolationAction,
+    WriteTarget,
     WriteTargetType,
 )
 
@@ -64,6 +65,31 @@ class TestModels:
             depends_on=["cat.sch.tbl"],
         )
         assert action.depends_on == ["cat.sch.tbl"]
+
+    def test_write_target_accepts_tags_file(self):
+        write_target = WriteTarget(
+            type=WriteTargetType.STREAMING_TABLE,
+            table="my_table",
+            tags_file="tags/orders_tags.yaml",
+        )
+        assert write_target.tags_file == "tags/orders_tags.yaml"
+
+    def test_write_target_tags_file_path_normalized(self):
+        """Backslashes in write_target tags_file are normalized (mirrors table_schema)."""
+        action = Action(
+            name="write_with_tags_file",
+            type=ActionType.WRITE,
+            target="my_table",
+            write_target={
+                "type": "streaming_table",
+                "catalog": "c",
+                "schema": "s",
+                "table": "my_table",
+                "tags_file": "tags\\orders_tags.yaml",
+            },
+        )
+        assert isinstance(action.write_target, dict)
+        assert action.write_target["tags_file"] == "tags/orders_tags.yaml"
 
     def test_flowgroup_model(self):
         flowgroup = FlowGroup(
