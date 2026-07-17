@@ -1,0 +1,6 @@
+version: 1.0.0
+table: uc_orders
+tags:
+  team: data-eng
+  pii: ''
+  owner:

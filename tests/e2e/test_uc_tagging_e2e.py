@@ -140,3 +140,108 @@ class TestUCTaggingE2E:
         assert not hook_file.exists(), (
             "Hook file should NOT exist when uc_tagging is disabled"
         )
+
+
+# Sandbox profile scoping the run to just the tags_file flowgroup's pipeline.
+SANDBOX_TAGS_FILE_PROFILE = """sandbox:
+  namespace: sbx
+  pipelines:
+    - uc_tagging_core
+"""
+
+# Team policy appended to the copy's lhp.yaml: the DEFAULT pattern stated
+# explicitly, plus allowed_envs so dev is positively sandbox-enabled.
+SANDBOX_TAGS_FILE_POLICY = """
+sandbox:
+  strategy: table
+  table_pattern: "{namespace}_{table}"
+  allowed_envs:
+    - dev
+"""
+
+
+@pytest.mark.e2e
+class TestUCTaggingTagsFileSandboxE2E:
+    """Sandbox smoke for a write target that sources its tags from a ``tags_file``.
+
+    ``uc_tag_orders.write_orders`` references ``tags_file: tags/uc_orders.yaml``,
+    whose sidecar declares ``table: uc_orders``. Under ``--sandbox`` the write
+    target is renamed (``uc_orders`` -> ``sbx_uc_orders``) before the tagging hook
+    runs, so the sidecar's literal ``table:`` no longer equals the write target's
+    (renamed) table name. The commit-time table cross-check is skipped under
+    sandbox (Task 3), so generation must still succeed and the hook must carry the
+    resolved tags keyed by the RENAMED FQN — proving the cross-check does not
+    spuriously fail when the table has been namespaced.
+    """
+
+    __test__ = True
+
+    @pytest.fixture(autouse=True)
+    def setup_test_project(self, isolated_project):
+        fixture_path = Path(__file__).parent / "fixtures" / "testing_project"
+        self.project_root = isolated_project / "test_project"
+        shutil.copytree(fixture_path, self.project_root)
+
+        self.original_cwd = os.getcwd()
+        os.chdir(self.project_root)
+
+        self.generated_dir = self.project_root / "generated" / "dev"
+        self.resources_dir = self.project_root / "resources" / "lhp"
+
+        if self.generated_dir.exists():
+            shutil.rmtree(self.generated_dir)
+        self.generated_dir.mkdir(parents=True, exist_ok=True)
+        if self.resources_dir.exists():
+            shutil.rmtree(self.resources_dir)
+        self.resources_dir.mkdir(parents=True, exist_ok=True)
+
+        lhp_dir = self.project_root / ".lhp"
+        lhp_dir.mkdir()
+        (lhp_dir / "profile.yaml").write_text(SANDBOX_TAGS_FILE_PROFILE)
+        lhp_yaml = self.project_root / "lhp.yaml"
+        lhp_yaml.write_text(lhp_yaml.read_text() + SANDBOX_TAGS_FILE_POLICY)
+
+        yield
+        os.chdir(self.original_cwd)
+
+    def run_sandbox_generate(self) -> tuple:
+        """Run `lhp generate --env dev --sandbox` with the project pipeline config."""
+        runner = CliRunner()
+        result = runner.invoke(
+            cli,
+            [
+                "generate",
+                "--env",
+                "dev",
+                "--pipeline-config",
+                "config/pipeline_config.yaml",
+                "--sandbox",
+            ],
+        )
+        return result.exit_code, result.output
+
+    def test_tags_file_sandbox_skips_table_cross_check(self):
+        """tags_file resolves under sandbox against the renamed table (no CFG-067)."""
+        exit_code, output = self.run_sandbox_generate()
+        assert exit_code == 0, f"Sandbox generation should succeed: {output}"
+
+        hook_file = self.generated_dir / "uc_tagging_core" / "_uc_tagging_hook.py"
+        assert hook_file.exists(), (
+            "_uc_tagging_hook.py should be generated under sandbox"
+        )
+        content = hook_file.read_text()
+
+        # Tags resolve, keyed by the sandbox-renamed FQN (uc_orders -> sbx_uc_orders).
+        assert "acme_edw_dev.edw_bronze.sbx_uc_orders" in content, (
+            "Tags must be keyed by the renamed FQN under sandbox"
+        )
+        assert '"team": "data-eng"' in content
+        assert '"pii": ""' in content
+        assert '"owner": ""' in content
+
+        # The un-renamed table name must be gone from the tag keys — proof the
+        # rename applied and the cross-check (which would have compared the
+        # sidecar's 'uc_orders' against 'sbx_uc_orders') was skipped.
+        assert "edw_bronze.uc_orders" not in content, (
+            "The unrenamed uc_orders FQN must not appear once the table is namespaced"
+        )

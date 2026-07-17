@@ -23,7 +23,4 @@ actions:
       database: "{catalog}.{bronze_schema}"
       table: uc_orders
       table_schema: schemas/uc_orders.yaml
-      tags:
-        team: data-eng
-        pii: ''
-        owner:
+      tags_file: tags/uc_orders.yaml
