@@ -73,7 +73,7 @@ export type FlowgroupActionSummary = Schemas['FlowgroupActionSummary']
 // file categories (the wire type is a plain string).
 export interface RelatedFileInfo
   extends Omit<Schemas['RelatedFileInfo'], 'category'> {
-  category: 'sql' | 'python' | 'schema' | 'expectations'
+  category: 'sql' | 'python' | 'schema' | 'expectations' | 'tags'
 }
 
 export interface FlowgroupRelatedFilesResponse

@@ -184,6 +184,26 @@ describe('resolveArtifactPaths', () => {
     expect(refs.some((r) => r.kind === 'source-expectations')).toBe(false)
   })
 
+  it('includes a referenced tags file that exists, marked read-only yaml', () => {
+    const tags = 'tags/customer_dim.yaml'
+    const related: RelatedArtifact[] = [{ path: tags, category: 'tags' }]
+    const refs = resolveArtifactPaths({ ...base, related }, [SOURCE, tags])
+    const tagsRef = refs.find((r) => r.kind === 'source-tags')
+    expect(tagsRef).toMatchObject({
+      path: tags,
+      label: 'customer_dim.yaml',
+      editable: false,
+      chip: 'read-only',
+      language: 'yaml',
+    })
+  })
+
+  it('excludes a referenced tags file that does not exist on disk', () => {
+    const related: RelatedArtifact[] = [{ path: 'tags/missing.yaml', category: 'tags' }]
+    const refs = resolveArtifactPaths({ ...base, related }, [SOURCE])
+    expect(refs.some((r) => r.kind === 'source-tags')).toBe(false)
+  })
+
   it('ignores unknown related categories', () => {
     const related: RelatedArtifact[] = [{ path: 'notes/readme.md', category: 'docs' }]
     const refs = resolveArtifactPaths({ ...base, related }, [SOURCE, 'notes/readme.md'])

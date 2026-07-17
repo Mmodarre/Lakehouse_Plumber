@@ -1,6 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { AlertTriangle, FileCheck, FileCode2, FileText, Loader2 } from 'lucide-react'
+import { AlertTriangle, FileCheck, FileCode2, FileText, Loader2, Tags } from 'lucide-react'
 import { fetchFileContentWithMeta } from '../../../api/files'
 import { fetchFlowgroupRelatedFiles } from '../../../api/flowgroups'
 import { useFileList } from '../../../hooks/useFiles'
@@ -69,6 +69,8 @@ function iconFor(kind: ArtifactRef['kind']) {
       return FileCode2
     case 'source-expectations':
       return FileCheck
+    case 'source-tags':
+      return Tags
     default:
       return FileText
   }
