@@ -64,7 +64,11 @@ These ``write_target`` fields apply to ``streaming_table`` and
    * - ``tags``
      - dict
      - —
-     - UC tags ``{key: value}``; applied by a generated tagging hook (REST API), not table DDL.
+     - UC tags ``{key: value}``; applied by a generated tagging hook (REST API), not table DDL. See Unity Catalog tags below.
+   * - ``tags_file``
+     - string
+     - —
+     - Path to an external UC tags file (strict ``version``/``table``/``tags`` format). Mutually exclusive with ``tags``.
    * - ``partition_columns``
      - list
      - —
@@ -102,6 +106,136 @@ Action-level ``once: true`` emits ``once=True`` on the flow. Action-level
 ``readMode: batch`` switches a standard append flow from
 ``spark.readStream.table(...)`` to ``spark.read.table(...)`` (default
 ``stream``).
+
+Unity Catalog tags
+==================
+
+.. versionadded:: 0.9.1
+   The external ``tags_file`` field.
+
+A ``streaming_table`` or ``materialized_view`` write target can carry Unity
+Catalog tags at the table level (a ``tags`` mapping on ``write_target``, or an
+external ``tags_file``) and at the column level (a ``tags`` mapping on the
+columns of a YAML/JSON schema file referenced by ``table_schema`` — not
+``.sql``/``.ddl`` or inline DDL). Because Lakeflow Spark Declarative Pipelines
+(SDP) cannot set UC tags as part of table creation, Lakehouse Plumber (LHP)
+collects every declared tag and emits one per-pipeline ``_uc_tagging_hook.py``
+that applies them through the Unity Catalog *Entity Tag Assignments* REST API
+rather than table DDL.
+
+.. code-block:: yaml
+
+   - name: write_orders_silver
+     type: write
+     source: v_orders_bronze
+     write_target:
+       type: streaming_table
+       catalog: "${catalog}"
+       schema: "${silver_schema}"
+       table: orders
+       tags:
+         team: platform
+         cost_center: "1234"
+         pii: ""            # key-only tag: "", ~, or an omitted value
+
+The feature is on by default; declaring ``tags`` (or ``tags_file``) opts a table
+in. Set ``uc_tagging.enabled: false`` in ``lhp.yaml`` to disable it. Only the
+table-creating action is tagged (``create_table: true``); temporary tables and
+sinks are excluded.
+
+uc_tagging config block
+-----------------------
+
+The optional ``uc_tagging`` block in ``lhp.yaml`` tunes the hook:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 30 14 12 44
+
+   * - Key
+     - Type
+     - Default
+     - Notes
+   * - ``enabled``
+     - bool
+     - ``true``
+     - Set ``false`` to disable tag generation entirely.
+   * - ``remove_undeclared_tags``
+     - bool
+     - ``false``
+     - ``false`` is additive (create/update declared tags only); ``true``
+       reconciles to the declared set, deleting existing tags whose key is not
+       declared for a managed entity. An explicit ``tags: {}`` then means
+       "managed with an empty set".
+   * - ``tag_update_concurrency``
+     - int
+     - ``16``
+     - Max concurrent tag operations (range 1–20).
+
+How the hook applies tags
+-------------------------
+
+The generated hook runs as a ``@dp.on_event_hook`` during the pipeline update.
+It fires on ``update_progress`` ``RUNNING`` — when streaming tables already
+exist — and on the terminal states, which catch materialized views that
+materialize later; each entity is tagged at most once. Tagging is best-effort
+and non-blocking: tag-write failures surface as pipeline event-log warnings and
+never fail the update (event hooks cannot). Key-only tags use ``""``, ``~``, or
+an omitted value.
+
+Existing tag state is read once at module import with a single
+``system.information_schema`` query (``table_tags`` ``UNION ALL``
+``column_tags``); a read failure is caught at import, re-raised as a warning on
+the first ``RUNNING`` event, and tagging then proceeds create-only.
+
+.. important::
+
+   Unity Catalog requires the pipeline's run-as identity to hold ``APPLY TAG``
+   on the table and ``ASSIGN`` on any required governed tags to write tags via
+   the REST API, plus ``USE CATALOG``, ``USE SCHEMA``, and ``SELECT`` on
+   ``system.information_schema`` to read existing tag state. LHP does not verify
+   these grants; a missing grant surfaces as an event-log warning at run time.
+
+UC tags file
+------------
+
+``tags_file`` points at an external sidecar in a strict format and is mutually
+exclusive with an inline ``tags`` mapping. The file must be a mapping with
+exactly three keys — ``version`` (``"1.0"`` or ``"1.0.0"``), ``table`` (the
+fully-qualified write target), and ``tags`` (a mapping of ``key: value``, which
+may be empty). Any other top-level key, a missing key, an unsupported
+``version``, or a wrong-typed ``table``/``tags`` raises ``LHP-CFG-067``.
+
+.. code-block:: yaml
+
+   # tags/orders.yaml
+   version: "1.0"
+   table: main.silver.orders
+   tags:
+     team: platform
+     cost_center: "1234"
+
+.. code-block:: yaml
+
+   - name: write_orders_silver
+     type: write
+     source: v_orders_bronze
+     write_target:
+       type: streaming_table
+       catalog: main
+       schema: silver
+       table: orders
+       tags_file: tags/orders.yaml
+
+The sidecar's ``table:`` must equal the write target's table name; a mismatch
+raises ``LHP-CFG-067``. A missing ``tags_file`` raises ``LHP-IO-001`` with the
+searched locations. Under ``--sandbox`` the ``table:`` cross-check is skipped
+(sandbox renames the write target's table), and the file's tags are applied to
+the renamed table.
+
+Because a preset's ``tags`` default deep-merges into the write target before
+validation, pairing a preset ``tags`` default with a flowgroup ``tags_file`` is
+rejected as both-set (``cannot specify both 'tags' and 'tags_file'``).
 
 Streaming table
 ===============
