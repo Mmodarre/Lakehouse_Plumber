@@ -483,12 +483,18 @@ silently missing edges.
   - **Permissions.** A pipeline that declares `tags` needs `APPLY TAG` on the
     table and `ASSIGN` on required governed tags, plus `USE CATALOG`,
     `USE SCHEMA`, and `SELECT` on `system.information_schema`.
-  - New error code **`LHP-CFG-066`** (a declared UC tag key or value is illegal
-    under Unity Catalog charset/length rules, raised at generation time), a
-    `uc_tagging` project-config block with JSON-schema validation, the public
-    `PlannedFileView.kind` literal gains `uc_tagging_hook`, docs in
-    `docs/actions/write_actions.rst` with skill-MD parity, and golden + e2e
-    tests.
+  - **External tags file.** As an alternative to an inline `tags:` mapping, a
+    table may set `tags_file:` to an external sidecar in a strict
+    `version`/`table`/`tags` format (mutually exclusive with `tags`). The
+    sidecar's `table:` must match the write target's table name (relaxed under
+    `--sandbox`, which renames the table).
+  - New error codes **`LHP-CFG-066`** (a declared UC tag key or value is illegal
+    under Unity Catalog charset/length rules, raised at generation time) and
+    **`LHP-CFG-067`** (an invalid `tags_file` — bad strict format, or a `table:`
+    that does not match the write target), a `uc_tagging` project-config block
+    with JSON-schema validation, the public `PlannedFileView.kind` literal gains
+    `uc_tagging_hook`, docs in `docs/reference/actions/write.rst` with skill-MD
+    parity, and golden + e2e tests.
 
 ### Changed
 

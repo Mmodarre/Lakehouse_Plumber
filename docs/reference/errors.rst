@@ -160,6 +160,9 @@ Configuration errors (LHP-CFG)
    * - LHP-CFG-066
      - A Unity Catalog tag key or value is illegal (charset, whitespace, or length).
      - Fix the offending tag key or value to meet Unity Catalog rules.
+   * - LHP-CFG-067
+     - Invalid UC ``tags_file`` — missing/unknown top-level key, unsupported ``version``, wrong-typed ``table``/``tags``, or a ``table`` that does not match the write target.
+     - Use the strict ``version``/``table``/``tags`` format; set ``table:`` to the write target.
 
 Validation errors (LHP-VAL)
 ===========================
