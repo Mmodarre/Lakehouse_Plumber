@@ -12,7 +12,7 @@ from pathlib import Path
 import pytest
 
 from lhp.errors import LHPError
-from lhp.parsers.tags_file_parser import parse_tags_file
+from lhp.parsers.tags_file_parser import ParsedTagsFile, parse_tags_file
 
 
 def _write(tmp_path: Path, name: str, content: str) -> Path:
@@ -35,9 +35,11 @@ tags:
 @pytest.mark.unit
 def test_valid_yaml_returns_table_and_tags(tmp_path):
     path = _write(tmp_path, "tags.yaml", VALID_YAML)
-    table, tags = parse_tags_file(path)
-    assert table == "catalog.schema.orders"
-    assert tags == {"team": "platform", "cost_center": "1234"}
+    parsed = parse_tags_file(path)
+    assert isinstance(parsed, ParsedTagsFile)
+    assert parsed.table == "catalog.schema.orders"
+    assert parsed.tags == {"team": "platform", "cost_center": "1234"}
+    assert parsed.columns == {}
 
 
 @pytest.mark.unit
@@ -50,25 +52,27 @@ def test_valid_json_returns_table_and_tags(tmp_path):
         }
     )
     path = _write(tmp_path, "tags.json", content)
-    table, tags = parse_tags_file(path)
-    assert table == "catalog.schema.orders"
-    assert tags == {"team": "platform", "cost_center": "1234"}
+    parsed = parse_tags_file(path)
+    assert parsed.table == "catalog.schema.orders"
+    assert parsed.tags == {"team": "platform", "cost_center": "1234"}
+    assert parsed.columns == {}
 
 
 @pytest.mark.unit
 def test_version_1_0_0_accepted(tmp_path):
     path = _write(tmp_path, "tags.yaml", 'version: "1.0.0"\ntable: c.s.t\ntags: {}\n')
-    table, tags = parse_tags_file(path)
-    assert table == "c.s.t"
-    assert tags == {}
+    parsed = parse_tags_file(path)
+    assert parsed.table == "c.s.t"
+    assert parsed.tags == {}
 
 
 @pytest.mark.unit
 def test_empty_tags_mapping_allowed(tmp_path):
     path = _write(tmp_path, "tags.yaml", 'version: "1.0"\ntable: c.s.t\ntags: {}\n')
-    table, tags = parse_tags_file(path)
-    assert table == "c.s.t"
-    assert tags == {}
+    parsed = parse_tags_file(path)
+    assert parsed.table == "c.s.t"
+    assert parsed.tags == {}
+    assert parsed.columns == {}
 
 
 @pytest.mark.unit
@@ -76,8 +80,8 @@ def test_table_is_stripped(tmp_path):
     path = _write(
         tmp_path, "tags.yaml", 'version: "1.0"\ntable: "  c.s.t  "\ntags: {}\n'
     )
-    table, _ = parse_tags_file(path)
-    assert table == "c.s.t"
+    parsed = parse_tags_file(path)
+    assert parsed.table == "c.s.t"
 
 
 @pytest.mark.unit
@@ -85,16 +89,87 @@ def test_unquoted_float_version_1_0_accepted(tmp_path):
     # ``version: 1.0`` (unquoted) parses as the float 1.0; ``str(1.0) == "1.0"``
     # so the mandated ``str(version).strip()`` normalization accepts it.
     path = _write(tmp_path, "tags.yaml", "version: 1.0\ntable: c.s.t\ntags: {}\n")
-    table, tags = parse_tags_file(path)
-    assert table == "c.s.t"
-    assert tags == {}
+    parsed = parse_tags_file(path)
+    assert parsed.table == "c.s.t"
+    assert parsed.tags == {}
+
+
+# --- column tags (accepted shapes) ------------------------------------------
+
+
+@pytest.mark.unit
+def test_columns_only_returns_columns_and_none_tags(tmp_path):
+    # A columns-only file: the ``tags:`` key is absent, so ``.tags is None``
+    # (absent-≠-empty invariant), and ``.columns`` carries the block.
+    content = (
+        'version: "1.0"\n'
+        "table: c.s.t\n"
+        "columns:\n"
+        "  email:\n"
+        "    pii: high\n"
+        "  region:\n"
+        "    classification: public\n"
+    )
+    path = _write(tmp_path, "tags.yaml", content)
+    parsed = parse_tags_file(path)
+    assert parsed.table == "c.s.t"
+    assert parsed.tags is None
+    assert parsed.columns == {
+        "email": {"pii": "high"},
+        "region": {"classification": "public"},
+    }
+
+
+@pytest.mark.unit
+def test_tags_and_columns_both_present(tmp_path):
+    content = (
+        'version: "1.0"\n'
+        "table: c.s.t\n"
+        "tags:\n"
+        "  team: platform\n"
+        "columns:\n"
+        "  email:\n"
+        "    pii: high\n"
+    )
+    path = _write(tmp_path, "tags.yaml", content)
+    parsed = parse_tags_file(path)
+    assert parsed.tags == {"team": "platform"}
+    assert parsed.columns == {"email": {"pii": "high"}}
+
+
+@pytest.mark.unit
+def test_columns_json_parity(tmp_path):
+    # A ``columns:`` file round-trips identically whether authored as YAML or
+    # JSON (JSON is a YAML subset via the shared loader).
+    content = json.dumps(
+        {
+            "version": "1.0",
+            "table": "c.s.t",
+            "columns": {"email": {"pii": "high"}},
+        }
+    )
+    path = _write(tmp_path, "tags.json", content)
+    parsed = parse_tags_file(path)
+    assert parsed.table == "c.s.t"
+    assert parsed.tags is None
+    assert parsed.columns == {"email": {"pii": "high"}}
+
+
+@pytest.mark.unit
+def test_empty_columns_mapping_allowed(tmp_path):
+    # An explicit empty ``columns: {}`` counts as the key being present, so the
+    # tags/columns presence requirement is satisfied without a ``tags`` key.
+    path = _write(tmp_path, "tags.yaml", 'version: "1.0"\ntable: c.s.t\ncolumns: {}\n')
+    parsed = parse_tags_file(path)
+    assert parsed.tags is None
+    assert parsed.columns == {}
 
 
 # --- format rejections (LHP-CFG-067) -----------------------------------------
 
 
 @pytest.mark.unit
-@pytest.mark.parametrize("missing", ["version", "table", "tags"])
+@pytest.mark.parametrize("missing", ["version", "table"])
 def test_missing_required_key(tmp_path, missing):
     data = {"version": "1.0", "table": "c.s.t", "tags": {"a": "b"}}
     del data[missing]
@@ -103,6 +178,54 @@ def test_missing_required_key(tmp_path, missing):
         parse_tags_file(path)
     assert exc.value.code == "LHP-CFG-067"
     assert missing in exc.value.details
+
+
+@pytest.mark.unit
+def test_neither_tags_nor_columns_rejected(tmp_path):
+    # ``version`` + ``table`` alone is not enough — at least one of the
+    # ``tags``/``columns`` keys must be declared.
+    path = _write(tmp_path, "tags.yaml", 'version: "1.0"\ntable: c.s.t\n')
+    with pytest.raises(LHPError) as exc:
+        parse_tags_file(path)
+    assert exc.value.code == "LHP-CFG-067"
+
+
+@pytest.mark.unit
+def test_columns_not_a_mapping_rejected(tmp_path):
+    path = _write(
+        tmp_path,
+        "tags.yaml",
+        'version: "1.0"\ntable: c.s.t\ncolumns:\n  - a\n  - b\n',
+    )
+    with pytest.raises(LHPError) as exc:
+        parse_tags_file(path)
+    assert exc.value.code == "LHP-CFG-067"
+
+
+@pytest.mark.unit
+def test_column_value_not_a_mapping_rejected(tmp_path):
+    path = _write(
+        tmp_path,
+        "tags.yaml",
+        'version: "1.0"\ntable: c.s.t\ncolumns:\n  email: not_a_mapping\n',
+    )
+    with pytest.raises(LHPError) as exc:
+        parse_tags_file(path)
+    assert exc.value.code == "LHP-CFG-067"
+
+
+@pytest.mark.unit
+def test_non_string_column_key_rejected(tmp_path):
+    # A bare int column key (YAML ``123:``) would break the hook's repr/name
+    # lookup downstream, so it is rejected here.
+    path = _write(
+        tmp_path,
+        "tags.yaml",
+        'version: "1.0"\ntable: c.s.t\ncolumns:\n  123:\n    pii: high\n',
+    )
+    with pytest.raises(LHPError) as exc:
+        parse_tags_file(path)
+    assert exc.value.code == "LHP-CFG-067"
 
 
 @pytest.mark.unit
