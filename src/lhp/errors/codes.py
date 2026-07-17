@@ -191,6 +191,10 @@ CFG_065 = ErrorCode(ErrorCategory.CONFIG, "065")
 # the offending text, and the specific reason, e.g.:
 #   f"UC tag {part} {value!r} on {context} is illegal: {reason}."
 CFG_066 = ErrorCode(ErrorCategory.CONFIG, "066")
+# CFG_067: a UC tags file is invalid — missing/unknown top-level key, an
+# unsupported 'version', a wrong-typed 'table'/'tags', or a 'table' that does
+# not match the write target. Raised via ErrorFactory.config_error(codes.CFG_067, ...).
+CFG_067 = ErrorCode(ErrorCategory.CONFIG, "067")
 
 DEP_001 = ErrorCode(ErrorCategory.DEPENDENCY, "001")
 # DEP_002: dependency extraction found a recognized table-read in Python code
@@ -332,6 +336,7 @@ ALL_CODES: tuple[ErrorCode, ...] = (
     CFG_064,
     CFG_065,
     CFG_066,
+    CFG_067,
     DEP_001,
     DEP_002,
     DEP_003,
@@ -401,6 +406,7 @@ __all__ = [
     "CFG_064",
     "CFG_065",
     "CFG_066",
+    "CFG_067",
     "DEPR_001",
     "DEPR_002",
     "DEPR_003",
