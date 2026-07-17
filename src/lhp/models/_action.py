@@ -26,6 +26,9 @@ class WriteTarget(BaseModel):
     comment: Optional[str] = None
     table_properties: Optional[Dict[str, Any]] = None
     tags: Optional[Dict[str, Optional[str]]] = None
+    tags_file: Optional[str] = (
+        None  # Path to external UC tags file (strict version/table/tags format)
+    )
     partition_columns: Optional[List[str]] = None
     cluster_columns: Optional[List[str]] = None
     cluster_by_auto: Optional[bool] = None
@@ -155,7 +158,13 @@ class Action(BaseModel):
                         if isinstance(source_func["file"], str):
                             source_func["file"] = source_func["file"].replace("\\", "/")
 
-            for schema_field in ["table_schema", "schema", "sql_path", "module_path"]:
+            for schema_field in [
+                "table_schema",
+                "schema",
+                "sql_path",
+                "module_path",
+                "tags_file",
+            ]:
                 if schema_field in self.write_target and isinstance(
                     self.write_target[schema_field], str
                 ):
