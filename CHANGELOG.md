@@ -458,17 +458,17 @@ silently missing edges.
   facade constructor (`:stability:` provisional).
 - **Unity Catalog table & column tagging.** Streaming-table and
   materialized-view write actions can declare UC **tags** at the table level
-  (a `tags:` mapping on `write_target`) and at the column level (a `tags:`
-  mapping on columns of a YAML/JSON schema file referenced by `table_schema`;
-  not supported for `.sql`/`.ddl` or inline DDL). Because Spark Declarative
+  (a `tags:` mapping on `write_target`, or the `tags:` block of an external
+  `tags_file`) and at the column level (the `columns:` block of an external
+  `tags_file`). Because Spark Declarative
   Pipelines cannot set UC tags as part of table creation, LHP collects all
   declared tags and emits a single per-pipeline `_uc_tagging_hook.py` that runs
   as a `@dp.on_event_hook` and applies them via the Unity Catalog *Entity Tag
   Assignments* REST API — during and at the end of a pipeline update. Existing
   tag state is read once at pipeline initialization with a single
   `system.information_schema` query (`table_tags` `UNION ALL` `column_tags`).
-  - **On by default; opt in by declaring `tags`.** The hook is generated only
-    when some table or column declares `tags`. The `uc_tagging` block in
+  - **On by default; opt in by declaring tags.** The hook is generated only
+    when some table declares `tags` or a `tags_file`. The `uc_tagging` block in
     `lhp.yaml` is optional: `enabled` (default `true` — set `false` to disable),
     `remove_undeclared_tags` (default `false`), `tag_update_concurrency`
     (default `16`, range 1–20).
@@ -483,9 +483,15 @@ silently missing edges.
   - **Permissions.** A pipeline that declares `tags` needs `APPLY TAG` on the
     table and `ASSIGN` on required governed tags, plus `USE CATALOG`,
     `USE SCHEMA`, and `SELECT` on `system.information_schema`.
-  - **External tags file.** As an alternative to an inline `tags:` mapping, a
-    table may set `tags_file:` to an external sidecar in a strict
-    `version`/`table`/`tags` format (mutually exclusive with `tags`). The
+  - **External tags file (single source of column tags).** As an alternative to
+    an inline `tags:` mapping, a table may set `tags_file:` to an external
+    sidecar (mutually exclusive with `tags`). The sidecar now carries **both**
+    levels in a strict `version`/`table`/`tags`/`columns` format: `version` and
+    `table` are required, and at least one of a table-level `tags:` block or a
+    column-level `columns:` block (`column_name: {key: value}`) must be present.
+    Column tags come **only** from this `columns:` block — a schema file
+    (`table_schema`) is DDL-only and a stray column `tags:` key now raises
+    `LHP-VAL-016` at generate time instead of being silently dropped. The
     sidecar's `table:` must match the write target's table name (relaxed under
     `--sandbox`, which renames the table).
   - New error codes **`LHP-CFG-066`** (a declared UC tag key or value is illegal
