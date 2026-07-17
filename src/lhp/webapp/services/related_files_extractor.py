@@ -20,8 +20,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-# Category sort order: sql first, then schema, expectations, python.
-_CATEGORY_ORDER = {"sql": 0, "schema": 1, "expectations": 2, "python": 3}
+# Category sort order: sql first, then schema, expectations, python, tags.
+_CATEGORY_ORDER = {"sql": 0, "schema": 1, "expectations": 2, "python": 3, "tags": 4}
 
 # File-path heuristic for ambiguous fields (inline DDL vs path). Mirrors
 # ``lhp.utils.external_file_loader.is_file_path``, inlined here because
@@ -34,7 +34,7 @@ class RelatedFile:
     """A file referenced by a flowgroup action."""
 
     path: str  # Relative to project root
-    category: str  # "sql" | "python" | "schema" | "expectations"
+    category: str  # "sql" | "python" | "schema" | "expectations" | "tags"
     action_name: str  # Which action references this file
     field: str  # e.g. "sql_path", "source.module_path"
     exists: bool  # Whether file exists on disk
@@ -234,6 +234,15 @@ def _extract_from_write_target(
         action_name,
         "write_target.module_path",
         "python",
+        project_root,
+        seen,
+        results,
+    )
+    _check_field(
+        wt.get("tags_file"),
+        action_name,
+        "write_target.tags_file",
+        "tags",
         project_root,
         seen,
         results,
