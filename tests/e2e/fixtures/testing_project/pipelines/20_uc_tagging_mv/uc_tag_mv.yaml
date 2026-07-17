@@ -1,5 +1,5 @@
-# UC tagging E2E — materialized_view parity, table+column tags on the same FQN,
-# and ${token}/{token} substitution inside a tag key and value.
+# UC tagging E2E — materialized_view parity, table+column tags on the same FQN via
+# a single tags_file, and ${token} substitution inside a tag key and value.
 pipeline: uc_tagging_mv
 flowgroup: uc_tag_mv
 #job_name: j_two
@@ -22,6 +22,4 @@ actions:
       schema: "${gold_schema}"
       table: uc_part_summary
       table_schema: schemas/uc_part.yaml
-      tags:
-        layer: "{gold_schema}"
-        "${env}_owner": platform
+      tags_file: tags/uc_part.yaml

@@ -38,7 +38,8 @@ _TABLE_TAGS = {
 _COLUMN_TAGS = {
     "acme_edw_dev.edw_bronze.uc_customers": {
         "c_email": {"classification": "pii", "masked": ""}
-    }
+    },
+    "acme_edw_dev.edw_bronze.uc_region": {"r_name": {"classification": "internal"}},
 }
 
 _TAG_BASE = "/api/2.1/unity-catalog/entity-tag-assignments"

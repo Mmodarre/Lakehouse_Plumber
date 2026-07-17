@@ -1,0 +1,7 @@
+# UC tags for uc_region — column tags only, no schema file backs this table.
+# Proves a tags_file can tag columns on a write target that declares no table_schema.
+version: 1.0.0
+table: uc_region
+columns:
+  r_name:
+    classification: internal

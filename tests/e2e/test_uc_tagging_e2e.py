@@ -3,8 +3,10 @@
 Covers the real CLI generate path (YAML -> generated/dev/<pipeline>/_uc_tagging_hook.py)
 against byte-exact baselines, mirroring test_test_reporting_e2e.py. The dedicated
 uc_tagging_* fixture pipelines exercise table-only / column-only / combined tags,
-value coercions, materialized_view parity, token substitution in tag keys/values,
-and the two negative emission cases (no tags, disabled).
+value coercions, materialized_view parity, and ${token} substitution in tag
+keys/values. Column tags are sourced from a ``tags_file`` sidecar (not the schema
+file); one flowgroup declares column tags with no ``table_schema`` at all. The two
+negative emission cases (no tags, disabled) are also covered.
 """
 
 import hashlib
@@ -77,8 +79,9 @@ class TestUCTaggingE2E:
         return ""
 
     def test_core_hook_matches_baseline(self):
-        """uc_tagging_core hook matches baseline (table/column tags + value coercions
-        + multi-flowgroup aggregation + combined database: form)."""
+        """uc_tagging_core hook matches baseline: table tags, column tags sourced
+        from tags_file sidecars (including a no-schema flowgroup), value coercions,
+        multi-flowgroup aggregation, and the combined database: form."""
         exit_code, output = self.run_generate()
         assert exit_code == 0, f"Generation failed: {output}"
 
@@ -98,8 +101,9 @@ class TestUCTaggingE2E:
         assert hash_diff == "", f"Baseline mismatch: {hash_diff}"
 
     def test_mv_hook_matches_baseline(self):
-        """uc_tagging_mv hook matches baseline (materialized_view parity, table+column
-        tags on one FQN, ${token}/{token} substitution in a tag key and value)."""
+        """uc_tagging_mv hook matches baseline: materialized_view parity, table +
+        column tags on one FQN via a single tags_file, and ${token} substitution in
+        a tag key and value."""
         exit_code, output = self.run_generate()
         assert exit_code == 0, f"Generation failed: {output}"
 
@@ -117,6 +121,30 @@ class TestUCTaggingE2E:
 
         hash_diff = self._compare_file_hashes(generated_file, baseline_file)
         assert hash_diff == "", f"Baseline mismatch: {hash_diff}"
+
+    def test_noschema_column_tags_via_tags_file(self):
+        """A write target with NO table_schema still gets column tags from its
+        tags_file (uc_region.r_name), keyed by the resolved FQN, while its
+        column-only sidecar adds no table-level tag."""
+        exit_code, output = self.run_generate()
+        assert exit_code == 0, f"Generation failed: {output}"
+
+        hook_file = self.generated_dir / "uc_tagging_core" / "_uc_tagging_hook.py"
+        content = hook_file.read_text()
+
+        # Column tags resolve for a schema-less table, keyed by the resolved FQN.
+        assert (
+            '"acme_edw_dev.edw_bronze.uc_region": '
+            '{"r_name": {"classification": "internal"}}'
+        ) in content, (
+            "no-schema column tags must appear in _COLUMN_TAGS keyed by the resolved FQN"
+        )
+
+        # The column-only sidecar (no `tags:` block) must NOT add a _TABLE_TAGS entry.
+        table_tags_block = content.split("_COLUMN_TAGS")[0]
+        assert "uc_region" not in table_tags_block, (
+            "a column-only tags_file must not emit a _TABLE_TAGS entry"
+        )
 
     def test_no_hook_when_no_tags(self):
         """A taggable table with no tags anywhere produces no hook (emission gated off)."""
