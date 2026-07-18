@@ -456,7 +456,7 @@ class TestConfigValidator:
                 "schema": "s",
                 "table": "t",
                 "tags": {"team": "x"},
-                "tags_file": "tags/t.yaml",
+                "tags_file": "uc_tags/t.yaml",
             },
         )
         errors = validator.validate_action(action, 0)

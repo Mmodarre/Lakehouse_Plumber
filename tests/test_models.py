@@ -70,9 +70,9 @@ class TestModels:
         write_target = WriteTarget(
             type=WriteTargetType.STREAMING_TABLE,
             table="my_table",
-            tags_file="tags/orders_tags.yaml",
+            tags_file="uc_tags/orders_tags.yaml",
         )
-        assert write_target.tags_file == "tags/orders_tags.yaml"
+        assert write_target.tags_file == "uc_tags/orders_tags.yaml"
 
     def test_write_target_tags_file_path_normalized(self):
         """Backslashes in write_target tags_file are normalized (mirrors table_schema)."""
@@ -85,11 +85,11 @@ class TestModels:
                 "catalog": "c",
                 "schema": "s",
                 "table": "my_table",
-                "tags_file": "tags\\orders_tags.yaml",
+                "tags_file": "uc_tags\\orders_tags.yaml",
             },
         )
         assert isinstance(action.write_target, dict)
-        assert action.write_target["tags_file"] == "tags/orders_tags.yaml"
+        assert action.write_target["tags_file"] == "uc_tags/orders_tags.yaml"
 
     def test_flowgroup_model(self):
         flowgroup = FlowGroup(

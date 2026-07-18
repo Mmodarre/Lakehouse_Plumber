@@ -169,7 +169,7 @@ class TestUnknownFieldValidation:
             "catalog": "catalog",
             "schema": "schema",
             "table": "my_table",
-            "tags_file": "tags/orders_tags.yaml",
+            "tags_file": "uc_tags/orders_tags.yaml",
         }
 
         self.validator.validate_write_target(write_target, "test_action")
@@ -182,7 +182,7 @@ class TestUnknownFieldValidation:
             "schema": "schema",
             "table": "my_view",
             "sql": "SELECT * FROM source_table",
-            "tags_file": "tags/mv_tags.yaml",
+            "tags_file": "uc_tags/mv_tags.yaml",
         }
 
         self.validator.validate_write_target(write_target, "test_action")
@@ -193,7 +193,7 @@ class TestUnknownFieldValidation:
             "type": "sink",
             "sink_type": "delta",
             "sink_name": "external_delta",
-            "tags_file": "tags/sink_tags.yaml",
+            "tags_file": "uc_tags/sink_tags.yaml",
         }
 
         with pytest.raises(LHPError) as exc_info:

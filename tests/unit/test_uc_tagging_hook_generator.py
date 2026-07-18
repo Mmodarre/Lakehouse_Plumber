@@ -343,7 +343,7 @@ class TestUCTaggingHookGenerator:
         assert "ThreadPoolExecutor(max_workers=20)" in custom
 
     def test_column_tags_from_tags_file(self, tmp_path):
-        # Column tags now come from the tags_file ``columns:`` block.
+        # Column tags now come from the tags_file ``column_tags:`` list.
         _write_tags_file(
             tmp_path,
             "uc_tags/orders.yaml",
@@ -432,7 +432,7 @@ class TestUCTaggingHookContent:
         assert "_REMOVE_UNDECLARED_TAGS = False" in content
 
     def test_columns_only_tags_file_omits_table(self, tmp_path):
-        # A tags_file with a ``columns:`` block but NO ``tags:`` key. The absent
+        # A tags_file with a ``column_tags:`` list but NO ``tags:`` key. The absent
         # ``tags:`` (parsed as None, not {}) omits the table from _TABLE_TAGS
         # entirely — even under reconcile it is NOT emitted as a managed empty set
         # that would wipe the table's live tags. Proves absent ≠ empty end to end.
