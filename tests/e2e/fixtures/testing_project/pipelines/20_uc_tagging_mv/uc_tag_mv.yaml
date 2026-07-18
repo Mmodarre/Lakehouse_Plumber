@@ -22,4 +22,4 @@ actions:
       schema: "${gold_schema}"
       table: uc_part_summary
       table_schema: schemas/uc_part.yaml
-      tags_file: tags/uc_part.yaml
+      tags_file: uc_tags/uc_part.yaml
