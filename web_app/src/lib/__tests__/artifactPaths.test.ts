@@ -185,7 +185,7 @@ describe('resolveArtifactPaths', () => {
   })
 
   it('includes a referenced tags file that exists, marked read-only yaml', () => {
-    const tags = 'tags/customer_dim.yaml'
+    const tags = 'uc_tags/customer_dim.yaml'
     const related: RelatedArtifact[] = [{ path: tags, category: 'tags' }]
     const refs = resolveArtifactPaths({ ...base, related }, [SOURCE, tags])
     const tagsRef = refs.find((r) => r.kind === 'source-tags')
@@ -199,7 +199,7 @@ describe('resolveArtifactPaths', () => {
   })
 
   it('excludes a referenced tags file that does not exist on disk', () => {
-    const related: RelatedArtifact[] = [{ path: 'tags/missing.yaml', category: 'tags' }]
+    const related: RelatedArtifact[] = [{ path: 'uc_tags/missing.yaml', category: 'tags' }]
     const refs = resolveArtifactPaths({ ...base, related }, [SOURCE])
     expect(refs.some((r) => r.kind === 'source-tags')).toBe(false)
   })

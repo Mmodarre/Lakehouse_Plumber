@@ -1,5 +1,5 @@
 # Schema for the uc_part_summary materialized view. Per-column UC tags now live in
-# tags/uc_part.yaml (tags_file), alongside the table-level tags — proving table +
+# uc_tags/uc_part.yaml (tags_file), alongside the table-level tags — proving table +
 # column tags share one FQN through a single tags_file. This file is DDL only.
 name: uc_part
 version: "1.0"
