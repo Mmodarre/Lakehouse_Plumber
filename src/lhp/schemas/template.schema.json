@@ -421,11 +421,11 @@
                     "additionalProperties": {
                         "type": ["string", "null"]
                     },
-                    "description": "UC tags; applied during the run via the tagging hook."
+                    "description": "UC tags; applied during the run via the tagging hook. Table-level tags only — column-level tags require an external tags file ('tags_file')."
                 },
                 "tags_file": {
                     "type": "string",
-                    "description": "Path to an external UC tags file (strict version/table/tags[/columns] format; the single source of column-level tags). Mutually exclusive with 'tags'."
+                    "description": "Path to an external UC tags file (strict version/table/tags/column_tags format; 'column_tags' is a list of {name, tags} entries and the single source of column-level tags). Convention: uc_tags/<table>.yaml. Mutually exclusive with 'tags'."
                 },
                 "table_schema": {
                     "type": "string",
