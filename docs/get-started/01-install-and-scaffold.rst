@@ -75,7 +75,7 @@ The scaffold is a complete, working project. Here is the shape of it:
    │   ├── 01_ingest/               # raw → bronze  (cloudfiles + delta loads)
    │   ├── 02_silver/               # cleansing + SCD2 dimensions
    │   └── 03_gold/                 # aggregated materialized view
-   ├── schemas/  schema_transforms/  expectations/  sql/  transforms/  functions/
+   ├── schemas/  schema_transforms/  expectations/  uc_tags/  sql/  transforms/  functions/
    ├── notebooks/data_prep.py       # seeds the demo data (runs first in the job)
    └── resources/sample_job.yml     # the job that orchestrates it all
 

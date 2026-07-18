@@ -27,6 +27,7 @@ my_project/
 ├── substitutions/           # Environment configs (dev.yaml, prod.yaml)
 ├── schemas/                 # Table schema definitions
 ├── expectations/            # Data quality expectation JSON files
+├── uc_tags/                 # UC tag sidecar files (tags_file)
 ├── sql/                     # External SQL files
 ├── py_functions/            # Custom Python functions
 ├── generated/               # Generated Python code (auto-generated)

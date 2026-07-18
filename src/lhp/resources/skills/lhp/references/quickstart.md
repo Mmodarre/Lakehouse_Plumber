@@ -10,7 +10,7 @@ lhp init my_project --no-bundle   # skip the Declarative Automation Bundles setu
 lhp init my_demo --sample  # ready-to-run TPC-H sample project (see below)
 ```
 
-`init` refuses to run if `lhp.yaml` already exists (`LHP-IO-007`). It writes a live `lhp.yaml`, `.gitignore`, `README.md`, `.vscode/`, and a tree of **disabled example files** ending in `.tmpl` under `substitutions/`, `config/`, `presets/`, `templates/`, `blueprints/`, `schemas/`, `sql/`, `expectations/`, `pipelines/`. With bundle on (default) it also writes `databricks.yml` at the root and a `resources/` directory.
+`init` refuses to run if `lhp.yaml` already exists (`LHP-IO-007`). It writes a live `lhp.yaml`, `.gitignore`, `README.md`, `.vscode/`, and a tree of **disabled example files** ending in `.tmpl` under `substitutions/`, `config/`, `presets/`, `templates/`, `blueprints/`, `schemas/`, `sql/`, `expectations/`, `pipelines/`. It also creates an empty `uc_tags/` directory for UC tag sidecar files (`tags_file`). With bundle on (default) it also writes `databricks.yml` at the root and a `resources/` directory.
 
 **Activate any example by renaming it to drop the `.tmpl` suffix** (e.g. `substitutions/dev.yaml.tmpl` → `substitutions/dev.yaml`), then edit the values.
 
