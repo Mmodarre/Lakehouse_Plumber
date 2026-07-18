@@ -51,6 +51,73 @@ describe('FileRefField', () => {
     )
   })
 
+  it('proposes the suggested path on New: sets the field then creates the stub there', async () => {
+    const create = setStatus('unavailable', vi.fn().mockResolvedValue(true))
+    const onChange = vi.fn()
+    const onEditCode = vi.fn<(t: CodeTarget) => void>()
+    render(
+      <FileRefField
+        value=""
+        onChange={onChange}
+        accept={['.yaml', '.yml']}
+        makeStub={() => 'version: 1.0.0\ntable: orders\n'}
+        suggestedPath="uc_tags/orders.yaml"
+        onEditCode={onEditCode}
+      />,
+    )
+    fireEvent.click(screen.getByRole('button', { name: /new/i }))
+    await Promise.resolve()
+    expect(onChange).toHaveBeenCalledWith('uc_tags/orders.yaml')
+    expect(create).toHaveBeenCalledWith('version: 1.0.0\ntable: orders\n', 'uc_tags/orders.yaml')
+    await vi.waitFor(() =>
+      expect(onEditCode).toHaveBeenCalledWith(
+        expect.objectContaining({ backing: 'file', filePath: 'uc_tags/orders.yaml' }),
+      ),
+    )
+  })
+
+  it('makeStub content wins over the extension-derived stub', async () => {
+    const create = setStatus('unavailable', vi.fn().mockResolvedValue(true))
+    render(
+      <FileRefField
+        value=""
+        onChange={vi.fn()}
+        accept={['.yaml', '.yml']}
+        makeStub={() => 'CUSTOM SKELETON\n'}
+        suggestedPath="uc_tags/orders.yaml"
+        onEditCode={vi.fn()}
+      />,
+    )
+    fireEvent.click(screen.getByRole('button', { name: /new/i }))
+    await Promise.resolve()
+    expect(create).toHaveBeenCalledTimes(1)
+    expect(create.mock.calls[0][0]).toBe('CUSTOM SKELETON\n')
+    expect(create.mock.calls[0][0]).not.toContain('# columns:')
+  })
+
+  it('is a no-op on New for an empty value with no suggestion (today’s behaviour)', async () => {
+    const create = setStatus('unavailable', vi.fn())
+    const onChange = vi.fn()
+    render(<FileRefField value="" onChange={onChange} accept={['.yaml']} onEditCode={vi.fn()} />)
+    fireEvent.click(screen.getByRole('button', { name: /new/i }))
+    await Promise.resolve()
+    expect(create).not.toHaveBeenCalled()
+    expect(onChange).not.toHaveBeenCalled()
+  })
+
+  it('surfaces the spec placeholder on the input, falling back to the accept list', () => {
+    render(
+      <FileRefField
+        value=""
+        onChange={vi.fn()}
+        accept={['.yaml', '.yml']}
+        placeholder="uc_tags/customer_dim.yaml"
+        onEditCode={vi.fn()}
+      />,
+    )
+    expect(screen.getByRole('textbox')).toHaveAttribute('placeholder', 'uc_tags/customer_dim.yaml')
+  })
+
   it('skips the existence check for a substitution token and stays free-text', () => {
     const onChange = vi.fn()
     render(

@@ -84,4 +84,24 @@ describe('useCompanionFile', () => {
     expect((put[1]!.headers as Record<string, string>)['If-Match']).toBe('"create-only"')
     expect(JSON.parse(put[1]!.body as string)).toEqual({ content: '-- SQL\n' })
   })
+
+  it('create(stub, atPath) PUTs to the proposed path even when the field is still empty', async () => {
+    fetchMock.mockImplementation((_url, init) =>
+      Promise.resolve((init?.method ?? 'GET') === 'PUT' ? putOk() : notFound()),
+    )
+    // A null hook path models an empty field; the caller proposes atPath.
+    const { result } = renderHook(() => useCompanionFile(null), { wrapper })
+    expect(result.current.status).toBe('unavailable')
+
+    let created: boolean | undefined
+    await act(async () => {
+      created = await result.current.create('version: 1.0.0\n', 'uc_tags/orders.yaml')
+    })
+    expect(created).toBe(true)
+
+    const put = fetchMock.mock.calls.find(([, init]) => init?.method === 'PUT')!
+    expect(put[0]).toBe('/api/files/uc_tags/orders.yaml')
+    expect((put[1]!.headers as Record<string, string>)['If-Match']).toBe('"create-only"')
+    expect(JSON.parse(put[1]!.body as string)).toEqual({ content: 'version: 1.0.0\n' })
+  })
 })

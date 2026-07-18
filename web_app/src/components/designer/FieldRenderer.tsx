@@ -133,6 +133,9 @@ export function FieldRenderer({
         onChange={(next) => (next === '' ? delKey() : setKey(next))}
         accept={ref.accept}
         baseDir={ref.baseDir}
+        makeStub={ref.stub ? () => ref.stub!(raw) : undefined}
+        suggestedPath={ref.suggestPath?.(raw) ?? undefined}
+        placeholder={field.placeholder}
         onEditCode={onEditCode}
       />
     )
