@@ -7,6 +7,7 @@ table: uc_part_summary
 tags:
   layer: "${gold_schema}"
   "${env}_owner": platform
-columns:
-  p_name:
-    classification: confidential
+column_tags:
+  - name: p_name
+    tags:
+      classification: confidential

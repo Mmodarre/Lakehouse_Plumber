@@ -99,16 +99,19 @@ def test_unquoted_float_version_1_0_accepted(tmp_path):
 
 @pytest.mark.unit
 def test_columns_only_returns_columns_and_none_tags(tmp_path):
-    # A columns-only file: the ``tags:`` key is absent, so ``.tags is None``
-    # (absent-≠-empty invariant), and ``.columns`` carries the block.
+    # A column-tags-only file: the ``tags:`` key is absent, so ``.tags is None``
+    # (absent-≠-empty invariant), and ``.columns`` carries the block, built from
+    # the ``column_tags:`` list of ``{name, tags}`` entries in entry order.
     content = (
         'version: "1.0"\n'
         "table: c.s.t\n"
-        "columns:\n"
-        "  email:\n"
-        "    pii: high\n"
-        "  region:\n"
-        "    classification: public\n"
+        "column_tags:\n"
+        "  - name: email\n"
+        "    tags:\n"
+        "      pii: high\n"
+        "  - name: region\n"
+        "    tags:\n"
+        "      classification: public\n"
     )
     path = _write(tmp_path, "tags.yaml", content)
     parsed = parse_tags_file(path)
@@ -127,9 +130,10 @@ def test_tags_and_columns_both_present(tmp_path):
         "table: c.s.t\n"
         "tags:\n"
         "  team: platform\n"
-        "columns:\n"
-        "  email:\n"
-        "    pii: high\n"
+        "column_tags:\n"
+        "  - name: email\n"
+        "    tags:\n"
+        "      pii: high\n"
     )
     path = _write(tmp_path, "tags.yaml", content)
     parsed = parse_tags_file(path)
@@ -139,13 +143,14 @@ def test_tags_and_columns_both_present(tmp_path):
 
 @pytest.mark.unit
 def test_columns_json_parity(tmp_path):
-    # A ``columns:`` file round-trips identically whether authored as YAML or
-    # JSON (JSON is a YAML subset via the shared loader).
+    # A ``column_tags:`` file round-trips identically whether authored as YAML or
+    # JSON (JSON is a YAML subset via the shared loader); the list of
+    # ``{name, tags}`` objects yields the same column mapping.
     content = json.dumps(
         {
             "version": "1.0",
             "table": "c.s.t",
-            "columns": {"email": {"pii": "high"}},
+            "column_tags": [{"name": "email", "tags": {"pii": "high"}}],
         }
     )
     path = _write(tmp_path, "tags.json", content)
@@ -156,13 +161,66 @@ def test_columns_json_parity(tmp_path):
 
 
 @pytest.mark.unit
-def test_empty_columns_mapping_allowed(tmp_path):
-    # An explicit empty ``columns: {}`` counts as the key being present, so the
-    # tags/columns presence requirement is satisfied without a ``tags`` key.
-    path = _write(tmp_path, "tags.yaml", 'version: "1.0"\ntable: c.s.t\ncolumns: {}\n')
+def test_empty_column_tags_list_allowed(tmp_path):
+    # An explicit empty ``column_tags: []`` counts as the key being present, so
+    # the tags/column_tags presence requirement is satisfied without a ``tags``
+    # key, and yields an empty ``.columns`` mapping.
+    path = _write(
+        tmp_path, "tags.yaml", 'version: "1.0"\ntable: c.s.t\ncolumn_tags: []\n'
+    )
     parsed = parse_tags_file(path)
     assert parsed.tags is None
     assert parsed.columns == {}
+
+
+@pytest.mark.unit
+def test_column_tags_entry_order_preserved(tmp_path):
+    # ``.columns`` is built in ``column_tags:`` entry order.
+    content = (
+        'version: "1.0"\n'
+        "table: c.s.t\n"
+        "column_tags:\n"
+        "  - name: gamma\n"
+        "    tags:\n"
+        "      a: '1'\n"
+        "  - name: alpha\n"
+        "    tags:\n"
+        "      b: '2'\n"
+        "  - name: beta\n"
+        "    tags:\n"
+        "      c: '3'\n"
+    )
+    path = _write(tmp_path, "tags.yaml", content)
+    parsed = parse_tags_file(path)
+    assert list(parsed.columns) == ["gamma", "alpha", "beta"]
+
+
+@pytest.mark.unit
+def test_column_name_stored_stripped(tmp_path):
+    # ``name`` is stored stripped (mirrors ``table.strip()``).
+    content = (
+        'version: "1.0"\n'
+        "table: c.s.t\n"
+        "column_tags:\n"
+        '  - name: "  email  "\n'
+        "    tags:\n"
+        "      pii: high\n"
+    )
+    path = _write(tmp_path, "tags.yaml", content)
+    parsed = parse_tags_file(path)
+    assert parsed.columns == {"email": {"pii": "high"}}
+
+
+@pytest.mark.unit
+def test_empty_column_tags_mapping_allowed(tmp_path):
+    # An explicit empty ``tags: {}`` on a column entry is allowed (meaningful
+    # under remove_undeclared_tags).
+    content = (
+        'version: "1.0"\ntable: c.s.t\ncolumn_tags:\n  - name: email\n    tags: {}\n'
+    )
+    path = _write(tmp_path, "tags.yaml", content)
+    parsed = parse_tags_file(path)
+    assert parsed.columns == {"email": {}}
 
 
 # --- format rejections (LHP-CFG-067) -----------------------------------------
@@ -183,19 +241,21 @@ def test_missing_required_key(tmp_path, missing):
 @pytest.mark.unit
 def test_neither_tags_nor_columns_rejected(tmp_path):
     # ``version`` + ``table`` alone is not enough — at least one of the
-    # ``tags``/``columns`` keys must be declared.
+    # ``tags``/``column_tags`` keys must be declared.
     path = _write(tmp_path, "tags.yaml", 'version: "1.0"\ntable: c.s.t\n')
     with pytest.raises(LHPError) as exc:
         parse_tags_file(path)
     assert exc.value.code == "LHP-CFG-067"
+    assert "column_tags" in exc.value.details
 
 
 @pytest.mark.unit
-def test_columns_not_a_mapping_rejected(tmp_path):
+def test_non_mapping_entry_rejected(tmp_path):
+    # Each ``column_tags`` entry must be a mapping; a bare scalar list item fails.
     path = _write(
         tmp_path,
         "tags.yaml",
-        'version: "1.0"\ntable: c.s.t\ncolumns:\n  - a\n  - b\n',
+        'version: "1.0"\ntable: c.s.t\ncolumn_tags:\n  - a\n',
     )
     with pytest.raises(LHPError) as exc:
         parse_tags_file(path)
@@ -203,11 +263,42 @@ def test_columns_not_a_mapping_rejected(tmp_path):
 
 
 @pytest.mark.unit
-def test_column_value_not_a_mapping_rejected(tmp_path):
+def test_column_tags_mapping_form_rejected(tmp_path):
+    # The old mapping shape under ``column_tags:`` is rejected — it must be a list.
     path = _write(
         tmp_path,
         "tags.yaml",
-        'version: "1.0"\ntable: c.s.t\ncolumns:\n  email: not_a_mapping\n',
+        'version: "1.0"\ntable: c.s.t\ncolumn_tags:\n  email:\n    pii: high\n',
+    )
+    with pytest.raises(LHPError) as exc:
+        parse_tags_file(path)
+    assert exc.value.code == "LHP-CFG-067"
+    assert "must be a list" in exc.value.details
+
+
+@pytest.mark.unit
+def test_old_columns_key_rejected(tmp_path):
+    # The pre-release ``columns:`` key is no longer allowed and fails the
+    # unknown-key check (clean break, no dual support).
+    path = _write(
+        tmp_path,
+        "tags.yaml",
+        'version: "1.0"\ntable: c.s.t\ncolumns:\n  email:\n    pii: high\n',
+    )
+    with pytest.raises(LHPError) as exc:
+        parse_tags_file(path)
+    assert exc.value.code == "LHP-CFG-067"
+    assert "columns" in exc.value.details
+
+
+@pytest.mark.unit
+def test_column_value_not_a_mapping_rejected(tmp_path):
+    # A column entry whose ``tags`` is not a mapping is rejected.
+    path = _write(
+        tmp_path,
+        "tags.yaml",
+        'version: "1.0"\ntable: c.s.t\ncolumn_tags:\n'
+        "  - name: email\n    tags: not_a_mapping\n",
     )
     with pytest.raises(LHPError) as exc:
         parse_tags_file(path)
@@ -216,12 +307,93 @@ def test_column_value_not_a_mapping_rejected(tmp_path):
 
 @pytest.mark.unit
 def test_non_string_column_key_rejected(tmp_path):
-    # A bare int column key (YAML ``123:``) would break the hook's repr/name
+    # A non-string ``name`` (YAML ``name: 123``) would break the hook's repr/name
     # lookup downstream, so it is rejected here.
     path = _write(
         tmp_path,
         "tags.yaml",
-        'version: "1.0"\ntable: c.s.t\ncolumns:\n  123:\n    pii: high\n',
+        'version: "1.0"\ntable: c.s.t\ncolumn_tags:\n'
+        "  - name: 123\n    tags:\n      pii: high\n",
+    )
+    with pytest.raises(LHPError) as exc:
+        parse_tags_file(path)
+    assert exc.value.code == "LHP-CFG-067"
+
+
+@pytest.mark.unit
+def test_missing_column_name_rejected(tmp_path):
+    path = _write(
+        tmp_path,
+        "tags.yaml",
+        'version: "1.0"\ntable: c.s.t\ncolumn_tags:\n  - tags:\n      pii: high\n',
+    )
+    with pytest.raises(LHPError) as exc:
+        parse_tags_file(path)
+    assert exc.value.code == "LHP-CFG-067"
+
+
+@pytest.mark.unit
+def test_whitespace_only_column_name_rejected(tmp_path):
+    path = _write(
+        tmp_path,
+        "tags.yaml",
+        'version: "1.0"\ntable: c.s.t\ncolumn_tags:\n'
+        '  - name: "   "\n    tags:\n      pii: high\n',
+    )
+    with pytest.raises(LHPError) as exc:
+        parse_tags_file(path)
+    assert exc.value.code == "LHP-CFG-067"
+
+
+@pytest.mark.unit
+def test_missing_column_tags_key_rejected(tmp_path):
+    # The per-column ``tags`` key is REQUIRED (managed-empty must be explicit).
+    path = _write(
+        tmp_path,
+        "tags.yaml",
+        'version: "1.0"\ntable: c.s.t\ncolumn_tags:\n  - name: email\n',
+    )
+    with pytest.raises(LHPError) as exc:
+        parse_tags_file(path)
+    assert exc.value.code == "LHP-CFG-067"
+
+
+@pytest.mark.unit
+def test_null_column_tags_rejected(tmp_path):
+    # ``tags: ~`` (null) is not a mapping and is rejected.
+    path = _write(
+        tmp_path,
+        "tags.yaml",
+        'version: "1.0"\ntable: c.s.t\ncolumn_tags:\n  - name: email\n    tags: ~\n',
+    )
+    with pytest.raises(LHPError) as exc:
+        parse_tags_file(path)
+    assert exc.value.code == "LHP-CFG-067"
+
+
+@pytest.mark.unit
+def test_unknown_entry_key_rejected(tmp_path):
+    # A ``column_tags`` entry allows only ``name`` and ``tags``.
+    path = _write(
+        tmp_path,
+        "tags.yaml",
+        'version: "1.0"\ntable: c.s.t\ncolumn_tags:\n'
+        "  - name: email\n    tags:\n      pii: high\n    extra: nope\n",
+    )
+    with pytest.raises(LHPError) as exc:
+        parse_tags_file(path)
+    assert exc.value.code == "LHP-CFG-067"
+
+
+@pytest.mark.unit
+def test_duplicate_column_name_rejected(tmp_path):
+    # Duplicate ``name`` (post-strip) would let last-wins silently drop tags.
+    path = _write(
+        tmp_path,
+        "tags.yaml",
+        'version: "1.0"\ntable: c.s.t\ncolumn_tags:\n'
+        "  - name: email\n    tags:\n      pii: high\n"
+        "  - name: email\n    tags:\n      classification: internal\n",
     )
     with pytest.raises(LHPError) as exc:
         parse_tags_file(path)

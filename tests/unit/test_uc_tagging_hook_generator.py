@@ -85,7 +85,7 @@ def _write_tags_file(
         if tags is not None:
             data["tags"] = tags
         if columns is not None:
-            data["columns"] = columns
+            data["column_tags"] = [{"name": c, "tags": t} for c, t in columns.items()]
         path.write_text(json.dumps(data))
     else:
         lines = ['version: "1.0"', f"table: {table}"]
@@ -93,10 +93,14 @@ def _write_tags_file(
             lines.append("tags:")
             lines += [f'  {k}: "{v}"' for k, v in tags.items()]
         if columns is not None:
-            lines.append("columns:")
-            for col, ctags in columns.items():
-                lines.append(f"  {col}:")
-                lines += [f'    {k}: "{v}"' for k, v in ctags.items()]
+            if not columns:
+                lines.append("column_tags: []")
+            else:
+                lines.append("column_tags:")
+                for col, ctags in columns.items():
+                    lines.append(f"  - name: {col}")
+                    lines.append("    tags:")
+                    lines += [f'      {k}: "{v}"' for k, v in ctags.items()]
         path.write_text("\n".join(lines) + "\n")
     return rel
 
