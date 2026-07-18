@@ -5,23 +5,6 @@ All notable changes to Lakehouse Plumber are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
-
-### Added
-
-- **`lhp init` scaffolds a `uc_tags/` folder.** New projects get an empty
-  `uc_tags/` directory alongside `schemas/`, `expectations/`, and the rest — the
-  conventional home for external UC `tags_file` sidecars, one
-  `uc_tags/<table>.yaml` per tagged table.
-- **Packaged UC tags-file JSON schema.** A `tags_file.schema.json` now ships in
-  the wheel and is served to the web IDE (`GET /api/schemas/tags_file`); Monaco
-  binds it to `uc_tags/**/*.yaml`, so editing a sidecar gets completion and
-  validation for the strict `version`/`table`/`tags`/`column_tags` format.
-- **Web IDE seeds a `tags_file` skeleton.** Setting a write target's `tags_file`
-  in the IDE proposes a `uc_tags/<table>.yaml` path and, on create, writes a
-  starter sidecar pre-filled with the `version`/`table`/`tags`/`column_tags`
-  scaffold.
-
 ## [0.9.1] — 2026-06-10
 
 Developer sandbox mode plus a dependency-extraction overhaul.
@@ -476,7 +459,7 @@ silently missing edges.
 - **Unity Catalog table & column tagging.** Streaming-table and
   materialized-view write actions can declare UC **tags** at the table level
   (a `tags:` mapping on `write_target`, or the `tags:` block of an external
-  `tags_file`) and at the column level (the `columns:` block of an external
+  `tags_file`) and at the column level (the `column_tags:` list of an external
   `tags_file`). Because Spark Declarative
   Pipelines cannot set UC tags as part of table creation, LHP collects all
   declared tags and emits a single per-pipeline `_uc_tagging_hook.py` that runs
@@ -515,6 +498,18 @@ silently missing edges.
     `LHP-VAL-016` at generate time instead of being silently dropped. The
     sidecar's `table:` must match the write target's table name (relaxed under
     `--sandbox`, which renames the table).
+  - **`lhp init` scaffolds a `uc_tags/` folder.** New projects get an empty
+    `uc_tags/` directory alongside `schemas/`, `expectations/`, and the rest — the
+    conventional home for external UC `tags_file` sidecars, one
+    `uc_tags/<table>.yaml` per tagged table.
+  - **Packaged UC tags-file JSON schema.** A `tags_file.schema.json` now ships in
+    the wheel and is served to the web IDE (`GET /api/schemas/tags_file`); Monaco
+    binds it to `uc_tags/**/*.yaml`, so editing a sidecar gets completion and
+    validation for the strict `version`/`table`/`tags`/`column_tags` format.
+  - **Web IDE seeds a `tags_file` skeleton.** Setting a write target's `tags_file`
+    in the IDE proposes a `uc_tags/<table>.yaml` path and, on create, writes a
+    starter sidecar pre-filled with the `version`/`table`/`tags`/`column_tags`
+    scaffold.
   - New error codes **`LHP-CFG-066`** (a declared UC tag key or value is illegal
     under Unity Catalog charset/length rules, raised at generation time) and
     **`LHP-CFG-067`** (an invalid `tags_file` — bad strict format, or a `table:`
