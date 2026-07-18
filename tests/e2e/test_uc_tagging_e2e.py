@@ -192,7 +192,7 @@ sandbox:
 class TestUCTaggingTagsFileSandboxE2E:
     """Sandbox smoke for a write target that sources its tags from a ``tags_file``.
 
-    ``uc_tag_orders.write_orders`` references ``tags_file: tags/uc_orders.yaml``,
+    ``uc_tag_orders.write_orders`` references ``tags_file: uc_tags/uc_orders.yaml``,
     whose sidecar declares ``table: uc_orders``. Under ``--sandbox`` the write
     target is renamed (``uc_orders`` -> ``sbx_uc_orders``) before the tagging hook
     runs, so the sidecar's literal ``table:`` no longer equals the write target's
