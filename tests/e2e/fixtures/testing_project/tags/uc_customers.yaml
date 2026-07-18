@@ -3,7 +3,8 @@
 # absent `tags:` key keeps the table out of _TABLE_TAGS (absent != empty).
 version: 1.0.0
 table: uc_customers
-columns:
-  c_email:
-    classification: pii
-    masked: ''
+column_tags:
+  - name: c_email
+    tags:
+      classification: pii
+      masked: ''

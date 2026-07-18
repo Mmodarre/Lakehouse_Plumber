@@ -2,10 +2,10 @@
 
 Loads a ``tags_file`` sidecar and returns the parsed ``ParsedTagsFile`` after
 validating the strict format. A tags file carries table-level tags
-(``tags:``) and/or per-column tags (``columns:``). Format problems raise
-LHP-CFG-067; missing files and YAML/document problems surface from the shared
-``yaml_loader`` unchanged (LHP-IO-001 missing, LHP-IO-003 zero/multiple
-documents, LHP-CFG-009 syntax).
+(``tags:``) and/or per-column tags (``column_tags:`` — a list of
+``{name, tags}`` entries). Format problems raise LHP-CFG-067; missing files and
+YAML/document problems surface from the shared ``yaml_loader`` unchanged
+(LHP-IO-001 missing, LHP-IO-003 zero/multiple documents, LHP-CFG-009 syntax).
 """
 
 import logging
@@ -18,18 +18,20 @@ from .yaml_loader import load_yaml_file
 logger = logging.getLogger(__name__)
 
 _SUPPORTED_VERSIONS = {"1.0", "1.0.0"}
-_ALLOWED_KEYS = {"version", "table", "tags", "columns"}
+_ALLOWED_KEYS = {"version", "table", "tags", "column_tags"}
 
 _FORMAT_EXAMPLE = """version: "1.0"
 table: catalog.schema.my_table
 tags:
   team: platform
   cost_center: "1234"
-columns:
-  email:
-    pii: high
-  region:
-    classification: public
+column_tags:
+  - name: email
+    tags:
+      pii: high
+  - name: region
+    tags:
+      classification: public
 """
 
 
@@ -37,8 +39,10 @@ class ParsedTagsFile(NamedTuple):
     """A validated UC tags file.
 
     ``tags`` is ``None`` when the ``tags:`` key is absent and ``{}`` for an
-    explicit ``tags: {}`` (absent ≠ empty). ``columns`` maps each column name
-    to its ``{tag_key: tag_value}`` mapping and defaults to ``{}`` when absent.
+    explicit ``tags: {}`` (absent ≠ empty). ``columns`` is parsed from the
+    ``column_tags:`` list of ``{name, tags}`` entries and returned as a mapping
+    of column name to its ``{tag_key: tag_value}`` mapping, in entry order;
+    defaults to ``{}``.
     """
 
     table: str
@@ -70,7 +74,7 @@ def parse_tags_file(file_path: Path) -> ParsedTagsFile:
         raise _invalid(
             file_path,
             "A UC tags file must be a mapping with 'version', 'table', and "
-            "'tags' and/or 'columns'.",
+            "'tags' and/or 'column_tags'.",
             "Use the strict tags-file format shown below.",
         )
 
@@ -79,7 +83,7 @@ def parse_tags_file(file_path: Path) -> ParsedTagsFile:
         raise _invalid(
             file_path,
             f"UC tags file has unknown key(s): {', '.join(sorted(unknown))}.",
-            "Remove any key other than 'version', 'table', 'tags', and 'columns'.",
+            "Remove any key other than 'version', 'table', 'tags', and 'column_tags'.",
         )
 
     for key in ("version", "table"):
@@ -90,11 +94,11 @@ def parse_tags_file(file_path: Path) -> ParsedTagsFile:
                 "Provide the 'version' and 'table' keys.",
             )
 
-    if "tags" not in data and "columns" not in data:
+    if "tags" not in data and "column_tags" not in data:
         raise _invalid(
             file_path,
-            "UC tags file must declare 'tags' and/or 'columns'.",
-            "Add a 'tags' and/or 'columns' block.",
+            "UC tags file must declare 'tags' and/or 'column_tags'.",
+            "Add a 'tags' and/or 'column_tags' block.",
         )
 
     version = str(data["version"]).strip()
@@ -125,29 +129,51 @@ def parse_tags_file(file_path: Path) -> ParsedTagsFile:
         tags = data["tags"]
 
     columns: dict[str, dict[str, Any]] = {}
-    if "columns" in data:
-        raw_columns = data["columns"]
-        if not isinstance(raw_columns, dict):
+    if "column_tags" in data:
+        raw_columns = data["column_tags"]
+        if not isinstance(raw_columns, list):
             raise _invalid(
                 file_path,
-                "UC tags file 'columns' must be a mapping of column name to a "
-                "tag mapping.",
-                "Provide 'columns' as column_name: {key: value} mappings.",
+                "UC tags file 'column_tags' must be a list of column entries.",
+                "Provide 'column_tags' as a list of {name, tags} entries.",
             )
-        for col_name, col_tags in raw_columns.items():
-            if not isinstance(col_name, str):
+        for entry in raw_columns:
+            if not isinstance(entry, dict):
                 raise _invalid(
                     file_path,
-                    f"UC tags file 'columns' has a non-string column name "
-                    f"'{col_name!r}'.",
-                    "Quote column names so each is a string.",
+                    "UC tags file 'column_tags' entries must be mappings with "
+                    "'name' and 'tags'.",
+                    "Write each entry as '- name: <column>' with a nested 'tags:' mapping.",
                 )
-            if not isinstance(col_tags, dict):
+            unknown_entry = set(entry) - {"name", "tags"}
+            if unknown_entry:
                 raise _invalid(
                     file_path,
-                    f"UC tags file column '{col_name}' must map to a tag mapping.",
-                    "Provide each column as column_name: {key: value} (may be empty).",
+                    f"UC tags file column entry has unknown key(s): "
+                    f"{', '.join(sorted(unknown_entry))}.",
+                    "Each 'column_tags' entry allows only 'name' and 'tags'.",
                 )
-        columns = raw_columns
+            name = entry.get("name")
+            if not isinstance(name, str) or not name.strip():
+                raise _invalid(
+                    file_path,
+                    "UC tags file column entry 'name' must be a non-empty string.",
+                    "Set 'name' to the column name.",
+                )
+            name = name.strip()
+            if name in columns:
+                raise _invalid(
+                    file_path,
+                    f"UC tags file 'column_tags' declares column '{name}' more than once.",
+                    "Merge duplicate entries into one per column.",
+                )
+            if "tags" not in entry or not isinstance(entry["tags"], dict):
+                raise _invalid(
+                    file_path,
+                    f"UC tags file column '{name}' 'tags' must be a mapping "
+                    "(may be empty).",
+                    "Give each column entry a 'tags:' mapping of key: value pairs.",
+                )
+            columns[name] = entry["tags"]
 
     return ParsedTagsFile(table.strip(), tags, columns)
