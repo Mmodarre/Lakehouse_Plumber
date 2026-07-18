@@ -40,6 +40,7 @@
 //   write_target.spark_conf              generators/write/materialized_view.py:59; dlt_table_options.py:26
 
 import type { ActionSubTypeSpec } from './types'
+import { ucTagsStub, ucTagsSuggestPath } from './ucTagsFile'
 
 const WT = ['write_target'] as const
 
@@ -181,16 +182,17 @@ export const writeMaterializedViewSpec: ActionSubTypeSpec = {
           widget: 'keyValue',
         },
         {
-          // External UC tags sidecar (strict version/table/tags[/columns] YAML;
+          // External UC tags sidecar (strict version/table/tags[/column_tags] YAML;
           // the single source of column-level tags). Mutually exclusive with
           // inline `tags` (dlt_table_options.py:82-88 → LHP-CFG); the soft
-          // mutuallyExclusive rule below surfaces a both-set hint.
+          // mutuallyExclusive rule below surfaces a both-set hint. The New
+          // affordance proposes uc_tags/<table>.yaml and seeds a skeleton.
           path: [...WT, 'tags_file'],
           label: 'Tags file',
           widget: 'text',
           monospace: true,
-          fileRef: { accept: ['.yaml', '.yml'] },
-          placeholder: 'tags/customer_summary.yaml',
+          fileRef: { accept: ['.yaml', '.yml'], stub: ucTagsStub, suggestPath: ucTagsSuggestPath },
+          placeholder: 'uc_tags/customer_summary.yaml',
         },
         { path: [...WT, 'spark_conf'], label: 'Spark conf', widget: 'keyValue' },
       ],

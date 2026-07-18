@@ -30,6 +30,12 @@ export interface FileRefFieldProps {
   baseDir?: string
   /** Open the shell's existing CodeModal on a file target. */
   onEditCode: (target: CodeTarget) => void
+  /** Content the New/Create affordance seeds (wins over the extension stub). */
+  makeStub?: () => string
+  /** Path proposed when the field is empty and the user clicks New. */
+  suggestedPath?: string
+  /** Input placeholder — falls back to the accept list when absent. */
+  placeholder?: string
 }
 
 /** Stub content seeded from the ref's extension. FileRefField backs
@@ -62,7 +68,16 @@ function stubExtension(value: unknown, accept: string[]): string {
   return first.replace(/^\./, '').toLowerCase()
 }
 
-export function FileRefField({ value, onChange, accept, baseDir, onEditCode }: FileRefFieldProps) {
+export function FileRefField({
+  value,
+  onChange,
+  accept,
+  baseDir,
+  onEditCode,
+  makeStub,
+  suggestedPath,
+  placeholder,
+}: FileRefFieldProps) {
   const [browsing, setBrowsing] = useState(false)
   const path = companionCheckablePath(value)
   const companion = useCompanionFile(path)
@@ -73,8 +88,17 @@ export function FileRefField({ value, onChange, accept, baseDir, onEditCode }: F
   }
 
   const handleCreate = async () => {
-    const created = await companion.create(stubForExt(stubExtension(value, accept)))
-    if (created) openEditor()
+    // With an empty field, fall back to the proposed path (if any). A token /
+    // absolute / no-suggestion target stays a no-op, exactly as before.
+    const target = path ?? companionCheckablePath(suggestedPath)
+    if (target === null) return
+    // Adopt the proposed path into the field before creating the file there.
+    if (path === null) onChange(target)
+    const created = await companion.create(
+      makeStub ? makeStub() : stubForExt(stubExtension(value, accept)),
+      target,
+    )
+    if (created) onEditCode({ backing: 'file', title: target, filePath: target })
   }
 
   return (
@@ -83,7 +107,7 @@ export function FileRefField({ value, onChange, accept, baseDir, onEditCode }: F
         <Input
           value={typeof value === 'string' ? value : ''}
           onChange={(e) => onChange(e.target.value)}
-          placeholder={accept.join(', ')}
+          placeholder={placeholder ?? accept.join(', ')}
           spellCheck={false}
           autoComplete="off"
           className="font-mono text-xs"

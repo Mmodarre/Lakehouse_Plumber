@@ -61,6 +61,7 @@
 
 import type { ActionSubTypeSpec } from './types'
 import { effectiveValue, isPresent, readPath } from './helpers'
+import { ucTagsStub, ucTagsSuggestPath } from './ucTagsFile'
 
 const MODE: readonly [string, string, string] = ['standard', 'cdc', 'snapshot_cdc']
 
@@ -403,16 +404,17 @@ export const writeStreamingTableSpec: ActionSubTypeSpec = {
           widget: 'keyValue',
         },
         {
-          // External UC tags sidecar (strict version/table/tags[/columns] YAML;
+          // External UC tags sidecar (strict version/table/tags[/column_tags] YAML;
           // the single source of column-level tags). Mutually exclusive with
           // inline `tags` (dlt_table_options.py:82-88 → LHP-CFG); the soft
-          // mutuallyExclusive rule below surfaces a both-set hint.
+          // mutuallyExclusive rule below surfaces a both-set hint. The New
+          // affordance proposes uc_tags/<table>.yaml and seeds a skeleton.
           path: ['write_target', 'tags_file'],
           label: 'Tags file',
           widget: 'text',
           monospace: true,
-          fileRef: { accept: ['.yaml', '.yml'] },
-          placeholder: 'tags/customer_dim.yaml',
+          fileRef: { accept: ['.yaml', '.yml'], stub: ucTagsStub, suggestPath: ucTagsSuggestPath },
+          placeholder: 'uc_tags/customer_dim.yaml',
         },
         { path: ['write_target', 'spark_conf'], label: 'Spark conf', widget: 'keyValue' },
       ],
