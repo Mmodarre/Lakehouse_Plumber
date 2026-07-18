@@ -63,7 +63,7 @@ export function codeFieldForPath(path: YamlPath): CodeFieldInfo | null {
  */
 export function fileRefForField(
   spec: FieldSpec,
-): { accept: string[]; baseDir?: string } | null {
+): NonNullable<FieldSpec['fileRef']> | null {
   if (spec.fileRef) return spec.fileRef
   const info = codeFieldForPath(spec.path)
   if (info?.backing !== 'file') return null

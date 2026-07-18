@@ -21,9 +21,11 @@ export type CompanionStatus = 'unavailable' | 'checking' | 'exists' | 'missing'
 
 export interface CompanionFile {
   status: CompanionStatus
-  /** Create the file with `stub` content (auto-creates parent dirs). Resolves
-   * true when the file exists afterwards (created, or already there). */
-  create: (stub: string) => Promise<boolean>
+  /** Create the file with `stub` content (auto-creates parent dirs). Writes to
+   * `atPath` when given (a path proposed for a field that is still empty), else
+   * the hook's own `path`. Resolves true when the file exists afterwards
+   * (created, or already there). */
+  create: (stub: string, atPath?: string) => Promise<boolean>
 }
 
 /** The checkable project-relative path for a field value, or `null`. */
@@ -54,18 +56,19 @@ export function useCompanionFile(path: string | null): CompanionFile {
   })
 
   const create = useCallback(
-    async (stub: string): Promise<boolean> => {
-      if (path === null) return false
+    async (stub: string, atPath?: string): Promise<boolean> => {
+      const target = atPath ?? path
+      if (target === null) return false
       try {
         // Create-only If-Match: 412 means it already exists (nothing to do).
-        await writeFile(path, stub, IF_MATCH_CREATE_ONLY)
+        await writeFile(target, stub, IF_MATCH_CREATE_ONLY)
       } catch (err) {
         if (!(err instanceof ApiError && err.status === 412)) {
           toast.error(errorMessage(err, 'Failed to create file'))
           return false
         }
       }
-      await queryClient.invalidateQueries({ queryKey: ['file-exists', path] })
+      await queryClient.invalidateQueries({ queryKey: ['file-exists', target] })
       await queryClient.invalidateQueries({ queryKey: ['files'] })
       return true
     },

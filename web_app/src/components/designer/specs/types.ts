@@ -180,7 +180,14 @@ export interface FieldSpec {
    * whose key is a well-known path segment (`sql_path`, `module_path`, …) still
    * gets a file control without declaring `fileRef` explicitly.
    */
-  fileRef?: { accept: string[]; baseDir?: string }
+  fileRef?: {
+    accept: string[]
+    baseDir?: string
+    /** Content the "New"/"Create file" affordance seeds (wins over the extension stub). */
+    stub?: (raw: Record<string, unknown>) => string
+    /** Path proposed when the field is empty and the user clicks New; null = no proposal. */
+    suggestPath?: (raw: Record<string, unknown>) => string | null
+  }
 
   // one-of toggle ---------------------------------------------------------
   /**
