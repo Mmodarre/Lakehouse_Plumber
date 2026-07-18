@@ -5,6 +5,23 @@ All notable changes to Lakehouse Plumber are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **`lhp init` scaffolds a `uc_tags/` folder.** New projects get an empty
+  `uc_tags/` directory alongside `schemas/`, `expectations/`, and the rest — the
+  conventional home for external UC `tags_file` sidecars, one
+  `uc_tags/<table>.yaml` per tagged table.
+- **Packaged UC tags-file JSON schema.** A `tags_file.schema.json` now ships in
+  the wheel and is served to the web IDE (`GET /api/schemas/tags_file`); Monaco
+  binds it to `uc_tags/**/*.yaml`, so editing a sidecar gets completion and
+  validation for the strict `version`/`table`/`tags`/`column_tags` format.
+- **Web IDE seeds a `tags_file` skeleton.** Setting a write target's `tags_file`
+  in the IDE proposes a `uc_tags/<table>.yaml` path and, on create, writes a
+  starter sidecar pre-filled with the `version`/`table`/`tags`/`column_tags`
+  scaffold.
+
 ## [0.9.1] — 2026-06-10
 
 Developer sandbox mode plus a dependency-extraction overhaul.
@@ -485,11 +502,15 @@ silently missing edges.
     `USE SCHEMA`, and `SELECT` on `system.information_schema`.
   - **External tags file (single source of column tags).** As an alternative to
     an inline `tags:` mapping, a table may set `tags_file:` to an external
-    sidecar (mutually exclusive with `tags`). The sidecar now carries **both**
-    levels in a strict `version`/`table`/`tags`/`columns` format: `version` and
-    `table` are required, and at least one of a table-level `tags:` block or a
-    column-level `columns:` block (`column_name: {key: value}`) must be present.
-    Column tags come **only** from this `columns:` block — a schema file
+    sidecar (mutually exclusive with `tags`; convention `uc_tags/<table>.yaml`).
+    The sidecar carries **both** levels in a strict
+    `version`/`table`/`tags`/`column_tags` format: `version` and `table` are
+    required, and at least one of a table-level `tags:` mapping or a
+    column-level `column_tags:` list must be present. `column_tags:` is a list of
+    `{name, tags}` entries — one per column, each with a unique non-empty `name`
+    and its own `tags:` mapping (required, may be empty); duplicate names are
+    rejected and the old top-level `columns:` key is now an unknown-key error.
+    Column tags come **only** from this `column_tags:` list — a schema file
     (`table_schema`) is DDL-only and a stray column `tags:` key now raises
     `LHP-VAL-016` at generate time instead of being silently dropped. The
     sidecar's `table:` must match the write target's table name (relaxed under
