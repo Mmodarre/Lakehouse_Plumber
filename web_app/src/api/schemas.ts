@@ -15,6 +15,7 @@ export type SchemaKind =
   | 'project'
   | 'pipeline_config'
   | 'job_config'
+  | 'tags_file'
 
 /**
  * Fetch a canonical packaged JSON schema by kind.

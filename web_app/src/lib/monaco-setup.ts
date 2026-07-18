@@ -160,6 +160,7 @@ const SCHEMA_FILE_MATCH: Record<SchemaKind, string[]> = {
     'config/monitoring_job_config*.yaml',
     'config/monitoring_job_config*.yml',
   ],
+  tags_file: ['uc_tags/**/*.yaml', 'uc_tags/**/*.yml'],
 }
 
 let yamlConfigured = false
