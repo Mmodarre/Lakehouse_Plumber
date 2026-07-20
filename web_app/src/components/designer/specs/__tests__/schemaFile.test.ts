@@ -89,7 +89,7 @@ describe('table_schema file branch wiring (streaming_table)', () => {
     const toggle = writeStreamingTableSpec.groups
       .flatMap((g) => g.fields)
       .find((f) => key(f.path) === key(['write_target', '__table_schema']))!
-    const fileOption = toggle.oneOf?.options.find((o) => o.value === 'file')!
+    const fileOption = toggle.oneOf!.options.find((o) => o.value === 'file')!
     expect(fileOption.backing).toBe('file')
     expect(fileOption.placeholder?.startsWith('schemas/')).toBe(true)
     expect(fileOption.stub).toBe(schemaStub)
