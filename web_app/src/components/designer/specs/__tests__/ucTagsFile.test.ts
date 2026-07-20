@@ -48,7 +48,7 @@ describe('ucTagsStub', () => {
     const stub = ucTagsStub({ write_target: { table: 'orders' } })
     expect(stub).toContain('version: 1.0.0')
     expect(stub).toContain('table: orders')
-    expect(stub).toContain('# column_tags:')
+    expect(stub).toContain('# columns:')
     expect(stub).toContain('#   - name: email')
   })
 

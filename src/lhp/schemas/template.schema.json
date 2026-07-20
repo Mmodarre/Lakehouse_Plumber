@@ -425,7 +425,7 @@
                 },
                 "tags_file": {
                     "type": "string",
-                    "description": "Path to an external UC tags file (strict version/table/tags/column_tags format; 'column_tags' is a list of {name, tags} entries and the single source of column-level tags). Convention: uc_tags/<table>.yaml. Mutually exclusive with 'tags'."
+                    "description": "Path to an external UC tags file (identified by 'table' or its alias 'name'; optional 'version'; carries table-level 'tags' and/or a 'columns' list of {name, tags} entries, the single source of column-level tags). Convention: uc_tags/<table>.yaml. Mutually exclusive with 'tags'."
                 },
                 "table_schema": {
                     "type": "string",

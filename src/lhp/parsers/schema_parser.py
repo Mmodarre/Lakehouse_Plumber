@@ -119,11 +119,11 @@ class SchemaParser:
             title="Column tags in schema files are no longer supported",
             details=(
                 "Column tags in schema files are no longer supported — declare "
-                "them in the write target's `tags_file` under `column_tags:`."
+                "them in the write target's `tags_file` under `columns:`."
             ),
             suggestions=[
                 "Remove the 'tags' key from the schema file's column definitions",
-                "Declare column tags in the write target's tags_file under 'column_tags:'",
+                "Declare column tags in the write target's tags_file under 'columns:'",
             ],
             context={
                 "file": str(schema_file_path),

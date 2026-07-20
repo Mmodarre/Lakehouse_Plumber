@@ -191,10 +191,19 @@ CFG_065 = ErrorCode(ErrorCategory.CONFIG, "065")
 # the offending text, and the specific reason, e.g.:
 #   f"UC tag {part} {value!r} on {context} is illegal: {reason}."
 CFG_066 = ErrorCode(ErrorCategory.CONFIG, "066")
-# CFG_067: a UC tags file is invalid — missing/unknown top-level key, an
-# unsupported 'version', a wrong-typed 'table'/'tags', or a 'table' that does
-# not match the write target. Raised via ErrorFactory.config_error(codes.CFG_067, ...).
+# CFG_067: a UC tags file is invalid — an unknown top-level key, a missing
+# identifier ('table'/'name'), an unsupported 'version' (when present), a
+# wrong-typed 'table'/'name'/'tags', or a malformed 'columns' entry. Raised via
+# ErrorFactory.config_error(codes.CFG_067, ...).
 CFG_067 = ErrorCode(ErrorCategory.CONFIG, "067")
+# CFG_068: WARNING code — a UC tags file's declared identifier is inconsistent:
+# either the sidecar's 'table'/'name' does not match the write target's resolved
+# table (checked at generation time by the UC tagging hook generator; generation
+# proceeds using the write target's table), or the file declares both 'table' and
+# 'name' with differing values (the parser uses 'table' and warns). Logged via
+# ``logger.warning`` with the LHP-CFG-068 token, never raised as an error. Not a
+# structured WarningEmitted event (CLI stderr / server logs only) — see CHANGELOG.
+CFG_068 = ErrorCode(ErrorCategory.CONFIG, "068")
 
 DEP_001 = ErrorCode(ErrorCategory.DEPENDENCY, "001")
 # DEP_002: dependency extraction found a recognized table-read in Python code
@@ -337,6 +346,7 @@ ALL_CODES: tuple[ErrorCode, ...] = (
     CFG_065,
     CFG_066,
     CFG_067,
+    CFG_068,
     DEP_001,
     DEP_002,
     DEP_003,
@@ -407,6 +417,7 @@ __all__ = [
     "CFG_065",
     "CFG_066",
     "CFG_067",
+    "CFG_068",
     "DEPR_001",
     "DEPR_002",
     "DEPR_003",

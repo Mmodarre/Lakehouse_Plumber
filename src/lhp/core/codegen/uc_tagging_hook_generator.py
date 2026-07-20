@@ -250,8 +250,10 @@ class UCTaggingHookGenerator:
         When ``tags_file`` is set, the sidecar is the sole source of BOTH table
         and column tags: its ``tags:`` block (``None`` when the key is absent,
         ``{}`` for an explicit empty set — absent ≠ empty) and its ``columns:``
-        block. The sidecar's literal ``table:`` must equal the write target's
-        table name — skipped under ``--sandbox`` (``self._sandbox_active``),
+        block. The sidecar's declared identifier (``table``/``name``) should
+        equal the write target's table name; a mismatch logs an LHP-CFG-068
+        warning and generation proceeds using the write target's resolved table
+        — the check is skipped under ``--sandbox`` (``self._sandbox_active``),
         where tables are renamed. Otherwise inline ``tags`` supplies table tags
         only; inline DDL / ``table_schema`` carries no column tags, so column
         tags are always ``{}`` on the inline path. Validation guarantees at most
@@ -266,24 +268,10 @@ class UCTaggingHookGenerator:
             if not self._sandbox_active:
                 actual_table = self._sub(str(wt("table") or ""), substitution_mgr)
                 if parsed.table != actual_table:
-                    raise ErrorFactory.config_error(
-                        codes.CFG_067,
-                        title="Tags file table mismatch",
-                        details=(
-                            f"Tags file '{tags_file}' declares table "
-                            f"'{parsed.table}', but the write target's table "
-                            f"is '{actual_table}'."
-                        ),
-                        suggestions=[
-                            "Set the tags file's 'table:' to the write target's "
-                            "table name",
-                            "Or point 'tags_file' at the sidecar for this table",
-                        ],
-                        example=f"table: {actual_table}",
-                        context={
-                            "Tags file": tags_file,
-                            "Write target table": actual_table,
-                        },
+                    logger.warning(
+                        f"{codes.CFG_068.code}: tags file '{tags_file}' declares "
+                        f"table '{parsed.table}', but the write target's table is "
+                        f"'{actual_table}'; applying tags to '{actual_table}'."
                     )
             return parsed.tags, parsed.columns
         return wt("tags"), {}

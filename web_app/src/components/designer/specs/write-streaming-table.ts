@@ -404,7 +404,7 @@ export const writeStreamingTableSpec: ActionSubTypeSpec = {
           widget: 'keyValue',
         },
         {
-          // External UC tags sidecar (strict version/table/tags[/column_tags] YAML;
+          // External UC tags sidecar (strict table/name + optional version/tags/columns YAML;
           // the single source of column-level tags). Mutually exclusive with
           // inline `tags` (dlt_table_options.py:82-88 → LHP-CFG); the soft
           // mutuallyExclusive rule below surfaces a both-set hint. The New

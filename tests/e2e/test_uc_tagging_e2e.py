@@ -195,11 +195,12 @@ class TestUCTaggingTagsFileSandboxE2E:
     ``uc_tag_orders.write_orders`` references ``tags_file: uc_tags/uc_orders.yaml``,
     whose sidecar declares ``table: uc_orders``. Under ``--sandbox`` the write
     target is renamed (``uc_orders`` -> ``sbx_uc_orders``) before the tagging hook
-    runs, so the sidecar's literal ``table:`` no longer equals the write target's
-    (renamed) table name. The commit-time table cross-check is skipped under
-    sandbox (Task 3), so generation must still succeed and the hook must carry the
-    resolved tags keyed by the RENAMED FQN — proving the cross-check does not
-    spuriously fail when the table has been namespaced.
+    runs, so the sidecar's declared ``table:`` no longer equals the write target's
+    (renamed) table name. The commit-time identifier cross-check (a warning,
+    LHP-CFG-068) is skipped entirely under sandbox (Task 3), so generation must
+    still succeed and the hook must carry the resolved tags keyed by the RENAMED
+    FQN — proving the cross-check does not spuriously warn when the table has been
+    namespaced.
     """
 
     __test__ = True
@@ -249,7 +250,7 @@ class TestUCTaggingTagsFileSandboxE2E:
         return result.exit_code, result.output
 
     def test_tags_file_sandbox_skips_table_cross_check(self):
-        """tags_file resolves under sandbox against the renamed table (no CFG-067)."""
+        """tags_file resolves under sandbox against the renamed table (no CFG-068 warning)."""
         exit_code, output = self.run_sandbox_generate()
         assert exit_code == 0, f"Sandbox generation should succeed: {output}"
 
