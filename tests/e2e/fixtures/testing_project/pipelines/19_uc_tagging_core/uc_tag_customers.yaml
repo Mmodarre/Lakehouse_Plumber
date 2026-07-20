@@ -1,5 +1,6 @@
-# UC tagging E2E — column tags via tags_file (no inline/schema tags), explicit
-# catalog/schema form. table_schema stays for DDL; tags come from uc_tags/uc_customers.yaml.
+# UC tagging E2E — column tags via tags_file, explicit catalog/schema form.
+# table_schema and tags_file point at the SAME unified file (schemas/uc_customers.yaml):
+# column DDL and column tags come from one artifact.
 pipeline: uc_tagging_core
 flowgroup: uc_tag_customers
 #job_name: j_two
@@ -23,4 +24,4 @@ actions:
       schema: "${bronze_schema}"
       table: uc_customers
       table_schema: schemas/uc_customers.yaml
-      tags_file: uc_tags/uc_customers.yaml
+      tags_file: schemas/uc_customers.yaml

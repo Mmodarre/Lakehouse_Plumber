@@ -161,11 +161,14 @@ Configuration errors (LHP-CFG)
      - A Unity Catalog tag key or value is illegal (charset, whitespace, or length).
      - Fix the offending tag key or value to meet Unity Catalog rules.
    * - LHP-CFG-067
-     - Invalid UC ``tags_file`` — a top-level document that is not a mapping, an unknown top-level key (including the former ``column_tags`` key), a missing identifier (neither ``table`` nor ``name``), an unsupported ``version``, a wrong-typed ``table``/``name``/``tags``, a ``columns`` that is not a list of ``{name, tags}`` entries, a malformed or unknown-key entry, an entry whose ``name`` is missing/empty/duplicated, an entry whose per-entry ``tags`` is missing or not a mapping, or a file declaring neither ``tags`` nor ``columns``.
-     - Use the strict format (optional ``version``; ``table`` or its alias ``name``; ``tags`` and/or a ``columns`` list); declare at least one of ``tags``/``columns``; set ``table:`` to the write target's table name.
+     - Invalid unified schema/tags file — a top-level document that is not a mapping, an unknown top-level key (including the retired ``column_tags`` key), a ``columns`` that is not a list, or a ``columns`` entry that is not a mapping or carries an unknown key. Read as a ``tags_file`` it also rejects a wrong-typed ``table``/``name``/``tags``, a column ``name`` that is missing/empty/duplicated, and a per-column ``tags`` that is not a mapping.
+     - Use the unified format (optional identifier ``table`` or its alias ``name``; a table-level ``tags`` mapping and/or a ``columns`` list; per-column ``name``/``type``/``nullable``/``comment``/``tags``). Legacy ``version``/``description``/``primary_key`` keys are ignored. As a ``tags_file``, set ``table:`` to the write target's table name.
    * - LHP-CFG-068
      - Warning (logged) — a UC ``tags_file`` identifier is inconsistent: it does not match the write target's table (generation proceeds using the write target's table), or the file declares both ``table`` and ``name`` with differing values (``table`` wins).
      - Set the sidecar's ``table:``/``name:`` to the write target's table name, or accept the mismatch.
+   * - LHP-CFG-069
+     - Warning (logged) — a write target's ``table_schema`` file carries UC tags (a top-level ``tags:`` or a per-column ``tags:``) but the same file is not also wired as that action's ``tags_file``, so those tags are dropped. Emitted at generate time by the streaming-table and materialized-view writes only (not the cloudfiles load path).
+     - Point ``tags_file`` at the same file to apply the tags, or remove the ``tags:`` keys from the schema file.
 
 Validation errors (LHP-VAL)
 ===========================
@@ -223,8 +226,8 @@ Validation errors (LHP-VAL)
      - Missing flowgroup context for Python file copying.
      - Internal — ensure flowgroup context is supplied.
    * - LHP-VAL-016
-     - Invalid schema definition (missing ``columns`` or a malformed column), a temp-table transform with no source view, or a schema file carries a column ``tags:`` key — column tags in schema files are no longer supported (declare them as an entry in the write target's ``tags_file`` ``columns:`` list). The migration case is raised at ``lhp generate`` time (``lhp validate`` runs no code generation).
-     - Fix the schema per the message; move any column tags to the ``tags_file`` ``columns:`` list.
+     - Invalid schema definition — a schema file missing ``columns``, a column missing ``name`` or ``type``, or a temp-table transform with no source view.
+     - Fix the schema per the message.
    * - LHP-VAL-017
      - Missing AWS MSK IAM options on a Kafka action, or an invalid source config for a materialized-view write.
      - Add the required options; fix the source.

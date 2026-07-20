@@ -600,7 +600,7 @@
                 },
                 "tags_file": {
                     "type": "string",
-                    "description": "Path to an external UC tags file (identified by 'table' or its alias 'name'; optional 'version'; carries table-level 'tags' and/or a 'columns' list of {name, tags} entries, the single source of column-level tags). Convention: uc_tags/<table>.yaml. Mutually exclusive with 'tags'."
+                    "description": "Path to a unified schema/tags file (schemas/<table>.yaml) supplying Unity Catalog table- and column-level tags. Point 'table_schema' and 'tags_file' at the same file to combine column types and tags in one artifact. The identifier ('table', or its alias 'name') is optional; when present it should match the write target's table (a mismatch logs LHP-CFG-068 and generation proceeds using the write target's table). Mutually exclusive with 'tags'."
                 },
                 "partition_columns": {
                     "type": "array",

@@ -265,7 +265,7 @@ class UCTaggingHookGenerator:
                 tags_file, self.project_root, file_type="tags file"
             )
             parsed = parse_tags_file(resolved)
-            if not self._sandbox_active:
+            if not self._sandbox_active and parsed.table is not None:
                 actual_table = self._sub(str(wt("table") or ""), substitution_mgr)
                 if parsed.table != actual_table:
                     logger.warning(

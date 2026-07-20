@@ -1,10 +1,12 @@
-"""Unit tests for the strict-format UC tags-file parser (LHP-CFG-067).
+"""Unit tests for the tags reader over the unified schema/tags format.
 
-Covers the strict-format contract of ``parse_tags_file``: accepted shapes
-(YAML + JSON, optional ``1.0`` / ``1.0.0`` versions, the ``name`` identifier
-alias, empty tag maps) and every format rejection (LHP-CFG-067), plus the
-pass-through of loader-level errors (LHP-IO-001 missing, LHP-IO-003 zero/multi
-document) and the LHP-CFG-068 ``table``/``name`` conflict warning.
+Covers the ``tags_file`` contract of ``parse_tags_file``: accepted shapes
+(YAML + JSON, the optional ``table``/``name`` identifier, schema-style files
+whose schema-only ``type``/``nullable``/``comment`` fields are ignored,
+empty/absent tag maps), the no-op path (a file with no tags), the whitelist
+rejections (LHP-CFG-067), the pass-through of loader-level errors (LHP-IO-001
+missing, LHP-IO-003 zero/multi document), and the LHP-CFG-068 ``table``/``name``
+conflict warning.
 """
 
 import json
@@ -261,29 +263,71 @@ def test_empty_column_tags_mapping_allowed(tmp_path):
     assert parsed.columns == {"email": {}}
 
 
+@pytest.mark.unit
+def test_schema_style_file_parses_as_tags(tmp_path):
+    # A unified schema/tags file whose columns carry schema-only fields
+    # (type/nullable/comment) alongside tags parses as tags: the schema-only
+    # fields are ignored, and only tagged columns land in ``.columns``.
+    content = (
+        "table: c.s.t\n"
+        "description: a schema file\n"
+        "columns:\n"
+        "  - name: id\n"
+        "    type: BIGINT\n"
+        "    nullable: false\n"
+        "  - name: email\n"
+        "    type: STRING\n"
+        "    comment: PII\n"
+        "    tags:\n"
+        "      pii: high\n"
+    )
+    path = _write(tmp_path, "orders.yaml", content)
+    parsed = parse_tags_file(path)
+    assert parsed.table == "c.s.t"
+    assert parsed.tags is None
+    # ``id`` has no tags -> contributes nothing; only ``email`` is tagged.
+    assert parsed.columns == {"email": {"pii": "high"}}
+
+
+@pytest.mark.unit
+def test_legacy_keys_tolerated(tmp_path):
+    # The legacy schema keys version/description/primary_key are tolerated and
+    # ignored, so a real schema file works unchanged as a tags_file.
+    content = (
+        'version: "1.0"\n'
+        "description: legacy\n"
+        "primary_key: [id]\n"
+        "table: c.s.t\n"
+        "tags:\n"
+        "  team: platform\n"
+    )
+    path = _write(tmp_path, "tags.yaml", content)
+    parsed = parse_tags_file(path)
+    assert parsed.table == "c.s.t"
+    assert parsed.tags == {"team": "platform"}
+
+
 # --- format rejections (LHP-CFG-067) -----------------------------------------
 
 
 @pytest.mark.unit
-def test_missing_identifier_rejected(tmp_path):
-    # Neither ``table`` nor its alias ``name`` present — an identifier is
-    # required (``version`` alone is optional and no longer required).
-    path = _write(tmp_path, "tags.yaml", 'version: "1.0"\ntags:\n  a: b\n')
-    with pytest.raises(LHPError) as exc:
-        parse_tags_file(path)
-    assert exc.value.code == "LHP-CFG-067"
-    assert "table" in exc.value.details
+def test_missing_identifier_is_optional(tmp_path):
+    # The identifier is optional: a file with tags but no ``table``/``name``
+    # parses, and ``.table`` is None (so the CFG-068 cross-check is skipped).
+    path = _write(tmp_path, "tags.yaml", "tags:\n  a: b\n")
+    parsed = parse_tags_file(path)
+    assert parsed.table is None
+    assert parsed.tags == {"a": "b"}
 
 
 @pytest.mark.unit
-def test_neither_tags_nor_columns_rejected(tmp_path):
-    # A ``table`` alone is not enough — at least one of the ``tags``/``columns``
-    # keys must be declared.
-    path = _write(tmp_path, "tags.yaml", 'version: "1.0"\ntable: c.s.t\n')
-    with pytest.raises(LHPError) as exc:
-        parse_tags_file(path)
-    assert exc.value.code == "LHP-CFG-067"
-    assert "columns" in exc.value.details
+def test_no_tags_and_no_columns_is_noop(tmp_path):
+    # A file with an identifier but no tags at all is a no-op, not an error.
+    path = _write(tmp_path, "tags.yaml", "table: c.s.t\n")
+    parsed = parse_tags_file(path)
+    assert parsed.table == "c.s.t"
+    assert parsed.tags is None
+    assert parsed.columns == {}
 
 
 @pytest.mark.unit
@@ -385,16 +429,16 @@ def test_whitespace_only_column_name_rejected(tmp_path):
 
 
 @pytest.mark.unit
-def test_missing_column_tags_key_rejected(tmp_path):
-    # The per-column ``tags`` key is REQUIRED (managed-empty must be explicit).
+def test_column_without_tags_contributes_none(tmp_path):
+    # A column with no ``tags`` key contributes no column tags (schema-only
+    # column) — tolerated, not rejected, so one file can serve both readers.
     path = _write(
         tmp_path,
         "tags.yaml",
-        'version: "1.0"\ntable: c.s.t\ncolumns:\n  - name: email\n',
+        "table: c.s.t\ncolumns:\n  - name: email\n",
     )
-    with pytest.raises(LHPError) as exc:
-        parse_tags_file(path)
-    assert exc.value.code == "LHP-CFG-067"
+    parsed = parse_tags_file(path)
+    assert parsed.columns == {}
 
 
 @pytest.mark.unit
@@ -440,21 +484,20 @@ def test_duplicate_column_name_rejected(tmp_path):
 
 
 @pytest.mark.unit
-def test_unsupported_version_string(tmp_path):
+def test_legacy_version_tolerated_and_ignored(tmp_path):
+    # ``version`` is now a tolerated-and-ignored legacy key; any value parses.
     path = _write(tmp_path, "tags.yaml", 'version: "2.0"\ntable: c.s.t\ntags: {}\n')
-    with pytest.raises(LHPError) as exc:
-        parse_tags_file(path)
-    assert exc.value.code == "LHP-CFG-067"
+    parsed = parse_tags_file(path)
+    assert parsed.table == "c.s.t"
+    assert parsed.tags == {}
 
 
 @pytest.mark.unit
-def test_bare_int_version_rejected(tmp_path):
-    # ``version: 1`` parses as the int 1; ``str(1) == "1"`` is not in
-    # {"1.0", "1.0.0"} so it is rejected as an unsupported version.
+def test_bare_int_version_tolerated(tmp_path):
+    # A bare-int ``version: 1`` is tolerated-and-ignored (legacy key).
     path = _write(tmp_path, "tags.yaml", "version: 1\ntable: c.s.t\ntags: {}\n")
-    with pytest.raises(LHPError) as exc:
-        parse_tags_file(path)
-    assert exc.value.code == "LHP-CFG-067"
+    parsed = parse_tags_file(path)
+    assert parsed.table == "c.s.t"
 
 
 @pytest.mark.unit
@@ -515,21 +558,23 @@ def test_list_root_rejected(tmp_path):
 
 
 @pytest.mark.unit
-def test_null_document_raises_missing_key(tmp_path):
-    # A single ``null`` document loads to ``{}`` (allow_empty) -> missing identifier.
+def test_null_document_is_noop(tmp_path):
+    # A single ``null`` document loads to ``{}`` (allow_empty); with the
+    # identifier optional and no-tags allowed, that is a no-op, not an error.
     path = _write(tmp_path, "tags.yaml", "null\n")
-    with pytest.raises(LHPError) as exc:
-        parse_tags_file(path)
-    assert exc.value.code == "LHP-CFG-067"
+    parsed = parse_tags_file(path)
+    assert parsed.table is None
+    assert parsed.tags is None
+    assert parsed.columns == {}
 
 
 @pytest.mark.unit
-def test_dashes_only_document_raises_missing_key(tmp_path):
-    # A lone ``---`` is a single null document -> {} -> missing identifier.
+def test_dashes_only_document_is_noop(tmp_path):
+    # A lone ``---`` is a single null document -> {} -> a no-op.
     path = _write(tmp_path, "tags.yaml", "---\n")
-    with pytest.raises(LHPError) as exc:
-        parse_tags_file(path)
-    assert exc.value.code == "LHP-CFG-067"
+    parsed = parse_tags_file(path)
+    assert parsed.table is None
+    assert parsed.columns == {}
 
 
 # --- loader-level pass-through errors -----------------------------------------

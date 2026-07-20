@@ -1,0 +1,66 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://lakehouse-plumber.dev/schemas/schema.schema.json",
+  "title": "LHP Schema / Tags File",
+  "description": "Unified schema/tags file (schemas/<table>.yaml). One file that a write action can point BOTH 'table_schema' (column types -> schema hints) and 'tags_file' (Unity Catalog table/column tags) at; each reader consumes only its own fields. The identifier is optional: 'table' is canonical, with 'name' accepted as an alias. The legacy schema keys 'version'/'description'/'primary_key' are tolerated and ignored.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "table": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Optional identifier (the table name). Canonical: wins over 'name' when both are present. When the file is used as a 'tags_file', it should equal the write target's table; a mismatch logs a warning (LHP-CFG-068) and generation proceeds using the write target's table."
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Accepted alias for 'table' (schema-file / ODCS convention). 'table' is canonical and wins when both are present; a differing 'name' logs a warning (LHP-CFG-068)."
+    },
+    "tags": {
+      "type": "object",
+      "description": "Table-level Unity Catalog tags. Consumed by the 'tags_file' reader; ignored by the 'table_schema' reader. An explicit empty mapping means 'managed with an empty set' under remove_undeclared_tags.",
+      "additionalProperties": { "$ref": "#/definitions/tagValue" }
+    },
+    "columns": {
+      "type": "array",
+      "description": "Column entries. The 'table_schema' reader consumes name/type/nullable/comment; the 'tags_file' reader consumes name/tags.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name"],
+        "properties": {
+          "name": { "type": "string", "minLength": 1, "description": "Column name (required)." },
+          "type": { "type": "string", "description": "SQL type (e.g. STRING, BIGINT). Required for 'table_schema' use; optional when the file is tags-only." },
+          "nullable": { "type": "boolean", "description": "Whether the column is nullable (schema use). Defaults to true." },
+          "comment": { "type": "string", "description": "Column comment (schema use)." },
+          "tags": {
+            "type": "object",
+            "description": "This column's Unity Catalog tags (tags_file use; may be empty). Absent means the column contributes no tags.",
+            "additionalProperties": { "$ref": "#/definitions/tagValue" }
+          }
+        }
+      }
+    },
+    "version": {
+      "description": "Legacy schema key -- tolerated and ignored by both readers.",
+      "anyOf": [{ "type": "string" }, { "type": "number" }]
+    },
+    "description": {
+      "type": "string",
+      "description": "Legacy schema key -- tolerated and ignored by both readers."
+    },
+    "primary_key": {
+      "description": "Legacy schema key -- tolerated and ignored by both readers.",
+      "anyOf": [
+        { "type": "string" },
+        { "type": "array", "items": { "type": "string" } }
+      ]
+    }
+  },
+  "definitions": {
+    "tagValue": {
+      "type": ["string", "number", "boolean", "null"],
+      "description": "Tag value; '' or ~ means key-only."
+    }
+  }
+}

@@ -111,37 +111,72 @@ class TestToSchemaHints:
 
 
 @pytest.mark.unit
-class TestColumnTagsMigrationGuard:
+class TestUnifiedSchemaFormat:
+    """The schema reader over the unified schema/tags format: table/column tags
+    are tolerated and ignored by the schema view, the strict whitelist rejects
+    typos, legacy keys are tolerated, and the top-level identifier is optional.
+    """
+
     def setup_method(self):
         self.parser = SchemaParser()
 
-    def test_column_tags_in_schema_file_raise_val_016(self, tmp_path):
-        # Column tags are no longer a schema-file concern (they live in the
-        # write target's tags_file). A stray column `tags:` key must be a clear
-        # hard error at parse time, never a silent drop.
+    def test_column_and_table_tags_are_ignored_by_schema_view(self, tmp_path):
+        # A unified file may carry table- and column-level tags; the schema
+        # reader tolerates them and ignores them when building schema hints.
         schema_file = tmp_path / "orders.yaml"
         schema_file.write_text(
             "name: orders\n"
+            "tags:\n"
+            "  team: platform\n"
             "columns:\n"
+            "  - name: id\n"
+            "    type: BIGINT\n"
+            "    nullable: false\n"
             "  - name: email\n"
             "    type: STRING\n"
             "    tags:\n"
             "      classification: pii\n"
         )
+        schema_data = self.parser.parse_schema_file(schema_file)
+        hints = self.parser.to_schema_hints(schema_data)
+        assert hints == "id BIGINT NOT NULL, email STRING"
+
+    def test_unknown_top_level_key_rejected(self, tmp_path):
+        # A typo'd top-level key fails the unified whitelist (LHP-CFG-067).
+        schema_file = tmp_path / "orders.yaml"
+        schema_file.write_text("name: orders\ncolumsn:\n  - name: id\n")
         with pytest.raises(LHPError) as exc_info:
             self.parser.parse_schema_file(schema_file)
-        assert exc_info.value.code == "LHP-VAL-016"
+        assert exc_info.value.code == "LHP-CFG-067"
 
-    def test_schema_file_without_column_tags_parses_cleanly(self, tmp_path):
-        # A schema file with no column `tags:` key must parse without error.
+    def test_unknown_column_key_rejected(self, tmp_path):
+        # A typo'd per-column key (``typ:`` for ``type:``) fails the whitelist.
         schema_file = tmp_path / "orders.yaml"
         schema_file.write_text(
+            "name: orders\ncolumns:\n  - name: id\n    typ: BIGINT\n"
+        )
+        with pytest.raises(LHPError) as exc_info:
+            self.parser.parse_schema_file(schema_file)
+        assert exc_info.value.code == "LHP-CFG-067"
+
+    def test_legacy_keys_tolerated(self, tmp_path):
+        # version/description/primary_key are tolerated-and-ignored legacy keys.
+        schema_file = tmp_path / "orders.yaml"
+        schema_file.write_text(
+            'version: "1.0"\n'
+            "description: legacy\n"
+            "primary_key: [id]\n"
             "name: orders\n"
             "columns:\n"
             "  - name: id\n"
             "    type: BIGINT\n"
-            "  - name: email\n"
-            "    type: STRING\n"
         )
         schema_data = self.parser.parse_schema_file(schema_file)
         assert schema_data["name"] == "orders"
+
+    def test_validate_schema_no_longer_requires_top_level_name(self):
+        # The top-level identifier is optional in the unified format.
+        errors = self.parser.validate_schema(
+            {"columns": [{"name": "id", "type": "BIGINT"}]}
+        )
+        assert errors == []

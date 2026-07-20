@@ -52,6 +52,7 @@ describe('FileRefField', () => {
   })
 
   it('proposes the suggested path on New: sets the field then creates the stub there', async () => {
+    const stub = 'table: orders\ncolumns:\n  - name: example_column\n    type: STRING\n    # tags:\n    #   pii: high\n'
     const create = setStatus('unavailable', vi.fn().mockResolvedValue(true))
     const onChange = vi.fn()
     const onEditCode = vi.fn<(t: CodeTarget) => void>()
@@ -60,18 +61,18 @@ describe('FileRefField', () => {
         value=""
         onChange={onChange}
         accept={['.yaml', '.yml']}
-        makeStub={() => 'version: 1.0.0\ntable: orders\n'}
-        suggestedPath="uc_tags/orders.yaml"
+        makeStub={() => stub}
+        suggestedPath="schemas/orders.yaml"
         onEditCode={onEditCode}
       />,
     )
     fireEvent.click(screen.getByRole('button', { name: /new/i }))
     await Promise.resolve()
-    expect(onChange).toHaveBeenCalledWith('uc_tags/orders.yaml')
-    expect(create).toHaveBeenCalledWith('version: 1.0.0\ntable: orders\n', 'uc_tags/orders.yaml')
+    expect(onChange).toHaveBeenCalledWith('schemas/orders.yaml')
+    expect(create).toHaveBeenCalledWith(stub, 'schemas/orders.yaml')
     await vi.waitFor(() =>
       expect(onEditCode).toHaveBeenCalledWith(
-        expect.objectContaining({ backing: 'file', filePath: 'uc_tags/orders.yaml' }),
+        expect.objectContaining({ backing: 'file', filePath: 'schemas/orders.yaml' }),
       ),
     )
   })
@@ -84,7 +85,7 @@ describe('FileRefField', () => {
         onChange={vi.fn()}
         accept={['.yaml', '.yml']}
         makeStub={() => 'CUSTOM SKELETON\n'}
-        suggestedPath="uc_tags/orders.yaml"
+        suggestedPath="schemas/orders.yaml"
         onEditCode={vi.fn()}
       />,
     )
@@ -111,11 +112,11 @@ describe('FileRefField', () => {
         value=""
         onChange={vi.fn()}
         accept={['.yaml', '.yml']}
-        placeholder="uc_tags/customer_dim.yaml"
+        placeholder="schemas/customer_dim.yaml"
         onEditCode={vi.fn()}
       />,
     )
-    expect(screen.getByRole('textbox')).toHaveAttribute('placeholder', 'uc_tags/customer_dim.yaml')
+    expect(screen.getByRole('textbox')).toHaveAttribute('placeholder', 'schemas/customer_dim.yaml')
   })
 
   it('skips the existence check for a substitution token and stays free-text', () => {

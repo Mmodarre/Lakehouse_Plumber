@@ -42,7 +42,7 @@ class TestFlowgroupHasUCTags:
         assert flowgroup_has_uc_tags(_fg(_st(tags={"team": "x"}))) is True
 
     def test_tags_file_only_true(self):
-        assert flowgroup_has_uc_tags(_fg(_st(tags_file="uc_tags/orders.yaml"))) is True
+        assert flowgroup_has_uc_tags(_fg(_st(tags_file="schemas/orders.yaml"))) is True
 
     def test_table_schema_only_false(self):
         # table_schema is no longer a column-tag source, so a table_schema-only

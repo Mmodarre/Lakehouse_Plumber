@@ -46,7 +46,7 @@ class TestCLI:
             assert Path("presets").exists()
             assert Path("templates").exists()
             assert Path("substitutions").exists()
-            assert Path("uc_tags").exists()
+            assert Path("schemas").exists()
             assert Path("substitutions/dev.yaml.tmpl").exists()
             assert Path("presets/bronze_layer.yaml.tmpl").exists()
             assert Path("README.md").exists()

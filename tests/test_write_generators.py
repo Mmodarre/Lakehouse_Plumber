@@ -1,5 +1,6 @@
 """Tests for write action generators of LakehousePlumber."""
 
+import logging
 import tempfile
 from pathlib import Path
 from unittest.mock import patch
@@ -1570,6 +1571,80 @@ def test_write_generator_imports():
     mv_gen = MaterializedViewWriteGenerator()
     assert "from pyspark import pipelines as dp" in mv_gen.imports
     assert "from pyspark.sql import DataFrame" in mv_gen.imports
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "gen_cls,wt_type",
+    [
+        (StreamingTableWriteGenerator, "streaming_table"),
+        (MaterializedViewWriteGenerator, "materialized_view"),
+    ],
+)
+class TestSchemaTagsDropWarning:
+    """LHP-CFG-069: a ``table_schema`` file carrying UC tags that is not also the
+    action's ``tags_file`` drops those tags silently — the write generators warn.
+    """
+
+    _SCHEMA_WITH_TAGS = (
+        "name: t\n"
+        "tags:\n"
+        "  team: platform\n"
+        "columns:\n"
+        "  - name: id\n"
+        "    type: BIGINT\n"
+        "    nullable: false\n"
+        "  - name: email\n"
+        "    type: STRING\n"
+        "    tags:\n"
+        "      pii: high\n"
+    )
+    _SCHEMA_NO_TAGS = (
+        "name: t\ncolumns:\n  - name: id\n    type: BIGINT\n    nullable: false\n"
+    )
+
+    def _generate(self, gen_cls, wt_type, project_root, schema_text, tags_file=None):
+        (project_root / "schemas").mkdir(exist_ok=True)
+        (project_root / "schemas" / "t.yaml").write_text(schema_text)
+        wt = {
+            "type": wt_type,
+            "catalog": "c",
+            "schema": "s",
+            "table": "t",
+            "table_schema": "schemas/t.yaml",
+        }
+        if tags_file is not None:
+            wt["tags_file"] = tags_file
+        action = Action(
+            name="w",
+            type=ActionType.WRITE,
+            source="v_src",
+            write_target=wt,
+        )
+        return gen_cls().generate(action, {"project_root": project_root})
+
+    def test_schema_tags_no_tags_file_warns(self, gen_cls, wt_type, tmp_path, caplog):
+        with caplog.at_level(logging.WARNING):
+            self._generate(gen_cls, wt_type, tmp_path, self._SCHEMA_WITH_TAGS)
+        assert "LHP-CFG-069" in caplog.text
+
+    def test_schema_tags_same_tags_file_no_warn(
+        self, gen_cls, wt_type, tmp_path, caplog
+    ):
+        with caplog.at_level(logging.WARNING):
+            self._generate(
+                gen_cls,
+                wt_type,
+                tmp_path,
+                self._SCHEMA_WITH_TAGS,
+                tags_file="schemas/t.yaml",
+            )
+        assert "LHP-CFG-069" not in caplog.text
+
+    def test_schema_without_tags_no_warn(self, gen_cls, wt_type, tmp_path, caplog):
+        with caplog.at_level(logging.WARNING):
+            self._generate(gen_cls, wt_type, tmp_path, self._SCHEMA_NO_TAGS)
+        assert "LHP-CFG-069" not in caplog.text
 
 
 @pytest.mark.unit

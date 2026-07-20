@@ -458,9 +458,9 @@ silently missing edges.
   facade constructor (`:stability:` provisional).
 - **Unity Catalog table & column tagging.** Streaming-table and
   materialized-view write actions can declare UC **tags** at the table level
-  (a `tags:` mapping on `write_target`, or the `tags:` block of an external
-  `tags_file`) and at the column level (the `columns:` list of an external
-  `tags_file`). Because Spark Declarative
+  (a `tags:` mapping on `write_target`, or the `tags:` block of a `tags_file`)
+  and at the column level (the per-column `tags:` inside a `tags_file`). Because
+  Spark Declarative
   Pipelines cannot set UC tags as part of table creation, LHP collects all
   declared tags and emits a single per-pipeline `_uc_tagging_hook.py` that runs
   as a `@dp.on_event_hook` and applies them via the Unity Catalog *Entity Tag
@@ -483,48 +483,42 @@ silently missing edges.
   - **Permissions.** A pipeline that declares `tags` needs `APPLY TAG` on the
     table and `ASSIGN` on required governed tags, plus `USE CATALOG`,
     `USE SCHEMA`, and `SELECT` on `system.information_schema`.
-  - **External tags file (single source of column tags).** As an alternative to
-    an inline `tags:` mapping, a table may set `tags_file:` to an external
-    sidecar (mutually exclusive with `tags`; convention `uc_tags/<table>.yaml`).
-    The sidecar carries **both** levels in a strict format: an optional
-    `version` (`1.0`/`1.0.0`; absent ⇒ 1.0), a required identifier `table`
-    (or its accepted alias `name`), and at least one of a table-level `tags:`
-    mapping or a column-level `columns:` list. `columns:` is a list of
-    `{name, tags}` entries — one per column, each with a unique non-empty `name`
-    and its own `tags:` mapping (required, may be empty); duplicate names are
-    rejected and the former top-level `column_tags:` key is now an unknown-key
-    error. Column tags come **only** from this `columns:` list — a schema file
-    (`table_schema`) is DDL-only and a stray column `tags:` key now raises
-    `LHP-VAL-016` at generate time instead of being silently dropped. The
-    sidecar's identifier should match the write target's table name; a mismatch
-    logs an `LHP-CFG-068` warning and generation proceeds using the write
-    target's table (the check is skipped under `--sandbox`, which renames the
-    table).
-  - **`lhp init` scaffolds a `uc_tags/` folder.** New projects get an empty
-    `uc_tags/` directory alongside `schemas/`, `expectations/`, and the rest — the
-    conventional home for external UC `tags_file` sidecars, one
-    `uc_tags/<table>.yaml` per tagged table.
-  - **Packaged UC tags-file JSON schema.** A `tags_file.schema.json` now ships in
-    the wheel and is served to the web IDE (`GET /api/schemas/tags_file`); Monaco
-    binds it to `uc_tags/**/*.yaml`, so editing a sidecar gets completion and
-    validation for the strict format (`table`/`name` identifier, optional
-    `version`, `tags`, and a `columns` list).
-  - **Web IDE seeds a `tags_file` skeleton.** Setting a write target's `tags_file`
-    in the IDE proposes a `uc_tags/<table>.yaml` path and, on create, writes a
-    starter sidecar pre-filled with the `version`/`table`/`tags`/`columns`
-    scaffold.
+  - **Unified schema/tags file (one file for both fields).** A write target's
+    `tags_file:` and `table_schema:` share a single unified file format
+    (convention `schemas/<table>.yaml`) — one file can serve BOTH (`table_schema`
+    reads the column types, `tags_file` reads the UC tags) or they can point at
+    different files. `tags_file` is mutually exclusive with an inline `tags:`
+    mapping; `table_schema` combines with either. The file's recognised keys are
+    an **optional** identifier `table` (canonical) or its alias `name`, a
+    table-level `tags:` mapping, and a `columns:` list; the legacy schema keys
+    `version`/`description`/`primary_key` are tolerated and ignored (`version` is
+    no longer validated). Each `columns:` entry has a required `name` plus
+    optional `type`/`nullable`/`comment` (read by `table_schema`) and `tags:`
+    (this column's UC tags, read by `tags_file`). The former top-level
+    `column_tags:` key is now an unknown-key error. When used as a `tags_file`
+    the identifier should match the write target's table name; a mismatch (or a
+    `table`/`name` disagreement, with `table` winning) logs an `LHP-CFG-068`
+    warning and generation proceeds using the write target's table (skipped under
+    `--sandbox`, which renames the table).
+  - **`uc_tags/` retired; UC tags live under `schemas/`.** `lhp init` no longer
+    scaffolds a `uc_tags/` directory — the unified schema/tags files live under
+    `schemas/`, and one file can back both a write target's `table_schema` and
+    its `tags_file`.
   - New error codes **`LHP-CFG-066`** (a declared UC tag key or value is illegal
     under Unity Catalog charset/length rules, raised at generation time),
-    **`LHP-CFG-067`** (an invalid `tags_file` — a bad strict format), and the
-    warning-only **`LHP-CFG-068`** (the sidecar's identifier does not match the
-    write target's table, or `table` and `name` disagree — logged, never raised;
-    generation proceeds using the write target's table), a `uc_tagging`
-    project-config block with JSON-schema validation, the public
-    `PlannedFileView.kind` literal gains `uc_tagging_hook`, docs in
+    **`LHP-CFG-067`** (an invalid unified schema/tags file), the warning-only
+    **`LHP-CFG-068`** (a `tags_file` identifier does not match the write target's
+    table, or `table` and `name` disagree — logged, never raised; generation
+    proceeds using the write target's table), and the warning-only
+    **`LHP-CFG-069`** (a `table_schema` file carries UC tags but is not also
+    wired as that action's `tags_file`, so the tags are dropped — logged at
+    generate time by the streaming-table and materialized-view writes only).
+    Plus a `uc_tagging` project-config block with JSON-schema validation, the
+    public `PlannedFileView.kind` literal gains `uc_tagging_hook`, docs in
     `docs/reference/actions/write.rst` with skill-MD parity, and golden + e2e
     tests.
-  - **Deferred (returns in a later version):** the `LHP-CFG-068` tags-file
-    identifier warnings are emitted on CLI stderr / server logs only, not as
+  - **Deferred (returns in a later version):** the `LHP-CFG-068`/`LHP-CFG-069`
+    tags warnings are emitted on CLI stderr / server logs only, not as
     structured `WarningEmitted` events — the web IDE's event stream does not
     surface them yet. Routing these commit-phase warnings into the structured
     stream needs a `warnings` field on the `PipelineDelta` public DTO and is
