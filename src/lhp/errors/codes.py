@@ -14,6 +14,13 @@ Internal module per constitution §1.7: no ``:stability:`` annotations and
 not re-exported from ``lhp/api/``.
 """
 
+# JUSTIFIED: codes.py is a flat, append-only registry of the full closed set of
+# LHP error codes — one ``ErrorCode`` constant per code, each with the comment
+# that documents its meaning, plus the ``ALL_CODES`` tuple and ``__all__`` that
+# enumerate them. It grows by one entry per new code and has no branching logic
+# to extract; splitting the enumeration would only fragment the single greppable
+# source of truth (§3.3 registry exemption).
+
 from dataclasses import dataclass
 
 from .categories import ErrorCategory
@@ -191,10 +198,14 @@ CFG_065 = ErrorCode(ErrorCategory.CONFIG, "065")
 # the offending text, and the specific reason, e.g.:
 #   f"UC tag {part} {value!r} on {context} is illegal: {reason}."
 CFG_066 = ErrorCode(ErrorCategory.CONFIG, "066")
-# CFG_067: a UC tags file is invalid — an unknown top-level key, a missing
-# identifier ('table'/'name'), an unsupported 'version' (when present), a
-# wrong-typed 'table'/'name'/'tags', or a malformed 'columns' entry. Raised via
-# ErrorFactory.config_error(codes.CFG_067, ...).
+# CFG_067: a schema/tags file is invalid under the unified format — a top-level
+# key outside the whitelist ('table', 'name', 'tags', 'columns', plus the
+# tolerated-and-ignored legacy schema keys 'version'/'description'/'primary_key'),
+# a wrong-typed 'table'/'name'/'tags', or a malformed 'columns' entry (not a
+# list, a non-mapping entry, or an unknown per-column key). One strict format
+# underlies both the 'table_schema' (schema) and 'tags_file' (tags) readers; each
+# reader adds its own requirement (a schema column needs 'type'; a tags column
+# needs 'tags'). Raised via ErrorFactory.config_error(codes.CFG_067, ...).
 CFG_067 = ErrorCode(ErrorCategory.CONFIG, "067")
 # CFG_068: WARNING code — a UC tags file's declared identifier is inconsistent:
 # either the sidecar's 'table'/'name' does not match the write target's resolved
@@ -204,6 +215,14 @@ CFG_067 = ErrorCode(ErrorCategory.CONFIG, "067")
 # ``logger.warning`` with the LHP-CFG-068 token, never raised as an error. Not a
 # structured WarningEmitted event (CLI stderr / server logs only) — see CHANGELOG.
 CFG_068 = ErrorCode(ErrorCategory.CONFIG, "068")
+# CFG_069: WARNING code — a write action's 'table_schema' file carries UC tags
+# (a top-level 'tags:' or a per-column 'tags:') but that file is not also wired
+# as the action's 'tags_file', so those tags are silently dropped from the
+# generated pipeline. Emitted at generation time by the streaming-table and
+# materialized-view write generators; logged via ``logger.warning`` with the
+# LHP-CFG-069 token, never raised as an error. Not emitted on the cloudfiles
+# load path (a load can never apply UC tags).
+CFG_069 = ErrorCode(ErrorCategory.CONFIG, "069")
 
 DEP_001 = ErrorCode(ErrorCategory.DEPENDENCY, "001")
 # DEP_002: dependency extraction found a recognized table-read in Python code
@@ -347,6 +366,7 @@ ALL_CODES: tuple[ErrorCode, ...] = (
     CFG_066,
     CFG_067,
     CFG_068,
+    CFG_069,
     DEP_001,
     DEP_002,
     DEP_003,
@@ -418,6 +438,7 @@ __all__ = [
     "CFG_066",
     "CFG_067",
     "CFG_068",
+    "CFG_069",
     "DEPR_001",
     "DEPR_002",
     "DEPR_003",

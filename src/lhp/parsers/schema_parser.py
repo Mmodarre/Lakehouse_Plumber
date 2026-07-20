@@ -5,6 +5,7 @@ from typing import Any, Dict, List, Union
 
 from ..errors import ErrorFactory, LHPError, codes
 from ..parsers.yaml_parser import YAMLParser
+from . import unified_schema_format
 
 
 class SchemaParser:
@@ -32,7 +33,7 @@ class SchemaParser:
         try:
             schema_data = self.yaml_parser.parse_file(schema_file_path)
             self.logger.debug(f"Parsed schema file: {schema_file_path}")
-            self._reject_column_tags(schema_data, schema_file_path)
+            unified_schema_format.validate(schema_data, schema_file_path)
             return schema_data
         except LHPError:
             raise
@@ -91,48 +92,6 @@ class SchemaParser:
         return f"`{escaped}`"
 
     @staticmethod
-    def _reject_column_tags(
-        schema_data: Dict[str, Any], schema_file_path: Path
-    ) -> None:
-        """Migration guard: column-level ``tags:`` in schema files is no longer a
-        tag source (column tags now live in the write target's ``tags_file``).
-        Raise a clear ``LHP-VAL-016`` for a stray column ``tags:`` key rather than
-        silently dropping it.
-        """
-        if not isinstance(schema_data, dict):
-            return
-        columns = schema_data.get("columns")
-        if not isinstance(columns, list):
-            return
-
-        tagged = [
-            str(column.get("name", "<unknown>"))
-            for column in columns
-            if isinstance(column, dict) and "tags" in column
-        ]
-        if not tagged:
-            return
-
-        schema_name = schema_data.get("name", "<unknown>")
-        raise ErrorFactory.validation_error(
-            codes.VAL_016,
-            title="Column tags in schema files are no longer supported",
-            details=(
-                "Column tags in schema files are no longer supported — declare "
-                "them in the write target's `tags_file` under `columns:`."
-            ),
-            suggestions=[
-                "Remove the 'tags' key from the schema file's column definitions",
-                "Declare column tags in the write target's tags_file under 'columns:'",
-            ],
-            context={
-                "file": str(schema_file_path),
-                "schema": str(schema_name),
-                "columns": ", ".join(tagged),
-            },
-        )
-
-    @staticmethod
     def _require_column_fields(column, schema_name) -> None:
         """Guard that ``column`` carries the ``name`` and ``type`` fields
         ``to_schema_hints`` consumes. Raise a clean ``LHPError`` if either is
@@ -169,9 +128,6 @@ class SchemaParser:
         self, schema_data: Dict[str, Any]
     ) -> List[Union[str, LHPError]]:
         errors = []
-
-        if "name" not in schema_data:
-            errors.append("Schema must have 'name' field")
 
         if "columns" not in schema_data:
             errors.append("Schema must have 'columns' field")

@@ -71,7 +71,7 @@ class TestInitProject:
         assert "lhp.yaml" in data["created_files"]
         assert data["created_files"]
         assert data["created_dirs"]
-        assert any(d.endswith("uc_tags") for d in data["created_dirs"])
+        assert any(d.endswith("schemas") for d in data["created_dirs"])
 
     def test_bundle_default_true(
         self, no_project_client: TestClient, empty_root: Path

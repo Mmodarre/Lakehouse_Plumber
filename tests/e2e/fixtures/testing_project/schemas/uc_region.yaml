@@ -1,0 +1,8 @@
+# UC tags for uc_region — a tags-only unified file (no `type`, since uc_region has
+# no table_schema). Proves a tags_file can tag columns on a write target that
+# declares no table_schema. Identifier `table: uc_region` matches the write target.
+table: uc_region
+columns:
+  - name: r_name
+    tags:
+      classification: internal

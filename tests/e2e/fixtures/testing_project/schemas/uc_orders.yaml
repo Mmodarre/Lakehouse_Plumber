@@ -1,8 +1,14 @@
-# Schema for the uc_orders streaming table — table-level tags only (NO column tags),
-# so this pipeline proves the table-tags-only path.
+# Schema + UC tags for the uc_orders streaming table. This ONE unified file serves
+# BOTH table_schema (column DDL) and tags_file (table-level tags only, NO column
+# tags) — proving the table-tags-only path.
 name: uc_orders
 version: "1.0"
 description: "UC tagging E2E — orders table (no column tags)"
+
+tags:
+  team: data-eng
+  pii: ''
+  owner:
 
 columns:
   - name: o_orderkey

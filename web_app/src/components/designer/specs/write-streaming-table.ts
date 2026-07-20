@@ -38,7 +38,7 @@
 //   write_target.path                    streaming_table.py:248; models/_action.py:36
 //   write_target.table_properties        streaming_table.py:76-77; models/_action.py:27
 //   write_target.tags                    _field_catalog.py:71 (WriteTarget field; not emitted by the ST template)
-//   write_target.tags_file               core/validators/compatibility/dlt_table_options.py:82-88 (external UC tags sidecar; XOR tags)
+//   write_target.tags_file               core/validators/compatibility/dlt_table_options.py:82-88 (unified schemas/ file; XOR tags)
 //   write_target.spark_conf              streaming_table.py:78; models/_action.py:32
 //   cdc_config.keys          required    core/validators/compatibility/cdc_config.py:41-52 (list)
 //   cdc_config.sequence_by               cdc_config.py:60-76 (string or list)
@@ -61,7 +61,7 @@
 
 import type { ActionSubTypeSpec } from './types'
 import { effectiveValue, isPresent, readPath } from './helpers'
-import { ucTagsStub, ucTagsSuggestPath } from './ucTagsFile'
+import { schemaStub, schemaSuggestPath } from './schemaFile'
 
 const MODE: readonly [string, string, string] = ['standard', 'cdc', 'snapshot_cdc']
 
@@ -368,6 +368,10 @@ export const writeStreamingTableSpec: ActionSubTypeSpec = {
                 path: ['write_target', 'table_schema'],
                 backing: 'file',
                 accept: ['.yaml', '.yml', '.json', '.sql'],
+                // One schemas/ file serves both table_schema and tags_file; the
+                // New affordance proposes schemas/<table>.yaml + the unified stub.
+                stub: schemaStub,
+                suggestPath: schemaSuggestPath,
                 placeholder: 'schemas/customer_dim.yaml',
               },
             ],
@@ -404,17 +408,17 @@ export const writeStreamingTableSpec: ActionSubTypeSpec = {
           widget: 'keyValue',
         },
         {
-          // External UC tags sidecar (strict table/name + optional version/tags/columns YAML;
-          // the single source of column-level tags). Mutually exclusive with
-          // inline `tags` (dlt_table_options.py:82-88 → LHP-CFG); the soft
-          // mutuallyExclusive rule below surfaces a both-set hint. The New
-          // affordance proposes uc_tags/<table>.yaml and seeds a skeleton.
+          // Points at the unified schemas/ file (strict table/name + optional
+          // tags/columns YAML; the single source of column-level tags). Mutually
+          // exclusive with inline `tags` (dlt_table_options.py:82-88 → LHP-CFG);
+          // the soft mutuallyExclusive rule below surfaces a both-set hint. The
+          // New affordance proposes schemas/<table>.yaml and seeds a skeleton.
           path: ['write_target', 'tags_file'],
           label: 'Tags file',
           widget: 'text',
           monospace: true,
-          fileRef: { accept: ['.yaml', '.yml'], stub: ucTagsStub, suggestPath: ucTagsSuggestPath },
-          placeholder: 'uc_tags/customer_dim.yaml',
+          fileRef: { accept: ['.yaml', '.yml'], stub: schemaStub, suggestPath: schemaSuggestPath },
+          placeholder: 'schemas/customer_dim.yaml',
         },
         { path: ['write_target', 'spark_conf'], label: 'Spark conf', widget: 'keyValue' },
       ],

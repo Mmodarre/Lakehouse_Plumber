@@ -16,6 +16,7 @@ from ...core.processing.dqe import DQEParser
 from ...core.registry import BaseActionGenerator
 from ...errors import ErrorFactory
 from ...parsers.schema_parser import SchemaParser
+from ._schema_tags_warning import warn_if_schema_tags_dropped
 from .snapshot_cdc_source_function import (
     SourceFunctionResult,
     resolve_source_function,
@@ -89,6 +90,9 @@ class StreamingTableWriteGenerator(BaseActionGenerator):
                         schema_value, project_root, file_type="table schema file"
                     )
                     schema_data = self.schema_parser.parse_schema_file(resolved_path)
+                    warn_if_schema_tags_dropped(
+                        schema_data, target_config, resolved_path, project_root
+                    )
                     schema = self.schema_parser.to_schema_hints(schema_data)
                 else:
                     schema = load_external_file_text(

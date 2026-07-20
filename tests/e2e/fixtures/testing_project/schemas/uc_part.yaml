@@ -1,9 +1,15 @@
-# Schema for the uc_part_summary materialized view. Per-column UC tags now live in
-# uc_tags/uc_part.yaml (tags_file), alongside the table-level tags — proving table +
-# column tags share one FQN through a single tags_file. This file is DDL only.
-name: uc_part
+# Schema + UC tags for the uc_part_summary materialized view. This ONE unified file
+# serves BOTH table_schema (column DDL) and tags_file (table-level AND column tags
+# on the same FQN). The identifier is `table: uc_part_summary` (the MV's write
+# target), NOT the schema name, so it matches the target (CFG-068-clean). A tags_file
+# substitutes ${...} only: layer uses ${gold_schema}, the key uses ${env}.
+table: uc_part_summary
 version: "1.0"
 description: "UC tagging E2E — part summary (column tags present)"
+
+tags:
+  layer: "${gold_schema}"
+  "${env}_owner": platform
 
 columns:
   - name: p_partkey
@@ -14,6 +20,8 @@ columns:
     type: STRING
     nullable: true
     comment: "Part name"
+    tags:
+      classification: confidential
   - name: p_size
     type: INT
     nullable: true

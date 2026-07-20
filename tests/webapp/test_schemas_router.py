@@ -31,11 +31,11 @@ def test_flowgroup_schema_exact_equality(client: TestClient) -> None:
     assert response.json() == _packaged_schema("flowgroup")
 
 
-def test_tags_file_schema_exact_equality(client: TestClient) -> None:
-    """GET /api/schemas/tags_file returns the packaged document, byte-for-byte."""
-    response = client.get("/api/schemas/tags_file")
+def test_schema_schema_exact_equality(client: TestClient) -> None:
+    """GET /api/schemas/schema returns the packaged document, byte-for-byte."""
+    response = client.get("/api/schemas/schema")
     assert response.status_code == 200
-    assert response.json() == _packaged_schema("tags_file")
+    assert response.json() == _packaged_schema("schema")
 
 
 def test_preset_schema_served(client: TestClient) -> None:

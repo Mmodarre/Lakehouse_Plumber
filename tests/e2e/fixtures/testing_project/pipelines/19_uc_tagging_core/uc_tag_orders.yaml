@@ -23,4 +23,4 @@ actions:
       database: "{catalog}.{bronze_schema}"
       table: uc_orders
       table_schema: schemas/uc_orders.yaml
-      tags_file: uc_tags/uc_orders.yaml
+      tags_file: schemas/uc_orders.yaml

@@ -194,7 +194,6 @@ def _create_directory_tree(project_path: Path, *, bundle: bool) -> list[Path]:
         "substitutions",
         "schemas",
         "expectations",
-        "uc_tags",
         "generated",
         "config",
     )
