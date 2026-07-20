@@ -8,8 +8,9 @@
 // Two deliberate behaviors the generator forces on us:
 //  • A token-bearing (`${…}`/`{{…}}`/`%{…}`) or absent `table` yields NO path
 //    proposal AND NO `table:` prefill — the generator compares the sidecar's
-//    LITERAL `table:` against the SUBSTITUTED write target, so seeding a raw
-//    token guarantees a CFG-067 mismatch (a plain comment is safe instead).
+//    declared `table`/`name` against the SUBSTITUTED write target, so seeding a
+//    raw token guarantees a CFG-068 mismatch warning (a plain comment is safe
+//    instead).
 //  • The skeleton NEVER seeds `tags: {}` — a managed-empty map deletes every
 //    table tag under `remove_undeclared_tags`. Every block starts commented,
 //    so the file does not parse until the user opts one in — intentional
@@ -52,13 +53,13 @@ export function ucTagsStub(raw: Record<string, unknown>): string {
 ${tableLine}
 
 # Uncomment at least one block — a tags file must declare
-# 'tags:' (table-level) and/or 'column_tags:' (column-level).
+# 'tags:' (table-level) and/or 'columns:' (column-level).
 
 # tags:
 #   team: data-eng
 #   cost_center: "1234"
 
-# column_tags:
+# columns:
 #   - name: email
 #     tags:
 #       pii: high
