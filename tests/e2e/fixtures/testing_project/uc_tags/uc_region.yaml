@@ -1,8 +1,9 @@
 # UC tags for uc_region — column tags only, no schema file backs this table.
 # Proves a tags_file can tag columns on a write target that declares no table_schema.
+# Uses the `name:` identifier alias (instead of `table:`) to exercise cross-compatibility.
 version: 1.0.0
-table: uc_region
-column_tags:
+name: uc_region
+columns:
   - name: r_name
     tags:
       classification: internal

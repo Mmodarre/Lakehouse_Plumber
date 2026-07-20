@@ -1,5 +1,6 @@
 """Unit tests for the UC tagging hook generator."""
 
+import logging
 import sys
 import types
 from contextlib import contextmanager
@@ -85,7 +86,7 @@ def _write_tags_file(
         if tags is not None:
             data["tags"] = tags
         if columns is not None:
-            data["column_tags"] = [{"name": c, "tags": t} for c, t in columns.items()]
+            data["columns"] = [{"name": c, "tags": t} for c, t in columns.items()]
         path.write_text(json.dumps(data))
     else:
         lines = ['version: "1.0"', f"table: {table}"]
@@ -94,9 +95,9 @@ def _write_tags_file(
             lines += [f'  {k}: "{v}"' for k, v in tags.items()]
         if columns is not None:
             if not columns:
-                lines.append("column_tags: []")
+                lines.append("columns: []")
             else:
-                lines.append("column_tags:")
+                lines.append("columns:")
                 for col, ctags in columns.items():
                     lines.append(f"  - name: {col}")
                     lines.append("    tags:")
@@ -114,7 +115,8 @@ def _table_tags_line(content):
 @pytest.mark.unit
 class TestUCTaggingTagsFile:
     """Task 3: table tags resolved from an external ``tags_file`` sidecar at
-    commit time, with a sandbox-aware literal ``table:`` cross-check.
+    commit time, with a sandbox-aware ``table``/``name`` identifier cross-check
+    that logs a warning (LHP-CFG-068) on a mismatch rather than failing.
     """
 
     def test_table_tags_from_yaml_file(self, tmp_path):
@@ -139,14 +141,18 @@ class TestUCTaggingTagsFile:
             _build([action], root=tmp_path)
         assert exc_info.value.code == "LHP-IO-001"
 
-    def test_table_mismatch_raises_cfg_067(self, tmp_path):
+    def test_table_mismatch_warns_and_generates(self, tmp_path, caplog):
+        # A sidecar identifier that differs from the write target's table is now a
+        # WARNING (LHP-CFG-068), not a fatal error: generation proceeds and tags
+        # are applied to the write target's resolved table (prod.sales.orders).
         _write_tags_file(tmp_path, "uc_tags/orders.yaml", table="other_table")
         action = _write_action(
             write_target=_st_target(table="orders", tags_file="uc_tags/orders.yaml")
         )
-        with pytest.raises(LHPError) as exc_info:
-            _build([action], root=tmp_path)
-        assert exc_info.value.code == "LHP-CFG-067"
+        with caplog.at_level(logging.WARNING):
+            content = _build([action], root=tmp_path)[HOOK_FILENAME]
+        assert "LHP-CFG-068" in caplog.text
+        assert "_TABLE_TAGS = {'prod.sales.orders': {'team': 'data-eng'}}" in content
 
     def test_token_table_resolves_to_file_table(self, tmp_path):
         from lhp.core.processing.substitution import EnhancedSubstitutionManager
@@ -343,7 +349,7 @@ class TestUCTaggingHookGenerator:
         assert "ThreadPoolExecutor(max_workers=20)" in custom
 
     def test_column_tags_from_tags_file(self, tmp_path):
-        # Column tags now come from the tags_file ``column_tags:`` list.
+        # Column tags now come from the tags_file ``columns:`` list.
         _write_tags_file(
             tmp_path,
             "uc_tags/orders.yaml",
@@ -432,7 +438,7 @@ class TestUCTaggingHookContent:
         assert "_REMOVE_UNDECLARED_TAGS = False" in content
 
     def test_columns_only_tags_file_omits_table(self, tmp_path):
-        # A tags_file with a ``column_tags:`` list but NO ``tags:`` key. The absent
+        # A tags_file with a ``columns:`` list but NO ``tags:`` key. The absent
         # ``tags:`` (parsed as None, not {}) omits the table from _TABLE_TAGS
         # entirely — even under reconcile it is NOT emitted as a managed empty set
         # that would wipe the table's live tags. Proves absent ≠ empty end to end.
