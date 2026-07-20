@@ -128,6 +128,8 @@ export function OneOfToggle({
           onChange={(next) => (next === '' ? delActive() : setActive(next))}
           accept={active.accept ?? []}
           onEditCode={onEditCode}
+          makeStub={active.stub ? () => active.stub!(raw) : undefined}
+          suggestedPath={active.suggestPath?.(raw) ?? undefined}
         />
       ) : active.backing === 'inline' ? (
         <div className="space-y-1.5">

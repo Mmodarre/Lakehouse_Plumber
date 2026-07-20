@@ -1,5 +1,7 @@
-# Schema for the uc_customers streaming table. Per-column UC tags now live in
-# uc_tags/uc_customers.yaml (tags_file), not in this schema — this file is DDL only.
+# Schema + UC tags for the uc_customers streaming table. This ONE unified file
+# serves BOTH the write target's table_schema (column DDL) and its tags_file:
+# c_email carries column tags; there are no table-level tags (absent != empty).
+# Exercises an empty-string column tag value (masked: '').
 name: uc_customers
 version: "1.0"
 description: "UC tagging E2E — customers table (column tags present)"
@@ -17,5 +19,8 @@ columns:
     type: STRING
     nullable: true
     comment: "Customer email"
+    tags:
+      classification: pii
+      masked: ''
 
 primary_key: [c_custkey]

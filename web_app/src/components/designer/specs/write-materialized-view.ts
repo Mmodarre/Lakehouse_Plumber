@@ -36,11 +36,11 @@
 //   write_target.path                    generators/write/materialized_view.py:133
 //   write_target.table_properties        generators/write/materialized_view.py:58; dlt_table_options.py:42
 //   write_target.tags                    validators/compatibility/dlt_table_options.py:79; references/actions-write-materialized-view.md:11
-//   write_target.tags_file               validators/compatibility/dlt_table_options.py:82-88 (external UC tags sidecar; XOR tags)
+//   write_target.tags_file               validators/compatibility/dlt_table_options.py:82-88 (unified schemas/ file; XOR tags)
 //   write_target.spark_conf              generators/write/materialized_view.py:59; dlt_table_options.py:26
 
 import type { ActionSubTypeSpec } from './types'
-import { ucTagsStub, ucTagsSuggestPath } from './ucTagsFile'
+import { schemaStub, schemaSuggestPath } from './schemaFile'
 
 const WT = ['write_target'] as const
 
@@ -182,17 +182,17 @@ export const writeMaterializedViewSpec: ActionSubTypeSpec = {
           widget: 'keyValue',
         },
         {
-          // External UC tags sidecar (strict table/name + optional version/tags/columns YAML;
-          // the single source of column-level tags). Mutually exclusive with
-          // inline `tags` (dlt_table_options.py:82-88 → LHP-CFG); the soft
-          // mutuallyExclusive rule below surfaces a both-set hint. The New
-          // affordance proposes uc_tags/<table>.yaml and seeds a skeleton.
+          // Points at the unified schemas/ file (strict table/name + optional
+          // tags/columns YAML; the single source of column-level tags). Mutually
+          // exclusive with inline `tags` (dlt_table_options.py:82-88 → LHP-CFG);
+          // the soft mutuallyExclusive rule below surfaces a both-set hint. The
+          // New affordance proposes schemas/<table>.yaml and seeds a skeleton.
           path: [...WT, 'tags_file'],
           label: 'Tags file',
           widget: 'text',
           monospace: true,
-          fileRef: { accept: ['.yaml', '.yml'], stub: ucTagsStub, suggestPath: ucTagsSuggestPath },
-          placeholder: 'uc_tags/customer_summary.yaml',
+          fileRef: { accept: ['.yaml', '.yml'], stub: schemaStub, suggestPath: schemaSuggestPath },
+          placeholder: 'schemas/customer_summary.yaml',
         },
         { path: [...WT, 'spark_conf'], label: 'Spark conf', widget: 'keyValue' },
       ],

@@ -120,22 +120,22 @@ class TestUCTaggingTagsFile:
     """
 
     def test_table_tags_from_yaml_file(self, tmp_path):
-        _write_tags_file(tmp_path, "uc_tags/orders.yaml", tags={"team": "data-eng"})
-        action = _write_action(write_target=_st_target(tags_file="uc_tags/orders.yaml"))
+        _write_tags_file(tmp_path, "schemas/orders.yaml", tags={"team": "data-eng"})
+        action = _write_action(write_target=_st_target(tags_file="schemas/orders.yaml"))
         content = _build([action], root=tmp_path)[HOOK_FILENAME]
         assert "_TABLE_TAGS = {'prod.sales.orders': {'team': 'data-eng'}}" in content
 
     def test_table_tags_from_json_file(self, tmp_path):
         _write_tags_file(
-            tmp_path, "uc_tags/orders.json", tags={"team": "data-eng"}, fmt="json"
+            tmp_path, "schemas/orders.json", tags={"team": "data-eng"}, fmt="json"
         )
-        action = _write_action(write_target=_st_target(tags_file="uc_tags/orders.json"))
+        action = _write_action(write_target=_st_target(tags_file="schemas/orders.json"))
         content = _build([action], root=tmp_path)[HOOK_FILENAME]
         assert "_TABLE_TAGS = {'prod.sales.orders': {'team': 'data-eng'}}" in content
 
     def test_missing_file_raises_io_001(self, tmp_path):
         action = _write_action(
-            write_target=_st_target(tags_file="uc_tags/missing.yaml")
+            write_target=_st_target(tags_file="schemas/missing.yaml")
         )
         with pytest.raises(LHPError) as exc_info:
             _build([action], root=tmp_path)
@@ -145,9 +145,9 @@ class TestUCTaggingTagsFile:
         # A sidecar identifier that differs from the write target's table is now a
         # WARNING (LHP-CFG-068), not a fatal error: generation proceeds and tags
         # are applied to the write target's resolved table (prod.sales.orders).
-        _write_tags_file(tmp_path, "uc_tags/orders.yaml", table="other_table")
+        _write_tags_file(tmp_path, "schemas/orders.yaml", table="other_table")
         action = _write_action(
-            write_target=_st_target(table="orders", tags_file="uc_tags/orders.yaml")
+            write_target=_st_target(table="orders", tags_file="schemas/orders.yaml")
         )
         with caplog.at_level(logging.WARNING):
             content = _build([action], root=tmp_path)[HOOK_FILENAME]
@@ -158,21 +158,21 @@ class TestUCTaggingTagsFile:
         from lhp.core.processing.substitution import EnhancedSubstitutionManager
 
         _write_tags_file(
-            tmp_path, "uc_tags/orders.yaml", table="orders", tags={"team": "data-eng"}
+            tmp_path, "schemas/orders.yaml", table="orders", tags={"team": "data-eng"}
         )
         mgr = EnhancedSubstitutionManager()
         mgr.mappings["tbl"] = "orders"
         action = _write_action(
-            write_target=_st_target(table="${tbl}", tags_file="uc_tags/orders.yaml")
+            write_target=_st_target(table="${tbl}", tags_file="schemas/orders.yaml")
         )
         content = _build([action], root=tmp_path, substitution_mgr=mgr)[HOOK_FILENAME]
         assert "_TABLE_TAGS = {'prod.sales.orders': {'team': 'data-eng'}}" in content
 
     def test_file_and_inline_byte_identical(self, tmp_path):
         tags = {"team": "data-eng", "cost_center": "1234"}
-        _write_tags_file(tmp_path, "uc_tags/orders.yaml", tags=tags)
+        _write_tags_file(tmp_path, "schemas/orders.yaml", tags=tags)
         file_action = _write_action(
-            write_target=_st_target(tags_file="uc_tags/orders.yaml")
+            write_target=_st_target(tags_file="schemas/orders.yaml")
         )
         inline_action = _write_action(write_target=_st_target(tags=tags))
         file_content = _build([file_action], root=tmp_path)[HOOK_FILENAME]
@@ -184,12 +184,12 @@ class TestUCTaggingTagsFile:
         # skipped and the tags are still emitted.
         _write_tags_file(
             tmp_path,
-            "uc_tags/orders.yaml",
+            "schemas/orders.yaml",
             table="renamed_table",
             tags={"team": "data-eng"},
         )
         action = _write_action(
-            write_target=_st_target(table="orders", tags_file="uc_tags/orders.yaml")
+            write_target=_st_target(table="orders", tags_file="schemas/orders.yaml")
         )
         content = _build([action], root=tmp_path, sandbox_active=True)[HOOK_FILENAME]
         assert "_TABLE_TAGS = {'prod.sales.orders': {'team': 'data-eng'}}" in content
@@ -352,11 +352,11 @@ class TestUCTaggingHookGenerator:
         # Column tags now come from the tags_file ``columns:`` list.
         _write_tags_file(
             tmp_path,
-            "uc_tags/orders.yaml",
+            "schemas/orders.yaml",
             tags={"team": "data-eng"},
             columns={"email": {"classification": "pii"}},
         )
-        action = _write_action(write_target=_st_target(tags_file="uc_tags/orders.yaml"))
+        action = _write_action(write_target=_st_target(tags_file="schemas/orders.yaml"))
         result = _build([action], root=tmp_path)
         assert result is not None
         content = result[HOOK_FILENAME]
@@ -369,11 +369,11 @@ class TestUCTaggingHookGenerator:
         # target declares NO table_schema at all.
         _write_tags_file(
             tmp_path,
-            "uc_tags/orders.yaml",
+            "schemas/orders.yaml",
             tags={"team": "data-eng"},
             columns={"email": {"classification": "pii"}},
         )
-        action = _write_action(write_target=_st_target(tags_file="uc_tags/orders.yaml"))
+        action = _write_action(write_target=_st_target(tags_file="schemas/orders.yaml"))
         assert "table_schema" not in action.write_target
         content = _build([action], root=tmp_path)[HOOK_FILENAME]
         assert (
@@ -419,11 +419,11 @@ class TestUCTaggingHookContent:
         # Both table and column tags come from ONE tags_file.
         _write_tags_file(
             tmp_path,
-            "uc_tags/orders.yaml",
+            "schemas/orders.yaml",
             tags={"team": "data-eng", "pii": ""},
             columns={"email": {"classification": "pii", "masked": ""}},
         )
-        action = _write_action(write_target=_st_target(tags_file="uc_tags/orders.yaml"))
+        action = _write_action(write_target=_st_target(tags_file="schemas/orders.yaml"))
         content = _build([action], root=tmp_path)[HOOK_FILENAME]
         # Table tags (key-only -> ''), column tags (incl. empty-string value),
         # additive mode. Raw render -> single-quoted repr() literals.
@@ -444,11 +444,11 @@ class TestUCTaggingHookContent:
         # that would wipe the table's live tags. Proves absent ≠ empty end to end.
         _write_tags_file(
             tmp_path,
-            "uc_tags/orders.yaml",
+            "schemas/orders.yaml",
             tags=None,
             columns={"email": {"classification": "pii"}},
         )
-        action = _write_action(write_target=_st_target(tags_file="uc_tags/orders.yaml"))
+        action = _write_action(write_target=_st_target(tags_file="schemas/orders.yaml"))
         content = _build(
             [action],
             uc_tagging=UCTaggingConfig(remove_undeclared_tags=True),

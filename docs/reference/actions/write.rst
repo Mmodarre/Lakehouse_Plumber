@@ -68,7 +68,7 @@ These ``write_target`` fields apply to ``streaming_table`` and
    * - ``tags_file``
      - string
      - —
-     - Path to an external UC tags file (``table`` — or its alias ``name`` — plus optional ``version``, ``tags``, and a ``columns`` list; convention ``uc_tags/<table>.yaml``). Mutually exclusive with ``tags``.
+     - Path to a unified schema/tags file (convention ``schemas/<table>.yaml``) whose table-level ``tags`` and per-column ``tags`` supply UC tags. May be the same file as ``table_schema``. Mutually exclusive with an inline ``tags`` mapping. See :ref:`uc-tags-file` below.
    * - ``partition_columns``
      - list
      - —
@@ -88,7 +88,7 @@ These ``write_target`` fields apply to ``streaming_table`` and
    * - ``table_schema``
      - string
      - —
-     - Inline DDL, or a ``.ddl``/``.sql``/``.yaml``/``.json`` file path (auto-detected).
+     - Inline DDL, or a ``.ddl``/``.sql``/``.yaml``/``.json`` file path (auto-detected). A ``.yaml``/``.json`` file is the unified schema/tags file; its per-column ``type``/``nullable``/``comment`` are read here. Any UC ``tags`` it carries are ignored unless the same file is also set as ``tags_file`` — otherwise ``lhp generate`` warns ``LHP-CFG-069``.
    * - ``row_filter``
      - string
      - —
@@ -111,13 +111,13 @@ Unity Catalog tags
 ==================
 
 .. versionadded:: 0.9.1
-   The external ``tags_file`` field, and its ``columns:`` list as the single
-   source of column-level tags.
+   The ``tags_file`` field and column-level UC tags, read from a unified
+   schema/tags file that ``table_schema`` and ``tags_file`` can share.
 
 A ``streaming_table`` or ``materialized_view`` write target can carry Unity
 Catalog (UC) tags at the table level (a ``tags`` mapping on ``write_target``, or the
-``tags:`` block of an external ``tags_file``) and at the column level (the
-``columns:`` list of a ``tags_file`` — see :ref:`uc-tags-file` below). Because
+``tags:`` block of a ``tags_file``) and at the column level (the per-column
+``tags:`` inside a ``tags_file`` — see :ref:`uc-tags-file` below). Because
 Lakeflow Spark Declarative Pipelines (SDP) cannot set UC tags as part of table
 creation, Lakehouse Plumber (LHP) collects every declared tag and emits one
 per-pipeline ``_uc_tagging_hook.py`` that applies them through the Unity Catalog
@@ -198,44 +198,42 @@ the first ``RUNNING`` event, and tagging then proceeds create-only.
 
 .. _uc-tags-file:
 
-UC tags file
-------------
+Schema & tags file
+------------------
 
-``tags_file`` points at an external sidecar in a strict format and is mutually
-exclusive with an inline ``tags`` mapping. It is the single source of
-column-level tags; the project convention is to keep it at ``uc_tags/<table>.yaml``.
-The file must be a mapping whose only keys are ``version`` (optional — ``"1.0"``
-or ``"1.0.0"``; absent means ``1.0``), ``table`` (required — the write target's
-unqualified, post-substitution table name; ``name`` is accepted as an alias),
-``tags`` (optional — table-level tags), and ``columns`` (optional —
-column-level tags); at least one of ``tags`` or ``columns`` must be present.
-``tags`` is a mapping of ``key: value`` (may be empty). ``columns`` is a
-*list* of ``{name, tags}`` entries — one entry per column: ``name`` is the
-column name (a non-empty string, unique across the list — a repeated column is
-rejected) and ``tags`` is that column's own ``key: value`` mapping (required,
-but may be empty). A value of ``""``, ``~``, or an omitted value is a key-only
-tag, at either level. ``LHP-CFG-067`` is raised for any unknown top-level key
-(the former ``column_tags`` key is now rejected as unknown), a missing
-identifier (neither ``table`` nor ``name``), an unsupported ``version``, a
-wrong-typed ``table``/``name``/``tags``, a ``columns`` that is not a list, an
-entry that is not a ``{name, tags}`` mapping or carries an unknown key, an entry
-whose ``name`` is missing, empty, or duplicated, an entry whose ``tags`` is
-missing or not a mapping, or a file that declares neither ``tags`` nor
-``columns``.
+``tags_file`` and ``table_schema`` both point at a **unified schema/tags file**
+(project convention ``schemas/<table>.yaml``). One file can serve both fields —
+``table_schema`` reads the column types, ``tags_file`` reads the UC tags — or
+they can point at different files. ``tags_file`` is mutually exclusive with an
+inline ``tags`` mapping; ``table_schema`` is orthogonal and combines with
+either.
+
+The file is a mapping whose recognised keys are an optional identifier
+(``table``, or its alias ``name``), a table-level ``tags`` mapping, and a
+``columns`` list. The legacy schema keys ``version``, ``description``, and
+``primary_key`` are tolerated and ignored. Each ``columns`` entry has a required
+``name`` plus optional ``type``, ``nullable``, and ``comment`` (read by
+``table_schema``) and ``tags`` (read by ``tags_file``). ``type`` is required
+when the file is used as ``table_schema``; it is optional in a tags-only file. A
+tag value of ``""``, ``~``, or an omitted value is a key-only tag, at either
+level.
 
 .. code-block:: yaml
-   :caption: uc_tags/orders.yaml
+   :caption: schemas/orders.yaml — point BOTH table_schema and tags_file here
 
-   version: "1.0"              # optional (absent means 1.0)
-   table: orders               # the write target's table name; 'name' is an accepted alias
-   tags:                       # table-level tags (optional)
+   table: orders               # optional identifier; 'name' is an accepted alias
+   tags:                       # table-level UC tags (read by tags_file)
      team: platform
      cost_center: "1234"
-   columns:                    # column-level tags (optional) — a list of entries
+   columns:
      - name: email
-       tags:
+       type: STRING            # required for table_schema use; optional tags-only
+       nullable: false         # schema use
+       comment: "PII"          # schema use
+       tags:                   # column-level UC tags (read by tags_file)
          pii: high
      - name: region
+       type: STRING
        tags:
          classification: public
 
@@ -249,14 +247,24 @@ missing or not a mapping, or a file that declares neither ``tags`` nor
        catalog: main
        schema: silver
        table: orders
-       tags_file: uc_tags/orders.yaml
+       table_schema: schemas/orders.yaml   # column types (+ nullable/comment)
+       tags_file: schemas/orders.yaml       # same file: UC table + column tags
 
-The sidecar's identifier (``table``, or its alias ``name``) should equal the
+``lhp generate`` raises ``LHP-CFG-067`` when the file is not a mapping, carries
+an unknown top-level key (the retired ``column_tags`` key is now rejected as
+unknown), has a ``columns`` that is not a list, or a ``columns`` entry that is
+not a mapping or carries an unknown key. Read as a ``tags_file`` it also rejects
+a wrong-typed ``table``/``name``/``tags``, a column ``name`` that is missing,
+empty, or duplicated, and a per-column ``tags`` that is not a mapping.
+
+The identifier is optional. When present in a ``tags_file`` it should equal the
 write target's table name; a mismatch logs a warning (``LHP-CFG-068``) and
-generation proceeds using the write target's table. A missing ``tags_file``
-raises ``LHP-IO-001`` with the searched locations. Under ``--sandbox`` the
-identifier cross-check is skipped (sandbox renames the write target's table),
-and the file's tags are applied to the renamed table.
+generation proceeds using the write target's table. A file that declares both
+``table`` and ``name`` with differing values also warns ``LHP-CFG-068`` (with
+``table`` winning). A missing ``tags_file`` raises ``LHP-IO-001`` with the
+searched locations. Under ``--sandbox`` the identifier cross-check is skipped
+(sandbox renames the write target's table), and the file's tags are applied to
+the renamed table.
 
 Because a preset's ``tags`` default deep-merges into the write target before
 validation, pairing a preset ``tags`` default with a flowgroup ``tags_file`` is
@@ -264,11 +272,13 @@ rejected as both-set (``cannot specify both 'tags' and 'tags_file'``).
 
 .. note::
 
-   Column tags come only from the ``tags_file`` ``columns:`` list. A schema
-   file referenced by ``table_schema`` must not carry a column ``tags:`` key —
-   ``lhp generate`` raises ``LHP-VAL-016`` if it does, rather than silently
-   dropping it. (``lhp validate`` runs no code generation, so the error
-   surfaces at generate time.)
+   A file set as ``table_schema`` but **not** also wired as ``tags_file`` has
+   its UC ``tags`` silently dropped — the schema reader consumes only the column
+   types. ``lhp generate`` emits an ``LHP-CFG-069`` warning in that case (from
+   the streaming-table and materialized-view writes only, never the cloudfiles
+   load path); point ``tags_file`` at the same file to apply the tags.
+   (``lhp validate`` runs no code generation, so the warning surfaces at
+   generate time.)
 
 Streaming table
 ===============

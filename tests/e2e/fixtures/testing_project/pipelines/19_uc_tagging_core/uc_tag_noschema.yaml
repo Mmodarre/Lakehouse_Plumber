@@ -1,6 +1,6 @@
 # UC tagging E2E — column tags via tags_file with NO table_schema at all, proving
 # column tagging works without a schema file. The write target declares no DDL;
-# the column tag is sourced entirely from uc_tags/uc_region.yaml.
+# the column tag is sourced entirely from the tags-only schemas/uc_region.yaml.
 pipeline: uc_tagging_core
 flowgroup: uc_tag_noschema
 #job_name: j_two
@@ -23,4 +23,4 @@ actions:
       catalog: "${catalog}"
       schema: "${bronze_schema}"
       table: uc_region
-      tags_file: uc_tags/uc_region.yaml
+      tags_file: schemas/uc_region.yaml

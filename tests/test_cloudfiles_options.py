@@ -623,7 +623,9 @@ class TestSchemaParser:
         errors = self.parser.validate_schema(self.schema_data)
         assert errors == []
 
-        invalid_schema = {"columns": [{"name": "id", "type": "BIGINT"}]}
+        # Top-level identifier is now optional (unified schema/tags format), so a
+        # column missing its own ``name`` is what the retained check catches.
+        invalid_schema = {"name": "test", "columns": [{"type": "BIGINT"}]}
         errors = self.parser.validate_schema(invalid_schema)
         assert any("must have 'name' field" in error for error in errors)
 

@@ -220,6 +220,10 @@ export interface FieldSpec {
       language?: 'sql' | 'python' | 'yaml'
       /** backing `'file'`: FileRefField accept allow-list (each with its dot). */
       accept?: string[]
+      /** backing `'file'`: content the "New"/"Create file" affordance seeds. */
+      stub?: (raw: Record<string, unknown>) => string
+      /** backing `'file'`: path proposed when the branch is empty and New is clicked; null = no proposal. */
+      suggestPath?: (raw: Record<string, unknown>) => string | null
       /**
        * backing `'fields'`: the sub-fields of this branch's object key, each a
        * full FieldSpec with its own (absolute, action-relative) `path`. Rendered

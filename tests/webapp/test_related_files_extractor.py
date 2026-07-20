@@ -353,15 +353,15 @@ class TestWriteTargetTagsFile:
     """Extracts write_target.tags_file into the 'tags' category."""
 
     def test_extracts_write_target_tags_file(self, tmp_path: Path):
-        (tmp_path / "uc_tags").mkdir()
-        (tmp_path / "uc_tags" / "table_tags.yaml").write_text("owner: data-eng")
+        (tmp_path / "schemas").mkdir()
+        (tmp_path / "schemas" / "table_tags.yaml").write_text("owner: data-eng")
 
         fg = _make_fg(
             [
                 _make_action(
                     write_target={
                         "type": "streaming_table",
-                        "tags_file": "uc_tags/table_tags.yaml",
+                        "tags_file": "schemas/table_tags.yaml",
                     }
                 )
             ]
@@ -369,7 +369,7 @@ class TestWriteTargetTagsFile:
         result = extract_related_files(fg, tmp_path)
 
         assert len(result) == 1
-        assert result[0].path == "uc_tags/table_tags.yaml"
+        assert result[0].path == "schemas/table_tags.yaml"
         assert result[0].category == "tags"
         assert result[0].field == "write_target.tags_file"
         assert result[0].exists is True
@@ -380,7 +380,7 @@ class TestWriteTargetTagsFile:
                 _make_action(
                     write_target={
                         "type": "streaming_table",
-                        "tags_file": "uc_tags/absent.yaml",
+                        "tags_file": "schemas/absent.yaml",
                     }
                 )
             ]
@@ -388,7 +388,7 @@ class TestWriteTargetTagsFile:
         result = extract_related_files(fg, tmp_path)
 
         assert len(result) == 1
-        assert result[0].path == "uc_tags/absent.yaml"
+        assert result[0].path == "schemas/absent.yaml"
         assert result[0].category == "tags"
         assert result[0].field == "write_target.tags_file"
         assert result[0].exists is False

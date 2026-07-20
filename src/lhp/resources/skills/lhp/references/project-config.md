@@ -25,9 +25,8 @@ my_project/
 ├── templates/               # Reusable action templates
 ├── presets/                 # Configuration presets
 ├── substitutions/           # Environment configs (dev.yaml, prod.yaml)
-├── schemas/                 # Table schema definitions
+├── schemas/                 # Table schema + UC tags files (table_schema / tags_file)
 ├── expectations/            # Data quality expectation JSON files
-├── uc_tags/                 # UC tag sidecar files (tags_file)
 ├── sql/                     # External SQL files
 ├── py_functions/            # Custom Python functions
 ├── generated/               # Generated Python code (auto-generated)

@@ -95,13 +95,13 @@ describe('useCompanionFile', () => {
 
     let created: boolean | undefined
     await act(async () => {
-      created = await result.current.create('version: 1.0.0\n', 'uc_tags/orders.yaml')
+      created = await result.current.create('table: orders\n', 'schemas/orders.yaml')
     })
     expect(created).toBe(true)
 
     const put = fetchMock.mock.calls.find(([, init]) => init?.method === 'PUT')!
-    expect(put[0]).toBe('/api/files/uc_tags/orders.yaml')
+    expect(put[0]).toBe('/api/files/schemas/orders.yaml')
     expect((put[1]!.headers as Record<string, string>)['If-Match']).toBe('"create-only"')
-    expect(JSON.parse(put[1]!.body as string)).toEqual({ content: 'version: 1.0.0\n' })
+    expect(JSON.parse(put[1]!.body as string)).toEqual({ content: 'table: orders\n' })
   })
 })
