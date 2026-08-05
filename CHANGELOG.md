@@ -5,6 +5,29 @@ All notable changes to Lakehouse Plumber are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **`uc_tagging.max_allowable_consecutive_failures` in `lhp.yaml`.** The UC tagging
+  hook's `@dp.on_event_hook` failure budget is now configurable instead of hardcoded.
+  Accepts an integer >= 0 or `null`; anything else (including `true`, which YAML would
+  otherwise coerce to `1`) is rejected with `LHP-CFG-009`. There is deliberately no
+  upper bound — the Lakeflow SDP contract is "integer >= 0 or None". Also surfaced in
+  the `lhp web` config form and the packaged JSON schema.
+
+### Changed
+
+- **The UC tagging hook's default failure budget is now unlimited (`None`) instead of
+  `3`.** This matches the SDP default: `None` means there is no limit to the
+  consecutive failures allowed and the hook is never disabled. Projects that
+  regenerate will see `@dp.on_event_hook(max_allowable_consecutive_failures=None)` in
+  `_uc_tagging_hook.py`. In practice a run raises at most twice (one combined `RUNNING`
+  warning, one terminal warning) and the counter resets each update because the module
+  re-imports per run, so a clean run never accumulated consecutive failures under the
+  old budget either. Set `uc_tagging.max_allowable_consecutive_failures: 3` to restore
+  the previous behavior.
+
 ## [0.9.1] — 2026-06-10
 
 Developer sandbox mode plus a dependency-extraction overhaul.

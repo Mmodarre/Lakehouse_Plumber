@@ -171,6 +171,13 @@ The optional ``uc_tagging`` block in ``lhp.yaml`` tunes the hook:
      - int
      - ``16``
      - Max concurrent tag operations (range 1–20).
+   * - ``max_allowable_consecutive_failures``
+     - int or null
+     - ``null``
+     - Consecutive-failure budget passed to the hook's ``@dp.on_event_hook``.
+       Must be an integer >= 0 or ``null``. ``null`` (the default, matching
+       Lakeflow SDP) means there is no limit and the hook is never disabled; an
+       integer makes SDP disable the hook after that many consecutive failures.
 
 How the hook applies tags
 -------------------------
@@ -182,6 +189,12 @@ materialize later; each entity is tagged at most once. Tagging is best-effort
 and non-blocking: tag-write failures surface as pipeline event-log warnings and
 never fail the update (event hooks cannot). Key-only tags use ``""``, ``~``, or
 an omitted value.
+
+A run raises at most twice — one combined ``RUNNING`` warning and one terminal
+warning — and the counter resets each update because the module re-imports per
+run, so a clean run never accumulates consecutive failures. Set
+``max_allowable_consecutive_failures`` to have SDP disable the hook after a given
+number of consecutive failures; by default there is no limit.
 
 Existing tag state is read once at module import with a single
 ``system.information_schema`` query (``table_tags`` ``UNION ALL``

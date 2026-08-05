@@ -125,6 +125,8 @@ export interface UcTaggingSection {
   enabled?: boolean
   remove_undeclared_tags?: boolean
   tag_update_concurrency?: number
+  /** null (or absent) = no limit; the hook is never disabled. */
+  max_allowable_consecutive_failures?: number | null
 }
 
 /** test_reporting section (loaders/_test_reporting_config_parser.py). */

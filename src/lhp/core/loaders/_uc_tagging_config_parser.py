@@ -16,8 +16,9 @@ def parse_uc_tagging_config(uc_tagging_data: Any) -> UCTaggingConfig:
 
     A bare/empty block (``uc_tagging:`` with nothing under it → ``None``) is
     accepted and enables the feature with defaults. Otherwise it must be a mapping;
-    all keys are optional. ``enabled`` / ``remove_undeclared_tags`` must be booleans
-    and ``tag_update_concurrency`` a positive integer.
+    all keys are optional. ``enabled`` / ``remove_undeclared_tags`` must be booleans,
+    ``tag_update_concurrency`` a positive integer, and
+    ``max_allowable_consecutive_failures`` an integer >= 0 or null.
     """
     if uc_tagging_data is None:
         # `uc_tagging:` declared with no body → opt in with defaults.
@@ -29,7 +30,7 @@ def parse_uc_tagging_config(uc_tagging_data: Any) -> UCTaggingConfig:
             title="Invalid uc_tagging configuration",
             details=f"uc_tagging must be a mapping, got {type(uc_tagging_data).__name__}",
             suggestions=[
-                "Define uc_tagging as a YAML mapping with optional keys: enabled, remove_undeclared_tags, tag_update_concurrency",
+                "Define uc_tagging as a YAML mapping with optional keys: enabled, remove_undeclared_tags, tag_update_concurrency, max_allowable_consecutive_failures",
                 "Example: uc_tagging:\n  enabled: true\n  remove_undeclared_tags: false\n  tag_update_concurrency: 8",
             ],
         )
@@ -70,8 +71,35 @@ def parse_uc_tagging_config(uc_tagging_data: Any) -> UCTaggingConfig:
             ],
         )
 
+    max_failures = uc_tagging_data.get("max_allowable_consecutive_failures")
+    # Absent and an explicit YAML `null` both mean "no limit" (the SDP default) — there
+    # is no third state, so one path handles both. bool is an int subclass, so reject it
+    # explicitly: Pydantic would otherwise coerce `true` to a budget of 1 and silently
+    # disable tagging after the first warning. No upper bound — the SDP contract is
+    # "integer >= 0 or None".
+    if max_failures is not None and (
+        not isinstance(max_failures, int)
+        or isinstance(max_failures, bool)
+        or max_failures < 0
+    ):
+        raise ErrorFactory.config_error(
+            codes.CFG_009,
+            title="Invalid uc_tagging configuration",
+            details=(
+                f"uc_tagging.max_allowable_consecutive_failures must be an integer "
+                f">= 0 or null, got {max_failures!r}"
+            ),
+            suggestions=[
+                "Set uc_tagging.max_allowable_consecutive_failures to an integer >= 0, "
+                "or omit it (or set null) for no limit",
+                "null means the tagging hook is never disabled, no matter how many "
+                "consecutive failures it reports",
+            ],
+        )
+
     return UCTaggingConfig(
         enabled=uc_tagging_data.get("enabled", True),
         remove_undeclared_tags=uc_tagging_data.get("remove_undeclared_tags", False),
         tag_update_concurrency=concurrency,
+        max_allowable_consecutive_failures=max_failures,
     )

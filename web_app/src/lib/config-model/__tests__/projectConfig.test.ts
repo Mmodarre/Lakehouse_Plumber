@@ -407,6 +407,39 @@ describe('uc_tagging (loaders/_uc_tagging_config_parser.py)', () => {
       errorsOf(validateProjectConfig(project({ uc_tagging: { tag_update_concurrency: true } }))),
     ).toHaveLength(1)
   })
+
+  it.each([
+    [-1, 1],
+    [0, 0],
+    [1, 0],
+    [1000, 0],
+  ])(
+    'max_allowable_consecutive_failures boundary %i → %i error(s) (>= 0, no ceiling, :79-104)',
+    (value, count) => {
+      const issues = errorsOf(
+        validateProjectConfig(
+          project({ uc_tagging: { max_allowable_consecutive_failures: value } }),
+        ),
+      )
+      expect(issues).toHaveLength(count)
+    },
+  )
+
+  it('boolean max_allowable_consecutive_failures → error (bool is an int subclass)', () => {
+    expect(
+      errorsOf(
+        validateProjectConfig(
+          project({ uc_tagging: { max_allowable_consecutive_failures: true } }),
+        ),
+      ),
+    ).toHaveLength(1)
+  })
+
+  it('explicit null max_allowable_consecutive_failures → clean (same as absent)', () => {
+    expect(
+      validateProjectConfig(project({ uc_tagging: { max_allowable_consecutive_failures: null } })),
+    ).toEqual([])
+  })
 })
 
 describe('test_reporting (loaders/_test_reporting_config_parser.py)', () => {

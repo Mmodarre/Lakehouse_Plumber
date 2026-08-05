@@ -296,7 +296,7 @@ def _apply(w, suppress_absent):
 # A run raises at most twice — one combined RUNNING warning (snapshot + tag errors)
 # and one terminal warning — and the counter resets each update (the module re-imports
 # per run), so 3 leaves headroom without ever silently disabling tagging on a clean run.
-@dp.on_event_hook(max_allowable_consecutive_failures=3)
+@dp.on_event_hook(max_allowable_consecutive_failures={{ max_allowable_consecutive_failures }})
 def uc_tagging_hook(event):
     """Tag managed tables/columns during the run, surfacing failures as warnings.
 
