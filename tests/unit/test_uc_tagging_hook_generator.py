@@ -327,9 +327,9 @@ class TestUCTaggingHookGenerator:
         assert "raise RuntimeError" in content
         assert "[LHP UC Tagging] WARNING:" in content
         assert "[LHP UC Tagging] ERROR:" in content
-        # A fixed, small consecutive-failure budget (one combined RUNNING raise + one
-        # terminal raise per run; counter resets each update).
-        assert "max_allowable_consecutive_failures=3)" in content
+        # Unlimited consecutive-failure budget by default, matching SDP — the hook is
+        # never disabled. Configurable via uc_tagging.max_allowable_consecutive_failures.
+        assert "max_allowable_consecutive_failures=None)" in content
         assert "SELECT on system.information_schema" in content
         # No SQL tag DDL path.
         assert "ALTER TABLE" not in content
@@ -347,6 +347,31 @@ class TestUCTaggingHookGenerator:
             root=tmp_path,
         )[HOOK_FILENAME]
         assert "ThreadPoolExecutor(max_workers=20)" in custom
+
+    def test_max_allowable_failures_default_and_override(self, tmp_path):
+        action = _write_action(write_target=_st_target(tags={"team": "x"}))
+        default = _build([action], uc_tagging=UCTaggingConfig(), root=tmp_path)[
+            HOOK_FILENAME
+        ]
+        # Default is unlimited — the literal Python `None`, not an empty render.
+        assert "max_allowable_consecutive_failures=None)" in default
+
+        # 0 is falsy but legal: it must render as `0`, never as `None` or "". This is
+        # the leg that fails if the template is ever "hardened" with an {% if %} or a
+        # truthy default() filter.
+        zero = _build(
+            [action],
+            uc_tagging=UCTaggingConfig(max_allowable_consecutive_failures=0),
+            root=tmp_path,
+        )[HOOK_FILENAME]
+        assert "max_allowable_consecutive_failures=0)" in zero
+
+        custom = _build(
+            [action],
+            uc_tagging=UCTaggingConfig(max_allowable_consecutive_failures=7),
+            root=tmp_path,
+        )[HOOK_FILENAME]
+        assert "max_allowable_consecutive_failures=7)" in custom
 
     def test_column_tags_from_tags_file(self, tmp_path):
         # Column tags now come from the tags_file ``columns:`` list.
@@ -517,6 +542,10 @@ def _fake_pyspark_and_sdk(collect_result=None, collect_error=None, do_handler=No
     Yields a state dict: ``hooks`` (registered @dp.on_event_hook fns) and ``calls``
     (recorded api_client.do invocations). ``collect_error`` makes the snapshot read
     raise; ``do_handler(method, path, body)`` may raise to simulate a tag failure.
+
+    Because every test here exec()s the rendered hook, they collectively prove that
+    the templated ``max_allowable_consecutive_failures`` value is a real Python
+    expression — a bad render (e.g. an empty one) would raise SyntaxError at exec().
     """
     state = {"hooks": [], "calls": []}
 

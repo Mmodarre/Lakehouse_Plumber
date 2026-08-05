@@ -130,6 +130,13 @@ operational_metadata:
 #  checkpoint_path: "/Volumes/${catalog}/_meta/checkpoints/event_logs"
 #  job_config_path: "config/monitoring_job_config_custom.yaml"
 
+## UC tagging — on by default; this block only pins the event-hook failure budget.
+## The generated_baseline hooks were curated with a budget of 3, so setting it
+## explicitly here keeps them byte-stable now that the LHP default is null (no
+## limit, matching SDP). Omit the key to get that default.
+uc_tagging:
+  max_allowable_consecutive_failures: 3
+
 ## Test result reporting to external systems
 test_reporting:
   module_path: py_functions/test_reporting_publisher.py

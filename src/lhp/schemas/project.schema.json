@@ -280,6 +280,12 @@
                     "minimum": 1,
                     "maximum": 20,
                     "description": "Maximum concurrent tag operations (the hook's ThreadPoolExecutor max_workers for the one-shot pass over all tables/columns)."
+                },
+                "max_allowable_consecutive_failures": {
+                    "type": ["integer", "null"],
+                    "default": null,
+                    "minimum": 0,
+                    "description": "Consecutive-failure budget passed to the generated hook's @dp.on_event_hook. Must be an integer >= 0 or null. null (the default, matching SDP) means there is no limit and the hook is never disabled; an integer disables the hook after that many consecutive failures."
                 }
             }
         },
