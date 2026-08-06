@@ -105,7 +105,8 @@ These ``write_target`` fields apply to ``streaming_table`` and
 Action-level ``once: true`` emits ``once=True`` on the flow. Action-level
 ``readMode: batch`` switches a standard append flow from
 ``spark.readStream.table(...)`` to ``spark.read.table(...)`` (default
-``stream``).
+``stream``). Action-level ``depends_on`` adds upstream table or view references
+to the dependency graph; see :doc:`/reference/dependency-analysis`.
 
 Unity Catalog tags
 ==================
