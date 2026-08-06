@@ -69,6 +69,11 @@ are optional.
      - No
      - —
      - ``true``/``false`` to toggle metadata columns, or a list of metadata column names to add.
+   * - ``depends_on``
+     - list[string]
+     - No
+     - —
+     - Extra upstream table or view references added to the dependency graph. See :doc:`/reference/dependency-analysis`.
 
 cloudfiles
 ----------

@@ -54,6 +54,11 @@ Common to every test action, regardless of ``test_type``.
      - No
      - ``Test: <test_type>``
      - Table comment and function docstring.
+   * - ``depends_on``
+     - list[string]
+     - No
+     - —
+     - Extra upstream table or view references added to the dependency graph. See :doc:`/reference/dependency-analysis`.
    * - ``on_violation``
      - string
      - No

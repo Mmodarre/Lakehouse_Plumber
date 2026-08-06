@@ -64,6 +64,35 @@ second edge the same way.
    values (``dev_catalog.bronze.orders``) would not match a consumer written with
    tokens.
 
+Declare an edge the parser cannot see
+======================================
+
+Sometimes an action reads a table through runtime-only Python or another pattern
+static analysis cannot follow. Add ``depends_on`` to the consuming action and
+name the upstream table or view:
+
+.. code-block:: yaml
+
+   - name: enrich_orders
+     type: transform
+     transform_type: python
+     source: v_orders
+     module_path: transforms/enrich_orders.py
+     function_name: run
+     depends_on:
+       - ${catalog}.${reference_schema}.exchange_rates
+     target: v_enriched_orders
+
+The declaration is additive: LHP keeps the sources it can discover and adds this
+one. If an analyzed action produces the named table, the declaration forms an
+edge; otherwise it appears as an external source. Because a non-empty
+``depends_on`` suppresses extraction warnings for the whole action, declare every
+upstream the parser cannot see.
+
+See the :doc:`dependency-analysis reference </reference/dependency-analysis>`
+for matching rules, validation, warning behavior, and the authoritative
+``--trust-depends-on`` mode.
+
 Run the analysis
 ================
 
@@ -335,8 +364,9 @@ What's next
   deploy. The deploy-and-orchestrate guide covers the job flags end to end.
 - **Declare an edge the parser cannot see.** When a table is read through a value
   known only at run time, static analysis cannot find it. Add the missing upstream
-  with the ``depends_on`` field on the action, covered in the dependency-analysis
-  reference.
+  with the ``depends_on`` field on the action; the
+  :doc:`dependency-analysis reference </reference/dependency-analysis>` covers
+  its additive and authoritative modes.
 - **Understand how matching works.** Which reads become edges, how two-part and
   three-part references reconcile, and what counts as an external source are
   explained in the dependency-analysis concept page.
