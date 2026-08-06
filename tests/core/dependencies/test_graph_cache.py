@@ -145,6 +145,25 @@ class TestPersistentGraphCacheStore:
         bumped = PersistentGraphCache(cache_dir, root)
         assert bumped.load(TRIPLE) is None
 
+    def test_sqlglot_upgrade_misses(self, project, monkeypatch):
+        root, _, body = project
+        cache_dir = root / ".lhp" / "cache" / "graph"
+        old = PersistentGraphCache(cache_dir, root)
+        old.save(TRIPLE, _result(), _bodies(body))
+        assert old.load(TRIPLE) is not None
+        # Extracted edges are a function of sqlglot's parse tree, but a
+        # `pip install -U sqlglot` touches neither the YAML manifest nor any
+        # body's (mtime_ns, size) — so the version must be in the tag or an
+        # upgraded process would HIT and serve edges from the old parser.
+        monkeypatch.setattr(graph_cache_module.sqlglot, "__version__", "99.0.0")
+        upgraded = PersistentGraphCache(cache_dir, root)
+        assert upgraded.load(TRIPLE) is None
+
+    def test_version_tag_includes_sqlglot_version(self):
+        assert f"sqlglot{graph_cache_module.sqlglot.__version__}" in (
+            graph_cache_module._compute_version_tag()
+        )
+
     def test_distinct_triples_are_isolated(self, cache, project):
         _, _, body = project
         cache.save(TRIPLE, _result(edges=(("a", "b"),)), _bodies(body))

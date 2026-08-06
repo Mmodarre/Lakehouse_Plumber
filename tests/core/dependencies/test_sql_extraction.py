@@ -24,10 +24,12 @@ from the output entirely (``TestBareDollarPlaceholders``).
 from __future__ import annotations
 
 import pytest
+import sqlglot
 
 from lhp.core.dependencies.sql_extraction import (
     SqlExtractionResult,
     _mask_tokens,
+    _stream_argument_names,
     _unmask,
     extract_tables_from_sql,
 )
@@ -291,6 +293,203 @@ class TestDltWrapperNonNameArguments:
     def test_fully_qualified_name_still_extracts(self):
         result = extract_tables_from_sql("SELECT * FROM stream(cat.sch.t)")
         assert result.tables == ["cat.sch.t"]
+
+
+@pytest.mark.unit
+class TestUnparenthesizedStream:
+    """``FROM STREAM tbl`` (no parentheses) is a real read.
+
+    Valid Databricks syntax that sqlglot < 28 could not parse correctly: it
+    either failed the whole body (losing every edge behind an LHP-DEP-003
+    advisory) or mis-parsed ``STREAM`` itself as the table name. On the pinned
+    floor (>= 28) it parses to an :class:`sqlglot.exp.Stream` node and yields
+    the wrapped table.
+    """
+
+    @pytest.mark.parametrize(
+        "sql,expected",
+        [
+            ("SELECT * FROM STREAM cat.sch.raw", ["cat.sch.raw"]),
+            ("SELECT * FROM stream cat.sch.raw", ["cat.sch.raw"]),
+            ("SELECT * FROM STREAM bronze_events", ["bronze_events"]),
+            ("SELECT * FROM STREAM cat.sch.raw AS s", ["cat.sch.raw"]),
+        ],
+    )
+    def test_unparenthesized_stream_extracts(self, sql, expected):
+        result = extract_tables_from_sql(sql)
+        assert result.tables == expected
+        assert result.warnings == []
+
+    def test_unparenthesized_stream_alongside_real_read(self):
+        result = extract_tables_from_sql(
+            "SELECT * FROM STREAM bronze.a JOIN silver.b ON 1=1"
+        )
+        assert result.tables == ["bronze.a", "silver.b"]
+        assert result.warnings == []
+
+    def test_unparenthesized_stream_on_cte_name_excluded(self):
+        sql = """
+        WITH raw_events AS (
+            SELECT * FROM STREAM bronze.event_log
+        )
+        SELECT * FROM STREAM raw_events
+        """
+        result = extract_tables_from_sql(sql)
+        assert result.tables == ["bronze.event_log"]
+        assert result.warnings == []
+
+    def test_unparenthesized_stream_preserves_token_bytes(self):
+        result = extract_tables_from_sql(
+            "SELECT * FROM STREAM ${catalog}.bronze.events"
+        )
+        assert result.tables == ["${catalog}.bronze.events"]
+        assert result.warnings == []
+
+    @pytest.mark.parametrize(
+        "sql",
+        [
+            "CREATE TABLE tgt AS SELECT * FROM STREAM src.t",
+            "INSERT INTO tgt SELECT * FROM STREAM src.t",
+        ],
+    )
+    def test_write_target_excluded_with_unparenthesized_stream(self, sql):
+        result = extract_tables_from_sql(sql)
+        assert result.tables == ["src.t"]
+
+
+@pytest.mark.unit
+class TestStreamArgumentQuoting:
+    """Quote PROVENANCE, not quoted-ness, decides whether an argument is opaque.
+
+    sqlglot normalises the quote character away: ``stream('x')``, ``stream("x")``
+    and ``stream(`x`)`` all yield ``Identifier(this='x', quoted=True)``. The
+    original character is recovered from the part's source offset. Two traps
+    this pins:
+
+    - The name containing a dot is NOT a usable signal — ``stream(`my.table`)``
+      is one legitimate dotted identifier while ``stream('my.table')`` is a
+      string, and both arrive as a single quoted part containing a dot.
+    - Rejecting on ``quoted=True`` alone would drop every backticked read.
+    """
+
+    @pytest.mark.parametrize(
+        "sql,expected",
+        [
+            ("SELECT * FROM stream(`bronze`.`x`)", ["bronze.x"]),
+            ("SELECT * FROM stream(`bronze`.`x`.`y`)", ["bronze.x.y"]),
+            ("SELECT * FROM stream(`single_ident`)", ["single_ident"]),
+            # A dot INSIDE one backticked identifier: one real read, not opaque.
+            ("SELECT * FROM stream(`my.table`)", ["my.table"]),
+            ("SELECT * FROM STREAM `my.table`", ["my.table"]),
+            # Double quotes are identifiers here, matching a bare
+            # `FROM "bronze"."customers"` read.
+            ('SELECT * FROM stream("bronze"."x")', ["bronze.x"]),
+            ('SELECT * FROM stream("dq")', ["dq"]),
+            ("SELECT * FROM STREAM `bronze`.`x`", ["bronze.x"]),
+        ],
+    )
+    def test_quoted_identifier_parts_still_extract(self, sql, expected):
+        result = extract_tables_from_sql(sql)
+        assert result.tables == expected
+        assert result.warnings == []
+
+    @pytest.mark.parametrize(
+        "sql",
+        [
+            "SELECT * FROM stream('bronze.x')",
+            # A DOTLESS literal is equally opaque: `live('t')`/`snapshot('t')`
+            # already yield nothing, so stream() must not invent an edge either.
+            "SELECT * FROM stream('t')",
+            "SELECT * FROM STREAM 'bronze.x'",
+        ],
+    )
+    def test_string_literal_argument_is_opaque(self, sql):
+        result = extract_tables_from_sql(sql)
+        assert result.tables == []
+        assert result.warnings == []
+
+    @pytest.mark.parametrize("wrapper", ["stream", "live", "snapshot"])
+    def test_string_literal_opaque_consistently_across_wrappers(self, wrapper):
+        result = extract_tables_from_sql(f"SELECT * FROM {wrapper}('t')")
+        assert result.tables == []
+
+    def test_masked_token_is_not_mistaken_for_a_literal(self):
+        # A masked placeholder is an UNQUOTED identifier segment, so the
+        # quote-provenance check cannot misfire on a substitution token.
+        result = extract_tables_from_sql(
+            "SELECT * FROM stream(${catalog}.bronze.events)"
+        )
+        assert result.tables == ["${catalog}.bronze.events"]
+        assert result.warnings == []
+
+    def test_offsets_stay_correct_across_a_multi_statement_body(self):
+        # Source offsets are absolute over the WHOLE parsed body, so the
+        # per-statement loop must not shift them.
+        result = extract_tables_from_sql(
+            "SELECT * FROM stream('lit');\n"
+            "SELECT * FROM stream(`a.b`);\n"
+            "SELECT * FROM stream(bare)"
+        )
+        assert result.tables == ["a.b", "bare"]
+
+
+@pytest.mark.unit
+class TestStreamArgumentNamesHelper:
+    """Direct unit coverage of the Stream-argument resolution helper.
+
+    The helper takes the parsed text alongside the statement because quote
+    provenance lives in source offsets, not in the tree.
+    """
+
+    @staticmethod
+    def _names(sql):
+        statement = sqlglot.parse_one(sql, read="databricks")
+        return _stream_argument_names(statement, sql)
+
+    def test_maps_inner_table_node_to_resolved_name(self):
+        assert list(self._names("SELECT * FROM stream(cat.sch.raw)").values()) == [
+            "cat.sch.raw"
+        ]
+
+    def test_unwraps_bare_table_without_subquery(self):
+        assert list(self._names("SELECT * FROM STREAM cat.sch.raw").values()) == [
+            "cat.sch.raw"
+        ]
+
+    def test_unwraps_through_an_alias(self):
+        assert list(self._names("SELECT * FROM stream(cat.sch.raw) AS s").values()) == [
+            "cat.sch.raw"
+        ]
+
+    @pytest.mark.parametrize(
+        "sql",
+        [
+            "SELECT * FROM stream('bronze.x')",
+            "SELECT * FROM stream('t')",
+            "SELECT * FROM stream(live(bronze.x))",
+        ],
+    )
+    def test_opaque_argument_maps_to_empty_name(self, sql):
+        assert list(self._names(sql).values()) == [""]
+
+    def test_backticked_dotted_identifier_is_not_opaque(self):
+        assert list(self._names("SELECT * FROM stream(`my.table`)").values()) == [
+            "my.table"
+        ]
+
+    def test_no_stream_node_yields_empty_mapping(self):
+        assert self._names("SELECT * FROM cat.sch.raw") == {}
+
+    def test_each_stream_gets_its_own_entry(self):
+        names = self._names("SELECT a.* FROM stream(t1) a JOIN stream(t2) b ON 1=1")
+        assert sorted(names.values()) == ["t1", "t2"]
+
+    def test_keys_are_the_inner_table_node_ids(self):
+        sql = "SELECT * FROM stream(cat.sch.raw)"
+        statement = sqlglot.parse_one(sql, read="databricks")
+        names = _stream_argument_names(statement, sql)
+        table_ids = {id(t) for t in statement.find_all(sqlglot.exp.Table)}
+        assert set(names) <= table_ids
 
 
 @pytest.mark.unit
