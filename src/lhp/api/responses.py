@@ -410,8 +410,10 @@ class DependencyStalenessResult:
     project is edited and rebuilds only on an explicit Refresh.
 
     ``fingerprint`` is the persisted build's identity (the graph cache version
-    tag — LHP version + schema version + model-field hash), ``""`` when no
-    cache is available. ``built_at`` is the last build's timestamp (ISO-8601
+    tag — LHP version + schema version + model-field hash + the sqlglot
+    version that parsed the SQL bodies), ``""`` when no cache is available.
+    Treat it as opaque and compare only for equality. ``built_at`` is the last
+    build's timestamp (ISO-8601
     UTC) or ``None`` when nothing has been persisted yet. ``stale`` is the
     facade's own cheap view — ``True`` when no persisted build exists; the live
     edit signal is surfaced by the webapp's watcher-set flag, not recomputed

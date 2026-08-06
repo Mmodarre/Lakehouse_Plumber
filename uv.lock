@@ -877,7 +877,7 @@ requires-dist = [
     { name = "rich-click", specifier = ">=1.9.0,<2.0" },
     { name = "ruff", specifier = "==0.13.3" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.13.3" },
-    { name = "sqlglot", specifier = ">=26.0,<28" },
+    { name = "sqlglot", specifier = ">=28,<31" },
     { name = "starlette", marker = "extra == 'webapp'", specifier = ">=0.40,<2.0" },
     { name = "syrupy", marker = "extra == 'dev'", specifier = ">=4.6.0" },
     { name = "types-pyyaml", marker = "extra == 'dev'" },
@@ -1923,11 +1923,11 @@ wheels = [
 
 [[package]]
 name = "sqlglot"
-version = "27.29.0"
+version = "30.14.0"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/d1/50/766692a83468adb1bde9e09ea524a01719912f6bc4fdb47ec18368320f6e/sqlglot-27.29.0.tar.gz", hash = "sha256:2270899694663acef94fa93497971837e6fadd712f4a98b32aee1e980bc82722", size = 5503507, upload-time = "2025-10-29T13:50:24.594Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/3a/cd/39a94f0f98076ee8e7c7c38fd4bba8d7845b0c629ff967057c64ef2c0989/sqlglot-30.14.0.tar.gz", hash = "sha256:df2ef5d2b8ca814313781f4ff35bf63e58f821ef517eeddbd523c19a61fa9bb9", upload-time = "2026-07-27T11:23:30.698Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/9b/70/20c1912bc0bfebf516d59d618209443b136c58a7cff141afa7cf30969988/sqlglot-27.29.0-py3-none-any.whl", hash = "sha256:9a5ea8ac61826a7763de10cad45a35f0aa9bfcf7b96ee74afb2314de9089e1cb", size = 526060, upload-time = "2025-10-29T13:50:22.061Z" },
+    { url = "https://files.pythonhosted.org/packages/33/ec/a729883ceda22dcd9117ce182f64d884bf494e72c4dfce00c2ad0a5978e1/sqlglot-30.14.0-py3-none-any.whl", hash = "sha256:fc768e24889d63a5e1237dea7ad305e5ffb4356a98b0bed828f89591ebcd3636", upload-time = "2026-07-27T11:23:28.637Z" },
 ]
 
 [[package]]

@@ -33,6 +33,16 @@ mapping, so unmasking the full masked text is still the identity function.
 Parse failure of the whole body never raises: the result carries zero tables
 and exactly one LHP-DEP-003 :class:`~lhp.models.dependencies.DependencyWarning`
 suggesting an explicit ``depends_on`` declaration.
+
+Requires sqlglot >= 28, where the Databricks parser began EMITTING the
+(pre-existing) :class:`sqlglot.exp.Stream` node for ``FROM STREAM`` /
+``stream(...)``; on 27.x and below the same construct parses to an
+:class:`sqlglot.exp.Anonymous` inside :class:`sqlglot.exp.Table`, so
+``find_all(exp.Stream)`` yields nothing and the mapping below is silently
+empty. ``hasattr(exp, "Stream")`` is therefore NOT a usable version probe.
+Only the >= 28 shape is supported — deliberately no version-gated or
+dual-shape handling, so one LHP version yields one deterministic dependency
+graph.
 """
 
 from __future__ import annotations
@@ -108,7 +118,7 @@ def extract_tables_from_sql(sql: str) -> SqlExtractionResult:
     for statement in statements:
         if statement is None:
             continue
-        reads.update(_collect_reads(statement))
+        reads.update(_collect_reads(statement, masked_sql))
 
     tables = sorted(
         {
@@ -171,23 +181,29 @@ def _unmask(name: str, replacements: Dict[str, str]) -> str:
 # ---- Per-statement read collection ----
 
 
-def _collect_reads(statement: exp.Expression) -> Set[str]:
+def _collect_reads(statement: exp.Expression, masked_sql: str) -> Set[str]:
     """Collect read table names from one statement (still masked)."""
     cte_names = {cte.alias_or_name.lower() for cte in statement.find_all(exp.CTE)}
     write_targets = _write_target_ids(statement)
+    stream_arguments = _stream_argument_names(statement, masked_sql)
 
     reads: Set[str] = set()
     for table in statement.find_all(exp.Table):
         if id(table) in write_targets:
             continue
-        wrapper = _dlt_wrapper_call(table)
-        if wrapper is not None:
-            name = _first_argument_name(wrapper)
-        elif isinstance(table.this, exp.Func):
-            # Non-DLT table function (e.g. read_files(...)) — not a table read.
-            continue
+        if id(table) in stream_arguments:
+            # Resolved at the enclosing Stream node, where the opaqueness rule
+            # is applied to the wrapped argument as a whole.
+            name = stream_arguments[id(table)]
         else:
-            name = _dotted_name(table)
+            wrapper = _dlt_wrapper_call(table)
+            if wrapper is not None:
+                name = _first_argument_name(wrapper)
+            elif isinstance(table.this, exp.Func):
+                # Non-DLT table function (e.g. read_files(...)) — not a table read.
+                continue
+            else:
+                name = _dotted_name(table)
         if not name or name.lower() in cte_names:
             continue
         reads.add(name)
@@ -208,6 +224,76 @@ def _write_target_ids(statement: exp.Expression) -> Set[int]:
     return targets
 
 
+def _stream_argument_names(
+    statement: exp.Expression, masked_sql: str
+) -> Dict[int, str]:
+    """Map each Table node wrapped by an ``exp.Stream`` to its resolved name.
+
+    sqlglot >= 28 emits a dedicated :class:`sqlglot.exp.Stream` node for
+    Databricks ``FROM STREAM x`` / ``FROM stream(x)``, sitting ABOVE the
+    argument, which is itself re-parsed as a :class:`sqlglot.exp.Table`. Those
+    inner Table nodes are reachable from ``find_all(exp.Table)`` but must NOT
+    be read directly: the opaqueness rule applies to the wrapped argument as a
+    whole, so it is enforced here and the caller takes the name from this
+    mapping.
+
+    ``masked_sql`` is the exact text that was parsed — needed to recover quote
+    provenance, see :func:`_stream_argument_name`.
+
+    Returns ``id(inner_table) -> name``, where an empty name marks an argument
+    that is not a statically known table reference.
+    """
+    names: Dict[int, str] = {}
+    for node in statement.find_all(exp.Stream):
+        target = node.this
+        # `FROM STREAM x` yields the Table directly; `FROM stream(x)` wraps it
+        # in a Subquery. An alias attaches as a TableAlias INSIDE the Table or
+        # Subquery, so it never adds a layer here.
+        while isinstance(target, exp.Subquery):
+            target = target.this
+        if isinstance(target, exp.Table):
+            names[id(target)] = _stream_argument_name(target, masked_sql)
+    return names
+
+
+def _stream_argument_name(table: exp.Table, masked_sql: str) -> str:
+    """Render a Stream-wrapped Table as a dotted name, or ``""`` if opaque.
+
+    Mirrors the contract of :func:`_first_argument_name`: only a (possibly
+    dotted) identifier is a statically known table reference.
+
+    sqlglot re-parses a Stream argument as a Table regardless of how it was
+    written, and normalises the quote CHARACTER away — ``stream('x')``,
+    ``stream("x")`` and ``stream(`x`)`` all yield ``Identifier(this='x',
+    quoted=True)``. The original character is still recoverable from the
+    part's ``meta["start"]`` byte offset into the parsed (masked) text, and
+    that is what distinguishes the cases exactly — a name containing a dot is
+    NOT a usable signal, since ``stream(`my.table`)`` is one legitimate
+    dotted identifier while ``stream('my.table')`` is a string.
+
+    Only the single quote marks opacity. Double-quoted reads are extracted as
+    identifiers, matching this module's documented handling of a bare
+    ``FROM "bronze"."customers"``, so ``stream(X)`` agrees with ``FROM X``.
+    """
+    parts = list(table.parts)
+    if not parts:
+        return ""
+    for part in parts:
+        if isinstance(part, exp.Func):
+            return ""
+        # Deliberately not extracted to a helper: `table.parts` is typed
+        # `list[Expr]` on sqlglot 30 but `Expr` does not exist on 28/29, so
+        # naming it in a signature would break under the declared pin floor.
+        if not getattr(part, "quoted", False):
+            continue
+        start = part.meta.get("start")
+        # Unknown provenance must not silently drop a real read.
+        if isinstance(start, int) and 0 <= start < len(masked_sql):
+            if masked_sql[start] == "'":
+                return ""
+    return ".".join(part.name for part in parts)
+
+
 def _dotted_name(table: exp.Table) -> str:
     """Render a Table node as dotted text, backtick quoting stripped."""
     return ".".join(part.name for part in table.parts)
@@ -216,9 +302,13 @@ def _dotted_name(table: exp.Table) -> str:
 def _dlt_wrapper_call(table: exp.Table) -> Optional[exp.Func]:
     """Return the wrapped function call if ``table`` is a DLT wrapper read.
 
-    Matches on the function NAME (case-insensitive), not on dialect- or
-    version-specific node classes: any :class:`sqlglot.exp.Func` in FROM/JOIN
-    position named stream/live/snapshot qualifies.
+    Matches on the function NAME (case-insensitive): any
+    :class:`sqlglot.exp.Func` in FROM/JOIN position named stream/live/snapshot
+    qualifies. On the pinned floor (sqlglot >= 28) ``stream`` no longer reaches
+    here — it parses to a dedicated :class:`sqlglot.exp.Stream` node handled by
+    :func:`_stream_argument_names` — but ``live`` and ``snapshot`` still arrive
+    in this shape, so this path stays load-bearing. ``"stream"`` is kept in
+    :data:`_DLT_WRAPPERS` to guard the same fallback shape.
     """
     func = table.this
     if isinstance(func, exp.Func) and _function_name(func).lower() in _DLT_WRAPPERS:

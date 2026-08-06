@@ -41,9 +41,19 @@ dependencies = [
     # regenerate baselines with the new version.
     "ruff==0.13.3",
     "networkx>=3.6.0",
+    # FLOOR >=28: sqlglot 28.0.0 made the Databricks parser EMIT the (already
+    # existing) exp.Stream node for `FROM STREAM` / `stream(...)`, above the wrapped
+    # table; 26.x/27.x emit exp.Anonymous INSIDE exp.Table instead. Note the class
+    # exists on both, so hasattr() is not a version probe.
+    # core/dependencies/sql_extraction.py supports only the >=28 shape, deliberately
+    # — no version gating, so one LHP version yields one deterministic dependency
+    # graph. Below 28 the opaqueness rule silently stops firing and edges get
+    # invented from string literals and nested wrapper calls.
     # Bounded ceiling: extracted SQL dependency edges feed hash-pinned e2e
-    # baselines; bumps must be deliberate (characterization diff + baseline regen).
-    "sqlglot>=26.0,<28",
+    # baselines; bumps stay deliberate (characterization diff + baseline regen).
+    # Note .github/dependabot.yml ignores semver-major, so ceiling widenings arrive
+    # as constraint changes needing manual review, never auto-merge.
+    "sqlglot>=28,<31",
 ]
 
 [project.optional-dependencies]

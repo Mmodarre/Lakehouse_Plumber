@@ -5,6 +5,40 @@ All notable changes to Lakehouse Plumber are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **SQL dependency extraction no longer invents edges from opaque `stream()`
+  arguments.** sqlglot 28 began emitting a dedicated `exp.Stream` node above
+  the wrapped table, which bypassed the opaqueness check: `stream('bronze.x')`
+  and `stream(live(bronze.x))` produced a dependency edge from an argument that
+  is not a statically known table reference. A string-literal argument is again
+  excluded, consistently with `live(...)` and `snapshot(...)`.
+- **`FROM STREAM tbl` (unparenthesized) now yields a real dependency edge.**
+  Valid Databricks syntax that older sqlglot either failed to parse — losing
+  every edge in the body behind an `LHP-DEP-003` advisory — or mis-parsed as a
+  table literally named `STREAM`.
+- **A backtick-quoted dotted identifier under `stream(...)` is extracted.**
+  ``stream(`my.table`)`` is one identifier whose name contains a dot, and is
+  now distinguished from the string literal `stream('my.table')` by the
+  argument's quote character rather than by its text.
+- **The persistent dependency-graph cache now invalidates on a sqlglot
+  upgrade.** Extracted edges are a function of sqlglot's parse tree, but
+  `pip install -U sqlglot` moved neither the YAML manifest nor any body's
+  `(mtime_ns, size)`, so `lhp dag` could serve edges parsed by the previous
+  version. The cache version tag now includes the sqlglot version, and
+  `CACHE_SCHEMA_VERSION` is bumped to 2 to force one clean sweep.
+
+### Changed
+
+- **`sqlglot` is now pinned `>=28,<31`** (was `>=26.0,<28`). The floor is
+  deliberate: only the `exp.Stream` tree shape is supported, so one LHP version
+  yields one deterministic dependency graph. Also ~28% faster cold extraction.
+- `DependencyStalenessResult.fingerprint` (provisional) gains a fourth
+  component, the sqlglot version. Its format was never a stable contract; treat
+  it as opaque and compare only for equality.
+
 ## [0.9.2] — 2026-08-05
 
 ### Added
