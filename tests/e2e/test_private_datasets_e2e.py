@@ -118,11 +118,11 @@ class TestPrivateDatasetsE2E:
             baseline_hash = get_file_hash(baseline_files[file_path])
             if generated_hash == baseline_hash:
                 continue
-            generated_lines = generated_files[file_path].read_text().splitlines(
-                keepends=True
+            generated_lines = (
+                generated_files[file_path].read_text().splitlines(keepends=True)
             )
-            baseline_lines = baseline_files[file_path].read_text().splitlines(
-                keepends=True
+            baseline_lines = (
+                baseline_files[file_path].read_text().splitlines(keepends=True)
             )
             diff = list(
                 difflib.unified_diff(
@@ -158,7 +158,9 @@ class TestPrivateDatasetsE2E:
         baseline_pipeline = (
             self.project_root / "generated_baseline" / "dev" / "private_datasets"
         )
-        assert generated_pipeline.is_dir(), "private_datasets pipeline was not generated"
+        assert generated_pipeline.is_dir(), (
+            "private_datasets pipeline was not generated"
+        )
         assert baseline_pipeline.is_dir(), "private_datasets baseline is missing"
 
         # Golden comparison: byte-identical to the curated baseline (which carries
