@@ -53,6 +53,10 @@ These ``write_target`` fields apply to ``streaming_table`` and
      - bool
      - ``false``
      - Emitted as ``temporary=``.
+   * - ``private``
+     - bool
+     - ``false``
+     - Emitted as ``private=``. Creates the table for the pipeline's lifetime without publishing it to the metastore; the dataset is visible only inside the pipeline.
    * - ``comment``
      - string
      - derived
@@ -101,6 +105,10 @@ These ``write_target`` fields apply to ``streaming_table`` and
      - string
      - —
      - Deprecated (removed at 1.0.0); use ``catalog`` + ``schema``.
+
+.. versionadded:: 0.9.2
+   The ``private`` field, for SDP private datasets that persist for the
+   pipeline's lifetime without being published to the metastore.
 
 Action-level ``once: true`` emits ``once=True`` on the flow. Action-level
 ``readMode: batch`` switches a standard append flow from

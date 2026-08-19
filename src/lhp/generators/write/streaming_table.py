@@ -245,6 +245,7 @@ class StreamingTableWriteGenerator(BaseActionGenerator):
             "schema": schema,
             "row_filter": row_filter,
             "temporary": temporary,
+            "private": target_config.get("private", False),
             "partitions": target_config.get("partition_columns"),
             "cluster_by": target_config.get("cluster_columns"),
             "cluster_by_auto": target_config.get("cluster_by_auto"),

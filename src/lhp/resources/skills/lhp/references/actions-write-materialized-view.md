@@ -17,6 +17,7 @@
 | `table_schema` | string | — | Inline schema, or a `.ddl`/`.sql`/`.yaml`/`.json` file path. A `.yaml`/`.json` file is the unified schema/tags file — `type`/`nullable`/`comment` are read here. UC tags in that file are ignored unless the same file is also set as `tags_file` (else `LHP-CFG-069` warns at generate time). |
 | `row_filter` | string | — | — |
 | `temporary` | bool | `false` | — |
+| `private` | bool | `false` | Emitted as `private=`. Creates the table for the pipeline's lifetime without publishing it to the metastore; visible only inside the pipeline. |
 | `partition_columns` | list | — | — |
 | `cluster_columns` | list | — | — |
 | `cluster_by_auto` | bool | — | Auto liquid clustering; renders `cluster_by_auto=True`. Mutually exclusive with `cluster_columns`. Omitted when false/unset. |

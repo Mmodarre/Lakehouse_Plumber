@@ -54,6 +54,10 @@ resources:
           pipeline_task:
             pipeline_id: ${resources.pipelines.kafka_sample_pipeline_pipeline.id}
             full_refresh: false
+        - task_key: private_datasets_pipeline
+          pipeline_task:
+            pipeline_id: ${resources.pipelines.private_datasets_pipeline.id}
+            full_refresh: false
         - task_key: sample_python_func_pipeline_pipeline
           pipeline_task:
             pipeline_id: ${resources.pipelines.sample_python_func_pipeline_pipeline.id}

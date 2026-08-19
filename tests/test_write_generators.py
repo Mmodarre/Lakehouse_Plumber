@@ -169,6 +169,116 @@ class TestWriteGenerators:
         code_unset = generator.generate(action_unset, {})
         assert "cluster_by_auto" not in code_unset
 
+    def test_materialized_view_private(self):
+        """Materialized view emits private=True when set, omits when False/unset."""
+        generator = MaterializedViewWriteGenerator()
+
+        def _mv_action(private):
+            write_target = {
+                "type": "materialized_view",
+                "catalog": "gold_cat",
+                "schema": "gold_sch",
+                "table": "customer_summary",
+                "sql": "SELECT * FROM silver.base_table",
+            }
+            if private is not None:
+                write_target["private"] = private
+            return Action(
+                name="write_private_mv",
+                type=ActionType.WRITE,
+                write_target=write_target,
+            )
+
+        code = generator.generate(_mv_action(True), {})
+        assert "@dp.materialized_view(" in code
+        assert "private=True" in code
+
+        assert "private=True" not in generator.generate(_mv_action(False), {})
+        assert "private=True" not in generator.generate(_mv_action(None), {})
+
+    def test_streaming_table_private_standard(self):
+        """Standard streaming table emits private=True on the created table; omits when unset."""
+        generator = StreamingTableWriteGenerator()
+
+        def _st_action(private):
+            write_target = {
+                "type": "streaming_table",
+                "catalog": "silver_cat",
+                "schema": "silver_sch",
+                "table": "customers",
+                "create_table": True,
+            }
+            if private is not None:
+                write_target["private"] = private
+            return Action(
+                name="write_private_st",
+                type=ActionType.WRITE,
+                source="v_customers_final",
+                write_target=write_target,
+            )
+
+        code = generator.generate(_st_action(True), {})
+        assert "dp.create_streaming_table(" in code
+        assert "private=True" in code
+
+        assert "private=True" not in generator.generate(_st_action(False), {})
+        assert "private=True" not in generator.generate(_st_action(None), {})
+
+    def test_streaming_table_private_cdc(self):
+        """CDC streaming table emits private=True on the created table, not on the CDC flow."""
+        generator = StreamingTableWriteGenerator()
+        action = Action(
+            name="write_private_cdc",
+            type=ActionType.WRITE,
+            source="v_customer_changes",
+            write_target={
+                "type": "streaming_table",
+                "mode": "cdc",
+                "catalog": "silver_cat",
+                "schema": "silver_sch",
+                "table": "dim_customer",
+                "create_table": True,
+                "private": True,
+                "cdc_config": {
+                    "keys": ["customer_id"],
+                    "sequence_by": "_commit_timestamp",
+                    "scd_type": 2,
+                },
+            },
+        )
+
+        code = generator.generate(action, {"expectations": []})
+        assert "dp.create_streaming_table(" in code
+        assert "dp.create_auto_cdc_flow(" in code
+        assert "private=True" in code
+
+    def test_streaming_table_private_snapshot_cdc(self):
+        """Snapshot CDC streaming table emits private=True on the created table."""
+        generator = StreamingTableWriteGenerator()
+        action = Action(
+            name="write_private_snapshot_cdc",
+            type=ActionType.WRITE,
+            write_target={
+                "type": "streaming_table",
+                "mode": "snapshot_cdc",
+                "catalog": "silver_cat",
+                "schema": "silver_sch",
+                "table": "customers",
+                "create_table": True,
+                "private": True,
+                "snapshot_cdc_config": {
+                    "source": "raw.customer_snapshots",
+                    "keys": ["customer_id"],
+                    "stored_as_scd_type": 1,
+                },
+            },
+        )
+
+        code = generator.generate(action, {})
+        assert "dp.create_streaming_table(" in code
+        assert "dp.create_auto_cdc_from_snapshot_flow(" in code
+        assert "private=True" in code
+
     def test_streaming_table_with_all_options(self):
         """Test streaming table with all new options."""
         generator = StreamingTableWriteGenerator()

@@ -1,0 +1,29 @@
+# Golden fixture: private streaming table, standard mode (SDP `private=True`).
+# Expected generated form:
+#   dp.create_streaming_table(name="acme_edw_dev.edw_bronze.private_orders_st",
+#                             comment=..., private=True, ...)
+pipeline: private_datasets
+flowgroup: st_standard_private
+#job_name: j_private
+
+actions:
+  - name: private_orders_load
+    type: load
+    readMode: stream
+    source:
+      type: delta
+      database: "${catalog}.${raw_schema}"
+      table: customer_raw
+    target: v_private_orders_src
+    description: "Load source rows for the private standard streaming table"
+
+  - name: write_private_orders_st
+    type: write
+    source: v_private_orders_src
+    write_target:
+      type: streaming_table
+      database: "${catalog}.${bronze_schema}"
+      table: "private_orders_st"
+      comment: "Private streaming table (standard mode); not published to metastore"
+      private: true
+    description: "Write private standard-mode streaming table"
