@@ -36,6 +36,9 @@ class WriteTarget(BaseModel):
     table_schema: Optional[str] = None
     row_filter: Optional[str] = None
     temporary: bool = False
+    # Create the table for the pipeline's lifetime without publishing it to the
+    # metastore (SDP `private=True`); the dataset is visible only inside the pipeline.
+    private: bool = False
     path: Optional[str] = None
     # Materialized view specific
     refresh_schedule: Optional[str] = None

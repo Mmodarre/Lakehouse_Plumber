@@ -13,6 +13,7 @@
 | `table` | string | — | Target table name. |
 | `create_table` | bool | `true` | — |
 | `temporary` | bool | `false` | — |
+| `private` | bool | `false` | Emitted as `private=`. Creates the table for the pipeline's lifetime without publishing it to the metastore; visible only inside the pipeline. |
 | `comment` | string | — | — |
 | `table_properties` | dict | — | — |
 | `tags` | dict | — | UC tags `{key: value}`; value `""`/`~`/null = key-only. Applied during the run by a generated `_uc_tagging_hook.py` (REST API, not the table DDL): on `update_progress` `RUNNING` (streaming tables) and on the terminal state (MVs, which materialize later), each entity tagged at most once; failures surface as event-log warnings and never fail the pipeline. Existing tag state is read once at module import from `system.information_schema` (best-effort; read failure → warning on first `RUNNING`, then create-only). **On by default** — declaring `tags` opts in; set `uc_tagging.enabled: false` in `lhp.yaml` to disable. `tag_update_concurrency` (default 16, range 1–20) tunes the thread pool; `remove_undeclared_tags` (default false) is additive, `true` reconciles to the declared set. `max_allowable_consecutive_failures` (default null) is the hook's `@dp.on_event_hook` failure budget — an integer >= 0 or null; null means no limit and the hook is never disabled. |

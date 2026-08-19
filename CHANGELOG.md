@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Private datasets (SDP `private=True`).** Streaming-table and materialized-view
+  write targets accept a `private` boolean (default `false`). When `true`, LHP emits
+  `private=True` on `dp.create_streaming_table(...)` and `@dp.materialized_view(...)`,
+  so the table persists for the pipeline's lifetime but is not published to the
+  metastore — it is visible only inside the pipeline.
+
 ### Fixed
 
 - **SQL dependency extraction no longer invents edges from opaque `stream()`
