@@ -98,7 +98,9 @@ class TestCdcScd2SchemaFileE2E:
 
         # Inject the pipeline + schema file under test into THIS copy only, so the
         # shared committed fixture (and every whole-project baseline) is untouched.
-        (self.project_root / "schemas" / "customer_scd2_dim.yaml").write_text(_SCHEMA_FILE)
+        (self.project_root / "schemas" / "customer_scd2_dim.yaml").write_text(
+            _SCHEMA_FILE
+        )
         pipeline_dir = self.project_root / "pipelines" / "22_cdc_scd2_schema"
         pipeline_dir.mkdir(parents=True, exist_ok=True)
         (pipeline_dir / "cdc_scd2_schema_file.yaml").write_text(_FLOWGROUP)
@@ -134,7 +136,9 @@ class TestCdcScd2SchemaFileE2E:
         exit_code, output = self.run_generate()
         assert exit_code == 0, f"Generation failed:\n{output}"
 
-        generated = self.generated_dir / "22_cdc_scd2_schema" / "cdc_scd2_schema_file.py"
+        generated = (
+            self.generated_dir / "22_cdc_scd2_schema" / "cdc_scd2_schema_file.py"
+        )
         assert generated.exists(), (
             "cdc_scd2_schema_file.py should be generated under 22_cdc_scd2_schema/"
         )

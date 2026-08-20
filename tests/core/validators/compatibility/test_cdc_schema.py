@@ -83,9 +83,15 @@ class TestCdcSchemaValidatorFileSchema:
         """File path but no project_root: cannot resolve → defer, no false positive."""
         _write_schema(tmp_path, _MISSING_BOTH)
         validator = CdcSchemaValidator(project_root=None)
-        assert validator.validate(_action("schemas/customer_scd2_dim.yaml"), self.prefix) == []
+        assert (
+            validator.validate(_action("schemas/customer_scd2_dim.yaml"), self.prefix)
+            == []
+        )
 
     def test_missing_schema_file_defers(self, tmp_path):
         """Referenced file does not exist: defer to the generator's IO error, do not raise."""
         validator = CdcSchemaValidator(project_root=tmp_path)
-        assert validator.validate(_action("schemas/does_not_exist.yaml"), self.prefix) == []
+        assert (
+            validator.validate(_action("schemas/does_not_exist.yaml"), self.prefix)
+            == []
+        )
