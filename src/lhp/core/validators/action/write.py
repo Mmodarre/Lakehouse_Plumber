@@ -17,12 +17,12 @@ logger = logging.getLogger(__name__)
 
 
 class WriteActionValidator(BaseActionValidator):
-    def __init__(self, action_registry, field_validator):
+    def __init__(self, action_registry, field_validator, project_root=None):
         super().__init__(action_registry, field_validator)
         self.dlt_validator = DltTableOptionsValidator()
         self.cdc_validator = CdcConfigValidator()
         self.snapshot_cdc_validator = SnapshotCdcConfigValidator()
-        self.cdc_schema_validator = CdcSchemaValidator()
+        self.cdc_schema_validator = CdcSchemaValidator(project_root)
 
     def validate(self, action: Action, prefix: str) -> List[ValidationError]:
         logger.debug(f"Validating write action '{action.name}'")
