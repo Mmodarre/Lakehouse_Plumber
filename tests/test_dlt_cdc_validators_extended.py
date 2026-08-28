@@ -703,11 +703,12 @@ class TestCdcSchemaValidatorDirect:
         assert errors == []
 
     def test_validate_schema_missing_start_at(self):
-        """Schema without __START_AT should produce error."""
+        """SCD2 schema without __START_AT should produce error."""
         action = self._make_action(
             write_target={
                 "type": "streaming_table",
                 "table_schema": "id INT, name STRING, __END_AT TIMESTAMP",
+                "cdc_config": {"scd_type": 2},
             }
         )
         errors = self.validator.validate(action, self.prefix)
@@ -715,11 +716,12 @@ class TestCdcSchemaValidatorDirect:
         assert not any("__END_AT" in e for e in errors)
 
     def test_validate_schema_missing_end_at(self):
-        """Schema without __END_AT should produce error."""
+        """SCD2 schema without __END_AT should produce error."""
         action = self._make_action(
             write_target={
                 "type": "streaming_table",
                 "table_schema": "id INT, name STRING, __START_AT TIMESTAMP",
+                "cdc_config": {"scd_type": 2},
             }
         )
         errors = self.validator.validate(action, self.prefix)
@@ -738,11 +740,12 @@ class TestCdcSchemaValidatorDirect:
         assert errors == []
 
     def test_validate_schema_missing_both_columns(self):
-        """Schema missing both __START_AT and __END_AT should produce two errors."""
+        """SCD2 schema missing both __START_AT and __END_AT should produce two errors."""
         action = self._make_action(
             write_target={
                 "type": "streaming_table",
                 "table_schema": "id INT, name STRING",
+                "cdc_config": {"scd_type": 2},
             }
         )
         errors = self.validator.validate(action, self.prefix)
@@ -762,11 +765,12 @@ class TestCdcSchemaValidatorDirect:
         assert errors == []
 
     def test_validate_table_schema_key_missing_columns(self):
-        """Schema via 'table_schema' key missing CDC columns should produce errors."""
+        """SCD2 schema via 'table_schema' key missing CDC columns should produce errors."""
         action = self._make_action(
             write_target={
                 "type": "streaming_table",
                 "table_schema": "id INT, name STRING",
+                "cdc_config": {"scd_type": 2},
             }
         )
         errors = self.validator.validate(action, self.prefix)

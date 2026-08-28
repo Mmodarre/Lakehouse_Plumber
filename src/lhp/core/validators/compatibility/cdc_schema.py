@@ -23,6 +23,14 @@ class CdcSchemaValidator:
         if not schema_value:
             return errors
 
+        # Only SCD Type 2 carries the __START_AT/__END_AT validity columns; a Type 1
+        # target must not declare them (the runtime rejects it), so the presence check
+        # does not apply. Mirror the generator, which derives stored_as_scd_type from
+        # cdc_config['scd_type'] and defaults to 1 (templates/write/streaming_table.py.j2).
+        cdc_config = action.write_target.get("cdc_config") or {}
+        if cdc_config.get("scd_type", 1) != 2:
+            return errors
+
         # Resolve a file-based table_schema (schemas/*.yaml, *.ddl, ...) to its
         # actual schema text before checking for the SCD2 history columns; a raw
         # path string would otherwise never contain __START_AT/__END_AT.

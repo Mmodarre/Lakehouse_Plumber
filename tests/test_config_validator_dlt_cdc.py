@@ -49,6 +49,36 @@ class TestConfigValidatorDltCdc:
         assert not any("__START_AT" in str(e) for e in errors), errors
         assert not any("__END_AT" in str(e) for e in errors), errors
 
+    def test_cdc_scd1_inline_table_schema_primary_key_wiring(self):
+        """End-to-end wiring: a CDC SCD1 write target whose inline table_schema declares
+        a PRIMARY KEY (and, correctly, no __START_AT/__END_AT) validates cleanly. The
+        validity-column check applies to SCD2 only, so SCD1 can register a PRIMARY KEY."""
+        validator = ConfigValidator()
+        action = Action(
+            name="write_dim_customer_scd1",
+            type=ActionType.WRITE,
+            source="v_customer_bronze",
+            write_target={
+                "type": "streaming_table",
+                "catalog": "cat",
+                "schema": "silver",
+                "table": "dim_customer",
+                "mode": "cdc",
+                "table_schema": (
+                    "customer_sk STRING NOT NULL, customer_id BIGINT NOT NULL, "
+                    "c_name STRING, CONSTRAINT dim_customer_pk PRIMARY KEY (customer_sk)"
+                ),
+                "cdc_config": {
+                    "keys": ["customer_id"],
+                    "sequence_by": "last_modified_dt",
+                    "scd_type": 1,
+                },
+            },
+        )
+        errors = validator.validate_action(action, 1)
+        assert not any("__START_AT" in str(e) for e in errors), errors
+        assert not any("__END_AT" in str(e) for e in errors), errors
+
     def test_dlt_table_options_validation_comprehensive(self):
         validator = ConfigValidator()
 
@@ -531,7 +561,11 @@ class TestConfigValidatorDltCdc:
                 "schema": "test",
                 "table": "test",
                 "mode": "cdc",
-                "cdc_config": {"keys": ["id"], "sequence_by": "timestamp_col"},
+                "cdc_config": {
+                    "keys": ["id"],
+                    "sequence_by": "timestamp_col",
+                    "scd_type": 2,
+                },
                 "table_schema": "id INT, name STRING, __END_AT TIMESTAMP",  # Missing __START_AT
             },
         )
@@ -552,7 +586,11 @@ class TestConfigValidatorDltCdc:
                 "schema": "test",
                 "table": "test",
                 "mode": "cdc",
-                "cdc_config": {"keys": ["id"], "sequence_by": "timestamp_col"},
+                "cdc_config": {
+                    "keys": ["id"],
+                    "sequence_by": "timestamp_col",
+                    "scd_type": 2,
+                },
                 "table_schema": "id INT, name STRING, __START_AT TIMESTAMP",  # Missing __END_AT
             },
         )
@@ -573,7 +611,11 @@ class TestConfigValidatorDltCdc:
                 "schema": "test",
                 "table": "test",
                 "mode": "cdc",
-                "cdc_config": {"keys": ["id"], "sequence_by": "timestamp_col"},
+                "cdc_config": {
+                    "keys": ["id"],
+                    "sequence_by": "timestamp_col",
+                    "scd_type": 2,
+                },
                 "table_schema": "id INT, name STRING",  # Missing both __START_AT and __END_AT
             },
         )
@@ -599,7 +641,11 @@ class TestConfigValidatorDltCdc:
                 "schema": "test",
                 "table": "test",
                 "mode": "cdc",
-                "cdc_config": {"keys": ["id"], "sequence_by": "timestamp_col"},
+                "cdc_config": {
+                    "keys": ["id"],
+                    "sequence_by": "timestamp_col",
+                    "scd_type": 2,
+                },
                 "table_schema": "id INT, name STRING",  # Missing both __START_AT and __END_AT
             },
         )
@@ -625,7 +671,11 @@ class TestConfigValidatorDltCdc:
                 "schema": "test",
                 "table": "test",
                 "mode": "cdc",
-                "cdc_config": {"keys": ["id"], "sequence_by": "timestamp_col"},
+                "cdc_config": {
+                    "keys": ["id"],
+                    "sequence_by": "timestamp_col",
+                    "scd_type": 2,
+                },
                 "table_schema": "id INT, name STRING, __START_AT TIMESTAMP, __END_AT TIMESTAMP",
             },
         )
@@ -643,7 +693,11 @@ class TestConfigValidatorDltCdc:
                 "schema": "test",
                 "table": "test",
                 "mode": "cdc",
-                "cdc_config": {"keys": ["id"], "sequence_by": "timestamp_col"},
+                "cdc_config": {
+                    "keys": ["id"],
+                    "sequence_by": "timestamp_col",
+                    "scd_type": 2,
+                },
                 # No schema field - should NOT trigger schema validation
             },
         )
