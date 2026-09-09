@@ -18,6 +18,11 @@ updates:
       # Major version bumps require manual review
       - dependency-name: "*"
         update-types: ["version-update:semver-major"]
+      # ruff is the generated-code formatter (core/codegen/formatter.py): its exact
+      # pin is part of LHP's output contract and every e2e baseline is byte-locked
+      # to it, so even a "minor" bump is a formatter migration done deliberately by
+      # hand (bump + regenerate all baselines together), never a routine update.
+      - dependency-name: "ruff"
 
   # GitHub Actions (maintains SHA pins)
   - package-ecosystem: "github-actions"
