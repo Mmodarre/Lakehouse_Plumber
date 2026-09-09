@@ -187,6 +187,7 @@ lhp init <project> [--no-bundle]        # Scaffold project (Asset Bundle ON by d
 lhp validate --env <env>                # Validate configs
 lhp generate --env <env>                # Generate Python code (always a FULL regenerate)
 lhp generate --env <env> --include-tests  # With test actions included
+lhp generate --env <env> --sandbox   # Personal namespaced sandbox (scope from .lhp/profile.yaml)
 lhp diff --env <env>                    # Show what generate would change on disk
 lhp dag --format job --job-name <name> --bundle-output  # Orchestration job
 lhp list templates | presets | blueprints   # List reusable artifacts
@@ -204,11 +205,12 @@ Action references are split per sub-type — one leaf file per action sub-type. 
 - **Test** — [row_count](references/actions-test-row-count.md), [uniqueness](references/actions-test-uniqueness.md), [referential_integrity](references/actions-test-referential-integrity.md), [completeness](references/actions-test-completeness.md), [range](references/actions-test-range.md), [schema_match](references/actions-test-schema-match.md), [all_lookups_found](references/actions-test-all-lookups-found.md), [custom_sql](references/actions-test-custom-sql.md), [custom_expectations](references/actions-test-custom-expectations.md). All 9 require the `--include-tests` flag.
 - **[cdc-patterns.md](references/cdc-patterns.md)** — CDC and SCD2 patterns for Delta CDF, PostgreSQL WAL, and snapshot CDC. Load when implementing any CDC/SCD2 pattern.
 - **[templates-presets.md](references/templates-presets.md)** — Template structure, naming conventions, parameter types (incl. inline SQL parametrized with Jinja), preset matching/merge behavior. Load when creating or editing templates or presets.
-- **[blueprints.md](references/blueprints.md)** — Blueprints: whole-flowgroup patterns expanded per instance (sites/regions/tenants), `use_blueprint:` syntax, `%{var}` resolution, `lhp list blueprints` / `lhp dag --expand-blueprints`. Load when the same flowgroup repeats across deployments, or to decide blueprint vs template vs preset.
+- **[blueprints.md](references/blueprints.md)** — Blueprints: whole-flowgroup patterns expanded per instance (sites/regions/tenants), `use_blueprint:` syntax, `%{var}` resolution, `lhp list blueprints` / `lhp dag --blueprint <name>`. Load when the same flowgroup repeats across deployments, or to decide blueprint vs template vs preset.
 - **[quickstart.md](references/quickstart.md)** — First-project setup: `lhp init`, `lhp.yaml`, `databricks.yml`, `substitutions/`, `config/pipeline_config.yaml`, first flowgroup, validate + generate. Load when scaffolding a new project from scratch.
 - **[project-config.md](references/project-config.md)** — lhp.yaml, substitutions, local variables, operational metadata, CLI commands, multi-flowgroup syntax. Load for project setup or config questions.
 - **[advanced.md](references/advanced.md)** — Databricks bundles, pipeline/job configuration, dependency analysis, multi-job orchestration, CI/CD patterns. Load for deployment or orchestration tasks.
 - **[monitoring.md](references/monitoring.md)** — Event log injection, monitoring pipeline, materialized views, `__eventlog_monitoring` alias. Load when configuring event_log or monitoring in lhp.yaml.
+- **[sandbox.md](references/sandbox.md)** — Developer sandbox mode (`--sandbox`): personal namespaced copies of in-scope pipelines, profile + team policy config, rename semantics, sandbox error codes. Load when the user mentions `--sandbox`, `.lhp/profile.yaml`, developer isolation, or parallel development on a shared environment.
 - **[errors.md](references/errors.md)** — All LHP error codes (LHP-CFG/VAL/IO/ACT/DEP) with causes and fixes. Load when troubleshooting any LHP error.
 - **[best-practices.md](references/best-practices.md)** — Enterprise best practices (BP-1 through BP-19, anti-patterns). Load when setting up a new project, reviewing/refactoring configs, designing templates/presets/substitutions, tiering data quality, choosing between streaming_table vs materialized_view, or answering "what's the right way to..." questions.
 
