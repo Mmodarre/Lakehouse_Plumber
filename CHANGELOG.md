@@ -17,6 +17,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **`lhp init --sample`: the `data_prep` task no longer fails with a `NameError`.**
+  The sample quickstart's data-prep notebook referenced a bare `_meta` where the
+  `_meta` schema *name* was meant, so the first task of the `lhp_sample_quickstart`
+  job aborted with `NameError: name '_meta' is not defined` before creating any
+  schema — taking the whole quickstart down. Regression in v0.9.1.
+
 - **SQL dependency extraction no longer invents edges from opaque `stream()`
   arguments.** sqlglot 28 began emitting a dedicated `exp.Stream` node above
   the wrapped table, which bypassed the opaqueness check: `stream('bronze.x')`
