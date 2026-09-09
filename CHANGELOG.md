@@ -31,6 +31,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   first time the view was evaluated. The same applied to a `source.type:
   python` load with an explicit `parameters:` null. Both now emit
   `parameters = {}`, the default the reference documentation always described.
+
+- **`--include-tests` no longer drops `from pyspark.sql import functions as F`.**
+  When a flowgroup contained any `type: test` action, the import resolver treated
+  the test generators' `from pyspark.sql.functions import *` as superseding the
+  parent `pyspark.sql` import — but a wildcard never binds the name `F`, so the
+  generated module raised `NameError` on its first `F.` reference as soon as the
+  flow was evaluated. Any generator that emits `F.` was a trigger, not just
+  `transform_type: schema`: `operational_metadata` columns
+  (`F.current_timestamp()`) alone were enough, as were custom sinks. The
+  exclusion also applied to the whole `pyspark.sql` module group, so sibling
+  imports such as `from pyspark.sql import DataFrame` (materialized-view writes)
+  were dropped with it. Parent-module imports are now always kept; a wildcard
+  still supersedes specific-name imports from that same module. Both `lhp
+  validate` and `lhp generate` reported success, so the failure only surfaced at
+  pipeline start-up.
 - **SQL dependency extraction no longer invents edges from opaque `stream()`
   arguments.** sqlglot 28 began emitting a dedicated `exp.Stream` node above
   the wrapped table, which bypassed the opaqueness check: `stream('bronze.x')`
