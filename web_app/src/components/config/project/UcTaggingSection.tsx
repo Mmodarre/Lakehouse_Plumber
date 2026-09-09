@@ -65,6 +65,19 @@ export function UcTaggingSection({ form }: { form: ProjectFormApi }) {
             placeholder="default: 16"
             issue={issueText(form.issues, [...BASE, 'tag_update_concurrency'])?.message}
           />
+          <OptionalNumberField
+            id="uc-tagging-max-failures"
+            label="Max allowable consecutive failures"
+            helpPath={['uc_tagging', 'max_allowable_consecutive_failures']}
+            value={section.max_allowable_consecutive_failures}
+            min={0}
+            onSet={(v) => form.setField([...BASE], 'max_allowable_consecutive_failures', v)}
+            onUnset={() => form.del([...BASE, 'max_allowable_consecutive_failures'])}
+            placeholder="default: none (no limit)"
+            issue={
+              issueText(form.issues, [...BASE, 'max_allowable_consecutive_failures'])?.message
+            }
+          />
         </>
       )}
     </SectionCard>

@@ -36,6 +36,7 @@ class WriteTarget(BaseModel):
     table_schema: Optional[str] = None
     row_filter: Optional[str] = None
     temporary: bool = False
+    private: bool = False
     path: Optional[str] = None
     # Materialized view specific
     refresh_schedule: Optional[str] = None

@@ -156,10 +156,26 @@ class TestUCTaggingE2E:
             "Hook file should NOT exist when no tags are declared"
         )
 
+    def _set_uc_tagging_block(self, body: str) -> None:
+        """Replace the fixture's ``uc_tagging`` block with ``body``.
+
+        The fixture declares a real ``uc_tagging:`` block (it pins the event-hook
+        failure budget so the baselines stay byte-stable), so a test must REPLACE it
+        rather than append a second one — PyYAML resolves duplicate top-level keys
+        last-wins silently, which would hide whichever block the test did not write.
+        """
+        lhp_yaml = self.project_root / "lhp.yaml"
+        text = lhp_yaml.read_text()
+        original = "uc_tagging:\n  max_allowable_consecutive_failures: 3\n"
+        assert original in text, (
+            "fixture lhp.yaml no longer contains the expected uc_tagging block; "
+            "update this helper to match"
+        )
+        lhp_yaml.write_text(text.replace(original, body))
+
     def test_no_hook_when_disabled(self):
         """With uc_tagging.enabled=false, no hook is emitted even for tagged tables."""
-        lhp_yaml = self.project_root / "lhp.yaml"
-        lhp_yaml.write_text(lhp_yaml.read_text() + "\nuc_tagging:\n  enabled: false\n")
+        self._set_uc_tagging_block("uc_tagging:\n  enabled: false\n")
 
         exit_code, output = self.run_generate()
         assert exit_code == 0, f"Generation failed: {output}"
@@ -168,6 +184,35 @@ class TestUCTaggingE2E:
         assert not hook_file.exists(), (
             "Hook file should NOT exist when uc_tagging is disabled"
         )
+
+    def test_max_allowable_failures_override_renders(self):
+        """An explicit max_allowable_consecutive_failures reaches the decorator.
+
+        0 is the interesting value: it is falsy, so a template regression that guarded
+        the render with a truthiness test would emit None (no limit) — the exact
+        opposite of what the user asked for.
+        """
+        self._set_uc_tagging_block(
+            "uc_tagging:\n  max_allowable_consecutive_failures: 0\n"
+        )
+
+        exit_code, output = self.run_generate()
+        assert exit_code == 0, f"Generation failed: {output}"
+
+        hook_file = self.generated_dir / "uc_tagging_core" / "_uc_tagging_hook.py"
+        content = hook_file.read_text()
+        assert "@dp.on_event_hook(max_allowable_consecutive_failures=0)" in content
+
+    def test_max_allowable_failures_defaults_to_none(self):
+        """With the key omitted entirely, the hook renders the SDP default of None."""
+        self._set_uc_tagging_block("")
+
+        exit_code, output = self.run_generate()
+        assert exit_code == 0, f"Generation failed: {output}"
+
+        hook_file = self.generated_dir / "uc_tagging_core" / "_uc_tagging_hook.py"
+        content = hook_file.read_text()
+        assert "@dp.on_event_hook(max_allowable_consecutive_failures=None)" in content
 
 
 # Sandbox profile scoping the run to just the tags_file flowgroup's pipeline.

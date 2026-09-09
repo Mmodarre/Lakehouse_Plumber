@@ -1,0 +1,35 @@
+# Golden fixture: private streaming table, CDC mode (SDP `private=True`).
+# The private=True flag must land on the dp.create_streaming_table(...) call that
+# backs the CDC target; the dp.create_auto_cdc_flow(...) call is unaffected.
+pipeline: private_datasets
+flowgroup: st_cdc_private
+#job_name: j_private
+
+actions:
+  - name: private_cdc_load
+    type: load
+    readMode: stream
+    source:
+      type: delta
+      database: "${catalog}.${bronze_schema}"
+      table: customer
+    target: v_private_cdc_src
+    description: "Load source rows for the private CDC streaming table"
+
+  - name: write_private_customer_cdc_dim
+    type: write
+    source: v_private_cdc_src
+    write_target:
+      type: streaming_table
+      database: "${catalog}.${silver_schema}"
+      table: "private_customer_cdc_dim"
+      comment: "Private streaming table (CDC mode); not published to metastore"
+      private: true
+      mode: "cdc"
+      cdc_config:
+        keys: ["customer_id"]
+        sequence_by: "last_modified_dt"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_processing_timestamp", "customer_key", "last_modified_dt"]
+    description: "Write private CDC-mode streaming table"

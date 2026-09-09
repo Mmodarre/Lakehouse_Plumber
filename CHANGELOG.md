@@ -5,6 +5,100 @@ All notable changes to Lakehouse Plumber are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Private datasets (SDP `private=True`).** Streaming-table and materialized-view
+  write targets accept a `private` boolean (default `false`). When `true`, LHP emits
+  `private=True` on `dp.create_streaming_table(...)` and `@dp.materialized_view(...)`,
+  so the table persists for the pipeline's lifetime but is not published to the
+  metastore — it is visible only inside the pipeline.
+
+### Fixed
+
+- **`lhp init --sample`: the `data_prep` task no longer fails with a `NameError`.**
+  The sample quickstart's data-prep notebook referenced a bare `_meta` where the
+  `_meta` schema *name* was meant, so the first task of the `lhp_sample_quickstart`
+  job aborted with `NameError: name '_meta' is not defined` before creating any
+  schema — taking the whole quickstart down. Regression in v0.9.1.
+
+- **Python load/transform actions that omit `parameters` now receive `{}`
+  instead of the unbound name `null`.** A `transform_type: python` action with
+  no `parameters:` block (or a bare `parameters:` key, which YAML reads as
+  null) generated `parameters = null`, so the deployed pipeline imported
+  cleanly and then failed with `NameError: name 'null' is not defined` the
+  first time the view was evaluated. The same applied to a `source.type:
+  python` load with an explicit `parameters:` null. Both now emit
+  `parameters = {}`, the default the reference documentation always described.
+
+- **`--include-tests` no longer drops `from pyspark.sql import functions as F`.**
+  When a flowgroup contained any `type: test` action, the import resolver treated
+  the test generators' `from pyspark.sql.functions import *` as superseding the
+  parent `pyspark.sql` import — but a wildcard never binds the name `F`, so the
+  generated module raised `NameError` on its first `F.` reference as soon as the
+  flow was evaluated. Any generator that emits `F.` was a trigger, not just
+  `transform_type: schema`: `operational_metadata` columns
+  (`F.current_timestamp()`) alone were enough, as were custom sinks. The
+  exclusion also applied to the whole `pyspark.sql` module group, so sibling
+  imports such as `from pyspark.sql import DataFrame` (materialized-view writes)
+  were dropped with it. Parent-module imports are now always kept; a wildcard
+  still supersedes specific-name imports from that same module. Both `lhp
+  validate` and `lhp generate` reported success, so the failure only surfaced at
+  pipeline start-up.
+- **SQL dependency extraction no longer invents edges from opaque `stream()`
+  arguments.** sqlglot 28 began emitting a dedicated `exp.Stream` node above
+  the wrapped table, which bypassed the opaqueness check: `stream('bronze.x')`
+  and `stream(live(bronze.x))` produced a dependency edge from an argument that
+  is not a statically known table reference. A string-literal argument is again
+  excluded, consistently with `live(...)` and `snapshot(...)`.
+- **`FROM STREAM tbl` (unparenthesized) now yields a real dependency edge.**
+  Valid Databricks syntax that older sqlglot either failed to parse — losing
+  every edge in the body behind an `LHP-DEP-003` advisory — or mis-parsed as a
+  table literally named `STREAM`.
+- **A backtick-quoted dotted identifier under `stream(...)` is extracted.**
+  ``stream(`my.table`)`` is one identifier whose name contains a dot, and is
+  now distinguished from the string literal `stream('my.table')` by the
+  argument's quote character rather than by its text.
+- **The persistent dependency-graph cache now invalidates on a sqlglot
+  upgrade.** Extracted edges are a function of sqlglot's parse tree, but
+  `pip install -U sqlglot` moved neither the YAML manifest nor any body's
+  `(mtime_ns, size)`, so `lhp dag` could serve edges parsed by the previous
+  version. The cache version tag now includes the sqlglot version, and
+  `CACHE_SCHEMA_VERSION` is bumped to 2 to force one clean sweep.
+
+### Changed
+
+- **`sqlglot` is now pinned `>=28,<31`** (was `>=26.0,<28`). The floor is
+  deliberate: only the `exp.Stream` tree shape is supported, so one LHP version
+  yields one deterministic dependency graph. Also ~28% faster cold extraction.
+- `DependencyStalenessResult.fingerprint` (provisional) gains a fourth
+  component, the sqlglot version. Its format was never a stable contract; treat
+  it as opaque and compare only for equality.
+
+## [0.9.2] — 2026-08-05
+
+### Added
+
+- **`uc_tagging.max_allowable_consecutive_failures` in `lhp.yaml`.** The UC tagging
+  hook's `@dp.on_event_hook` failure budget is now configurable instead of hardcoded.
+  Accepts an integer >= 0 or `null`; anything else (including `true`, which YAML would
+  otherwise coerce to `1`) is rejected with `LHP-CFG-009`. There is deliberately no
+  upper bound — the Lakeflow SDP contract is "integer >= 0 or None". Also surfaced in
+  the `lhp web` config form and the packaged JSON schema.
+
+### Changed
+
+- **The UC tagging hook's default failure budget is now unlimited (`None`) instead of
+  `3`.** This matches the SDP default: `None` means there is no limit to the
+  consecutive failures allowed and the hook is never disabled. Projects that
+  regenerate will see `@dp.on_event_hook(max_allowable_consecutive_failures=None)` in
+  `_uc_tagging_hook.py`. In practice a run raises at most twice (one combined `RUNNING`
+  warning, one terminal warning); under the old budget a hook that hit the limit was
+  disabled and, per Databricks, did not process new events until the pipeline was
+  restarted (#201). Set `uc_tagging.max_allowable_consecutive_failures: 3` to restore
+  the previous behavior.
+
 ## [0.9.1] — 2026-06-10
 
 Developer sandbox mode plus a dependency-extraction overhaul.

@@ -155,19 +155,25 @@ class TestBaseActionGeneratorRealWorldIntegration:
         assert len(imports) >= 2
 
     def test_real_import_manager_conflict_resolution(self):
-        """Test import conflict resolution with real ImportManager."""
+        """Test import conflict resolution with real ImportManager.
+
+        The wildcard subsumes ``col`` from its own module, so that line
+        collapses. It does not bind ``F``, so the parent ``pyspark.sql`` import
+        survives alongside it.
+        """
         generator = ConcreteBaseActionGenerator(use_import_manager=True)
 
         generator.add_import("from pyspark.sql import functions as F")
+        generator.add_import("from pyspark.sql.functions import col")
         generator.add_import("from pyspark.sql.functions import *")
 
         imports = generator.imports
 
-        # Wildcard takes precedence; F alias removed due to conflict.
         assert "from pyspark.sql.functions import *" in imports
         assert not any(
-            "from pyspark.sql import functions as F" in imp for imp in imports
+            "from pyspark.sql.functions import col" in imp for imp in imports
         )
+        assert any("from pyspark.sql import functions as F" in imp for imp in imports)
 
 
 class TestBaseActionGeneratorEdgeCases:

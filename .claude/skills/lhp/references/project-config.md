@@ -3,6 +3,7 @@
 ## Table of Contents
 - [Project Structure](#project-structure)
 - [lhp.yaml](#lhpyaml)
+- [Sandbox Mode (.lhp/profile.yaml)](#sandbox-mode-lhpprofileyaml)
 - [pipeline_config.yaml — catalog and schema](#pipeline_configyaml--catalog-and-schema)
 - [Substitutions & Secrets](#substitutions--secrets)
 - [Local Variables](#local-variables)
@@ -24,7 +25,7 @@ my_project/
 ├── templates/               # Reusable action templates
 ├── presets/                 # Configuration presets
 ├── substitutions/           # Environment configs (dev.yaml, prod.yaml)
-├── schemas/                 # Table schema definitions
+├── schemas/                 # Table schema + UC tags files (table_schema / tags_file)
 ├── expectations/            # Data quality expectation JSON files
 ├── sql/                     # External SQL files
 ├── py_functions/            # Custom Python functions
@@ -36,7 +37,8 @@ my_project/
 ```
 
 **`resources/lhp/` rule:** This directory is wholly owned by LHP. Every `lhp generate`
-deletes its contents and writes one `<pipeline_name>.pipeline.yml` per pipeline. Never
+deletes its contents and writes one `<pipeline_name>.pipeline.yml` per pipeline (plus
+`_wheels.bundle.yml` when any pipeline uses `packaging: wheel`). Never
 hand-edit files under `resources/lhp/` — changes are lost on the next generate. Place
 custom resource YAMLs elsewhere under `resources/`. The single exception is the
 monitoring job YAML at `resources/<name>.job.yml`, which LHP detects by the sentinel
@@ -64,7 +66,81 @@ operational_metadata:
       expression: "F.xxhash64(*[F.col(c) for c in df.columns])"
       description: "Hash for change detection"
       applies_to: ["streaming_table", "materialized_view", "view"]
+
+wheel:
+  artifact_volume: "/Volumes/${catalog}/${artifact_schema}/bundle_artifacts"  # required when any pipeline uses packaging: wheel
 ```
+
+### `wheel` block (wheel packaging)
+
+Top-level `wheel:` block in `lhp.yaml`. Optional; only consumed when a pipeline
+opts into `packaging: wheel` (see the pipeline-config section).
+
+| key | type | default | notes |
+|-----|------|---------|-------|
+| `artifact_volume` | str (token-aware) | None | UC volume built wheels upload to. `${token}`-aware, resolved per env via `substitutions/<env>.yaml` (like `event_log`). The **resolved** value MUST start with `/Volumes/` (serverless installs custom wheels only from a UC volume or PyPI). |
+
+- Invalid `wheel` shape (not a mapping, or `artifact_volume` not a string) → `LHP-CFG-060`.
+- A pipeline set to `packaging: wheel` but `artifact_volume` missing/empty or resolving to a non-`/Volumes/` path → `LHP-CFG-061`.
+- Source: `src/lhp/models/_project.py:WheelConfig` / `ProjectConfig.wheel`; parser `src/lhp/core/loaders/_wheel_config_parser.py:parse_wheel_config` (CFG-060); resolver `src/lhp/bundle/manager.py:BundleManager._resolve_artifact_volume` (CFG-061).
+
+### `sandbox` block (team sandbox policy)
+
+Optional top-level `sandbox:` block in `lhp.yaml` — the committed team policy for
+`--sandbox` runs. When absent, team defaults apply: strategy `table`, pattern
+`{namespace}_{table}`, any env allowed. Personal scope lives separately in the
+gitignored `.lhp/profile.yaml` (see [Sandbox Mode](#sandbox-mode-lhpprofileyaml)).
+
+| key | type | default | notes |
+|-----|------|---------|-------|
+| `strategy` | `table` | `table` | v1 supports `table` only (renames the table leaf; schema/catalog strategies reserved). Any other value → `LHP-CFG-062`. |
+| `table_pattern` | str | `{namespace}_{table}` | Formats the table LEAF only (catalog/schema unchanged). Placeholders limited to `{namespace}` and `{table}` — BOTH required; no conversions (`!r`) or format specs (`:>10`); literal text `[A-Za-z0-9_]` only. Invalid → `LHP-CFG-063`. |
+| `allowed_envs` | list[str] | None | Envs where `--sandbox` may run. Absent = unrestricted. Empty list `[]` → `LHP-CFG-062`. Running a non-listed env → `LHP-CFG-065`. |
+
+```yaml
+sandbox:
+  strategy: table
+  table_pattern: "{namespace}__{table}"
+  allowed_envs: [dev]
+```
+
+- Block not a mapping or any non-`table_pattern` field invalid → `LHP-CFG-062`; bad `table_pattern` → `LHP-CFG-063`.
+- Source: `src/lhp/models/_sandbox.py:SandboxConfig`; parser `src/lhp/core/loaders/_sandbox_config_parser.py`.
+
+## Sandbox Mode (.lhp/profile.yaml)
+
+Personal, **gitignored** profile at `<project_root>/.lhp/profile.yaml` declaring a
+developer's sandbox identity and pipeline scope. Explicit opt-in — nothing is
+auto-detected. Semantics in one line: **read-shared / write-own** — tables produced
+by in-scope pipelines are renamed into the namespace (on writes and on every
+in-scope read); reads of out-of-scope shared tables are untouched.
+
+The payload nests under a top-level `sandbox:` key:
+
+| key | type | required | notes |
+|-----|------|----------|-------|
+| `namespace` | str | yes | Regex `^[a-z][a-z0-9_]{0,63}$` — lowercase letter first, then lowercase letters/digits/underscores, max 64 chars total. |
+| `pipelines` | list[str] | yes | Non-empty; exact pipeline names or case-sensitive `fnmatchcase` globs (`*` `?` `[`). An entry matching zero pipelines → `LHP-VAL-064`. |
+
+```yaml
+# .lhp/profile.yaml (gitignored)
+sandbox:
+  namespace: alice
+  pipelines:
+    - bronze_*
+    - silver_orders
+```
+
+```bash
+lhp generate -e dev --sandbox    # generate only the profile's pipelines, write targets namespaced
+lhp validate -e dev --sandbox
+```
+
+- `--sandbox` is mutually exclusive with `-p`/`--pipeline` (usage error, exit 2) — sandbox scope comes from the profile.
+- Missing profile → `LHP-IO-025`; invalid profile → `LHP-CFG-064`.
+- Only profile-matched pipelines are generated; `generated/<env>/` and `resources/lhp/` contain exactly them. Monitoring phase is skipped.
+
+Full details: [sandbox.md](sandbox.md)
 
 ## pipeline_config.yaml — catalog and schema
 
@@ -128,6 +204,49 @@ environment.
 
 Substitution tokens (`${token}`, `%{local_var}`) work inside any layer; LHP resolves
 them after the deep merge.
+
+### Packaging mode (`packaging`: `source` | `wheel`)
+
+Per-pipeline toggle in `pipeline_config-<env>.yaml` selecting whether a pipeline
+emits loose `.py` (`source`) or a single deterministic wheel (`wheel`).
+
+- **Allowed values:** `source` | `wheel` (anything else → `LHP-VAL-062`).
+- **Default:** `source`.
+- **Precedence (low→high):** hard default `source` → `project_defaults.packaging` → per-pipeline `packaging` (per-pipeline wins).
+- **Per-environment:** lives in the per-env config, so a pipeline can be `source` in one env and `wheel` in another. Mixed source/wheel pipelines coexist in one project and one `lhp generate` run.
+- **Internal key:** `packaging` is consumed by LHP only and is stripped before render — it NEVER appears in any generated `.pipeline.yml`.
+- Requires `lhp.yaml` `wheel.artifact_volume` resolving to `/Volumes/...` (else `LHP-CFG-061`).
+- Source: `src/lhp/core/loaders/pipeline_config_loader.py:resolve_packaging_modes` (default/precedence), `ALLOWED_PACKAGING_MODES` + VAL-062 raise (same module); strip at `src/lhp/bundle/manager.py` (pre-render).
+
+```yaml
+project_defaults:
+  packaging: wheel              # env-wide default
+---
+pipeline: interactive_debug_pipeline
+packaging: source               # opt one pipeline back out
+---
+pipeline: [large_ingest_a, large_ingest_b]   # inherit wheel
+```
+
+### Wheel-mode output contract
+
+Generated pipeline logic is **byte-identical** to source mode; only packaging
+differs. The packaged `.py` inside the wheel is never run through the formatter
+(members are normalized, not formatted); the synced runner `.py` is a normal
+generated file subject to the usual format phase. What `lhp generate` writes for a
+wheel pipeline:
+
+| path | synced? | notes |
+|------|---------|-------|
+| `generated/<env>/<pipeline>/<import_pkg>_runner.py` | **yes — only synced file** | Runner; publishes ambient `spark`/`dbutils` into `builtins`, then imports the wheel's flowgroup modules. Content references only the import-package name → stable across content changes. |
+| `generated/<env>/_wheels/<pipeline>/dist/lhp_<pipeline>_<env>_<hash>-<lhp_version>-py3-none-any.whl` | no — gitignored + sync-excluded | The wheel; reaches Databricks only via DAB upload (not file sync). Contains the flowgroup package + top-level `custom_python_functions` + any generated test/quality/reporting modules. |
+| `resources/lhp/<pipeline>.pipeline.yml` | (resource) | A **file-relative LOCAL** wheel path (`../../generated/<env>/_wheels/<pipeline>/dist/*.whl`, relative to `resources/lhp/`) appended as the LAST `environment.dependencies` entry (user deps preserved); NO `packaging:` key. NOT a `/Volumes/` ref — DAB uploads the local wheel to `<artifact_path>/.internal/` and rewrites the entry itself. |
+| `resources/lhp/_wheels.bundle.yml` | (resource) | LHP-owned, regenerated every run: `targets.<env>.workspace.artifact_path` (= resolved volume) + `sync.exclude` for `_wheels/` ONLY. **No `artifacts:` block / no `type: whl`** (declaring a fileless whl artifact would make DAB rebuild the prebuilt wheel). LHP does NOT edit `databricks.yml`. Skipped when no wheel pipelines. |
+
+- **Identity:** distribution name = PEP503-canonical `lhp_<pipeline>_<env>_<hash>` (the `lhp_` brand prefix marks LHP-generated wheels; it is in the dist name ONLY — `import_package_name` and the runner are unchanged); `<hash>` = first 12 hex of SHA-256 over sorted `(relpath, bytes)` of packaged `.py`; **Version = LHP tool version** (`get_version()`), rendered as a **normalized PEP 440 public version** — dots preserved (`0.9.0`, never `0_9_0`), local segment stripped — used identically in the filename, `.dist-info` dir, and METADATA. Unchanged pipeline → identical filename → deploy no-op. An LHP version bump re-stamps every wheel → one-time redeploy of all wheel pipelines.
+- **Transport (DAB-owned):** LHP emits only the prebuilt LOCAL ref; DAB uploads to `<artifact_path>/.internal/<wheel>` and rewrites the dependency — so per-user dev-mode isolation (`${workspace.current_user.short_name}`) works for free. The `sync.exclude` (O3 mechanism) and prebuilt-local-ref-no-rebuild (O4 mechanism) are implemented; live-workspace verification still pending.
+- **Limitations:** monitoring pipelines are NOT wheeled (source-mode always); `__file__`/sidecar-data reads behave differently inside a wheel (only `.py` packaged); classic-compute install (O2) and serverless env-reuse caching (O5) are pending live-workspace verification.
+- Source: `src/lhp/core/packaging/identity.py` (hash/dist/filename), `src/lhp/core/packaging/packager.py:PipelinePackager.package` (version via caller), `src/lhp/core/packaging/runner.py:build_runner_code` (builtins `("spark","dbutils")`), `src/lhp/bundle/manager.py:_inject_wheel_dependency` + `emit_wheels_bundle_file`, `src/lhp/templates/bundle/wheels_bundle.yml.j2`, `src/lhp/core/coordination/_commit.py` (`version=get_version()`).
 
 ## Substitutions & Secrets
 
@@ -244,7 +363,7 @@ lhp dag --format job --job-name <name>         # Generate orchestration job
 lhp dag --format job --job-config config/job_config.yaml --bundle-output  # Job with config
 lhp dag --format dot                           # GraphViz dot (visualize, spot cycles)
 lhp dag --format json                          # Dependency graph as JSON
-lhp dag --expand-blueprints                    # One node per blueprint instance
+lhp dag --blueprint <name>                     # Restrict analysis to one blueprint (synthetics always fully expanded; --expand-blueprints is a deprecated no-op)
 
 # Inspection
 lhp diff --env <env>                          # Show what `lhp generate` would change on disk

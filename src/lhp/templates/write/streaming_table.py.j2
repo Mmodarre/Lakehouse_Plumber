@@ -37,6 +37,9 @@ dp.create_streaming_table(
     {%- if temporary %},
     temporary={{ temporary | string | title }}
     {%- endif %}
+    {%- if private %},
+    private={{ private | string | title }}
+    {%- endif %}
 )
 
 {% endif %}
@@ -108,6 +111,9 @@ dp.create_streaming_table(
     {%- if temporary %},
     temporary={{ temporary | string | title }}
     {%- endif %}
+    {%- if private %},
+    private={{ private | string | title }}
+    {%- endif %}
 )
 
 # Snapshot CDC mode using create_auto_cdc_from_snapshot_flow
@@ -160,6 +166,9 @@ dp.create_streaming_table(
     {%- endif %}
     {%- if temporary %},
     temporary={{ temporary | string | title }}
+    {%- endif %}
+    {%- if private %},
+    private={{ private | string | title }}
     {%- endif %}
 )
 

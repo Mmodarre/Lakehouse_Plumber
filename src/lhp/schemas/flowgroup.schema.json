@@ -638,6 +638,11 @@
                     "default": false,
                     "description": "Whether the table is temporary"
                 },
+                "private": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Create the table for the pipeline's lifetime without publishing it to the metastore (SDP private=True); the dataset is visible only inside the pipeline."
+                },
                 "path": {
                     "type": "string",
                     "description": "Table path"
