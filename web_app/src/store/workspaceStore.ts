@@ -67,7 +67,15 @@ export type DocKind = 'flowgroup' | 'template' | 'project' | 'pipeline_config' |
 /** View switcher for a flowgroup entity tab (§6.2). 'code' hosts the
  * multi-file Code surface (its editable yaml sub-tab replaces the old 'yaml'
  * view); Form was retired for flowgroups. */
-export type EntityView = 'graph' | 'code'
+export type FlowgroupEntityView = 'graph' | 'code'
+export type TemplateEntityView = 'builder' | 'code' | 'preview'
+export type EntityView = FlowgroupEntityView | TemplateEntityView
+
+/** Normalize legacy template graph views without exposing builder views on flowgroups. */
+export function normalizeEntityView(kind: DocKind, view?: EntityView): EntityView {
+  if (kind === 'template') return view === 'code' || view === 'preview' ? view : 'builder'
+  return view === 'code' ? 'code' : 'graph'
+}
 /** View switcher for a config entity tab (§6.2 — Form|YAML only, no graph/code). */
 export type ConfigView = 'form' | 'yaml'
 /** Config surface a ConfigTab edits (§6.2). */
@@ -619,7 +627,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
             const existing = s.tabs[existingIdx]
             const patch: Partial<WorkspaceState> = {}
             if (existing.kind === 'entity') {
-              const nextView = opts?.view ?? existing.view
+              const nextView = normalizeEntityView(docKind, opts?.view ?? existing.view)
               if (
                 existing.pipeline !== pipeline ||
                 existing.flowgroup !== flowgroup ||
@@ -649,19 +657,20 @@ export const useWorkspaceStore = create<WorkspaceState>()(
             flowgroup,
             filePath,
             docKind,
-            view: opts?.view ?? 'graph',
+            view: normalizeEntityView(docKind, opts?.view),
           }
           // One-tab-per-path: upgrade a plain file tab at this path in place
           // (keeps its buffer — YAML view reuses it — and its strip slot).
-          const fileIdx = s.tabs.findIndex((t) => t.kind === 'file' && t.path === filePath)
+          const fileIdx = s.tabs.findIndex((t) => tabBufferPath(t) === filePath)
           if (fileIdx !== -1) {
+            const previousId = workspaceTabId(s.tabs[fileIdx])
             const tabs = s.tabs.slice()
             tabs[fileIdx] = entityTab
             // If we upgraded the active file tab but aren't activating, its old
             // id (the raw path) no longer resolves — remap activePath to the
             // entity id so it doesn't dangle into page view.
-            const activePath = activate || s.activePath === filePath ? id : s.activePath
-            return { tabs, activePath, pinnedTabIds: s.pinnedTabIds.map((p) => p === filePath ? id : p) }
+            const activePath = activate || s.activePath === previousId ? id : s.activePath
+            return { tabs, activePath, pinnedTabIds: s.pinnedTabIds.map((p) => p === previousId ? id : p) }
           }
           return { tabs: [...s.tabs, entityTab], activePath: activate ? id : s.activePath }
         }),
@@ -707,7 +716,11 @@ export const useWorkspaceStore = create<WorkspaceState>()(
       openTableDetail: (fqn, opts) =>
         set((s) => upsertSimpleTab(s, { kind: 'table-detail', fqn }, opts?.activate !== false)),
 
-      openResourceTab: (resourceKind, name, filePath, opts) =>
+      openResourceTab: (resourceKind, name, filePath, opts) => {
+        if (resourceKind === 'template') {
+          get().openEntityTab('', name, filePath, { docKind: 'template', activate: opts?.activate })
+          return
+        }
         set((s) => {
           const activate = opts?.activate !== false
           const id = `resource:${resourceKind}:${filePath}`
@@ -726,7 +739,8 @@ export const useWorkspaceStore = create<WorkspaceState>()(
           }
           const tab: ResourceTab = { kind: 'resource', resourceKind, name, filePath }
           return { tabs: [...s.tabs, tab], activePath: activate ? id : s.activePath }
-        }),
+        })
+      },
 
       setTabView: (id, view) =>
         set((s) => {
@@ -734,11 +748,12 @@ export const useWorkspaceStore = create<WorkspaceState>()(
           if (idx === -1) return {}
           const tab = s.tabs[idx]
           if (tab.kind === 'entity') {
-            // Entity tabs only have Graph|Code — ignore config views.
-            if (view !== 'graph' && view !== 'code') return {}
-            if (tab.view === view) return {}
+            if (view === 'form' || view === 'yaml') return {}
+            if (tab.docKind !== 'template' && view !== 'graph' && view !== 'code') return {}
+            const nextView = normalizeEntityView(tab.docKind, view)
+            if (tab.view === nextView) return {}
             const tabs = s.tabs.slice()
-            tabs[idx] = { ...tab, view }
+            tabs[idx] = { ...tab, view: nextView }
             return { tabs }
           }
           if (tab.kind === 'config') {
@@ -956,7 +971,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
       // 'form'|'graph'→'graph', 'yaml'→'code'; config tabs (Form|YAML) are
       // untouched. Migrations are staged so a v0 payload runs both passes.
       // Payloads with no `tabs` (pre-tab-union) are left for the boot-reconcile.
-      version: 2,
+      version: 3,
       migrate: (persisted, version) => {
         let state = persisted as {
           tabs?: unknown[]
@@ -1000,6 +1015,22 @@ export const useWorkspaceStore = create<WorkspaceState>()(
           state = { ...state, tabs }
         }
 
+        if (version < 3) {
+          const idRemap = new Map<string, string>()
+          const tabs = state.tabs!.map((raw) => {
+            const tab = raw as WorkspaceTabRef
+            if (tab.kind === 'entity' && tab.docKind === 'template')
+              return { ...tab, view: normalizeEntityView('template', tab.view) }
+            if (tab.kind === 'resource' && tab.resourceKind === 'template') {
+              const next: EntityTab = { kind: 'entity', pipeline: '', flowgroup: tab.name, filePath: tab.filePath, docKind: 'template', view: 'builder' }
+              idRemap.set(workspaceTabId(tab), workspaceTabId(next))
+              return next
+            }
+            return raw
+          })
+          state = { ...state, tabs, activePath: idRemap.get(state.activePath ?? '') ?? state.activePath,
+            pinnedTabIds: Array.isArray(state.pinnedTabIds) ? state.pinnedTabIds.map((id: string) => idRemap.get(id) ?? id) : [] }
+        }
         return state
       },
       // Persist content only for DIRTY buffers (unsaved edits must survive a

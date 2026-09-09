@@ -338,11 +338,16 @@ class InspectionFacade:
         if not templates_dir.exists():
             return ()
         template_files = sorted(
-            list(templates_dir.glob("*.yaml")) + list(templates_dir.glob("*.yml"))
+            list(templates_dir.rglob("*.yaml")) + list(templates_dir.rglob("*.yml"))
         )
         parser = YAMLParser()  # type: ignore[no-untyped-call]
         views: List[TemplateView] = []
         for path in template_files:
+            if not path.resolve().is_relative_to(
+                self._orchestrator.project_root.resolve()
+            ):
+                self._logger.warning("Skipping template outside the project: %s", path)
+                continue
             try:
                 template = parser.parse_template_raw(path)
             except Exception as exc:

@@ -274,6 +274,7 @@ def _template_to_view(template: "Template", file_path: Path) -> TemplateView:
             required=bool(param.get("required", False)),
             description=param.get("description") or None,
             default=param.get("default"),
+            has_default="default" in param,
         )
         for param in parameters
     )

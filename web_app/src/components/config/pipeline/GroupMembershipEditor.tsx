@@ -1,3 +1,4 @@
+import { useConfigReadOnly } from '@/components/config/shared/configEditingContext'
 import { useEffect, useRef, useState } from 'react'
 import { Check, Plus, X } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
@@ -51,6 +52,8 @@ export function GroupMembershipEditor({
   autoFocus = false,
   disabled,
 }: GroupMembershipEditorProps) {
+  const configReadOnly = useConfigReadOnly()
+
   const { data } = usePipelines()
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
@@ -69,6 +72,7 @@ export function GroupMembershipEditor({
     trimmed !== '' && !memberNames.includes(trimmed) && !suggestions.includes(trimmed)
 
   const add = (name: string) => {
+    if (configReadOnly || disabled) return
     onAdd(name)
     setQuery('')
     setOpen(false)
@@ -100,13 +104,13 @@ export function GroupMembershipEditor({
               aria-label={`Remove ${name}`}
               className="ml-0.5 rounded-sm hover:text-foreground"
               onClick={() => onRemove(index)}
-              disabled={disabled}
+              disabled={configReadOnly || (disabled)}
             >
               <X className="size-3" aria-hidden="true" />
             </button>
           </Badge>
         ))}
-        <Popover open={open} onOpenChange={setOpen}>
+        <Popover open={open && !configReadOnly && !disabled} onOpenChange={setOpen}>
           <PopoverTrigger asChild>
             <Button
               ref={triggerRef}
@@ -114,10 +118,10 @@ export function GroupMembershipEditor({
               variant="outline"
               size="sm"
               role="combobox"
-              aria-expanded={open}
+              aria-expanded={open && !configReadOnly && !disabled}
               aria-label="Add pipeline to group"
               className="h-6 px-2 text-2xs font-normal"
-              disabled={disabled}
+              disabled={configReadOnly || (disabled)}
             >
               <Plus className="size-3" aria-hidden="true" />
               Add pipeline

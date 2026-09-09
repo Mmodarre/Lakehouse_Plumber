@@ -60,7 +60,7 @@ export function PipelineCoreFields({ api, idPrefix }: { api: DocFormApi; idPrefi
           helpPath={['edition']}
           issue={api.issueAt(['edition'])?.message}
         />
-        <EnumSelect
+        <EnumSelect helpPath={['channel']}
           id={`${idPrefix}-channel`}
           label="Channel"
           value={stringAt(api.settings, 'channel')}
@@ -108,7 +108,7 @@ export function PipelineCoreFields({ api, idPrefix }: { api: DocFormApi; idPrefi
         configured={['catalog', 'schema'].some((key) => key in api.settings)}
         description="Both catalog and schema must resolve for bundle generation (here or in project defaults)."
       >
-        <OptionalTextField
+        <OptionalTextField helpPath={['catalog']}
           id={`${idPrefix}-catalog`}
           label="Catalog"
           value={api.settings.catalog}
@@ -118,7 +118,7 @@ export function PipelineCoreFields({ api, idPrefix }: { api: DocFormApi; idPrefi
           monospace
           issue={api.issueAt(['catalog'])?.message}
         />
-        <OptionalTextField
+        <OptionalTextField helpPath={['schema']}
           id={`${idPrefix}-schema`}
           label="Schema"
           value={api.settings.schema}

@@ -348,7 +348,8 @@ class TemplateParameterView:
     Frozen projection of a template parameter mapping. Mirrors the
     keys the legacy CLI presenter rendered: ``name``, ``type_``
     (defaulting to ``"string"``), ``required`` (defaulting to
-    ``False``), ``description``, and an optional ``default``.
+    ``False``), ``description``, and an optional ``default``. ``has_default``
+    distinguishes omission from an explicitly declared null default.
 
     :stability: provisional
     """
@@ -358,6 +359,7 @@ class TemplateParameterView:
     required: bool = False
     description: Optional[str] = None
     default: Optional[JSONValue] = None
+    has_default: bool = False
 
 
 @dataclass(frozen=True)

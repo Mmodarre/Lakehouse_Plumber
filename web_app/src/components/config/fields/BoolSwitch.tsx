@@ -1,8 +1,10 @@
+import { useConfigReadOnly } from '@/components/config/shared/configEditingContext'
+import { FieldHint } from './FieldHint'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 import type { SchemaPath } from '@/lib/schema-help'
 import { FieldLabel } from './FieldLabel'
-import { issueId } from './fieldSupport'
+import { issueId, descriptionIds } from './fieldSupport'
 
 // ── BoolSwitch — optional boolean key with tri-state display ─
 //
@@ -52,13 +54,16 @@ export function BoolSwitch({
   issue,
   disabled,
 }: BoolSwitchProps) {
+  const configReadOnly = useConfigReadOnly()
+
   const isSet = value !== undefined
   const effective = value ?? defaultValue
   return (
     <div className="space-y-1">
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
-          <FieldLabel htmlFor={id} label={label} helpPath={helpPath} help={help ?? description} />
+          <FieldLabel htmlFor={id} label={label} helpPath={helpPath} help={help} />
+          <FieldHint id={id} helpPath={helpPath} help={help} fallback={description} />
         </div>
         <div className="flex shrink-0 items-center gap-2">
           {!isSet && (
@@ -72,7 +77,7 @@ export function BoolSwitch({
               variant="ghost"
               size="sm"
               className="h-6 px-1.5 text-2xs"
-              disabled={disabled}
+              disabled={configReadOnly || (disabled)}
               aria-label={`Set ${label} override`}
               onClick={() => onSet(defaultValue)}
             >
@@ -86,7 +91,7 @@ export function BoolSwitch({
               size="sm"
               className="h-6 px-1.5 text-2xs text-muted-foreground"
               onClick={onReset}
-              disabled={disabled}
+              disabled={configReadOnly || (disabled)}
             >
               Reset to inherited
             </Button>
@@ -96,8 +101,8 @@ export function BoolSwitch({
             size="sm"
             checked={effective}
             onCheckedChange={(checked) => onSet(checked)}
-            disabled={disabled}
-            aria-describedby={issueId(id)}
+            disabled={configReadOnly || (disabled)}
+            aria-describedby={descriptionIds(id)}
             aria-invalid={issue !== undefined ? true : undefined}
           />
         </div>

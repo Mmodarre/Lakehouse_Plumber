@@ -1,3 +1,4 @@
+import { useConfigReadOnly } from '@/components/config/shared/configEditingContext'
 import { Plus, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { isPlainObject, parseLaxBool } from '../../../lib/config-model'
@@ -39,6 +40,8 @@ function MaterializedViewRow({
   index: number
   count: number
 }) {
+  const configReadOnly = useConfigReadOnly()
+
   const path = [...BASE, 'materialized_views', index]
   const remove = () =>
     count === 1 ? form.del([...BASE, 'materialized_views']) : form.del(path)
@@ -50,7 +53,7 @@ function MaterializedViewRow({
     >
       <div className="flex items-center justify-between gap-2">
         <p className="text-2xs font-medium text-muted-foreground">View {index + 1}</p>
-        <Button
+        <Button disabled={configReadOnly}
           type="button"
           variant="ghost"
           size="icon-sm"
@@ -61,7 +64,7 @@ function MaterializedViewRow({
         </Button>
       </div>
       <SectionIssues issues={issuesAtExactly(form.issues, path)} />
-      <OptionalTextField
+      <OptionalTextField helpPath={[...path, 'name']}
         id={`monitoring-mv-${index}-name`}
         label="Name"
         value={view.name}
@@ -93,6 +96,8 @@ function MaterializedViewRow({
 }
 
 export function MonitoringSection({ form }: { form: ProjectFormApi }) {
+  const configReadOnly = useConfigReadOnly()
+
   const raw = form.doc.monitoring
   const present = 'monitoring' in form.doc
   const section = isPlainObject(raw) ? raw : {}
@@ -119,7 +124,7 @@ export function MonitoringSection({ form }: { form: ProjectFormApi }) {
       <SectionIssues issues={issuesAtExactly(form.issues, [...BASE])} />
       {!broken && (
         <>
-          <BoolSwitch
+          <BoolSwitch helpPath={[...[...BASE], 'enabled']}
             id="monitoring-enabled"
             label="Enabled"
             value={'enabled' in section ? parseLaxBool(section.enabled) : undefined}
@@ -142,7 +147,7 @@ export function MonitoringSection({ form }: { form: ProjectFormApi }) {
               issue={issueText(form.issues, [...BASE, key])?.message}
             />
           ))}
-          <OptionalNumberField
+          <OptionalNumberField helpPath={[...[...BASE], 'max_concurrent_streams']}
             id="monitoring-max-concurrent-streams"
             label="Max concurrent streams"
             value={section.max_concurrent_streams}
@@ -189,7 +194,7 @@ export function MonitoringSection({ form }: { form: ProjectFormApi }) {
                 />
               ),
             )}
-            <Button type="button" variant="outline" size="sm" onClick={addView}>
+            <Button disabled={configReadOnly} type="button" variant="outline" size="sm" onClick={addView}>
               <Plus aria-hidden="true" />
               Add materialized view
             </Button>

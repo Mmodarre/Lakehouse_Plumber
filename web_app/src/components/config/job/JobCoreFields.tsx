@@ -82,7 +82,7 @@ export function JobCoreFields({
         )}
         description="Unset fields inherit from project defaults, then LHP's built-ins."
       >
-        <OptionalNumberField
+        <OptionalNumberField helpPath={['max_concurrent_runs']}
           id={`${idPrefix}-max-concurrent-runs`}
           label="Maximum concurrent runs"
           value={api.settings.max_concurrent_runs}
@@ -162,7 +162,7 @@ export function JobCoreFields({
             helpPath={['generate_master_job']}
             issue={api.issueAt(['generate_master_job'])?.message}
           />
-          <OptionalTextField
+          <OptionalTextField helpPath={['master_job_name']}
             id={`${idPrefix}-master-job-name`}
             label="Master job name"
             value={api.settings.master_job_name}
@@ -216,7 +216,7 @@ export function JobCoreFields({
                 helpPath={['notebook_cluster', 'new_cluster']}
                 issue={api.issueAt(['notebook_cluster', 'new_cluster'])?.message}
               />
-              <OptionalTextField
+              <OptionalTextField helpPath={['notebook_cluster', 'existing_cluster_id']}
                 id={`${idPrefix}-existing-cluster-id`}
                 label="Existing cluster id"
                 value={notebook?.existing_cluster_id}

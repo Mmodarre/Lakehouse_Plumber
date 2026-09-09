@@ -182,7 +182,7 @@ export function JobDocForm({
           </div>
         )}
 
-        <fieldset disabled={readOnly} inert={readOnly ? true : undefined} className="min-w-0">
+        <div  className="min-w-0">
           {variant === 'job' && (
             <JobNameHeader
               api={api}
@@ -191,7 +191,7 @@ export function JobDocForm({
               duplicates={duplicates}
             />
           )}
-        </fieldset>
+        </div>
 
         <ConfigSections key={`${scope}#${api.docIndex}`} scope={`${scope}#${api.docIndex}`}>
           <JobCoreFields api={api} variant={variant} idPrefix={idPrefix} />

@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ReactNode } from 'react'
-import { render, screen, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
+import { parse as parseYaml } from 'yaml'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
@@ -25,15 +26,20 @@ vi.mock('../../../api/templates', () => ({
   fetchTemplates: vi.fn().mockResolvedValue({ templates: [], total: 0 }),
   fetchTemplateDetail: vi.fn(),
 }))
+vi.mock('../../../api/template-authoring', () => ({ fetchTemplateCatalog: vi.fn().mockResolvedValue({ templates: [], total: 0 }), fetchTemplateSource: vi.fn() }))
 vi.mock('../../../api/blueprints', () => ({
   fetchBlueprints: vi.fn().mockResolvedValue({ blueprints: [], total: 0 }),
 }))
+vi.mock('../../../workspace/editorCommands', () => ({ captureWorkspaceEditors: vi.fn(), focusInvalidWorkspaceDraft: vi.fn().mockReturnValue(false) }))
 vi.mock('sonner', () => ({ toast: { error: vi.fn(), success: vi.fn(), dismiss: vi.fn() } }))
 
 import { CreateFlowgroupDialog } from '../CreateFlowgroupDialog'
 import { IF_MATCH_CREATE_ONLY, writeFile } from '../../../api/files'
 import { ApiError } from '../../../api/client'
 import { useUIStore } from '../../../store/uiStore'
+import { useLayoutStore } from '../../../store/layoutStore'
+import { captureWorkspaceEditors } from '../../../workspace/editorCommands'
+import { fetchTemplateSource, type TemplateCatalogEntry } from '../../../api/template-authoring'
 import { useWorkspaceStore } from '../../../store/workspaceStore'
 import type { FileNode } from '../../../types/api'
 
@@ -53,7 +59,7 @@ const tree: FileNode = {
   ],
 }
 
-function setup() {
+function setup(options: { template?: TemplateCatalogEntry; seedTemplatePath?: string; cachedMetadata?: TemplateCatalogEntry } = {}) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false, staleTime: Infinity } },
   })
@@ -68,18 +74,20 @@ function setup() {
   })
   queryClient.setQueryData(['files'], tree)
   queryClient.setQueryData(['templates'], { templates: [], total: 0 })
+  queryClient.setQueryData(['templates', 'catalog'], { templates: options.template ? [options.template] : [], total: options.template ? 1 : 0 })
   queryClient.setQueryData(['blueprints', false], { blueprints: [], total: 0 })
+  if (options.cachedMetadata) queryClient.setQueryData(['template', options.cachedMetadata.source_path], { template: options.cachedMetadata })
   const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries')
 
   const openEntityTab = vi.fn()
   useWorkspaceStore.setState({ openEntityTab })
-  useUIStore.setState({ createFlowgroupDialog: true, createFlowgroupSeed: null })
+  useUIStore.setState({ createFlowgroupDialog: true, createFlowgroupSeed: options.seedTemplatePath ? { templatePath: options.seedTemplatePath } : null })
 
   const wrapper = ({ children }: { children: ReactNode }) => (
     <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
   )
   render(<CreateFlowgroupDialog />, { wrapper })
-  return { openEntityTab, invalidateSpy }
+  return { openEntityTab, invalidateSpy, queryClient }
 }
 
 const nameInput = () => screen.getByPlaceholderText('e.g. customer_orders')
@@ -88,6 +96,9 @@ const createButton = () => screen.getByRole('button', { name: /^create$/i })
 beforeEach(() => {
   vi.clearAllMocks()
   localStorage.clear()
+  useLayoutStore.setState({ viewerMode: false })
+  vi.mocked(fetchTemplateSource).mockReset()
+  vi.mocked(captureWorkspaceEditors).mockReset()
   mockWriteFile.mockResolvedValue({ written: true, path: 'x', yaml_error: null, etag: 'e1' })
 })
 
@@ -213,5 +224,143 @@ describe('CreateFlowgroupDialog', () => {
     const [path, , etag] = mockWriteFile.mock.calls[1]!
     expect(path).toBe('pipelines/sales_raw/new_fg2.yaml')
     expect(etag).toBe(IF_MATCH_CREATE_ONLY)
+  })
+})
+
+const reusableTemplate: TemplateCatalogEntry = {
+  source_path: 'templates/ingestion/reusable.yaml', reference: 'ingestion/reusable',
+  declared_name: 'Different display name', version: '1.0', description: null,
+  state: 'ready', parameters: [{ name: 'limit', required: true, has_default: true, default: 0, declared_type: 'number', description: null }],
+  presets: [], action_count: 2, diagnostics: [],
+}
+
+function existingFileError() {
+  return new ApiError(412, { code: 'PRECONDITION_FAILED', category: 'io', message: 'exists', details: '', suggestions: [], context: {}, http_status: 412 })
+}
+
+describe('creation safety and template metadata', () => {
+  it('disables creation fields in viewer mode and retains a working Cancel', () => {
+    useLayoutStore.setState({ viewerMode: true })
+    setup()
+    expect(nameInput()).toBeDisabled()
+    expect(createButton()).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Cancel' })).toBeEnabled()
+    expect(screen.getByText(/viewer mode: creation and overwrite are disabled/i)).toBeInTheDocument()
+    expect(mockWriteFile).not.toHaveBeenCalled()
+  })
+
+  it('checks the live viewer mode after capturing editor drafts, before persisting', async () => {
+    const user = userEvent.setup()
+    setup()
+    await user.type(nameInput(), 'viewer_race')
+    expect(createButton()).toBeEnabled()
+    vi.mocked(captureWorkspaceEditors).mockImplementationOnce(() => useLayoutStore.setState({ viewerMode: true }))
+    await user.click(createButton())
+    expect(mockWriteFile).not.toHaveBeenCalled()
+    expect(useUIStore.getState().createFlowgroupDialog).toBe(true)
+    expect(createButton()).toBeDisabled()
+  })
+
+  it('blocks a pending overwrite when viewer mode is enabled', async () => {
+    const user = userEvent.setup()
+    setup()
+    mockWriteFile.mockRejectedValueOnce(existingFileError())
+    await user.type(nameInput(), 'existing_file')
+    await user.click(createButton())
+    const overwrite = await screen.findByRole('button', { name: 'Overwrite' })
+    act(() => useLayoutStore.setState({ viewerMode: true }))
+    expect(overwrite).toBeDisabled()
+    await user.click(overwrite)
+    expect(mockWriteFile).toHaveBeenCalledTimes(1)
+    expect(nameInput()).toBeDisabled()
+  })
+
+  it('keeps the creation operation visible when Escape is pressed during a write', async () => {
+    const user = userEvent.setup()
+    let finish!: (value: Awaited<ReturnType<typeof writeFile>>) => void
+    mockWriteFile.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve }))
+    const { openEntityTab } = setup()
+    await user.type(nameInput(), 'pending_file')
+    await user.click(createButton())
+    expect(mockWriteFile).toHaveBeenCalledTimes(1)
+    await user.keyboard('{Escape}')
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    expect(useUIStore.getState().createFlowgroupDialog).toBe(true)
+    expect(screen.getByRole('button', { name: 'Close' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Cancel' })).toBeDisabled()
+    expect(nameInput()).toBeDisabled()
+    await act(async () => finish({ written: true, path: 'pipelines/sales_raw/pending_file.yaml', yaml_error: null, etag: 'saved' }))
+    await waitFor(() => expect(openEntityTab).toHaveBeenCalled())
+    expect(useUIStore.getState().createFlowgroupDialog).toBe(false)
+  })
+
+  it('waits for template metadata and explicitly supplies a required default using the nested reference', async () => {
+    const user = userEvent.setup()
+    let finish!: (value: { template: TemplateCatalogEntry }) => void
+    vi.mocked(fetchTemplateSource).mockImplementationOnce(() => new Promise((resolve) => { finish = resolve }))
+    setup({ template: reusableTemplate, seedTemplatePath: reusableTemplate.source_path })
+    await user.type(nameInput(), 'templated_orders')
+    expect(screen.getByText('Reading template parameters…')).toBeInTheDocument()
+    expect(createButton()).toBeDisabled()
+    await act(async () => finish({ template: reusableTemplate }))
+    const supplyDefault = await screen.findByRole('button', { name: 'Supply declared default' })
+    expect(createButton()).toBeDisabled()
+    await user.click(supplyDefault)
+    expect(createButton()).toBeEnabled()
+    await user.click(createButton())
+    await waitFor(() => expect(mockWriteFile).toHaveBeenCalledTimes(1))
+    const document = parseYaml(mockWriteFile.mock.calls[0]![1])
+    expect(document.use_template).toBe('ingestion/reusable')
+    expect(document.use_template).not.toBe(reusableTemplate.declared_name)
+    expect(document.template_parameters).toEqual({ limit: 0 })
+  })
+
+  it('disables creation while cached ready template metadata is being refreshed', async () => {
+    const user = userEvent.setup()
+    let finish!: (value: { template: TemplateCatalogEntry }) => void
+    vi.mocked(fetchTemplateSource).mockImplementationOnce(() => new Promise((resolve) => { finish = resolve }))
+    const { queryClient } = setup({ template: reusableTemplate, seedTemplatePath: reusableTemplate.source_path, cachedMetadata: reusableTemplate })
+    await user.type(nameInput(), 'cached_template')
+    await user.click(screen.getByRole('button', { name: 'Supply declared default' }))
+    expect(createButton()).toBeEnabled()
+    let refetch!: Promise<void>
+    act(() => { refetch = queryClient.invalidateQueries({ queryKey: ['template', reusableTemplate.source_path] }) })
+    await waitFor(() => expect(createButton()).toBeDisabled())
+    expect(queryClient.getQueryData(['template', reusableTemplate.source_path])).toEqual({ template: reusableTemplate })
+    expect(screen.getByText('Reading template parameters…')).toBeInTheDocument()
+    await user.click(createButton())
+    expect(mockWriteFile).not.toHaveBeenCalled()
+    await act(async () => { finish({ template: reusableTemplate }); await refetch })
+    await waitFor(() => expect(createButton()).toBeEnabled())
+  })
+
+  it('checks live metadata refetch state after capturing editors in the submit handler', async () => {
+    const user = userEvent.setup()
+    let finish!: (value: { template: TemplateCatalogEntry }) => void
+    vi.mocked(fetchTemplateSource).mockImplementationOnce(() => new Promise((resolve) => { finish = resolve }))
+    const { queryClient } = setup({ template: reusableTemplate, seedTemplatePath: reusableTemplate.source_path, cachedMetadata: reusableTemplate })
+    await user.type(nameInput(), 'metadata_race')
+    await user.click(screen.getByRole('button', { name: 'Supply declared default' }))
+    expect(createButton()).toBeEnabled()
+    vi.mocked(captureWorkspaceEditors).mockImplementationOnce(() => {
+      void queryClient.refetchQueries({ queryKey: ['template', reusableTemplate.source_path] })
+    })
+    await user.click(createButton())
+    expect(mockWriteFile).not.toHaveBeenCalled()
+    expect(createButton()).toBeDisabled()
+    await act(async () => finish({ template: reusableTemplate }))
+    await waitFor(() => expect(createButton()).toBeEnabled())
+  })
+
+  it('blocks creation when template metadata fails and exposes a retry', async () => {
+    const user = userEvent.setup()
+    vi.mocked(fetchTemplateSource).mockRejectedValueOnce(new Error('Cannot read source'))
+    setup({ template: reusableTemplate, seedTemplatePath: reusableTemplate.source_path })
+    await user.type(nameInput(), 'templated_orders')
+    expect(await screen.findByText(/could not read this template/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Retry template' })).toBeEnabled()
+    expect(createButton()).toBeDisabled()
+    await user.click(createButton())
+    expect(mockWriteFile).not.toHaveBeenCalled()
   })
 })

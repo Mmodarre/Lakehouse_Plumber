@@ -1,3 +1,4 @@
+import { markTemplatePreviewsStale } from '@/store/templatePreviewStore'
 import type { QueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 
@@ -76,6 +77,11 @@ export async function persistBufferToDisk(
     const current = useWorkspaceStore.getState().buffers.find((b) => b.path === path)
     if (current) useDocumentStore.getState().reparse(path, current.content)
     void queryClient.invalidateQueries({ queryKey: ['files'] })
+    markTemplatePreviewsStale()
+    if (path.startsWith('templates/')) {
+      void queryClient.invalidateQueries({ queryKey: ['templates'] })
+      void queryClient.invalidateQueries({ queryKey: ['template'] })
+    }
     // The operational-metadata columns/presets are declared in the project-root
     // lhp.yaml, so a write there can change what MetadataMultiSelect offers —
     // refresh that query. Scoped to the root config EXACTLY (path === 'lhp.yaml')

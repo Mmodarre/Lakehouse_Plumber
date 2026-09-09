@@ -12,6 +12,8 @@ import { useLayoutStore } from '@/store/layoutStore'
 import { useSelectionStore } from '@/store/selectionStore'
 import { writeFile } from '@/api/files'
 import { GraphView } from '../GraphView'
+import { TemplateBuilder } from '@/components/template/TemplateBuilder'
+import { entityTemplateTabId } from '@/store/workspaceStore'
 import { useDocumentHistoryStore } from '@/store/documentHistoryStore'
 
 // GraphView drives the real documentStore + workspaceStore + layoutStore (same
@@ -470,5 +472,57 @@ describe('GraphView editing safeguards', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Keep editing' }))
     expect(within(screen.getByRole('dialog')).getByLabelText('Path')).toHaveValue('/draft/path')
     expect(bufferContent()).toBe(YAML)
+  })
+})
+
+
+describe('TemplateBuilder — integrated source draft', () => {
+  const templatePath = 'templates/orders.yaml'
+  const templateId = entityTemplateTabId(templatePath)
+  const templateYaml = `# Reusable orders
+name: orders_template
+version: "1.0"
+parameters:
+  - name: output_view
+    type: string
+    required: true
+actions:
+  - name: clean
+    type: transform
+    transform_type: sql
+    source: v_raw
+    sql: SELECT * FROM v_raw
+    target: v_clean
+`
+  function mountTemplate() {
+    useWorkspaceStore.getState().openBuffer(templatePath, { content: templateYaml, exists: true })
+    useWorkspaceStore.getState().openEntityTab('', 'orders_template', templatePath, { docKind: 'template' })
+    return render(<TemplateBuilder path={templatePath} tabId={templateId} />, { wrapper: providers })
+  }
+  it('edits actual metadata and applies an action to the same draft without disk writes', async () => {
+    mountTemplate()
+    const name = await screen.findByLabelText('Template name')
+    fireEvent.change(name, { target: { value: 'orders_reusable' } })
+    fireEvent.blur(name)
+    expect(useWorkspaceStore.getState().buffers[0].content).toContain('name: orders_reusable')
+    expect(screen.queryByLabelText('Job name')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Actions (1)' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit action' }))
+    const target = screen.getByLabelText('Target view')
+    fireEvent.change(target, { target: { value: 'v_new' } })
+    fireEvent.blur(target)
+    expect(useWorkspaceStore.getState().buffers[0].content).toContain('target: v_clean')
+    fireEvent.click(screen.getByRole('button', { name: 'Apply action changes' }))
+    await waitFor(() => expect(useWorkspaceStore.getState().buffers[0].content).toContain('target: v_new'))
+    expect(mockWriteFile).not.toHaveBeenCalled()
+    expect(useWorkspaceStore.getState().buffers[0].content).toContain('# Reusable orders')
+  })
+  it('keeps template declarations disabled in viewer mode', async () => {
+    useLayoutStore.setState({ viewerMode: true })
+    mountTemplate()
+    expect(await screen.findByLabelText('Template name')).toBeDisabled()
+    fireEvent.click(screen.getByRole('button', { name: 'Parameters (1)' }))
+    expect(screen.getByRole('button', { name: 'Add parameter' })).toBeDisabled()
+    expect(useWorkspaceStore.getState().buffers[0].content).toBe(templateYaml)
   })
 })

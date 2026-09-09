@@ -6,7 +6,7 @@ import { useFileList } from '../../hooks/useFiles'
 import { useFlowgroups } from '../../hooks/useFlowgroups'
 import { useWorkspaceStore, tabBufferPath, workspaceTabId, isReadOnlyPath } from '../../store/workspaceStore'
 import { useLayoutStore } from '../../store/layoutStore'
-import { openWorkspaceFile, configurationKindForPath } from '../../workspace/openWorkspaceFile'
+import { openWorkspaceFile } from '../../workspace/openWorkspaceFile'
 import { captureWorkspaceEditors } from '../../workspace/editorCommands'
 import { ApiError } from '../../api/client'
 import { useUIStore } from '../../store/uiStore'
@@ -17,7 +17,6 @@ import {
 } from '../sandbox/scopeFilter'
 import { fetchFileContentWithMeta, writeFile, deleteFile, IF_MATCH_CREATE_ONLY } from '../../api/files'
 import { errorMessage } from '../../lib/errors'
-import { parseFlowgroupFile, selectTemplate } from '../../lib/flowgroup-doc'
 import { SkeletonLoader } from '../common/SkeletonLoader'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
@@ -38,14 +37,12 @@ export function FileBrowser() {
   const { data: flowgroups } = useFlowgroups()
   const scope = useSandboxScope()
   const openBuffer = useWorkspaceStore((s) => s.openBuffer)
-  const openEntityTab = useWorkspaceStore((s) => s.openEntityTab)
   const activeFilePath = useWorkspaceStore((s) => {
     const tab = s.tabs.find((t) => workspaceTabId(t) === s.activePath)
     return tab ? tabBufferPath(tab) : null
   })
   const viewerMode = useLayoutStore((s) => s.viewerMode)
   const treeRef = useRef<HTMLDivElement>(null)
-  const fileOpenRequest = useRef(0)
   const openCreateFlowgroupDialog = useUIStore((s) => s.openCreateFlowgroupDialog)
   const queryClient = useQueryClient()
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set())
@@ -80,39 +77,7 @@ export function FileBrowser() {
     })
   }, [])
 
-  const handleFileClick = useCallback(
-    async (path: string) => {
-      const request = ++fileOpenRequest.current
-      const ws = useWorkspaceStore.getState()
-      if (!isTemplatePath(path) || ws.buffers.some((b) => b.path === path) || ws.tabs.some((t) => tabBufferPath(t) === path) || configurationKindForPath(path)) {
-        try { await openWorkspaceFile(path) } catch (err) { toast.error(errorMessage(err, 'Failed to open file')) }
-        return
-      }
-      try {
-        const { content, etag } = await fetchFileContentWithMeta(path)
-        const current = useWorkspaceStore.getState()
-        if (current.projectRoot !== ws.projectRoot) return
-        const activate = request === fileOpenRequest.current && current.activePath === ws.activePath
-        // A file under templates/ that parses as a template opens as a template
-        // entity tab (Graph / Code, default Graph); anything else — including a
-        // non-template YAML that happens to live there — as text.
-        if (isTemplatePath(path)) {
-          const file = parseFlowgroupFile(content)
-          const template = file.errors.length === 0 ? selectTemplate(file) : undefined
-          if (template) {
-            openEntityTab('', template.info.name || filenameStem(path), path, {
-              docKind: 'template', activate,
-            })
-            return
-          }
-        }
-        openBuffer(path, { content, etag, exists: true, activate })
-      } catch (err) {
-        toast.error(errorMessage(err, 'Failed to open file'))
-      }
-    },
-    [openBuffer, openEntityTab],
-  )
+  const handleFileClick = useCallback((path: string) => openWorkspaceFile(path), [])
 
   const startCreate = useCallback((folder = '') => {
     if (!canMutate(folder)) return
@@ -309,13 +274,6 @@ export function FileBrowser() {
 }
 
 /** A YAML file under templates/ — the designer's template-authoring surface. */
-function isTemplatePath(path: string): boolean {
-  return /^templates\//.test(path) && /\.ya?ml$/i.test(path)
-}
 
 /** Filename without its extension, as a display fallback when a template
  * declares no `name`. */
-function filenameStem(path: string): string {
-  const name = path.split('/').pop() ?? path
-  return name.replace(/\.[^.]+$/, '')
-}

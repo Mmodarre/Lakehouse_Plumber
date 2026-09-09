@@ -1,14 +1,16 @@
+import { useConfigReadOnly } from '@/components/config/shared/configEditingContext'
 import { useState } from 'react'
 import { Plus, X } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
+import { FieldLabel } from '../fields/FieldLabel'
+import { FieldHint } from '../fields/FieldHint'
 import { isPlainObject } from '../../../lib/config-model'
 import { SectionCard } from '../SectionCard'
 import { DraftInput } from '../fields/DraftInput'
 import { StringListEditor } from '../fields/StringListEditor'
-import { displayString } from '../fields/fieldSupport'
+import { displayString, hintId } from '../fields/fieldSupport'
 import type { DocFormApi } from '../shared/docFormSupport'
 import { delWithCascade } from './jobFormSupport'
 
@@ -75,6 +77,8 @@ function WebhookIdList({
   listKey: ListKey
   block: Record<string, unknown> | undefined
 }) {
+  const configReadOnly = useConfigReadOnly()
+
   const [addDraft, setAddDraft] = useState('')
   const items = listOf(block, listKey)
   const base: (string | number)[] = ['webhook_notifications', listKey]
@@ -105,9 +109,8 @@ function WebhookIdList({
 
   return (
     <div className="space-y-1.5">
-      <Label htmlFor={`${id}-add`} className="text-xs">
-        {LIST_LABELS[listKey]}
-      </Label>
+      <FieldLabel htmlFor={`${id}-add`} label={LIST_LABELS[listKey]} helpPath={['webhook_notifications']} />
+      <FieldHint id={id} helpPath={['webhook_notifications']} />
       {items === undefined ? (
         <p className="text-2xs text-muted-foreground">Not set</p>
       ) : (
@@ -116,7 +119,7 @@ function WebhookIdList({
             <li key={index} className="flex items-center gap-1.5">
               {isPlainObject(entry) ? (
                 <>
-                  <DraftInput
+                  <DraftInput disabled={configReadOnly}
                     initial={displayString(entry.id)}
                     onCommit={(next) =>
                       next.trim() === ''
@@ -125,7 +128,7 @@ function WebhookIdList({
                     }
                     monospace
                     placeholder="notification destination id"
-                    aria-label={`${LIST_LABELS[listKey]} webhook ${index + 1} id`}
+                    aria-label={`${LIST_LABELS[listKey]} webhook ${index + 1} id`} aria-describedby={hintId(id)}
                   />
                   {Object.keys(entry).some((key) => key !== 'id') && (
                     <Badge
@@ -142,7 +145,7 @@ function WebhookIdList({
                   Entry {index + 1} is not a mapping — edit it in the YAML view.
                 </p>
               )}
-              <Button
+              <Button disabled={configReadOnly}
                 type="button"
                 variant="ghost"
                 size="icon-sm"
@@ -156,8 +159,8 @@ function WebhookIdList({
         </ul>
       )}
       <div className="flex items-center gap-1.5">
-        <Input
-          id={`${id}-add`}
+        <Input disabled={configReadOnly}
+          id={`${id}-add`} aria-describedby={hintId(id)}
           value={addDraft}
           onChange={(e) => setAddDraft(e.target.value)}
           onKeyDown={(e) => {
@@ -176,7 +179,7 @@ function WebhookIdList({
           variant="outline"
           size="icon-sm"
           onClick={commitAdd}
-          disabled={addDraft.trim() === ''}
+          disabled={configReadOnly || (addDraft.trim() === '')}
           aria-label={`Add ${LIST_LABELS[listKey]} webhook`}
         >
           <Plus aria-hidden="true" />
@@ -230,7 +233,7 @@ export function JobNotificationsEditor({ api, idPrefix }: { api: DocFormApi; idP
                 <StringListEditor
                   key={key}
                   id={`${idPrefix}-email-${key}`}
-                  label={LIST_LABELS[key]}
+                  label={LIST_LABELS[key]} helpPath={['email_notifications', key]}
                   value={items}
                   onEditItem={(index, value) => api.set(['email_notifications', key, index], value)}
                   onAddItem={(value) =>

@@ -1,0 +1,2327 @@
+* Getting build dependencies for wheel...
+/private/tmp/lhp-ux-backend-venv/lib/python3.12/site-packages/setuptools/config/_apply_pyprojecttoml.py:82: SetuptoolsDeprecationWarning: `project.license` as a TOML table is deprecated
+!!
+
+        ********************************************************************************
+        Please use a simple string containing a SPDX expression for `project.license`. You can also use `project.license-files`. (Both options available on setuptools>=77.0.0).
+
+        By 2027-Feb-18, you need to update your project and remove deprecated calls
+        or your builds will no longer be supported.
+
+        See https://packaging.python.org/en/latest/guides/writing-pyproject-toml/#license for details.
+        ********************************************************************************
+
+!!
+  corresp(dist, value, root_dir)
+/private/tmp/lhp-ux-backend-venv/lib/python3.12/site-packages/setuptools/config/_apply_pyprojecttoml.py:61: SetuptoolsDeprecationWarning: License classifiers are deprecated.
+!!
+
+        ********************************************************************************
+        Please consider removing the following classifiers in favor of a SPDX license expression:
+
+        License :: OSI Approved :: Apache Software License
+
+        See https://packaging.python.org/en/latest/guides/writing-pyproject-toml/#license for details.
+        ********************************************************************************
+
+!!
+  dist._finalize_license_expression()
+/private/tmp/lhp-ux-backend-venv/lib/python3.12/site-packages/setuptools/dist.py:765: SetuptoolsDeprecationWarning: License classifiers are deprecated.
+!!
+
+        ********************************************************************************
+        Please consider removing the following classifiers in favor of a SPDX license expression:
+
+        License :: OSI Approved :: Apache Software License
+
+        See https://packaging.python.org/en/latest/guides/writing-pyproject-toml/#license for details.
+        ********************************************************************************
+
+!!
+  self._finalize_license_expression()
+running egg_info
+creating src/lakehouse_plumber.egg-info
+writing src/lakehouse_plumber.egg-info/PKG-INFO
+writing dependency_links to src/lakehouse_plumber.egg-info/dependency_links.txt
+writing entry points to src/lakehouse_plumber.egg-info/entry_points.txt
+writing requirements to src/lakehouse_plumber.egg-info/requires.txt
+writing top-level names to src/lakehouse_plumber.egg-info/top_level.txt
+writing manifest file 'src/lakehouse_plumber.egg-info/SOURCES.txt'
+reading manifest file 'src/lakehouse_plumber.egg-info/SOURCES.txt'
+adding license file 'LICENSE'
+writing manifest file 'src/lakehouse_plumber.egg-info/SOURCES.txt'
+* Building wheel...
+/private/tmp/lhp-ux-backend-venv/lib/python3.12/site-packages/setuptools/config/_apply_pyprojecttoml.py:82: SetuptoolsDeprecationWarning: `project.license` as a TOML table is deprecated
+!!
+
+        ********************************************************************************
+        Please use a simple string containing a SPDX expression for `project.license`. You can also use `project.license-files`. (Both options available on setuptools>=77.0.0).
+
+        By 2027-Feb-18, you need to update your project and remove deprecated calls
+        or your builds will no longer be supported.
+
+        See https://packaging.python.org/en/latest/guides/writing-pyproject-toml/#license for details.
+        ********************************************************************************
+
+!!
+  corresp(dist, value, root_dir)
+/private/tmp/lhp-ux-backend-venv/lib/python3.12/site-packages/setuptools/config/_apply_pyprojecttoml.py:61: SetuptoolsDeprecationWarning: License classifiers are deprecated.
+!!
+
+        ********************************************************************************
+        Please consider removing the following classifiers in favor of a SPDX license expression:
+
+        License :: OSI Approved :: Apache Software License
+
+        See https://packaging.python.org/en/latest/guides/writing-pyproject-toml/#license for details.
+        ********************************************************************************
+
+!!
+  dist._finalize_license_expression()
+/private/tmp/lhp-ux-backend-venv/lib/python3.12/site-packages/setuptools/dist.py:765: SetuptoolsDeprecationWarning: License classifiers are deprecated.
+!!
+
+        ********************************************************************************
+        Please consider removing the following classifiers in favor of a SPDX license expression:
+
+        License :: OSI Approved :: Apache Software License
+
+        See https://packaging.python.org/en/latest/guides/writing-pyproject-toml/#license for details.
+        ********************************************************************************
+
+!!
+  self._finalize_license_expression()
+running bdist_wheel
+running build
+running build_py
+creating build/lib/lhp
+copying src/lhp/__init__.py -> build/lib/lhp
+creating build/lib/lhp/parsers
+copying src/lhp/parsers/schema_transform_parser.py -> build/lib/lhp/parsers
+copying src/lhp/parsers/tags_file_parser.py -> build/lib/lhp/parsers
+copying src/lhp/parsers/blueprint_parser.py -> build/lib/lhp/parsers
+copying src/lhp/parsers/__init__.py -> build/lib/lhp/parsers
+copying src/lhp/parsers/parse_cache.py -> build/lib/lhp/parsers
+copying src/lhp/parsers/yaml_loader.py -> build/lib/lhp/parsers
+copying src/lhp/parsers/schema_parser.py -> build/lib/lhp/parsers
+copying src/lhp/parsers/yaml_parser.py -> build/lib/lhp/parsers
+copying src/lhp/parsers/unified_schema_format.py -> build/lib/lhp/parsers
+creating build/lib/lhp/core
+copying src/lhp/core/__init__.py -> build/lib/lhp/core
+copying src/lhp/core/_interfaces.py -> build/lib/lhp/core
+creating build/lib/lhp/resources
+copying src/lhp/resources/__init__.py -> build/lib/lhp/resources
+creating build/lib/lhp/webapp
+copying src/lhp/webapp/static_app.py -> build/lib/lhp/webapp
+copying src/lhp/webapp/__init__.py -> build/lib/lhp/webapp
+copying src/lhp/webapp/settings.py -> build/lib/lhp/webapp
+copying src/lhp/webapp/app.py -> build/lib/lhp/webapp
+copying src/lhp/webapp/dependencies.py -> build/lib/lhp/webapp
+creating build/lib/lhp/bundle
+copying src/lhp/bundle/detection.py -> build/lib/lhp/bundle
+copying src/lhp/bundle/__init__.py -> build/lib/lhp/bundle
+copying src/lhp/bundle/exceptions.py -> build/lib/lhp/bundle
+copying src/lhp/bundle/manager.py -> build/lib/lhp/bundle
+copying src/lhp/bundle/preflight.py -> build/lib/lhp/bundle
+creating build/lib/lhp/utils
+copying src/lhp/utils/version.py -> build/lib/lhp/utils
+copying src/lhp/utils/yaml_filters.py -> build/lib/lhp/utils
+copying src/lhp/utils/python_spans.py -> build/lib/lhp/utils
+copying src/lhp/utils/__init__.py -> build/lib/lhp/utils
+copying src/lhp/utils/performance_timer.py -> build/lib/lhp/utils
+copying src/lhp/utils/file_pattern_matcher.py -> build/lib/lhp/utils
+copying src/lhp/utils/file_header.py -> build/lib/lhp/utils
+creating build/lib/lhp/models
+copying src/lhp/models/_blueprint.py -> build/lib/lhp/models
+copying src/lhp/models/_uc_tagging.py -> build/lib/lhp/models
+copying src/lhp/models/_monitoring.py -> build/lib/lhp/models
+copying src/lhp/models/_operational_metadata.py -> build/lib/lhp/models
+copying src/lhp/models/__init__.py -> build/lib/lhp/models
+copying src/lhp/models/_enums.py -> build/lib/lhp/models
+copying src/lhp/models/_test_reporting.py -> build/lib/lhp/models
+copying src/lhp/models/_action.py -> build/lib/lhp/models
+copying src/lhp/models/deprecations.py -> build/lib/lhp/models
+copying src/lhp/models/_template.py -> build/lib/lhp/models
+copying src/lhp/models/_sandbox.py -> build/lib/lhp/models
+copying src/lhp/models/processing.py -> build/lib/lhp/models
+copying src/lhp/models/_quarantine.py -> build/lib/lhp/models
+copying src/lhp/models/_project.py -> build/lib/lhp/models
+copying src/lhp/models/_flowgroup.py -> build/lib/lhp/models
+copying src/lhp/models/dependencies.py -> build/lib/lhp/models
+creating build/lib/lhp/cli
+copying src/lhp/cli/console.py -> build/lib/lhp/cli
+copying src/lhp/cli/logging_config.py -> build/lib/lhp/cli
+copying src/lhp/cli/_version.py -> build/lib/lhp/cli
+copying src/lhp/cli/exit_codes.py -> build/lib/lhp/cli
+copying src/lhp/cli/__init__.py -> build/lib/lhp/cli
+copying src/lhp/cli/error_panel.py -> build/lib/lhp/cli
+copying src/lhp/cli/error_boundary.py -> build/lib/lhp/cli
+copying src/lhp/cli/main.py -> build/lib/lhp/cli
+copying src/lhp/cli/_app_context.py -> build/lib/lhp/cli
+copying src/lhp/cli/_lazy_group.py -> build/lib/lhp/cli
+creating build/lib/lhp/api
+copying src/lhp/api/_dataset_index.py -> build/lib/lhp/api
+copying src/lhp/api/bootstrap.py -> build/lib/lhp/api
+copying src/lhp/api/_inspection_facade.py -> build/lib/lhp/api
+copying src/lhp/api/facade.py -> build/lib/lhp/api
+copying src/lhp/api/_generate_stream.py -> build/lib/lhp/api
+copying src/lhp/api/_validation_converters.py -> build/lib/lhp/api
+copying src/lhp/api/configuration.py -> build/lib/lhp/api
+copying src/lhp/api/_claude_routing.py -> build/lib/lhp/api
+copying src/lhp/api/_listings.py -> build/lib/lhp/api
+copying src/lhp/api/_plan_stream.py -> build/lib/lhp/api
+copying src/lhp/api/responses.py -> build/lib/lhp/api
+copying src/lhp/api/_stream_guard.py -> build/lib/lhp/api
+copying src/lhp/api/_serialization.py -> build/lib/lhp/api
+copying src/lhp/api/_template_preview_worker.py -> build/lib/lhp/api
+copying src/lhp/api/_sandbox_run.py -> build/lib/lhp/api
+copying src/lhp/api/_operational_metadata_converter.py -> build/lib/lhp/api
+copying src/lhp/api/events.py -> build/lib/lhp/api
+copying src/lhp/api/_sandbox_view.py -> build/lib/lhp/api
+copying src/lhp/api/_skill_assets.py -> build/lib/lhp/api
+copying src/lhp/api/__init__.py -> build/lib/lhp/api
+copying src/lhp/api/_generation_facade.py -> build/lib/lhp/api
+copying src/lhp/api/_dependency_facade.py -> build/lib/lhp/api
+copying src/lhp/api/_dependency_graph_converters.py -> build/lib/lhp/api
+copying src/lhp/api/_sandbox_facade.py -> build/lib/lhp/api
+copying src/lhp/api/_validation_facade.py -> build/lib/lhp/api
+copying src/lhp/api/templates.py -> build/lib/lhp/api
+copying src/lhp/api/_generation_converters.py -> build/lib/lhp/api
+copying src/lhp/api/_wheel_facade.py -> build/lib/lhp/api
+copying src/lhp/api/_inspection_converters.py -> build/lib/lhp/api
+copying src/lhp/api/_preflight.py -> build/lib/lhp/api
+copying src/lhp/api/_bundle_facade.py -> build/lib/lhp/api
+copying src/lhp/api/_converters_common.py -> build/lib/lhp/api
+copying src/lhp/api/_progress.py -> build/lib/lhp/api
+copying src/lhp/api/views.py -> build/lib/lhp/api
+copying src/lhp/api/_skill_facade.py -> build/lib/lhp/api
+creating build/lib/lhp/generators
+copying src/lhp/generators/registration.py -> build/lib/lhp/generators
+copying src/lhp/generators/__init__.py -> build/lib/lhp/generators
+creating build/lib/lhp/errors
+copying src/lhp/errors/categories.py -> build/lib/lhp/errors
+copying src/lhp/errors/codes.py -> build/lib/lhp/errors
+copying src/lhp/errors/__init__.py -> build/lib/lhp/errors
+copying src/lhp/errors/types.py -> build/lib/lhp/errors
+copying src/lhp/errors/factory.py -> build/lib/lhp/errors
+creating build/lib/lhp/presets
+copying src/lhp/presets/__init__.py -> build/lib/lhp/presets
+copying src/lhp/presets/preset_manager.py -> build/lib/lhp/presets
+creating build/lib/lhp/core/packaging
+copying src/lhp/core/packaging/runner.py -> build/lib/lhp/core/packaging
+copying src/lhp/core/packaging/packager.py -> build/lib/lhp/core/packaging
+copying src/lhp/core/packaging/__init__.py -> build/lib/lhp/core/packaging
+copying src/lhp/core/packaging/wheel_reader.py -> build/lib/lhp/core/packaging
+copying src/lhp/core/packaging/wheel_builder.py -> build/lib/lhp/core/packaging
+copying src/lhp/core/packaging/identity.py -> build/lib/lhp/core/packaging
+creating build/lib/lhp/core/coordination
+copying src/lhp/core/coordination/_generate_gate.py -> build/lib/lhp/core/coordination
+copying src/lhp/core/coordination/_cross_flowgroup_issues.py -> build/lib/lhp/core/coordination
+copying src/lhp/core/coordination/_sandbox_warning_fold.py -> build/lib/lhp/core/coordination
+copying src/lhp/core/coordination/_pool.py -> build/lib/lhp/core/coordination
+copying src/lhp/core/coordination/_warning_merge.py -> build/lib/lhp/core/coordination
+copying src/lhp/core/coordination/__init__.py -> build/lib/lhp/core/coordination
+copying src/lhp/core/coordination/_validation_outcome.py -> build/lib/lhp/core/coordination
+copying src/lhp/core/coordination/_commit.py -> build/lib/lhp/core/coordination
+copying src/lhp/core/coordination/orchestrator.py -> build/lib/lhp/core/coordination
+copying src/lhp/core/coordination/_flowgroup_pool.py -> build/lib/lhp/core/coordination
+copying src/lhp/core/coordination/monitoring_pipeline_builder.py -> build/lib/lhp/core/coordination
+copying src/lhp/core/coordination/bootstrap_service.py -> build/lib/lhp/core/coordination
+copying src/lhp/core/coordination/layers.py -> build/lib/lhp/core/coordination
+copying src/lhp/core/coordination/sandbox_prepass.py -> build/lib/lhp/core/coordination
+copying src/lhp/core/coordination/monitoring_service.py -> build/lib/lhp/core/coordination
+copying src/lhp/core/coordination/executor.py -> build/lib/lhp/core/coordination
+copying src/lhp/core/coordination/flowgroup_worklist_builder.py -> build/lib/lhp/core/coordination
+copying src/lhp/core/coordination/validation_service.py -> build/lib/lhp/core/coordination
+creating build/lib/lhp/core/processing
+copying src/lhp/core/processing/namespace_normalizer.py -> build/lib/lhp/core/processing
+copying src/lhp/core/processing/template_preview_dependencies.py -> build/lib/lhp/core/processing
+copying src/lhp/core/processing/template_engine.py -> build/lib/lhp/core/processing
+copying src/lhp/core/processing/__init__.py -> build/lib/lhp/core/processing
+copying src/lhp/core/processing/blueprint_expander.py -> build/lib/lhp/core/processing
+copying src/lhp/core/processing/local_variables.py -> build/lib/lhp/core/processing
+copying src/lhp/core/processing/substitution.py -> build/lib/lhp/core/processing
+copying src/lhp/core/processing/flowgroup_resolver.py -> build/lib/lhp/core/processing
+copying src/lhp/core/processing/template_preview.py -> build/lib/lhp/core/processing
+copying src/lhp/core/processing/dqe.py -> build/lib/lhp/core/processing
+copying src/lhp/core/processing/template_authoring.py -> build/lib/lhp/core/processing
+creating build/lib/lhp/core/discovery
+copying src/lhp/core/discovery/__init__.py -> build/lib/lhp/core/discovery
+copying src/lhp/core/discovery/deprecation_scanner.py -> build/lib/lhp/core/discovery
+copying src/lhp/core/discovery/flowgroup_discoverer.py -> build/lib/lhp/core/discovery
+copying src/lhp/core/discovery/_parse_pool.py -> build/lib/lhp/core/discovery
+copying src/lhp/core/discovery/blueprint_discoverer.py -> build/lib/lhp/core/discovery
+creating build/lib/lhp/core/dependencies
+copying src/lhp/core/dependencies/_body_locator.py -> build/lib/lhp/core/dependencies
+copying src/lhp/core/dependencies/service.py -> build/lib/lhp/core/dependencies
+copying src/lhp/core/dependencies/source_parsing.py -> build/lib/lhp/core/dependencies
+copying src/lhp/core/dependencies/_function_index.py -> build/lib/lhp/core/dependencies
+copying src/lhp/core/dependencies/sql_extraction.py -> build/lib/lhp/core/dependencies
+copying src/lhp/core/dependencies/_table_sites.py -> build/lib/lhp/core/dependencies
+copying src/lhp/core/dependencies/output_writer.py -> build/lib/lhp/core/dependencies
+copying src/lhp/core/dependencies/_producers.py -> build/lib/lhp/core/dependencies
+copying src/lhp/core/dependencies/analyzer.py -> build/lib/lhp/core/dependencies
+copying src/lhp/core/dependencies/_extraction_visitor.py -> build/lib/lhp/core/dependencies
+copying src/lhp/core/dependencies/__init__.py -> build/lib/lhp/core/dependencies
+copying src/lhp/core/dependencies/python_parser.py -> build/lib/lhp/core/dependencies
+copying src/lhp/core/dependencies/_bound_folding.py -> build/lib/lhp/core/dependencies
+copying src/lhp/core/dependencies/builder.py -> build/lib/lhp/core/dependencies
+copying src/lhp/core/dependencies/_bindings.py -> build/lib/lhp/core/dependencies
+copying src/lhp/core/dependencies/source_extractor.py -> build/lib/lhp/core/dependencies
+copying src/lhp/core/dependencies/_static_resolution.py -> build/lib/lhp/core/dependencies
+copying src/lhp/core/dependencies/graph_cache.py -> build/lib/lhp/core/dependencies
+copying src/lhp/core/dependencies/dependency_resolver.py -> build/lib/lhp/core/dependencies
+copying src/lhp/core/dependencies/_call_resolution.py -> build/lib/lhp/core/dependencies
+copying src/lhp/core/dependencies/_parse_cache.py -> build/lib/lhp/core/dependencies
+copying src/lhp/core/dependencies/_graph_ops.py -> build/lib/lhp/core/dependencies
+copying src/lhp/core/dependencies/output.py -> build/lib/lhp/core/dependencies
+copying src/lhp/core/dependencies/_canonical.py -> build/lib/lhp/core/dependencies
+copying src/lhp/core/dependencies/_binding_rules.py -> build/lib/lhp/core/dependencies
+creating build/lib/lhp/core/codegen
+copying src/lhp/core/codegen/python_file_copier.py -> build/lib/lhp/core/codegen
+copying src/lhp/core/codegen/struct_type_emitter.py -> build/lib/lhp/core/codegen
+copying src/lhp/core/codegen/coordinator.py -> build/lib/lhp/core/codegen
+copying src/lhp/core/codegen/plan_builder.py -> build/lib/lhp/core/codegen
+copying src/lhp/core/codegen/formatter.py -> build/lib/lhp/core/codegen
+copying src/lhp/core/codegen/action_dispatch.py -> build/lib/lhp/core/codegen
+copying src/lhp/core/codegen/uc_tagging_hook_generator.py -> build/lib/lhp/core/codegen
+copying src/lhp/core/codegen/grouping.py -> build/lib/lhp/core/codegen
+copying src/lhp/core/codegen/test_reporting.py -> build/lib/lhp/core/codegen
+copying src/lhp/core/codegen/__init__.py -> build/lib/lhp/core/codegen
+copying src/lhp/core/codegen/assembler.py -> build/lib/lhp/core/codegen
+copying src/lhp/core/codegen/uc_tagging.py -> build/lib/lhp/core/codegen
+copying src/lhp/core/codegen/python_import_rewriter.py -> build/lib/lhp/core/codegen
+copying src/lhp/core/codegen/secret_code_generator.py -> build/lib/lhp/core/codegen
+copying src/lhp/core/codegen/context.py -> build/lib/lhp/core/codegen
+copying src/lhp/core/codegen/secrets.py -> build/lib/lhp/core/codegen
+copying src/lhp/core/codegen/tst_reporting_hook_generator.py -> build/lib/lhp/core/codegen
+copying src/lhp/core/codegen/python_dependency_resolver.py -> build/lib/lhp/core/codegen
+copying src/lhp/core/codegen/template_renderer.py -> build/lib/lhp/core/codegen
+creating build/lib/lhp/core/sandbox
+copying src/lhp/core/sandbox/scope_resolver.py -> build/lib/lhp/core/sandbox
+copying src/lhp/core/sandbox/__init__.py -> build/lib/lhp/core/sandbox
+copying src/lhp/core/sandbox/_renames.py -> build/lib/lhp/core/sandbox
+copying src/lhp/core/sandbox/_fstring_sql.py -> build/lib/lhp/core/sandbox
+copying src/lhp/core/sandbox/_runtime_shim.py -> build/lib/lhp/core/sandbox
+copying src/lhp/core/sandbox/_python_rewriter.py -> build/lib/lhp/core/sandbox
+copying src/lhp/core/sandbox/_text_rewriter.py -> build/lib/lhp/core/sandbox
+copying src/lhp/core/sandbox/_flowgroup_rewriter.py -> build/lib/lhp/core/sandbox
+creating build/lib/lhp/core/registry
+copying src/lhp/core/registry/action_registry.py -> build/lib/lhp/core/registry
+copying src/lhp/core/registry/__init__.py -> build/lib/lhp/core/registry
+copying src/lhp/core/registry/factories.py -> build/lib/lhp/core/registry
+copying src/lhp/core/registry/base_generator.py -> build/lib/lhp/core/registry
+creating build/lib/lhp/core/validators
+copying src/lhp/core/validators/_base.py -> build/lib/lhp/core/validators
+copying src/lhp/core/validators/config_validator.py -> build/lib/lhp/core/validators
+copying src/lhp/core/validators/__init__.py -> build/lib/lhp/core/validators
+creating build/lib/lhp/core/jobs
+copying src/lhp/core/jobs/job_builder.py -> build/lib/lhp/core/jobs
+copying src/lhp/core/jobs/__init__.py -> build/lib/lhp/core/jobs
+copying src/lhp/core/jobs/job_writer.py -> build/lib/lhp/core/jobs
+copying src/lhp/core/jobs/job_generator.py -> build/lib/lhp/core/jobs
+creating build/lib/lhp/core/loaders
+copying src/lhp/core/loaders/git_initializer.py -> build/lib/lhp/core/loaders
+copying src/lhp/core/loaders/_monitoring_config_parser.py -> build/lib/lhp/core/loaders
+copying src/lhp/core/loaders/_uc_tagging_config_parser.py -> build/lib/lhp/core/loaders
+copying src/lhp/core/loaders/_operational_metadata_config_parser.py -> build/lib/lhp/core/loaders
+copying src/lhp/core/loaders/_event_log_config_parser.py -> build/lib/lhp/core/loaders
+copying src/lhp/core/loaders/_test_reporting_config_parser.py -> build/lib/lhp/core/loaders
+copying src/lhp/core/loaders/_sandbox_config_parser.py -> build/lib/lhp/core/loaders
+copying src/lhp/core/loaders/__init__.py -> build/lib/lhp/core/loaders
+copying src/lhp/core/loaders/project_config_loader.py -> build/lib/lhp/core/loaders
+copying src/lhp/core/loaders/init_template_context.py -> build/lib/lhp/core/loaders
+copying src/lhp/core/loaders/init_template_loader.py -> build/lib/lhp/core/loaders
+copying src/lhp/core/loaders/sandbox_profile_loader.py -> build/lib/lhp/core/loaders
+copying src/lhp/core/loaders/version_enforcement.py -> build/lib/lhp/core/loaders
+copying src/lhp/core/loaders/_include_patterns_parser.py -> build/lib/lhp/core/loaders
+copying src/lhp/core/loaders/_wheel_config_parser.py -> build/lib/lhp/core/loaders
+copying src/lhp/core/loaders/table_schema_resolver.py -> build/lib/lhp/core/loaders
+copying src/lhp/core/loaders/job_config_loader.py -> build/lib/lhp/core/loaders
+copying src/lhp/core/loaders/external_file_loader.py -> build/lib/lhp/core/loaders
+copying src/lhp/core/loaders/pipeline_config_loader.py -> build/lib/lhp/core/loaders
+creating build/lib/lhp/core/codegen/imports
+copying src/lhp/core/codegen/imports/detector.py -> build/lib/lhp/core/codegen/imports
+copying src/lhp/core/codegen/imports/__init__.py -> build/lib/lhp/core/codegen/imports
+copying src/lhp/core/codegen/imports/source_parser.py -> build/lib/lhp/core/codegen/imports
+copying src/lhp/core/codegen/imports/resolver.py -> build/lib/lhp/core/codegen/imports
+copying src/lhp/core/codegen/imports/manager.py -> build/lib/lhp/core/codegen/imports
+copying src/lhp/core/codegen/imports/categorizer.py -> build/lib/lhp/core/codegen/imports
+creating build/lib/lhp/core/codegen/operational_metadata
+copying src/lhp/core/codegen/operational_metadata/service.py -> build/lib/lhp/core/codegen/operational_metadata
+copying src/lhp/core/codegen/operational_metadata/metadata.py -> build/lib/lhp/core/codegen/operational_metadata
+copying src/lhp/core/codegen/operational_metadata/__init__.py -> build/lib/lhp/core/codegen/operational_metadata
+creating build/lib/lhp/core/validators/compatibility
+copying src/lhp/core/validators/compatibility/snapshot_cdc.py -> build/lib/lhp/core/validators/compatibility
+copying src/lhp/core/validators/compatibility/__init__.py -> build/lib/lhp/core/validators/compatibility
+copying src/lhp/core/validators/compatibility/cdc_config.py -> build/lib/lhp/core/validators/compatibility
+copying src/lhp/core/validators/compatibility/table_creation.py -> build/lib/lhp/core/validators/compatibility
+copying src/lhp/core/validators/compatibility/_cdc_helpers.py -> build/lib/lhp/core/validators/compatibility
+copying src/lhp/core/validators/compatibility/cdc_schema.py -> build/lib/lhp/core/validators/compatibility
+copying src/lhp/core/validators/compatibility/cdc_fanin.py -> build/lib/lhp/core/validators/compatibility
+copying src/lhp/core/validators/compatibility/_cdc_fanin_messages.py -> build/lib/lhp/core/validators/compatibility
+copying src/lhp/core/validators/compatibility/dlt_table_options.py -> build/lib/lhp/core/validators/compatibility
+creating build/lib/lhp/core/validators/pipeline
+copying src/lhp/core/validators/pipeline/job_name.py -> build/lib/lhp/core/validators/pipeline
+copying src/lhp/core/validators/pipeline/__init__.py -> build/lib/lhp/core/validators/pipeline
+creating build/lib/lhp/core/validators/field
+copying src/lhp/core/validators/field/__init__.py -> build/lib/lhp/core/validators/field
+copying src/lhp/core/validators/field/config_field.py -> build/lib/lhp/core/validators/field
+copying src/lhp/core/validators/field/_field_suggestions.py -> build/lib/lhp/core/validators/field
+copying src/lhp/core/validators/field/secret_reference.py -> build/lib/lhp/core/validators/field
+copying src/lhp/core/validators/field/_field_catalog.py -> build/lib/lhp/core/validators/field
+copying src/lhp/core/validators/field/kafka_options.py -> build/lib/lhp/core/validators/field
+creating build/lib/lhp/core/validators/action
+copying src/lhp/core/validators/action/_write_sinks.py -> build/lib/lhp/core/validators/action
+copying src/lhp/core/validators/action/_name_checks.py -> build/lib/lhp/core/validators/action
+copying src/lhp/core/validators/action/write.py -> build/lib/lhp/core/validators/action
+copying src/lhp/core/validators/action/_test_requirements.py -> build/lib/lhp/core/validators/action
+copying src/lhp/core/validators/action/__init__.py -> build/lib/lhp/core/validators/action
+copying src/lhp/core/validators/action/test.py -> build/lib/lhp/core/validators/action
+copying src/lhp/core/validators/action/transform.py -> build/lib/lhp/core/validators/action
+copying src/lhp/core/validators/action/_dq_transform.py -> build/lib/lhp/core/validators/action
+copying src/lhp/core/validators/action/_schema_transform.py -> build/lib/lhp/core/validators/action
+copying src/lhp/core/validators/action/load.py -> build/lib/lhp/core/validators/action
+creating build/lib/lhp/resources/skills
+copying src/lhp/resources/skills/__init__.py -> build/lib/lhp/resources/skills
+creating build/lib/lhp/resources/skills/lhp
+copying src/lhp/resources/skills/lhp/__init__.py -> build/lib/lhp/resources/skills/lhp
+creating build/lib/lhp/resources/skills/lhp/references
+copying src/lhp/resources/skills/lhp/references/__init__.py -> build/lib/lhp/resources/skills/lhp/references
+creating build/lib/lhp/webapp/routers
+copying src/lhp/webapp/routers/configuration.py -> build/lib/lhp/webapp/routers
+copying src/lhp/webapp/routers/files.py -> build/lib/lhp/webapp/routers
+copying src/lhp/webapp/routers/assistant_sessions.py -> build/lib/lhp/webapp/routers
+copying src/lhp/webapp/routers/metadata.py -> build/lib/lhp/webapp/routers
+copying src/lhp/webapp/routers/assistant_config.py -> build/lib/lhp/webapp/routers
+copying src/lhp/webapp/routers/presets.py -> build/lib/lhp/webapp/routers
+copying src/lhp/webapp/routers/health.py -> build/lib/lhp/webapp/routers
+copying src/lhp/webapp/routers/events.py -> build/lib/lhp/webapp/routers
+copying src/lhp/webapp/routers/assistant.py -> build/lib/lhp/webapp/routers
+copying src/lhp/webapp/routers/__init__.py -> build/lib/lhp/webapp/routers
+copying src/lhp/webapp/routers/blueprints.py -> build/lib/lhp/webapp/routers
+copying src/lhp/webapp/routers/templates.py -> build/lib/lhp/webapp/routers
+copying src/lhp/webapp/routers/sandbox.py -> build/lib/lhp/webapp/routers
+copying src/lhp/webapp/routers/flowgroups.py -> build/lib/lhp/webapp/routers
+copying src/lhp/webapp/routers/schemas.py -> build/lib/lhp/webapp/routers
+copying src/lhp/webapp/routers/environments.py -> build/lib/lhp/webapp/routers
+copying src/lhp/webapp/routers/tables.py -> build/lib/lhp/webapp/routers
+copying src/lhp/webapp/routers/config_templates.py -> build/lib/lhp/webapp/routers
+copying src/lhp/webapp/routers/_guards.py -> build/lib/lhp/webapp/routers
+copying src/lhp/webapp/routers/lineage.py -> build/lib/lhp/webapp/routers
+copying src/lhp/webapp/routers/streaming.py -> build/lib/lhp/webapp/routers
+copying src/lhp/webapp/routers/help.py -> build/lib/lhp/webapp/routers
+copying src/lhp/webapp/routers/runs.py -> build/lib/lhp/webapp/routers
+copying src/lhp/webapp/routers/pipelines.py -> build/lib/lhp/webapp/routers
+copying src/lhp/webapp/routers/project.py -> build/lib/lhp/webapp/routers
+copying src/lhp/webapp/routers/dependencies.py -> build/lib/lhp/webapp/routers
+creating build/lib/lhp/webapp/middleware
+copying src/lhp/webapp/middleware/origin_guard.py -> build/lib/lhp/webapp/middleware
+copying src/lhp/webapp/middleware/__init__.py -> build/lib/lhp/webapp/middleware
+copying src/lhp/webapp/middleware/error_handler.py -> build/lib/lhp/webapp/middleware
+copying src/lhp/webapp/middleware/request_logging.py -> build/lib/lhp/webapp/middleware
+copying src/lhp/webapp/middleware/token_guard.py -> build/lib/lhp/webapp/middleware
+creating build/lib/lhp/webapp/schemas
+copying src/lhp/webapp/schemas/configuration.py -> build/lib/lhp/webapp/schemas
+copying src/lhp/webapp/schemas/metadata.py -> build/lib/lhp/webapp/schemas
+copying src/lhp/webapp/schemas/blueprint.py -> build/lib/lhp/webapp/schemas
+copying src/lhp/webapp/schemas/health.py -> build/lib/lhp/webapp/schemas
+copying src/lhp/webapp/schemas/assistant.py -> build/lib/lhp/webapp/schemas
+copying src/lhp/webapp/schemas/__init__.py -> build/lib/lhp/webapp/schemas
+copying src/lhp/webapp/schemas/preset.py -> build/lib/lhp/webapp/schemas
+copying src/lhp/webapp/schemas/sandbox.py -> build/lib/lhp/webapp/schemas
+copying src/lhp/webapp/schemas/common.py -> build/lib/lhp/webapp/schemas
+copying src/lhp/webapp/schemas/pipeline.py -> build/lib/lhp/webapp/schemas
+copying src/lhp/webapp/schemas/dependency.py -> build/lib/lhp/webapp/schemas
+copying src/lhp/webapp/schemas/template.py -> build/lib/lhp/webapp/schemas
+copying src/lhp/webapp/schemas/flowgroup.py -> build/lib/lhp/webapp/schemas
+copying src/lhp/webapp/schemas/table.py -> build/lib/lhp/webapp/schemas
+copying src/lhp/webapp/schemas/lineage.py -> build/lib/lhp/webapp/schemas
+copying src/lhp/webapp/schemas/runs.py -> build/lib/lhp/webapp/schemas
+copying src/lhp/webapp/schemas/project.py -> build/lib/lhp/webapp/schemas
+copying src/lhp/webapp/schemas/template_authoring.py -> build/lib/lhp/webapp/schemas
+creating build/lib/lhp/webapp/services
+copying src/lhp/webapp/services/assistant_provision.py -> build/lib/lhp/webapp/services
+copying src/lhp/webapp/services/claude_sdk_bash_policy.py -> build/lib/lhp/webapp/services
+copying src/lhp/webapp/services/sqlite_migrations.py -> build/lib/lhp/webapp/services
+copying src/lhp/webapp/services/__init__.py -> build/lib/lhp/webapp/services
+copying src/lhp/webapp/services/run_recorder.py -> build/lib/lhp/webapp/services
+copying src/lhp/webapp/services/sqlite_store.py -> build/lib/lhp/webapp/services
+copying src/lhp/webapp/services/claude_sdk_auth.py -> build/lib/lhp/webapp/services
+copying src/lhp/webapp/services/related_files_extractor.py -> build/lib/lhp/webapp/services
+copying src/lhp/webapp/services/assistant_usage.py -> build/lib/lhp/webapp/services
+copying src/lhp/webapp/services/event_bus.py -> build/lib/lhp/webapp/services
+copying src/lhp/webapp/services/claude_sdk_translate.py -> build/lib/lhp/webapp/services
+copying src/lhp/webapp/services/assistant_store.py -> build/lib/lhp/webapp/services
+copying src/lhp/webapp/services/claude_sdk_sessions.py -> build/lib/lhp/webapp/services
+copying src/lhp/webapp/services/omnigent_client.py -> build/lib/lhp/webapp/services
+copying src/lhp/webapp/services/assistant_chat.py -> build/lib/lhp/webapp/services
+copying src/lhp/webapp/services/file_io.py -> build/lib/lhp/webapp/services
+copying src/lhp/webapp/services/stream_adapter.py -> build/lib/lhp/webapp/services
+copying src/lhp/webapp/services/claude_sdk_policy.py -> build/lib/lhp/webapp/services
+copying src/lhp/webapp/services/claude_sdk_bridge.py -> build/lib/lhp/webapp/services
+copying src/lhp/webapp/services/dataset_index.py -> build/lib/lhp/webapp/services
+copying src/lhp/webapp/services/file_watcher.py -> build/lib/lhp/webapp/services
+copying src/lhp/webapp/services/graph_serializer.py -> build/lib/lhp/webapp/services
+copying src/lhp/webapp/services/claude_sdk_chat.py -> build/lib/lhp/webapp/services
+copying src/lhp/webapp/services/omnigent_lifecycle.py -> build/lib/lhp/webapp/services
+copying src/lhp/webapp/services/run_history.py -> build/lib/lhp/webapp/services
+creating build/lib/lhp/cli/presenters
+copying src/lhp/cli/presenters/dag_files_presenter.py -> build/lib/lhp/cli/presenters
+copying src/lhp/cli/presenters/list_presenter.py -> build/lib/lhp/cli/presenters
+copying src/lhp/cli/presenters/init_presenter.py -> build/lib/lhp/cli/presenters
+copying src/lhp/cli/presenters/_style.py -> build/lib/lhp/cli/presenters
+copying src/lhp/cli/presenters/__init__.py -> build/lib/lhp/cli/presenters
+copying src/lhp/cli/presenters/skill_presenter.py -> build/lib/lhp/cli/presenters
+copying src/lhp/cli/presenters/diff_presenter.py -> build/lib/lhp/cli/presenters
+copying src/lhp/cli/presenters/substitutions_presenter.py -> build/lib/lhp/cli/presenters
+copying src/lhp/cli/presenters/_layout.py -> build/lib/lhp/cli/presenters
+copying src/lhp/cli/presenters/summary_presenter.py -> build/lib/lhp/cli/presenters
+copying src/lhp/cli/presenters/wheel_presenter.py -> build/lib/lhp/cli/presenters
+copying src/lhp/cli/presenters/dag_presenter.py -> build/lib/lhp/cli/presenters
+creating build/lib/lhp/cli/commands
+copying src/lhp/cli/commands/list_command.py -> build/lib/lhp/cli/commands
+copying src/lhp/cli/commands/web_command.py -> build/lib/lhp/cli/commands
+copying src/lhp/cli/commands/skill_command.py -> build/lib/lhp/cli/commands
+copying src/lhp/cli/commands/__init__.py -> build/lib/lhp/cli/commands
+copying src/lhp/cli/commands/diff_command.py -> build/lib/lhp/cli/commands
+copying src/lhp/cli/commands/_web_launch.py -> build/lib/lhp/cli/commands
+copying src/lhp/cli/commands/validate_command.py -> build/lib/lhp/cli/commands
+copying src/lhp/cli/commands/generate_command.py -> build/lib/lhp/cli/commands
+copying src/lhp/cli/commands/inspect_wheel_command.py -> build/lib/lhp/cli/commands
+copying src/lhp/cli/commands/substitutions_command.py -> build/lib/lhp/cli/commands
+copying src/lhp/cli/commands/init_command.py -> build/lib/lhp/cli/commands
+copying src/lhp/cli/commands/dag_command.py -> build/lib/lhp/cli/commands
+copying src/lhp/cli/commands/_dag_options.py -> build/lib/lhp/cli/commands
+creating build/lib/lhp/cli/presenters/event_stream
+copying src/lhp/cli/presenters/event_stream/live_renderer.py -> build/lib/lhp/cli/presenters/event_stream
+copying src/lhp/cli/presenters/event_stream/log_renderer.py -> build/lib/lhp/cli/presenters/event_stream
+copying src/lhp/cli/presenters/event_stream/_event_dispatch.py -> build/lib/lhp/cli/presenters/event_stream
+copying src/lhp/cli/presenters/event_stream/_status_line.py -> build/lib/lhp/cli/presenters/event_stream
+copying src/lhp/cli/presenters/event_stream/__init__.py -> build/lib/lhp/cli/presenters/event_stream
+copying src/lhp/cli/presenters/event_stream/_outcome.py -> build/lib/lhp/cli/presenters/event_stream
+copying src/lhp/cli/presenters/event_stream/renderer_factory.py -> build/lib/lhp/cli/presenters/event_stream
+copying src/lhp/cli/presenters/event_stream/_model.py -> build/lib/lhp/cli/presenters/event_stream
+copying src/lhp/cli/presenters/event_stream/_flavor_words.py -> build/lib/lhp/cli/presenters/event_stream
+copying src/lhp/cli/presenters/event_stream/_live_renderable.py -> build/lib/lhp/cli/presenters/event_stream
+creating build/lib/lhp/templates/monitoring
+copying src/lhp/templates/monitoring/jobs_stats_loader.py -> build/lib/lhp/templates/monitoring
+creating build/lib/lhp/templates/init_sample/transforms
+copying src/lhp/templates/init_sample/transforms/normalize_tz.py -> build/lib/lhp/templates/init_sample/transforms
+creating build/lib/lhp/templates/init_sample/functions
+copying src/lhp/templates/init_sample/functions/supplier_snapshot.py -> build/lib/lhp/templates/init_sample/functions
+creating build/lib/lhp/templates/init_sample/notebooks
+copying src/lhp/templates/init_sample/notebooks/data_prep.py -> build/lib/lhp/templates/init_sample/notebooks
+creating build/lib/lhp/generators/write
+copying src/lhp/generators/write/streaming_table.py -> build/lib/lhp/generators/write
+copying src/lhp/generators/write/materialized_view.py -> build/lib/lhp/generators/write
+copying src/lhp/generators/write/sink.py -> build/lib/lhp/generators/write
+copying src/lhp/generators/write/__init__.py -> build/lib/lhp/generators/write
+copying src/lhp/generators/write/_schema_tags_warning.py -> build/lib/lhp/generators/write
+copying src/lhp/generators/write/snapshot_cdc_source_function.py -> build/lib/lhp/generators/write
+creating build/lib/lhp/generators/test
+copying src/lhp/generators/test/_base.py -> build/lib/lhp/generators/test
+copying src/lhp/generators/test/custom_sql.py -> build/lib/lhp/generators/test
+copying src/lhp/generators/test/referential_integrity.py -> build/lib/lhp/generators/test
+copying src/lhp/generators/test/schema_match.py -> build/lib/lhp/generators/test
+copying src/lhp/generators/test/range.py -> build/lib/lhp/generators/test
+copying src/lhp/generators/test/custom_expectations.py -> build/lib/lhp/generators/test
+copying src/lhp/generators/test/__init__.py -> build/lib/lhp/generators/test
+copying src/lhp/generators/test/uniqueness.py -> build/lib/lhp/generators/test
+copying src/lhp/generators/test/all_lookups_found.py -> build/lib/lhp/generators/test
+copying src/lhp/generators/test/completeness.py -> build/lib/lhp/generators/test
+copying src/lhp/generators/test/row_count.py -> build/lib/lhp/generators/test
+creating build/lib/lhp/generators/load
+copying src/lhp/generators/load/__init__.py -> build/lib/lhp/generators/load
+copying src/lhp/generators/load/jdbc.py -> build/lib/lhp/generators/load
+copying src/lhp/generators/load/cloudfiles.py -> build/lib/lhp/generators/load
+copying src/lhp/generators/load/kafka.py -> build/lib/lhp/generators/load
+copying src/lhp/generators/load/custom_datasource.py -> build/lib/lhp/generators/load
+copying src/lhp/generators/load/delta.py -> build/lib/lhp/generators/load
+copying src/lhp/generators/load/python.py -> build/lib/lhp/generators/load
+copying src/lhp/generators/load/sql.py -> build/lib/lhp/generators/load
+creating build/lib/lhp/generators/transform
+copying src/lhp/generators/transform/__init__.py -> build/lib/lhp/generators/transform
+copying src/lhp/generators/transform/temp_table.py -> build/lib/lhp/generators/transform
+copying src/lhp/generators/transform/python.py -> build/lib/lhp/generators/transform
+copying src/lhp/generators/transform/sql.py -> build/lib/lhp/generators/transform
+copying src/lhp/generators/transform/schema.py -> build/lib/lhp/generators/transform
+copying src/lhp/generators/transform/data_quality.py -> build/lib/lhp/generators/transform
+creating build/lib/lhp/generators/write/sinks
+copying src/lhp/generators/write/sinks/custom_sink.py -> build/lib/lhp/generators/write/sinks
+copying src/lhp/generators/write/sinks/foreachbatch_sink.py -> build/lib/lhp/generators/write/sinks
+copying src/lhp/generators/write/sinks/base_sink.py -> build/lib/lhp/generators/write/sinks
+copying src/lhp/generators/write/sinks/__init__.py -> build/lib/lhp/generators/write/sinks
+copying src/lhp/generators/write/sinks/kafka_sink.py -> build/lib/lhp/generators/write/sinks
+copying src/lhp/generators/write/sinks/delta_sink.py -> build/lib/lhp/generators/write/sinks
+running egg_info
+writing src/lakehouse_plumber.egg-info/PKG-INFO
+writing dependency_links to src/lakehouse_plumber.egg-info/dependency_links.txt
+writing entry points to src/lakehouse_plumber.egg-info/entry_points.txt
+writing requirements to src/lakehouse_plumber.egg-info/requires.txt
+writing top-level names to src/lakehouse_plumber.egg-info/top_level.txt
+reading manifest file 'src/lakehouse_plumber.egg-info/SOURCES.txt'
+adding license file 'LICENSE'
+writing manifest file 'src/lakehouse_plumber.egg-info/SOURCES.txt'
+copying src/lhp/py.typed -> build/lib/lhp
+creating build/lib/lhp/webapp/static
+copying src/lhp/webapp/static/index.html -> build/lib/lhp/webapp/static
+copying src/lhp/webapp/static/favicon.svg -> build/lib/lhp/webapp/static
+creating build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/CreateTemplateDialog-DCJ1LnM_.js -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/jetbrains-mono-latin-wght-normal-B9CIFXIH.woff2 -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/inter-greek-wght-normal-CkhJZR-_.woff2 -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/TemplateBuilder-DJNtIpOP.js -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/jetbrains-mono-greek-wght-normal-Bw9x6K1M.woff2 -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/inter-cyrillic-ext-wght-normal-BOeWTOD4.woff2 -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/ParameterValueInput-D-RUZFDc.js -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/MonacoEditorWrapper-CDLecclU.js -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/RunHistoryView-Biz_vl_i.js -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/GraphView-CxR6gV6a.js -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/editor.worker-CdQrwHl8.js -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/PipelineDagView-Bfkf7Be-.js -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/json.worker-BoL8UZqY.js -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/monaco-editor-CciUs1S1.js -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/jetbrains-mono-cyrillic-wght-normal-D73BlboJ.woff2 -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/CodeView-BUVxNPhW.js -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/ConfigFormView-CUGlHO6g.js -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/inter-vietnamese-wght-normal-CBcvBZtf.woff2 -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/OptionalNumberField-qycTERw4.js -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/DiffEditorWrapper-Dg2eWt_0.js -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/react-vendor-C1tmfhzI.js -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/jetbrains-mono-vietnamese-wght-normal-Bt-aOZkq.woff2 -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/designerGraph-DQMFDZjG.js -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/index-BCEJatB4.css -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/PipelineFilterOptions-CrfwvJ2K.js -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/index-CAynrxg4.js -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/FieldHelpBody-BBbeYyFn.js -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/StringListEditor-Dfsvpswi.js -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/template-document-Bj_MgrRC.js -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/textarea-Ckp3znPJ.js -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/EnumSelect-C6R29IRq.js -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/codicon-ngg6Pgfi.ttf -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/CreateFlowgroupDialog-Bsuqv6fS.js -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/RunStreamView-DPDTPz60.js -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/inter-cyrillic-wght-normal-DqGufNeO.woff2 -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/DependencyEdge-DhLqRf3M.js -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/monaco-editor-WGlpN-0L.css -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/useElkLayout-BM7GtByP.js -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/react-flow-BSW1QCE0.js -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/history-l5rBXDM9.js -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/CreateFromTemplateDialog-BO4FlqyX.js -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/QuickOpenDialog-DHYMnabo.js -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/ProjectMapView-D0PBgjCk.js -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/inter-latin-ext-wght-normal-DO1Apj_S.woff2 -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/elkjs-JnqVAAjn.js -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/DependencyGraph-Cwi3ToGQ.js -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/inter-latin-wght-normal-Dx4kXJAl.woff2 -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/InitProjectPage-BIzCJlhc.js -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/elk-worker.min-CHQ3eE7K.js -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/TemplateResources-BJFl_4Fy.js -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/useTemplateAuthoring-bc8R1RqU.js -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/TemplateUseActions-BbJLIKdo.js -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/command-CSIa_woi.js -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/monaco-setup-DKMUI19O.js -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/TemplateInvocationParams-Sr74PNn4.js -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/square-CZweSzcG.js -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/AssistantPanel-qNOUwTc-.js -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/TemplatePreviewGraph-CH_cLNny.js -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/TemplatePreview-C7lO5sfD.js -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/yaml.worker-BEq0prsK.js -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/template-authoring-B5Ksi5tL.js -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/index-uH4eIl_k.js -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/inter-greek-ext-wght-normal-DlzME5K_.woff2 -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/jetbrains-mono-latin-ext-wght-normal-DBQx-q_a.woff2 -> build/lib/lhp/webapp/static/assets
+creating build/lib/lhp/schemas
+copying src/lhp/schemas/README.md -> build/lib/lhp/schemas
+copying src/lhp/schemas/blueprint.schema.json -> build/lib/lhp/schemas
+copying src/lhp/schemas/flowgroup.schema.json -> build/lib/lhp/schemas
+copying src/lhp/schemas/instance.schema.json -> build/lib/lhp/schemas
+copying src/lhp/schemas/job_config.schema.json -> build/lib/lhp/schemas
+copying src/lhp/schemas/pipeline_config.schema.json -> build/lib/lhp/schemas
+copying src/lhp/schemas/preset.schema.json -> build/lib/lhp/schemas
+copying src/lhp/schemas/project.schema.json -> build/lib/lhp/schemas
+copying src/lhp/schemas/schema.schema.json -> build/lib/lhp/schemas
+copying src/lhp/schemas/substitution.schema.json -> build/lib/lhp/schemas
+copying src/lhp/schemas/template.schema.json -> build/lib/lhp/schemas
+creating build/lib/lhp/schemas/help
+copying src/lhp/schemas/help/template.json -> build/lib/lhp/schemas/help
+copying src/lhp/schemas/help/project.json -> build/lib/lhp/schemas/help
+copying src/lhp/schemas/help/flowgroup.json -> build/lib/lhp/schemas/help
+copying src/lhp/schemas/help/pipeline_config.json -> build/lib/lhp/schemas/help
+copying src/lhp/schemas/help/source-review.json -> build/lib/lhp/schemas/help
+copying src/lhp/schemas/help/job_config.json -> build/lib/lhp/schemas/help
+copying src/lhp/templates/base.py.j2 -> build/lib/lhp/templates
+copying src/lhp/resources/skills/lhp/SKILL.md -> build/lib/lhp/resources/skills/lhp
+copying src/lhp/resources/skills/lhp/references/actions-load-cloudfiles.md -> build/lib/lhp/resources/skills/lhp/references
+copying src/lhp/resources/skills/lhp/references/actions-load-custom-datasource.md -> build/lib/lhp/resources/skills/lhp/references
+copying src/lhp/resources/skills/lhp/references/actions-load-delta.md -> build/lib/lhp/resources/skills/lhp/references
+copying src/lhp/resources/skills/lhp/references/actions-load-jdbc.md -> build/lib/lhp/resources/skills/lhp/references
+copying src/lhp/resources/skills/lhp/references/actions-load-kafka.md -> build/lib/lhp/resources/skills/lhp/references
+copying src/lhp/resources/skills/lhp/references/actions-load-python.md -> build/lib/lhp/resources/skills/lhp/references
+copying src/lhp/resources/skills/lhp/references/actions-load-sql.md -> build/lib/lhp/resources/skills/lhp/references
+copying src/lhp/resources/skills/lhp/references/actions-test-all-lookups-found.md -> build/lib/lhp/resources/skills/lhp/references
+copying src/lhp/resources/skills/lhp/references/actions-test-completeness.md -> build/lib/lhp/resources/skills/lhp/references
+copying src/lhp/resources/skills/lhp/references/actions-test-custom-expectations.md -> build/lib/lhp/resources/skills/lhp/references
+copying src/lhp/resources/skills/lhp/references/actions-test-custom-sql.md -> build/lib/lhp/resources/skills/lhp/references
+copying src/lhp/resources/skills/lhp/references/actions-test-range.md -> build/lib/lhp/resources/skills/lhp/references
+copying src/lhp/resources/skills/lhp/references/actions-test-referential-integrity.md -> build/lib/lhp/resources/skills/lhp/references
+copying src/lhp/resources/skills/lhp/references/actions-test-row-count.md -> build/lib/lhp/resources/skills/lhp/references
+copying src/lhp/resources/skills/lhp/references/actions-test-schema-match.md -> build/lib/lhp/resources/skills/lhp/references
+copying src/lhp/resources/skills/lhp/references/actions-test-uniqueness.md -> build/lib/lhp/resources/skills/lhp/references
+copying src/lhp/resources/skills/lhp/references/actions-transform-data-quality.md -> build/lib/lhp/resources/skills/lhp/references
+copying src/lhp/resources/skills/lhp/references/actions-transform-python.md -> build/lib/lhp/resources/skills/lhp/references
+copying src/lhp/resources/skills/lhp/references/actions-transform-schema.md -> build/lib/lhp/resources/skills/lhp/references
+copying src/lhp/resources/skills/lhp/references/actions-transform-sql.md -> build/lib/lhp/resources/skills/lhp/references
+copying src/lhp/resources/skills/lhp/references/actions-transform-temp-table.md -> build/lib/lhp/resources/skills/lhp/references
+copying src/lhp/resources/skills/lhp/references/actions-write-materialized-view.md -> build/lib/lhp/resources/skills/lhp/references
+copying src/lhp/resources/skills/lhp/references/actions-write-sink-custom.md -> build/lib/lhp/resources/skills/lhp/references
+copying src/lhp/resources/skills/lhp/references/actions-write-sink-delta.md -> build/lib/lhp/resources/skills/lhp/references
+copying src/lhp/resources/skills/lhp/references/actions-write-sink-eventhubs.md -> build/lib/lhp/resources/skills/lhp/references
+copying src/lhp/resources/skills/lhp/references/actions-write-sink-foreachbatch.md -> build/lib/lhp/resources/skills/lhp/references
+copying src/lhp/resources/skills/lhp/references/actions-write-sink-kafka.md -> build/lib/lhp/resources/skills/lhp/references
+copying src/lhp/resources/skills/lhp/references/actions-write-streaming-table-cdc.md -> build/lib/lhp/resources/skills/lhp/references
+copying src/lhp/resources/skills/lhp/references/actions-write-streaming-table-snapshot-cdc.md -> build/lib/lhp/resources/skills/lhp/references
+copying src/lhp/resources/skills/lhp/references/actions-write-streaming-table-standard.md -> build/lib/lhp/resources/skills/lhp/references
+copying src/lhp/resources/skills/lhp/references/advanced.md -> build/lib/lhp/resources/skills/lhp/references
+copying src/lhp/resources/skills/lhp/references/best-practices.md -> build/lib/lhp/resources/skills/lhp/references
+copying src/lhp/resources/skills/lhp/references/blueprints.md -> build/lib/lhp/resources/skills/lhp/references
+copying src/lhp/resources/skills/lhp/references/cdc-patterns.md -> build/lib/lhp/resources/skills/lhp/references
+copying src/lhp/resources/skills/lhp/references/errors.md -> build/lib/lhp/resources/skills/lhp/references
+copying src/lhp/resources/skills/lhp/references/monitoring.md -> build/lib/lhp/resources/skills/lhp/references
+copying src/lhp/resources/skills/lhp/references/project-config.md -> build/lib/lhp/resources/skills/lhp/references
+copying src/lhp/resources/skills/lhp/references/quickstart.md -> build/lib/lhp/resources/skills/lhp/references
+copying src/lhp/resources/skills/lhp/references/sandbox.md -> build/lib/lhp/resources/skills/lhp/references
+copying src/lhp/resources/skills/lhp/references/templates-presets.md -> build/lib/lhp/resources/skills/lhp/references
+copying src/lhp/webapp/static/favicon.svg -> build/lib/lhp/webapp/static
+copying src/lhp/webapp/static/index.html -> build/lib/lhp/webapp/static
+copying src/lhp/webapp/static/assets/AssistantPanel-qNOUwTc-.js -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/CodeView-BUVxNPhW.js -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/ConfigFormView-CUGlHO6g.js -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/CreateFlowgroupDialog-Bsuqv6fS.js -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/CreateFromTemplateDialog-BO4FlqyX.js -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/CreateTemplateDialog-DCJ1LnM_.js -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/DependencyEdge-DhLqRf3M.js -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/DependencyGraph-Cwi3ToGQ.js -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/DiffEditorWrapper-Dg2eWt_0.js -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/EnumSelect-C6R29IRq.js -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/FieldHelpBody-BBbeYyFn.js -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/GraphView-CxR6gV6a.js -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/InitProjectPage-BIzCJlhc.js -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/MonacoEditorWrapper-CDLecclU.js -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/OptionalNumberField-qycTERw4.js -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/ParameterValueInput-D-RUZFDc.js -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/PipelineDagView-Bfkf7Be-.js -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/PipelineFilterOptions-CrfwvJ2K.js -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/ProjectMapView-D0PBgjCk.js -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/QuickOpenDialog-DHYMnabo.js -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/RunHistoryView-Biz_vl_i.js -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/RunStreamView-DPDTPz60.js -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/StringListEditor-Dfsvpswi.js -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/TemplateBuilder-DJNtIpOP.js -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/TemplateInvocationParams-Sr74PNn4.js -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/TemplatePreview-C7lO5sfD.js -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/TemplatePreviewGraph-CH_cLNny.js -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/TemplateResources-BJFl_4Fy.js -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/TemplateUseActions-BbJLIKdo.js -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/codicon-ngg6Pgfi.ttf -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/command-CSIa_woi.js -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/designerGraph-DQMFDZjG.js -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/editor.worker-CdQrwHl8.js -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/elk-worker.min-CHQ3eE7K.js -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/elkjs-JnqVAAjn.js -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/history-l5rBXDM9.js -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/index-BCEJatB4.css -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/index-CAynrxg4.js -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/index-uH4eIl_k.js -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/inter-cyrillic-ext-wght-normal-BOeWTOD4.woff2 -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/inter-cyrillic-wght-normal-DqGufNeO.woff2 -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/inter-greek-ext-wght-normal-DlzME5K_.woff2 -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/inter-greek-wght-normal-CkhJZR-_.woff2 -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/inter-latin-ext-wght-normal-DO1Apj_S.woff2 -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/inter-latin-wght-normal-Dx4kXJAl.woff2 -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/inter-vietnamese-wght-normal-CBcvBZtf.woff2 -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/jetbrains-mono-cyrillic-wght-normal-D73BlboJ.woff2 -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/jetbrains-mono-greek-wght-normal-Bw9x6K1M.woff2 -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/jetbrains-mono-latin-ext-wght-normal-DBQx-q_a.woff2 -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/jetbrains-mono-latin-wght-normal-B9CIFXIH.woff2 -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/jetbrains-mono-vietnamese-wght-normal-Bt-aOZkq.woff2 -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/json.worker-BoL8UZqY.js -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/monaco-editor-CciUs1S1.js -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/monaco-editor-WGlpN-0L.css -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/monaco-setup-DKMUI19O.js -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/react-flow-BSW1QCE0.js -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/react-vendor-C1tmfhzI.js -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/square-CZweSzcG.js -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/template-authoring-B5Ksi5tL.js -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/template-document-Bj_MgrRC.js -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/textarea-Ckp3znPJ.js -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/useElkLayout-BM7GtByP.js -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/useTemplateAuthoring-bc8R1RqU.js -> build/lib/lhp/webapp/static/assets
+copying src/lhp/webapp/static/assets/yaml.worker-BEq0prsK.js -> build/lib/lhp/webapp/static/assets
+copying src/lhp/schemas/help/flowgroup.json -> build/lib/lhp/schemas/help
+copying src/lhp/schemas/help/job_config.json -> build/lib/lhp/schemas/help
+copying src/lhp/schemas/help/pipeline_config.json -> build/lib/lhp/schemas/help
+copying src/lhp/schemas/help/project.json -> build/lib/lhp/schemas/help
+copying src/lhp/schemas/help/source-review.json -> build/lib/lhp/schemas/help
+copying src/lhp/schemas/help/template.json -> build/lib/lhp/schemas/help
+creating build/lib/lhp/templates/write
+copying src/lhp/templates/write/materialized_view.py.j2 -> build/lib/lhp/templates/write
+copying src/lhp/templates/write/streaming_table.py.j2 -> build/lib/lhp/templates/write
+creating build/lib/lhp/templates/packaging
+copying src/lhp/templates/packaging/runner.py.j2 -> build/lib/lhp/templates/packaging
+creating build/lib/lhp/templates/init
+copying src/lhp/templates/init/.gitignore.j2 -> build/lib/lhp/templates/init
+copying src/lhp/templates/init/README.md.j2 -> build/lib/lhp/templates/init
+copying src/lhp/templates/init/lhp.yaml.j2 -> build/lib/lhp/templates/init
+creating build/lib/lhp/templates/init/blueprints
+copying src/lhp/templates/init/blueprints/BP001_example_system_bronze.yaml.tmpl -> build/lib/lhp/templates/init/blueprints
+creating build/lib/lhp/templates/init/config
+copying src/lhp/templates/init/config/monitoring_job_config_env.yaml.tmpl -> build/lib/lhp/templates/init/config
+copying src/lhp/templates/init/config/pipeline_config_env.yaml.tmpl -> build/lib/lhp/templates/init/config
+copying src/lhp/templates/init/config/job_config_env.yaml.tmpl -> build/lib/lhp/templates/init/config
+creating build/lib/lhp/templates/init/expectations
+copying src/lhp/templates/init/expectations/customer_quality.json.tmpl -> build/lib/lhp/templates/init/expectations
+creating build/lib/lhp/templates/init/bundle
+copying src/lhp/templates/init/bundle/databricks.yml.j2 -> build/lib/lhp/templates/init/bundle
+creating build/lib/lhp/templates/init/pipelines/example_system/bronze
+copying src/lhp/templates/init/pipelines/example_system/bronze/example_system_bronze_acme_BP001.yaml.tmpl -> build/lib/lhp/templates/init/pipelines/example_system/bronze
+creating build/lib/lhp/templates/init/pipelines/02_bronze
+copying src/lhp/templates/init/pipelines/02_bronze/customer_bronze.yaml.tmpl -> build/lib/lhp/templates/init/pipelines/02_bronze
+copying src/lhp/templates/init/pipelines/02_bronze/orders_bronze.yaml.tmpl -> build/lib/lhp/templates/init/pipelines/02_bronze
+creating build/lib/lhp/templates/init/pipelines/03_silver/dim
+copying src/lhp/templates/init/pipelines/03_silver/dim/customer_silver_dim.yaml.tmpl -> build/lib/lhp/templates/init/pipelines/03_silver/dim
+creating build/lib/lhp/templates/init/pipelines/03_silver/fct
+copying src/lhp/templates/init/pipelines/03_silver/fct/orders_silver_fct.yaml.tmpl -> build/lib/lhp/templates/init/pipelines/03_silver/fct
+creating build/lib/lhp/templates/init/pipelines/01_raw_ingestion/csv_ingestions
+copying src/lhp/templates/init/pipelines/01_raw_ingestion/csv_ingestions/orders_ingestion.yaml.tmpl -> build/lib/lhp/templates/init/pipelines/01_raw_ingestion/csv_ingestions
+copying src/lhp/templates/init/pipelines/01_raw_ingestion/csv_ingestions/customer_ingestion.yaml.tmpl -> build/lib/lhp/templates/init/pipelines/01_raw_ingestion/csv_ingestions
+creating build/lib/lhp/templates/init/schemas
+copying src/lhp/templates/init/schemas/orders_schema.yaml.tmpl -> build/lib/lhp/templates/init/schemas
+copying src/lhp/templates/init/schemas/customer_schema.yaml.tmpl -> build/lib/lhp/templates/init/schemas
+copying src/lhp/templates/init/schemas/customer_schema.ddl.tmpl -> build/lib/lhp/templates/init/schemas
+creating build/lib/lhp/templates/init/schema_transforms
+copying src/lhp/templates/init/schema_transforms/orders_africa_bronze_schema.yaml.tmpl -> build/lib/lhp/templates/init/schema_transforms
+copying src/lhp/templates/init/schema_transforms/lineitem_bronze_schema.yaml.tmpl -> build/lib/lhp/templates/init/schema_transforms
+creating build/lib/lhp/templates/init/templates
+copying src/lhp/templates/init/templates/standard_ingestion.yaml.tmpl -> build/lib/lhp/templates/init/templates
+creating build/lib/lhp/templates/init/substitutions
+copying src/lhp/templates/init/substitutions/tst.yaml.tmpl -> build/lib/lhp/templates/init/substitutions
+copying src/lhp/templates/init/substitutions/dev.yaml.tmpl -> build/lib/lhp/templates/init/substitutions
+copying src/lhp/templates/init/substitutions/prod.yaml.tmpl -> build/lib/lhp/templates/init/substitutions
+creating build/lib/lhp/templates/init/presets
+copying src/lhp/templates/init/presets/bronze_layer.yaml.tmpl -> build/lib/lhp/templates/init/presets
+creating build/lib/lhp/templates/init/sql
+copying src/lhp/templates/init/sql/orders_europe_bronze_cleanse.sql.tmpl -> build/lib/lhp/templates/init/sql
+creating build/lib/lhp/templates/init/bundle/resources
+copying src/lhp/templates/init/bundle/resources/.gitkeep -> build/lib/lhp/templates/init/bundle/resources
+creating build/lib/lhp/templates/test
+copying src/lhp/templates/test/all_lookups_found.py.j2 -> build/lib/lhp/templates/test
+copying src/lhp/templates/test/completeness.py.j2 -> build/lib/lhp/templates/test
+copying src/lhp/templates/test/custom_expectations.py.j2 -> build/lib/lhp/templates/test
+copying src/lhp/templates/test/custom_sql.py.j2 -> build/lib/lhp/templates/test
+copying src/lhp/templates/test/range.py.j2 -> build/lib/lhp/templates/test
+copying src/lhp/templates/test/referential_integrity.py.j2 -> build/lib/lhp/templates/test
+copying src/lhp/templates/test/row_count.py.j2 -> build/lib/lhp/templates/test
+copying src/lhp/templates/test/schema_match.py.j2 -> build/lib/lhp/templates/test
+copying src/lhp/templates/test/uniqueness.py.j2 -> build/lib/lhp/templates/test
+creating build/lib/lhp/templates/bundle
+copying src/lhp/templates/bundle/job_resource.yml.j2 -> build/lib/lhp/templates/bundle
+copying src/lhp/templates/bundle/master_job_resource.yml.j2 -> build/lib/lhp/templates/bundle
+copying src/lhp/templates/bundle/monitoring_job_resource.yml.j2 -> build/lib/lhp/templates/bundle
+copying src/lhp/templates/bundle/pipeline_resource.yml.j2 -> build/lib/lhp/templates/bundle
+copying src/lhp/templates/bundle/wheels_bundle.yml.j2 -> build/lib/lhp/templates/bundle
+creating build/lib/lhp/templates/load
+copying src/lhp/templates/load/cloudfiles.py.j2 -> build/lib/lhp/templates/load
+copying src/lhp/templates/load/custom_datasource.py.j2 -> build/lib/lhp/templates/load
+copying src/lhp/templates/load/delta.py.j2 -> build/lib/lhp/templates/load
+copying src/lhp/templates/load/jdbc.py.j2 -> build/lib/lhp/templates/load
+copying src/lhp/templates/load/kafka.py.j2 -> build/lib/lhp/templates/load
+copying src/lhp/templates/load/python.py.j2 -> build/lib/lhp/templates/load
+copying src/lhp/templates/load/sql.py.j2 -> build/lib/lhp/templates/load
+copying src/lhp/templates/load/struct_type.py.j2 -> build/lib/lhp/templates/load
+creating build/lib/lhp/templates/test_reporting
+copying src/lhp/templates/test_reporting/hook.py.j2 -> build/lib/lhp/templates/test_reporting
+creating build/lib/lhp/templates/sandbox
+copying src/lhp/templates/sandbox/runtime_shim.py.j2 -> build/lib/lhp/templates/sandbox
+copying src/lhp/templates/init_sample/.gitignore.j2 -> build/lib/lhp/templates/init_sample
+copying src/lhp/templates/init_sample/README.md.j2 -> build/lib/lhp/templates/init_sample
+copying src/lhp/templates/init_sample/lhp.yaml.j2 -> build/lib/lhp/templates/init_sample
+creating build/lib/lhp/templates/init_sample/examples_optional
+copying src/lhp/templates/init_sample/examples_optional/jdbc_with_secret.yaml.txt -> build/lib/lhp/templates/init_sample/examples_optional
+creating build/lib/lhp/templates/init_sample/config
+copying src/lhp/templates/init_sample/config/pipeline_config.yaml -> build/lib/lhp/templates/init_sample/config
+copying src/lhp/templates/init_sample/config/monitoring_job_config.yaml -> build/lib/lhp/templates/init_sample/config
+copying src/lhp/templates/init_sample/config/job_config_env.yaml -> build/lib/lhp/templates/init_sample/config
+creating build/lib/lhp/templates/init_sample/expectations
+copying src/lhp/templates/init_sample/expectations/orders.yaml -> build/lib/lhp/templates/init_sample/expectations
+creating build/lib/lhp/templates/init_sample/bundle
+copying src/lhp/templates/init_sample/bundle/databricks.yml.j2 -> build/lib/lhp/templates/init_sample/bundle
+creating build/lib/lhp/templates/init_sample/bundle/resources
+copying src/lhp/templates/init_sample/bundle/resources/sample_job.yml -> build/lib/lhp/templates/init_sample/bundle/resources
+creating build/lib/lhp/templates/init_sample/pipelines/02_silver
+copying src/lhp/templates/init_sample/pipelines/02_silver/orders_clean.yaml -> build/lib/lhp/templates/init_sample/pipelines/02_silver
+copying src/lhp/templates/init_sample/pipelines/02_silver/dim_supplier.yaml -> build/lib/lhp/templates/init_sample/pipelines/02_silver
+copying src/lhp/templates/init_sample/pipelines/02_silver/dim_customer.yaml -> build/lib/lhp/templates/init_sample/pipelines/02_silver
+creating build/lib/lhp/templates/init_sample/pipelines/03_gold
+copying src/lhp/templates/init_sample/pipelines/03_gold/sales_by_nation.yaml -> build/lib/lhp/templates/init_sample/pipelines/03_gold
+creating build/lib/lhp/templates/init_sample/pipelines/01_ingest
+copying src/lhp/templates/init_sample/pipelines/01_ingest/orders_ingest.yaml -> build/lib/lhp/templates/init_sample/pipelines/01_ingest
+copying src/lhp/templates/init_sample/pipelines/01_ingest/nation_region.yaml -> build/lib/lhp/templates/init_sample/pipelines/01_ingest
+copying src/lhp/templates/init_sample/pipelines/01_ingest/lineitem_ingest.yaml -> build/lib/lhp/templates/init_sample/pipelines/01_ingest
+creating build/lib/lhp/templates/init_sample/schemas
+copying src/lhp/templates/init_sample/schemas/orders_hints.yaml -> build/lib/lhp/templates/init_sample/schemas
+copying src/lhp/templates/init_sample/transforms/normalize_tz.py -> build/lib/lhp/templates/init_sample/transforms
+creating build/lib/lhp/templates/init_sample/schema_transforms
+copying src/lhp/templates/init_sample/schema_transforms/orders_typed.yaml -> build/lib/lhp/templates/init_sample/schema_transforms
+copying src/lhp/templates/init_sample/functions/supplier_snapshot.py -> build/lib/lhp/templates/init_sample/functions
+creating build/lib/lhp/templates/init_sample/templates
+copying src/lhp/templates/init_sample/templates/cloudfiles_ingest.yaml -> build/lib/lhp/templates/init_sample/templates
+creating build/lib/lhp/templates/init_sample/substitutions
+copying src/lhp/templates/init_sample/substitutions/dev.yaml -> build/lib/lhp/templates/init_sample/substitutions
+copying src/lhp/templates/init_sample/substitutions/prod.yaml -> build/lib/lhp/templates/init_sample/substitutions
+creating build/lib/lhp/templates/init_sample/presets
+copying src/lhp/templates/init_sample/presets/bronze_layer.yaml -> build/lib/lhp/templates/init_sample/presets
+copying src/lhp/templates/init_sample/presets/silver_quality.yaml -> build/lib/lhp/templates/init_sample/presets
+copying src/lhp/templates/init_sample/notebooks/data_prep.py -> build/lib/lhp/templates/init_sample/notebooks
+creating build/lib/lhp/templates/init_sample/sql
+copying src/lhp/templates/init_sample/sql/sales_by_nation.sql -> build/lib/lhp/templates/init_sample/sql
+creating build/lib/lhp/templates/uc_tagging
+copying src/lhp/templates/uc_tagging/hook.py.j2 -> build/lib/lhp/templates/uc_tagging
+copying src/lhp/templates/monitoring/union_event_logs.py.j2 -> build/lib/lhp/templates/monitoring
+copying src/lhp/templates/monitoring/jobs_stats_loader.py -> build/lib/lhp/templates/monitoring
+creating build/lib/lhp/templates/transform
+copying src/lhp/templates/transform/data_quality.py.j2 -> build/lib/lhp/templates/transform
+copying src/lhp/templates/transform/data_quality_quarantine.py.j2 -> build/lib/lhp/templates/transform
+copying src/lhp/templates/transform/python.py.j2 -> build/lib/lhp/templates/transform
+copying src/lhp/templates/transform/schema.py.j2 -> build/lib/lhp/templates/transform
+copying src/lhp/templates/transform/sql.py.j2 -> build/lib/lhp/templates/transform
+copying src/lhp/templates/transform/temp_table.py.j2 -> build/lib/lhp/templates/transform
+creating build/lib/lhp/templates/write/sinks
+copying src/lhp/templates/write/sinks/custom_sink.py.j2 -> build/lib/lhp/templates/write/sinks
+copying src/lhp/templates/write/sinks/delta_sink.py.j2 -> build/lib/lhp/templates/write/sinks
+copying src/lhp/templates/write/sinks/foreachbatch_sink.py.j2 -> build/lib/lhp/templates/write/sinks
+copying src/lhp/templates/write/sinks/kafka_sink.py.j2 -> build/lib/lhp/templates/write/sinks
+copying src/lhp/templates/init/blueprints/BP001_example_system_bronze.yaml.tmpl -> build/lib/lhp/templates/init/blueprints
+copying src/lhp/templates/init/config/job_config_env.yaml.tmpl -> build/lib/lhp/templates/init/config
+copying src/lhp/templates/init/config/monitoring_job_config_env.yaml.tmpl -> build/lib/lhp/templates/init/config
+copying src/lhp/templates/init/config/pipeline_config_env.yaml.tmpl -> build/lib/lhp/templates/init/config
+copying src/lhp/templates/init/expectations/customer_quality.json.tmpl -> build/lib/lhp/templates/init/expectations
+copying src/lhp/templates/init/bundle/databricks.yml.j2 -> build/lib/lhp/templates/init/bundle
+copying src/lhp/templates/init/schemas/customer_schema.ddl.tmpl -> build/lib/lhp/templates/init/schemas
+copying src/lhp/templates/init/schemas/customer_schema.yaml.tmpl -> build/lib/lhp/templates/init/schemas
+copying src/lhp/templates/init/schemas/orders_schema.yaml.tmpl -> build/lib/lhp/templates/init/schemas
+copying src/lhp/templates/init/schema_transforms/lineitem_bronze_schema.yaml.tmpl -> build/lib/lhp/templates/init/schema_transforms
+copying src/lhp/templates/init/schema_transforms/orders_africa_bronze_schema.yaml.tmpl -> build/lib/lhp/templates/init/schema_transforms
+copying src/lhp/templates/init/templates/standard_ingestion.yaml.tmpl -> build/lib/lhp/templates/init/templates
+copying src/lhp/templates/init/substitutions/dev.yaml.tmpl -> build/lib/lhp/templates/init/substitutions
+copying src/lhp/templates/init/substitutions/prod.yaml.tmpl -> build/lib/lhp/templates/init/substitutions
+copying src/lhp/templates/init/substitutions/tst.yaml.tmpl -> build/lib/lhp/templates/init/substitutions
+copying src/lhp/templates/init/presets/bronze_layer.yaml.tmpl -> build/lib/lhp/templates/init/presets
+copying src/lhp/templates/init/sql/orders_europe_bronze_cleanse.sql.tmpl -> build/lib/lhp/templates/init/sql
+copying src/lhp/templates/init/bundle/resources/.gitkeep -> build/lib/lhp/templates/init/bundle/resources
+copying src/lhp/templates/init/pipelines/02_bronze/customer_bronze.yaml.tmpl -> build/lib/lhp/templates/init/pipelines/02_bronze
+copying src/lhp/templates/init/pipelines/02_bronze/orders_bronze.yaml.tmpl -> build/lib/lhp/templates/init/pipelines/02_bronze
+copying src/lhp/templates/init/pipelines/example_system/bronze/example_system_bronze_acme_BP001.yaml.tmpl -> build/lib/lhp/templates/init/pipelines/example_system/bronze
+copying src/lhp/templates/init/pipelines/03_silver/dim/customer_silver_dim.yaml.tmpl -> build/lib/lhp/templates/init/pipelines/03_silver/dim
+copying src/lhp/templates/init/pipelines/03_silver/fct/orders_silver_fct.yaml.tmpl -> build/lib/lhp/templates/init/pipelines/03_silver/fct
+copying src/lhp/templates/init/pipelines/01_raw_ingestion/csv_ingestions/customer_ingestion.yaml.tmpl -> build/lib/lhp/templates/init/pipelines/01_raw_ingestion/csv_ingestions
+copying src/lhp/templates/init/pipelines/01_raw_ingestion/csv_ingestions/orders_ingestion.yaml.tmpl -> build/lib/lhp/templates/init/pipelines/01_raw_ingestion/csv_ingestions
+copying src/lhp/templates/init_sample/examples_optional/jdbc_with_secret.yaml.txt -> build/lib/lhp/templates/init_sample/examples_optional
+copying src/lhp/templates/init_sample/config/job_config_env.yaml -> build/lib/lhp/templates/init_sample/config
+copying src/lhp/templates/init_sample/config/monitoring_job_config.yaml -> build/lib/lhp/templates/init_sample/config
+copying src/lhp/templates/init_sample/config/pipeline_config.yaml -> build/lib/lhp/templates/init_sample/config
+copying src/lhp/templates/init_sample/expectations/orders.yaml -> build/lib/lhp/templates/init_sample/expectations
+copying src/lhp/templates/init_sample/bundle/databricks.yml.j2 -> build/lib/lhp/templates/init_sample/bundle
+copying src/lhp/templates/init_sample/schemas/orders_hints.yaml -> build/lib/lhp/templates/init_sample/schemas
+copying src/lhp/templates/init_sample/schema_transforms/orders_typed.yaml -> build/lib/lhp/templates/init_sample/schema_transforms
+copying src/lhp/templates/init_sample/templates/cloudfiles_ingest.yaml -> build/lib/lhp/templates/init_sample/templates
+copying src/lhp/templates/init_sample/substitutions/dev.yaml -> build/lib/lhp/templates/init_sample/substitutions
+copying src/lhp/templates/init_sample/substitutions/prod.yaml -> build/lib/lhp/templates/init_sample/substitutions
+copying src/lhp/templates/init_sample/presets/bronze_layer.yaml -> build/lib/lhp/templates/init_sample/presets
+copying src/lhp/templates/init_sample/presets/silver_quality.yaml -> build/lib/lhp/templates/init_sample/presets
+copying src/lhp/templates/init_sample/sql/sales_by_nation.sql -> build/lib/lhp/templates/init_sample/sql
+copying src/lhp/templates/init_sample/bundle/resources/sample_job.yml -> build/lib/lhp/templates/init_sample/bundle/resources
+copying src/lhp/templates/init_sample/pipelines/02_silver/dim_customer.yaml -> build/lib/lhp/templates/init_sample/pipelines/02_silver
+copying src/lhp/templates/init_sample/pipelines/02_silver/dim_supplier.yaml -> build/lib/lhp/templates/init_sample/pipelines/02_silver
+copying src/lhp/templates/init_sample/pipelines/02_silver/orders_clean.yaml -> build/lib/lhp/templates/init_sample/pipelines/02_silver
+copying src/lhp/templates/init_sample/pipelines/03_gold/sales_by_nation.yaml -> build/lib/lhp/templates/init_sample/pipelines/03_gold
+copying src/lhp/templates/init_sample/pipelines/01_ingest/lineitem_ingest.yaml -> build/lib/lhp/templates/init_sample/pipelines/01_ingest
+copying src/lhp/templates/init_sample/pipelines/01_ingest/nation_region.yaml -> build/lib/lhp/templates/init_sample/pipelines/01_ingest
+copying src/lhp/templates/init_sample/pipelines/01_ingest/orders_ingest.yaml -> build/lib/lhp/templates/init_sample/pipelines/01_ingest
+installing to build/bdist.macosx-11.0-arm64/wheel
+running install
+running install_lib
+creating build/bdist.macosx-11.0-arm64/wheel
+creating build/bdist.macosx-11.0-arm64/wheel/lhp
+creating build/bdist.macosx-11.0-arm64/wheel/lhp/parsers
+copying build/lib/lhp/parsers/schema_transform_parser.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/parsers
+copying build/lib/lhp/parsers/tags_file_parser.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/parsers
+copying build/lib/lhp/parsers/blueprint_parser.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/parsers
+copying build/lib/lhp/parsers/__init__.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/parsers
+copying build/lib/lhp/parsers/parse_cache.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/parsers
+copying build/lib/lhp/parsers/yaml_loader.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/parsers
+copying build/lib/lhp/parsers/schema_parser.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/parsers
+copying build/lib/lhp/parsers/yaml_parser.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/parsers
+copying build/lib/lhp/parsers/unified_schema_format.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/parsers
+creating build/bdist.macosx-11.0-arm64/wheel/lhp/core
+creating build/bdist.macosx-11.0-arm64/wheel/lhp/core/packaging
+copying build/lib/lhp/core/packaging/runner.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/packaging
+copying build/lib/lhp/core/packaging/packager.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/packaging
+copying build/lib/lhp/core/packaging/__init__.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/packaging
+copying build/lib/lhp/core/packaging/wheel_reader.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/packaging
+copying build/lib/lhp/core/packaging/wheel_builder.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/packaging
+copying build/lib/lhp/core/packaging/identity.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/packaging
+creating build/bdist.macosx-11.0-arm64/wheel/lhp/core/coordination
+copying build/lib/lhp/core/coordination/_generate_gate.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/coordination
+copying build/lib/lhp/core/coordination/_cross_flowgroup_issues.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/coordination
+copying build/lib/lhp/core/coordination/_sandbox_warning_fold.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/coordination
+copying build/lib/lhp/core/coordination/_pool.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/coordination
+copying build/lib/lhp/core/coordination/_warning_merge.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/coordination
+copying build/lib/lhp/core/coordination/__init__.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/coordination
+copying build/lib/lhp/core/coordination/_validation_outcome.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/coordination
+copying build/lib/lhp/core/coordination/_commit.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/coordination
+copying build/lib/lhp/core/coordination/orchestrator.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/coordination
+copying build/lib/lhp/core/coordination/_flowgroup_pool.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/coordination
+copying build/lib/lhp/core/coordination/monitoring_pipeline_builder.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/coordination
+copying build/lib/lhp/core/coordination/bootstrap_service.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/coordination
+copying build/lib/lhp/core/coordination/layers.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/coordination
+copying build/lib/lhp/core/coordination/sandbox_prepass.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/coordination
+copying build/lib/lhp/core/coordination/monitoring_service.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/coordination
+copying build/lib/lhp/core/coordination/executor.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/coordination
+copying build/lib/lhp/core/coordination/flowgroup_worklist_builder.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/coordination
+copying build/lib/lhp/core/coordination/validation_service.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/coordination
+creating build/bdist.macosx-11.0-arm64/wheel/lhp/core/processing
+copying build/lib/lhp/core/processing/namespace_normalizer.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/processing
+copying build/lib/lhp/core/processing/template_preview_dependencies.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/processing
+copying build/lib/lhp/core/processing/template_engine.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/processing
+copying build/lib/lhp/core/processing/__init__.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/processing
+copying build/lib/lhp/core/processing/blueprint_expander.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/processing
+copying build/lib/lhp/core/processing/local_variables.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/processing
+copying build/lib/lhp/core/processing/substitution.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/processing
+copying build/lib/lhp/core/processing/flowgroup_resolver.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/processing
+copying build/lib/lhp/core/processing/template_preview.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/processing
+copying build/lib/lhp/core/processing/dqe.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/processing
+copying build/lib/lhp/core/processing/template_authoring.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/processing
+creating build/bdist.macosx-11.0-arm64/wheel/lhp/core/discovery
+copying build/lib/lhp/core/discovery/__init__.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/discovery
+copying build/lib/lhp/core/discovery/deprecation_scanner.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/discovery
+copying build/lib/lhp/core/discovery/flowgroup_discoverer.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/discovery
+copying build/lib/lhp/core/discovery/_parse_pool.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/discovery
+copying build/lib/lhp/core/discovery/blueprint_discoverer.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/discovery
+creating build/bdist.macosx-11.0-arm64/wheel/lhp/core/dependencies
+copying build/lib/lhp/core/dependencies/_body_locator.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/dependencies
+copying build/lib/lhp/core/dependencies/service.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/dependencies
+copying build/lib/lhp/core/dependencies/source_parsing.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/dependencies
+copying build/lib/lhp/core/dependencies/_function_index.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/dependencies
+copying build/lib/lhp/core/dependencies/sql_extraction.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/dependencies
+copying build/lib/lhp/core/dependencies/_table_sites.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/dependencies
+copying build/lib/lhp/core/dependencies/output_writer.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/dependencies
+copying build/lib/lhp/core/dependencies/_producers.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/dependencies
+copying build/lib/lhp/core/dependencies/analyzer.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/dependencies
+copying build/lib/lhp/core/dependencies/_extraction_visitor.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/dependencies
+copying build/lib/lhp/core/dependencies/__init__.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/dependencies
+copying build/lib/lhp/core/dependencies/python_parser.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/dependencies
+copying build/lib/lhp/core/dependencies/_bound_folding.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/dependencies
+copying build/lib/lhp/core/dependencies/builder.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/dependencies
+copying build/lib/lhp/core/dependencies/_bindings.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/dependencies
+copying build/lib/lhp/core/dependencies/source_extractor.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/dependencies
+copying build/lib/lhp/core/dependencies/_static_resolution.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/dependencies
+copying build/lib/lhp/core/dependencies/graph_cache.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/dependencies
+copying build/lib/lhp/core/dependencies/dependency_resolver.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/dependencies
+copying build/lib/lhp/core/dependencies/_call_resolution.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/dependencies
+copying build/lib/lhp/core/dependencies/_parse_cache.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/dependencies
+copying build/lib/lhp/core/dependencies/_graph_ops.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/dependencies
+copying build/lib/lhp/core/dependencies/output.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/dependencies
+copying build/lib/lhp/core/dependencies/_canonical.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/dependencies
+copying build/lib/lhp/core/dependencies/_binding_rules.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/dependencies
+copying build/lib/lhp/core/__init__.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core
+copying build/lib/lhp/core/_interfaces.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core
+creating build/bdist.macosx-11.0-arm64/wheel/lhp/core/codegen
+copying build/lib/lhp/core/codegen/python_file_copier.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/codegen
+copying build/lib/lhp/core/codegen/struct_type_emitter.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/codegen
+copying build/lib/lhp/core/codegen/coordinator.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/codegen
+copying build/lib/lhp/core/codegen/plan_builder.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/codegen
+copying build/lib/lhp/core/codegen/formatter.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/codegen
+copying build/lib/lhp/core/codegen/action_dispatch.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/codegen
+copying build/lib/lhp/core/codegen/uc_tagging_hook_generator.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/codegen
+copying build/lib/lhp/core/codegen/grouping.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/codegen
+copying build/lib/lhp/core/codegen/test_reporting.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/codegen
+copying build/lib/lhp/core/codegen/__init__.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/codegen
+copying build/lib/lhp/core/codegen/assembler.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/codegen
+creating build/bdist.macosx-11.0-arm64/wheel/lhp/core/codegen/imports
+copying build/lib/lhp/core/codegen/imports/detector.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/codegen/imports
+copying build/lib/lhp/core/codegen/imports/__init__.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/codegen/imports
+copying build/lib/lhp/core/codegen/imports/source_parser.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/codegen/imports
+copying build/lib/lhp/core/codegen/imports/resolver.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/codegen/imports
+copying build/lib/lhp/core/codegen/imports/manager.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/codegen/imports
+copying build/lib/lhp/core/codegen/imports/categorizer.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/codegen/imports
+copying build/lib/lhp/core/codegen/uc_tagging.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/codegen
+copying build/lib/lhp/core/codegen/python_import_rewriter.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/codegen
+copying build/lib/lhp/core/codegen/secret_code_generator.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/codegen
+creating build/bdist.macosx-11.0-arm64/wheel/lhp/core/codegen/operational_metadata
+copying build/lib/lhp/core/codegen/operational_metadata/service.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/codegen/operational_metadata
+copying build/lib/lhp/core/codegen/operational_metadata/metadata.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/codegen/operational_metadata
+copying build/lib/lhp/core/codegen/operational_metadata/__init__.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/codegen/operational_metadata
+copying build/lib/lhp/core/codegen/context.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/codegen
+copying build/lib/lhp/core/codegen/secrets.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/codegen
+copying build/lib/lhp/core/codegen/tst_reporting_hook_generator.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/codegen
+copying build/lib/lhp/core/codegen/python_dependency_resolver.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/codegen
+copying build/lib/lhp/core/codegen/template_renderer.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/codegen
+creating build/bdist.macosx-11.0-arm64/wheel/lhp/core/sandbox
+copying build/lib/lhp/core/sandbox/scope_resolver.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/sandbox
+copying build/lib/lhp/core/sandbox/__init__.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/sandbox
+copying build/lib/lhp/core/sandbox/_renames.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/sandbox
+copying build/lib/lhp/core/sandbox/_fstring_sql.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/sandbox
+copying build/lib/lhp/core/sandbox/_runtime_shim.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/sandbox
+copying build/lib/lhp/core/sandbox/_python_rewriter.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/sandbox
+copying build/lib/lhp/core/sandbox/_text_rewriter.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/sandbox
+copying build/lib/lhp/core/sandbox/_flowgroup_rewriter.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/sandbox
+creating build/bdist.macosx-11.0-arm64/wheel/lhp/core/registry
+copying build/lib/lhp/core/registry/action_registry.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/registry
+copying build/lib/lhp/core/registry/__init__.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/registry
+copying build/lib/lhp/core/registry/factories.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/registry
+copying build/lib/lhp/core/registry/base_generator.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/registry
+creating build/bdist.macosx-11.0-arm64/wheel/lhp/core/validators
+creating build/bdist.macosx-11.0-arm64/wheel/lhp/core/validators/compatibility
+copying build/lib/lhp/core/validators/compatibility/snapshot_cdc.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/validators/compatibility
+copying build/lib/lhp/core/validators/compatibility/__init__.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/validators/compatibility
+copying build/lib/lhp/core/validators/compatibility/cdc_config.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/validators/compatibility
+copying build/lib/lhp/core/validators/compatibility/table_creation.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/validators/compatibility
+copying build/lib/lhp/core/validators/compatibility/_cdc_helpers.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/validators/compatibility
+copying build/lib/lhp/core/validators/compatibility/cdc_schema.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/validators/compatibility
+copying build/lib/lhp/core/validators/compatibility/cdc_fanin.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/validators/compatibility
+copying build/lib/lhp/core/validators/compatibility/_cdc_fanin_messages.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/validators/compatibility
+copying build/lib/lhp/core/validators/compatibility/dlt_table_options.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/validators/compatibility
+copying build/lib/lhp/core/validators/_base.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/validators
+creating build/bdist.macosx-11.0-arm64/wheel/lhp/core/validators/pipeline
+copying build/lib/lhp/core/validators/pipeline/job_name.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/validators/pipeline
+copying build/lib/lhp/core/validators/pipeline/__init__.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/validators/pipeline
+copying build/lib/lhp/core/validators/config_validator.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/validators
+copying build/lib/lhp/core/validators/__init__.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/validators
+creating build/bdist.macosx-11.0-arm64/wheel/lhp/core/validators/field
+copying build/lib/lhp/core/validators/field/__init__.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/validators/field
+copying build/lib/lhp/core/validators/field/config_field.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/validators/field
+copying build/lib/lhp/core/validators/field/_field_suggestions.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/validators/field
+copying build/lib/lhp/core/validators/field/secret_reference.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/validators/field
+copying build/lib/lhp/core/validators/field/_field_catalog.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/validators/field
+copying build/lib/lhp/core/validators/field/kafka_options.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/validators/field
+creating build/bdist.macosx-11.0-arm64/wheel/lhp/core/validators/action
+copying build/lib/lhp/core/validators/action/_write_sinks.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/validators/action
+copying build/lib/lhp/core/validators/action/_name_checks.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/validators/action
+copying build/lib/lhp/core/validators/action/write.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/validators/action
+copying build/lib/lhp/core/validators/action/_test_requirements.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/validators/action
+copying build/lib/lhp/core/validators/action/__init__.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/validators/action
+copying build/lib/lhp/core/validators/action/test.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/validators/action
+copying build/lib/lhp/core/validators/action/transform.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/validators/action
+copying build/lib/lhp/core/validators/action/_dq_transform.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/validators/action
+copying build/lib/lhp/core/validators/action/_schema_transform.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/validators/action
+copying build/lib/lhp/core/validators/action/load.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/validators/action
+creating build/bdist.macosx-11.0-arm64/wheel/lhp/core/jobs
+copying build/lib/lhp/core/jobs/job_builder.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/jobs
+copying build/lib/lhp/core/jobs/__init__.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/jobs
+copying build/lib/lhp/core/jobs/job_writer.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/jobs
+copying build/lib/lhp/core/jobs/job_generator.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/jobs
+creating build/bdist.macosx-11.0-arm64/wheel/lhp/core/loaders
+copying build/lib/lhp/core/loaders/git_initializer.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/loaders
+copying build/lib/lhp/core/loaders/_monitoring_config_parser.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/loaders
+copying build/lib/lhp/core/loaders/_uc_tagging_config_parser.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/loaders
+copying build/lib/lhp/core/loaders/_operational_metadata_config_parser.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/loaders
+copying build/lib/lhp/core/loaders/_event_log_config_parser.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/loaders
+copying build/lib/lhp/core/loaders/_test_reporting_config_parser.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/loaders
+copying build/lib/lhp/core/loaders/_sandbox_config_parser.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/loaders
+copying build/lib/lhp/core/loaders/__init__.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/loaders
+copying build/lib/lhp/core/loaders/project_config_loader.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/loaders
+copying build/lib/lhp/core/loaders/init_template_context.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/loaders
+copying build/lib/lhp/core/loaders/init_template_loader.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/loaders
+copying build/lib/lhp/core/loaders/sandbox_profile_loader.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/loaders
+copying build/lib/lhp/core/loaders/version_enforcement.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/loaders
+copying build/lib/lhp/core/loaders/_include_patterns_parser.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/loaders
+copying build/lib/lhp/core/loaders/_wheel_config_parser.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/loaders
+copying build/lib/lhp/core/loaders/table_schema_resolver.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/loaders
+copying build/lib/lhp/core/loaders/job_config_loader.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/loaders
+copying build/lib/lhp/core/loaders/external_file_loader.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/loaders
+copying build/lib/lhp/core/loaders/pipeline_config_loader.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/core/loaders
+creating build/bdist.macosx-11.0-arm64/wheel/lhp/resources
+copying build/lib/lhp/resources/__init__.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/resources
+creating build/bdist.macosx-11.0-arm64/wheel/lhp/resources/skills
+creating build/bdist.macosx-11.0-arm64/wheel/lhp/resources/skills/lhp
+creating build/bdist.macosx-11.0-arm64/wheel/lhp/resources/skills/lhp/references
+copying build/lib/lhp/resources/skills/lhp/references/actions-transform-python.md -> build/bdist.macosx-11.0-arm64/wheel/./lhp/resources/skills/lhp/references
+copying build/lib/lhp/resources/skills/lhp/references/actions-write-sink-eventhubs.md -> build/bdist.macosx-11.0-arm64/wheel/./lhp/resources/skills/lhp/references
+copying build/lib/lhp/resources/skills/lhp/references/actions-transform-sql.md -> build/bdist.macosx-11.0-arm64/wheel/./lhp/resources/skills/lhp/references
+copying build/lib/lhp/resources/skills/lhp/references/actions-write-sink-delta.md -> build/bdist.macosx-11.0-arm64/wheel/./lhp/resources/skills/lhp/references
+copying build/lib/lhp/resources/skills/lhp/references/sandbox.md -> build/bdist.macosx-11.0-arm64/wheel/./lhp/resources/skills/lhp/references
+copying build/lib/lhp/resources/skills/lhp/references/actions-test-completeness.md -> build/bdist.macosx-11.0-arm64/wheel/./lhp/resources/skills/lhp/references
+copying build/lib/lhp/resources/skills/lhp/references/actions-load-python.md -> build/bdist.macosx-11.0-arm64/wheel/./lhp/resources/skills/lhp/references
+copying build/lib/lhp/resources/skills/lhp/references/best-practices.md -> build/bdist.macosx-11.0-arm64/wheel/./lhp/resources/skills/lhp/references
+copying build/lib/lhp/resources/skills/lhp/references/actions-write-streaming-table-snapshot-cdc.md -> build/bdist.macosx-11.0-arm64/wheel/./lhp/resources/skills/lhp/references
+copying build/lib/lhp/resources/skills/lhp/references/actions-write-sink-kafka.md -> build/bdist.macosx-11.0-arm64/wheel/./lhp/resources/skills/lhp/references
+copying build/lib/lhp/resources/skills/lhp/references/actions-test-custom-expectations.md -> build/bdist.macosx-11.0-arm64/wheel/./lhp/resources/skills/lhp/references
+copying build/lib/lhp/resources/skills/lhp/references/actions-load-jdbc.md -> build/bdist.macosx-11.0-arm64/wheel/./lhp/resources/skills/lhp/references
+copying build/lib/lhp/resources/skills/lhp/references/actions-test-uniqueness.md -> build/bdist.macosx-11.0-arm64/wheel/./lhp/resources/skills/lhp/references
+copying build/lib/lhp/resources/skills/lhp/references/actions-transform-schema.md -> build/bdist.macosx-11.0-arm64/wheel/./lhp/resources/skills/lhp/references
+copying build/lib/lhp/resources/skills/lhp/references/actions-write-sink-foreachbatch.md -> build/bdist.macosx-11.0-arm64/wheel/./lhp/resources/skills/lhp/references
+copying build/lib/lhp/resources/skills/lhp/references/quickstart.md -> build/bdist.macosx-11.0-arm64/wheel/./lhp/resources/skills/lhp/references
+copying build/lib/lhp/resources/skills/lhp/references/__init__.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/resources/skills/lhp/references
+copying build/lib/lhp/resources/skills/lhp/references/actions-load-delta.md -> build/bdist.macosx-11.0-arm64/wheel/./lhp/resources/skills/lhp/references
+copying build/lib/lhp/resources/skills/lhp/references/errors.md -> build/bdist.macosx-11.0-arm64/wheel/./lhp/resources/skills/lhp/references
+copying build/lib/lhp/resources/skills/lhp/references/actions-load-cloudfiles.md -> build/bdist.macosx-11.0-arm64/wheel/./lhp/resources/skills/lhp/references
+copying build/lib/lhp/resources/skills/lhp/references/actions-test-schema-match.md -> build/bdist.macosx-11.0-arm64/wheel/./lhp/resources/skills/lhp/references
+copying build/lib/lhp/resources/skills/lhp/references/cdc-patterns.md -> build/bdist.macosx-11.0-arm64/wheel/./lhp/resources/skills/lhp/references
+copying build/lib/lhp/resources/skills/lhp/references/actions-load-kafka.md -> build/bdist.macosx-11.0-arm64/wheel/./lhp/resources/skills/lhp/references
+copying build/lib/lhp/resources/skills/lhp/references/actions-load-custom-datasource.md -> build/bdist.macosx-11.0-arm64/wheel/./lhp/resources/skills/lhp/references
+copying build/lib/lhp/resources/skills/lhp/references/actions-test-all-lookups-found.md -> build/bdist.macosx-11.0-arm64/wheel/./lhp/resources/skills/lhp/references
+copying build/lib/lhp/resources/skills/lhp/references/actions-test-range.md -> build/bdist.macosx-11.0-arm64/wheel/./lhp/resources/skills/lhp/references
+copying build/lib/lhp/resources/skills/lhp/references/actions-write-streaming-table-cdc.md -> build/bdist.macosx-11.0-arm64/wheel/./lhp/resources/skills/lhp/references
+copying build/lib/lhp/resources/skills/lhp/references/actions-test-custom-sql.md -> build/bdist.macosx-11.0-arm64/wheel/./lhp/resources/skills/lhp/references
+copying build/lib/lhp/resources/skills/lhp/references/advanced.md -> build/bdist.macosx-11.0-arm64/wheel/./lhp/resources/skills/lhp/references
+copying build/lib/lhp/resources/skills/lhp/references/actions-test-row-count.md -> build/bdist.macosx-11.0-arm64/wheel/./lhp/resources/skills/lhp/references
+copying build/lib/lhp/resources/skills/lhp/references/actions-transform-data-quality.md -> build/bdist.macosx-11.0-arm64/wheel/./lhp/resources/skills/lhp/references
+copying build/lib/lhp/resources/skills/lhp/references/actions-load-sql.md -> build/bdist.macosx-11.0-arm64/wheel/./lhp/resources/skills/lhp/references
+copying build/lib/lhp/resources/skills/lhp/references/actions-write-sink-custom.md -> build/bdist.macosx-11.0-arm64/wheel/./lhp/resources/skills/lhp/references
+copying build/lib/lhp/resources/skills/lhp/references/templates-presets.md -> build/bdist.macosx-11.0-arm64/wheel/./lhp/resources/skills/lhp/references
+copying build/lib/lhp/resources/skills/lhp/references/actions-write-materialized-view.md -> build/bdist.macosx-11.0-arm64/wheel/./lhp/resources/skills/lhp/references
+copying build/lib/lhp/resources/skills/lhp/references/actions-write-streaming-table-standard.md -> build/bdist.macosx-11.0-arm64/wheel/./lhp/resources/skills/lhp/references
+copying build/lib/lhp/resources/skills/lhp/references/blueprints.md -> build/bdist.macosx-11.0-arm64/wheel/./lhp/resources/skills/lhp/references
+copying build/lib/lhp/resources/skills/lhp/references/actions-test-referential-integrity.md -> build/bdist.macosx-11.0-arm64/wheel/./lhp/resources/skills/lhp/references
+copying build/lib/lhp/resources/skills/lhp/references/project-config.md -> build/bdist.macosx-11.0-arm64/wheel/./lhp/resources/skills/lhp/references
+copying build/lib/lhp/resources/skills/lhp/references/monitoring.md -> build/bdist.macosx-11.0-arm64/wheel/./lhp/resources/skills/lhp/references
+copying build/lib/lhp/resources/skills/lhp/references/actions-transform-temp-table.md -> build/bdist.macosx-11.0-arm64/wheel/./lhp/resources/skills/lhp/references
+copying build/lib/lhp/resources/skills/lhp/__init__.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/resources/skills/lhp
+copying build/lib/lhp/resources/skills/lhp/SKILL.md -> build/bdist.macosx-11.0-arm64/wheel/./lhp/resources/skills/lhp
+copying build/lib/lhp/resources/skills/__init__.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/resources/skills
+creating build/bdist.macosx-11.0-arm64/wheel/lhp/webapp
+creating build/bdist.macosx-11.0-arm64/wheel/lhp/webapp/routers
+copying build/lib/lhp/webapp/routers/configuration.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/routers
+copying build/lib/lhp/webapp/routers/files.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/routers
+copying build/lib/lhp/webapp/routers/assistant_sessions.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/routers
+copying build/lib/lhp/webapp/routers/metadata.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/routers
+copying build/lib/lhp/webapp/routers/assistant_config.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/routers
+copying build/lib/lhp/webapp/routers/presets.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/routers
+copying build/lib/lhp/webapp/routers/health.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/routers
+copying build/lib/lhp/webapp/routers/events.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/routers
+copying build/lib/lhp/webapp/routers/assistant.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/routers
+copying build/lib/lhp/webapp/routers/__init__.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/routers
+copying build/lib/lhp/webapp/routers/blueprints.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/routers
+copying build/lib/lhp/webapp/routers/templates.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/routers
+copying build/lib/lhp/webapp/routers/sandbox.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/routers
+copying build/lib/lhp/webapp/routers/flowgroups.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/routers
+copying build/lib/lhp/webapp/routers/schemas.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/routers
+copying build/lib/lhp/webapp/routers/environments.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/routers
+copying build/lib/lhp/webapp/routers/tables.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/routers
+copying build/lib/lhp/webapp/routers/config_templates.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/routers
+copying build/lib/lhp/webapp/routers/_guards.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/routers
+copying build/lib/lhp/webapp/routers/lineage.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/routers
+copying build/lib/lhp/webapp/routers/streaming.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/routers
+copying build/lib/lhp/webapp/routers/help.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/routers
+copying build/lib/lhp/webapp/routers/runs.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/routers
+copying build/lib/lhp/webapp/routers/pipelines.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/routers
+copying build/lib/lhp/webapp/routers/project.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/routers
+copying build/lib/lhp/webapp/routers/dependencies.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/routers
+creating build/bdist.macosx-11.0-arm64/wheel/lhp/webapp/middleware
+copying build/lib/lhp/webapp/middleware/origin_guard.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/middleware
+copying build/lib/lhp/webapp/middleware/__init__.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/middleware
+copying build/lib/lhp/webapp/middleware/error_handler.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/middleware
+copying build/lib/lhp/webapp/middleware/request_logging.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/middleware
+copying build/lib/lhp/webapp/middleware/token_guard.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/middleware
+copying build/lib/lhp/webapp/static_app.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp
+copying build/lib/lhp/webapp/__init__.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp
+creating build/bdist.macosx-11.0-arm64/wheel/lhp/webapp/schemas
+copying build/lib/lhp/webapp/schemas/configuration.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/schemas
+copying build/lib/lhp/webapp/schemas/metadata.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/schemas
+copying build/lib/lhp/webapp/schemas/blueprint.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/schemas
+copying build/lib/lhp/webapp/schemas/health.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/schemas
+copying build/lib/lhp/webapp/schemas/assistant.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/schemas
+copying build/lib/lhp/webapp/schemas/__init__.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/schemas
+copying build/lib/lhp/webapp/schemas/preset.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/schemas
+copying build/lib/lhp/webapp/schemas/sandbox.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/schemas
+copying build/lib/lhp/webapp/schemas/common.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/schemas
+copying build/lib/lhp/webapp/schemas/pipeline.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/schemas
+copying build/lib/lhp/webapp/schemas/dependency.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/schemas
+copying build/lib/lhp/webapp/schemas/template.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/schemas
+copying build/lib/lhp/webapp/schemas/flowgroup.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/schemas
+copying build/lib/lhp/webapp/schemas/table.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/schemas
+copying build/lib/lhp/webapp/schemas/lineage.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/schemas
+copying build/lib/lhp/webapp/schemas/runs.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/schemas
+copying build/lib/lhp/webapp/schemas/project.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/schemas
+copying build/lib/lhp/webapp/schemas/template_authoring.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/schemas
+creating build/bdist.macosx-11.0-arm64/wheel/lhp/webapp/static
+copying build/lib/lhp/webapp/static/index.html -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/static
+creating build/bdist.macosx-11.0-arm64/wheel/lhp/webapp/static/assets
+copying build/lib/lhp/webapp/static/assets/CreateTemplateDialog-DCJ1LnM_.js -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/static/assets
+copying build/lib/lhp/webapp/static/assets/jetbrains-mono-latin-wght-normal-B9CIFXIH.woff2 -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/static/assets
+copying build/lib/lhp/webapp/static/assets/inter-greek-wght-normal-CkhJZR-_.woff2 -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/static/assets
+copying build/lib/lhp/webapp/static/assets/TemplateBuilder-DJNtIpOP.js -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/static/assets
+copying build/lib/lhp/webapp/static/assets/jetbrains-mono-greek-wght-normal-Bw9x6K1M.woff2 -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/static/assets
+copying build/lib/lhp/webapp/static/assets/inter-cyrillic-ext-wght-normal-BOeWTOD4.woff2 -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/static/assets
+copying build/lib/lhp/webapp/static/assets/ParameterValueInput-D-RUZFDc.js -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/static/assets
+copying build/lib/lhp/webapp/static/assets/MonacoEditorWrapper-CDLecclU.js -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/static/assets
+copying build/lib/lhp/webapp/static/assets/RunHistoryView-Biz_vl_i.js -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/static/assets
+copying build/lib/lhp/webapp/static/assets/GraphView-CxR6gV6a.js -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/static/assets
+copying build/lib/lhp/webapp/static/assets/editor.worker-CdQrwHl8.js -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/static/assets
+copying build/lib/lhp/webapp/static/assets/PipelineDagView-Bfkf7Be-.js -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/static/assets
+copying build/lib/lhp/webapp/static/assets/json.worker-BoL8UZqY.js -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/static/assets
+copying build/lib/lhp/webapp/static/assets/monaco-editor-CciUs1S1.js -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/static/assets
+copying build/lib/lhp/webapp/static/assets/jetbrains-mono-cyrillic-wght-normal-D73BlboJ.woff2 -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/static/assets
+copying build/lib/lhp/webapp/static/assets/CodeView-BUVxNPhW.js -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/static/assets
+copying build/lib/lhp/webapp/static/assets/ConfigFormView-CUGlHO6g.js -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/static/assets
+copying build/lib/lhp/webapp/static/assets/inter-vietnamese-wght-normal-CBcvBZtf.woff2 -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/static/assets
+copying build/lib/lhp/webapp/static/assets/OptionalNumberField-qycTERw4.js -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/static/assets
+copying build/lib/lhp/webapp/static/assets/DiffEditorWrapper-Dg2eWt_0.js -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/static/assets
+copying build/lib/lhp/webapp/static/assets/react-vendor-C1tmfhzI.js -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/static/assets
+copying build/lib/lhp/webapp/static/assets/jetbrains-mono-vietnamese-wght-normal-Bt-aOZkq.woff2 -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/static/assets
+copying build/lib/lhp/webapp/static/assets/designerGraph-DQMFDZjG.js -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/static/assets
+copying build/lib/lhp/webapp/static/assets/index-BCEJatB4.css -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/static/assets
+copying build/lib/lhp/webapp/static/assets/PipelineFilterOptions-CrfwvJ2K.js -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/static/assets
+copying build/lib/lhp/webapp/static/assets/index-CAynrxg4.js -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/static/assets
+copying build/lib/lhp/webapp/static/assets/FieldHelpBody-BBbeYyFn.js -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/static/assets
+copying build/lib/lhp/webapp/static/assets/StringListEditor-Dfsvpswi.js -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/static/assets
+copying build/lib/lhp/webapp/static/assets/template-document-Bj_MgrRC.js -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/static/assets
+copying build/lib/lhp/webapp/static/assets/textarea-Ckp3znPJ.js -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/static/assets
+copying build/lib/lhp/webapp/static/assets/EnumSelect-C6R29IRq.js -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/static/assets
+copying build/lib/lhp/webapp/static/assets/codicon-ngg6Pgfi.ttf -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/static/assets
+copying build/lib/lhp/webapp/static/assets/CreateFlowgroupDialog-Bsuqv6fS.js -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/static/assets
+copying build/lib/lhp/webapp/static/assets/RunStreamView-DPDTPz60.js -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/static/assets
+copying build/lib/lhp/webapp/static/assets/inter-cyrillic-wght-normal-DqGufNeO.woff2 -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/static/assets
+copying build/lib/lhp/webapp/static/assets/DependencyEdge-DhLqRf3M.js -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/static/assets
+copying build/lib/lhp/webapp/static/assets/monaco-editor-WGlpN-0L.css -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/static/assets
+copying build/lib/lhp/webapp/static/assets/useElkLayout-BM7GtByP.js -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/static/assets
+copying build/lib/lhp/webapp/static/assets/react-flow-BSW1QCE0.js -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/static/assets
+copying build/lib/lhp/webapp/static/assets/history-l5rBXDM9.js -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/static/assets
+copying build/lib/lhp/webapp/static/assets/CreateFromTemplateDialog-BO4FlqyX.js -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/static/assets
+copying build/lib/lhp/webapp/static/assets/QuickOpenDialog-DHYMnabo.js -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/static/assets
+copying build/lib/lhp/webapp/static/assets/ProjectMapView-D0PBgjCk.js -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/static/assets
+copying build/lib/lhp/webapp/static/assets/inter-latin-ext-wght-normal-DO1Apj_S.woff2 -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/static/assets
+copying build/lib/lhp/webapp/static/assets/elkjs-JnqVAAjn.js -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/static/assets
+copying build/lib/lhp/webapp/static/assets/DependencyGraph-Cwi3ToGQ.js -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/static/assets
+copying build/lib/lhp/webapp/static/assets/inter-latin-wght-normal-Dx4kXJAl.woff2 -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/static/assets
+copying build/lib/lhp/webapp/static/assets/InitProjectPage-BIzCJlhc.js -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/static/assets
+copying build/lib/lhp/webapp/static/assets/elk-worker.min-CHQ3eE7K.js -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/static/assets
+copying build/lib/lhp/webapp/static/assets/TemplateResources-BJFl_4Fy.js -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/static/assets
+copying build/lib/lhp/webapp/static/assets/useTemplateAuthoring-bc8R1RqU.js -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/static/assets
+copying build/lib/lhp/webapp/static/assets/TemplateUseActions-BbJLIKdo.js -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/static/assets
+copying build/lib/lhp/webapp/static/assets/command-CSIa_woi.js -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/static/assets
+copying build/lib/lhp/webapp/static/assets/monaco-setup-DKMUI19O.js -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/static/assets
+copying build/lib/lhp/webapp/static/assets/TemplateInvocationParams-Sr74PNn4.js -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/static/assets
+copying build/lib/lhp/webapp/static/assets/square-CZweSzcG.js -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/static/assets
+copying build/lib/lhp/webapp/static/assets/AssistantPanel-qNOUwTc-.js -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/static/assets
+copying build/lib/lhp/webapp/static/assets/TemplatePreviewGraph-CH_cLNny.js -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/static/assets
+copying build/lib/lhp/webapp/static/assets/TemplatePreview-C7lO5sfD.js -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/static/assets
+copying build/lib/lhp/webapp/static/assets/yaml.worker-BEq0prsK.js -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/static/assets
+copying build/lib/lhp/webapp/static/assets/template-authoring-B5Ksi5tL.js -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/static/assets
+copying build/lib/lhp/webapp/static/assets/index-uH4eIl_k.js -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/static/assets
+copying build/lib/lhp/webapp/static/assets/inter-greek-ext-wght-normal-DlzME5K_.woff2 -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/static/assets
+copying build/lib/lhp/webapp/static/assets/jetbrains-mono-latin-ext-wght-normal-DBQx-q_a.woff2 -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/static/assets
+copying build/lib/lhp/webapp/static/favicon.svg -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/static
+copying build/lib/lhp/webapp/settings.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp
+copying build/lib/lhp/webapp/app.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp
+creating build/bdist.macosx-11.0-arm64/wheel/lhp/webapp/services
+copying build/lib/lhp/webapp/services/assistant_provision.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/services
+copying build/lib/lhp/webapp/services/claude_sdk_bash_policy.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/services
+copying build/lib/lhp/webapp/services/sqlite_migrations.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/services
+copying build/lib/lhp/webapp/services/__init__.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/services
+copying build/lib/lhp/webapp/services/run_recorder.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/services
+copying build/lib/lhp/webapp/services/sqlite_store.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/services
+copying build/lib/lhp/webapp/services/claude_sdk_auth.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/services
+copying build/lib/lhp/webapp/services/related_files_extractor.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/services
+copying build/lib/lhp/webapp/services/assistant_usage.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/services
+copying build/lib/lhp/webapp/services/event_bus.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/services
+copying build/lib/lhp/webapp/services/claude_sdk_translate.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/services
+copying build/lib/lhp/webapp/services/assistant_store.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/services
+copying build/lib/lhp/webapp/services/claude_sdk_sessions.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/services
+copying build/lib/lhp/webapp/services/omnigent_client.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/services
+copying build/lib/lhp/webapp/services/assistant_chat.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/services
+copying build/lib/lhp/webapp/services/file_io.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/services
+copying build/lib/lhp/webapp/services/stream_adapter.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/services
+copying build/lib/lhp/webapp/services/claude_sdk_policy.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/services
+copying build/lib/lhp/webapp/services/claude_sdk_bridge.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/services
+copying build/lib/lhp/webapp/services/dataset_index.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/services
+copying build/lib/lhp/webapp/services/file_watcher.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/services
+copying build/lib/lhp/webapp/services/graph_serializer.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/services
+copying build/lib/lhp/webapp/services/claude_sdk_chat.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/services
+copying build/lib/lhp/webapp/services/omnigent_lifecycle.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/services
+copying build/lib/lhp/webapp/services/run_history.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp/services
+copying build/lib/lhp/webapp/dependencies.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/webapp
+copying build/lib/lhp/__init__.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp
+creating build/bdist.macosx-11.0-arm64/wheel/lhp/bundle
+copying build/lib/lhp/bundle/detection.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/bundle
+copying build/lib/lhp/bundle/__init__.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/bundle
+copying build/lib/lhp/bundle/exceptions.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/bundle
+copying build/lib/lhp/bundle/manager.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/bundle
+copying build/lib/lhp/bundle/preflight.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/bundle
+creating build/bdist.macosx-11.0-arm64/wheel/lhp/utils
+copying build/lib/lhp/utils/version.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/utils
+copying build/lib/lhp/utils/yaml_filters.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/utils
+copying build/lib/lhp/utils/python_spans.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/utils
+copying build/lib/lhp/utils/__init__.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/utils
+copying build/lib/lhp/utils/performance_timer.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/utils
+copying build/lib/lhp/utils/file_pattern_matcher.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/utils
+copying build/lib/lhp/utils/file_header.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/utils
+creating build/bdist.macosx-11.0-arm64/wheel/lhp/models
+copying build/lib/lhp/models/_blueprint.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/models
+copying build/lib/lhp/models/_uc_tagging.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/models
+copying build/lib/lhp/models/_monitoring.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/models
+copying build/lib/lhp/models/_operational_metadata.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/models
+copying build/lib/lhp/models/__init__.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/models
+copying build/lib/lhp/models/_enums.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/models
+copying build/lib/lhp/models/_test_reporting.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/models
+copying build/lib/lhp/models/_action.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/models
+copying build/lib/lhp/models/deprecations.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/models
+copying build/lib/lhp/models/_template.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/models
+copying build/lib/lhp/models/_sandbox.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/models
+copying build/lib/lhp/models/processing.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/models
+copying build/lib/lhp/models/_quarantine.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/models
+copying build/lib/lhp/models/_project.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/models
+copying build/lib/lhp/models/_flowgroup.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/models
+copying build/lib/lhp/models/dependencies.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/models
+creating build/bdist.macosx-11.0-arm64/wheel/lhp/cli
+copying build/lib/lhp/cli/console.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/cli
+copying build/lib/lhp/cli/logging_config.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/cli
+copying build/lib/lhp/cli/_version.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/cli
+copying build/lib/lhp/cli/exit_codes.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/cli
+copying build/lib/lhp/cli/__init__.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/cli
+copying build/lib/lhp/cli/error_panel.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/cli
+creating build/bdist.macosx-11.0-arm64/wheel/lhp/cli/presenters
+copying build/lib/lhp/cli/presenters/dag_files_presenter.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/cli/presenters
+copying build/lib/lhp/cli/presenters/list_presenter.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/cli/presenters
+copying build/lib/lhp/cli/presenters/init_presenter.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/cli/presenters
+creating build/bdist.macosx-11.0-arm64/wheel/lhp/cli/presenters/event_stream
+copying build/lib/lhp/cli/presenters/event_stream/live_renderer.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/cli/presenters/event_stream
+copying build/lib/lhp/cli/presenters/event_stream/log_renderer.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/cli/presenters/event_stream
+copying build/lib/lhp/cli/presenters/event_stream/_event_dispatch.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/cli/presenters/event_stream
+copying build/lib/lhp/cli/presenters/event_stream/_status_line.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/cli/presenters/event_stream
+copying build/lib/lhp/cli/presenters/event_stream/__init__.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/cli/presenters/event_stream
+copying build/lib/lhp/cli/presenters/event_stream/_outcome.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/cli/presenters/event_stream
+copying build/lib/lhp/cli/presenters/event_stream/renderer_factory.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/cli/presenters/event_stream
+copying build/lib/lhp/cli/presenters/event_stream/_model.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/cli/presenters/event_stream
+copying build/lib/lhp/cli/presenters/event_stream/_flavor_words.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/cli/presenters/event_stream
+copying build/lib/lhp/cli/presenters/event_stream/_live_renderable.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/cli/presenters/event_stream
+copying build/lib/lhp/cli/presenters/_style.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/cli/presenters
+copying build/lib/lhp/cli/presenters/__init__.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/cli/presenters
+copying build/lib/lhp/cli/presenters/skill_presenter.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/cli/presenters
+copying build/lib/lhp/cli/presenters/diff_presenter.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/cli/presenters
+copying build/lib/lhp/cli/presenters/substitutions_presenter.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/cli/presenters
+copying build/lib/lhp/cli/presenters/_layout.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/cli/presenters
+copying build/lib/lhp/cli/presenters/summary_presenter.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/cli/presenters
+copying build/lib/lhp/cli/presenters/wheel_presenter.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/cli/presenters
+copying build/lib/lhp/cli/presenters/dag_presenter.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/cli/presenters
+copying build/lib/lhp/cli/error_boundary.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/cli
+creating build/bdist.macosx-11.0-arm64/wheel/lhp/cli/commands
+copying build/lib/lhp/cli/commands/list_command.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/cli/commands
+copying build/lib/lhp/cli/commands/web_command.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/cli/commands
+copying build/lib/lhp/cli/commands/skill_command.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/cli/commands
+copying build/lib/lhp/cli/commands/__init__.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/cli/commands
+copying build/lib/lhp/cli/commands/diff_command.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/cli/commands
+copying build/lib/lhp/cli/commands/_web_launch.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/cli/commands
+copying build/lib/lhp/cli/commands/validate_command.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/cli/commands
+copying build/lib/lhp/cli/commands/generate_command.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/cli/commands
+copying build/lib/lhp/cli/commands/inspect_wheel_command.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/cli/commands
+copying build/lib/lhp/cli/commands/substitutions_command.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/cli/commands
+copying build/lib/lhp/cli/commands/init_command.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/cli/commands
+copying build/lib/lhp/cli/commands/dag_command.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/cli/commands
+copying build/lib/lhp/cli/commands/_dag_options.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/cli/commands
+copying build/lib/lhp/cli/main.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/cli
+copying build/lib/lhp/cli/_app_context.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/cli
+copying build/lib/lhp/cli/_lazy_group.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/cli
+creating build/bdist.macosx-11.0-arm64/wheel/lhp/schemas
+copying build/lib/lhp/schemas/template.schema.json -> build/bdist.macosx-11.0-arm64/wheel/./lhp/schemas
+copying build/lib/lhp/schemas/pipeline_config.schema.json -> build/bdist.macosx-11.0-arm64/wheel/./lhp/schemas
+copying build/lib/lhp/schemas/job_config.schema.json -> build/bdist.macosx-11.0-arm64/wheel/./lhp/schemas
+copying build/lib/lhp/schemas/preset.schema.json -> build/bdist.macosx-11.0-arm64/wheel/./lhp/schemas
+copying build/lib/lhp/schemas/blueprint.schema.json -> build/bdist.macosx-11.0-arm64/wheel/./lhp/schemas
+copying build/lib/lhp/schemas/flowgroup.schema.json -> build/bdist.macosx-11.0-arm64/wheel/./lhp/schemas
+copying build/lib/lhp/schemas/README.md -> build/bdist.macosx-11.0-arm64/wheel/./lhp/schemas
+copying build/lib/lhp/schemas/instance.schema.json -> build/bdist.macosx-11.0-arm64/wheel/./lhp/schemas
+copying build/lib/lhp/schemas/schema.schema.json -> build/bdist.macosx-11.0-arm64/wheel/./lhp/schemas
+copying build/lib/lhp/schemas/substitution.schema.json -> build/bdist.macosx-11.0-arm64/wheel/./lhp/schemas
+copying build/lib/lhp/schemas/project.schema.json -> build/bdist.macosx-11.0-arm64/wheel/./lhp/schemas
+creating build/bdist.macosx-11.0-arm64/wheel/lhp/schemas/help
+copying build/lib/lhp/schemas/help/template.json -> build/bdist.macosx-11.0-arm64/wheel/./lhp/schemas/help
+copying build/lib/lhp/schemas/help/project.json -> build/bdist.macosx-11.0-arm64/wheel/./lhp/schemas/help
+copying build/lib/lhp/schemas/help/flowgroup.json -> build/bdist.macosx-11.0-arm64/wheel/./lhp/schemas/help
+copying build/lib/lhp/schemas/help/pipeline_config.json -> build/bdist.macosx-11.0-arm64/wheel/./lhp/schemas/help
+copying build/lib/lhp/schemas/help/source-review.json -> build/bdist.macosx-11.0-arm64/wheel/./lhp/schemas/help
+copying build/lib/lhp/schemas/help/job_config.json -> build/bdist.macosx-11.0-arm64/wheel/./lhp/schemas/help
+copying build/lib/lhp/py.typed -> build/bdist.macosx-11.0-arm64/wheel/./lhp
+creating build/bdist.macosx-11.0-arm64/wheel/lhp/api
+copying build/lib/lhp/api/_dataset_index.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/api
+copying build/lib/lhp/api/bootstrap.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/api
+copying build/lib/lhp/api/_inspection_facade.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/api
+copying build/lib/lhp/api/facade.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/api
+copying build/lib/lhp/api/_generate_stream.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/api
+copying build/lib/lhp/api/_validation_converters.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/api
+copying build/lib/lhp/api/configuration.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/api
+copying build/lib/lhp/api/_claude_routing.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/api
+copying build/lib/lhp/api/_listings.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/api
+copying build/lib/lhp/api/_plan_stream.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/api
+copying build/lib/lhp/api/responses.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/api
+copying build/lib/lhp/api/_stream_guard.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/api
+copying build/lib/lhp/api/_serialization.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/api
+copying build/lib/lhp/api/_template_preview_worker.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/api
+copying build/lib/lhp/api/_sandbox_run.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/api
+copying build/lib/lhp/api/_operational_metadata_converter.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/api
+copying build/lib/lhp/api/events.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/api
+copying build/lib/lhp/api/_sandbox_view.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/api
+copying build/lib/lhp/api/_skill_assets.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/api
+copying build/lib/lhp/api/__init__.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/api
+copying build/lib/lhp/api/_generation_facade.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/api
+copying build/lib/lhp/api/_dependency_facade.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/api
+copying build/lib/lhp/api/_dependency_graph_converters.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/api
+copying build/lib/lhp/api/_sandbox_facade.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/api
+copying build/lib/lhp/api/_validation_facade.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/api
+copying build/lib/lhp/api/templates.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/api
+copying build/lib/lhp/api/_generation_converters.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/api
+copying build/lib/lhp/api/_wheel_facade.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/api
+copying build/lib/lhp/api/_inspection_converters.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/api
+copying build/lib/lhp/api/_preflight.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/api
+copying build/lib/lhp/api/_bundle_facade.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/api
+copying build/lib/lhp/api/_converters_common.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/api
+copying build/lib/lhp/api/_progress.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/api
+copying build/lib/lhp/api/views.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/api
+copying build/lib/lhp/api/_skill_facade.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/api
+creating build/bdist.macosx-11.0-arm64/wheel/lhp/templates
+creating build/bdist.macosx-11.0-arm64/wheel/lhp/templates/write
+copying build/lib/lhp/templates/write/materialized_view.py.j2 -> build/bdist.macosx-11.0-arm64/wheel/./lhp/templates/write
+creating build/bdist.macosx-11.0-arm64/wheel/lhp/templates/write/sinks
+copying build/lib/lhp/templates/write/sinks/custom_sink.py.j2 -> build/bdist.macosx-11.0-arm64/wheel/./lhp/templates/write/sinks
+copying build/lib/lhp/templates/write/sinks/kafka_sink.py.j2 -> build/bdist.macosx-11.0-arm64/wheel/./lhp/templates/write/sinks
+copying build/lib/lhp/templates/write/sinks/delta_sink.py.j2 -> build/bdist.macosx-11.0-arm64/wheel/./lhp/templates/write/sinks
+copying build/lib/lhp/templates/write/sinks/foreachbatch_sink.py.j2 -> build/bdist.macosx-11.0-arm64/wheel/./lhp/templates/write/sinks
+copying build/lib/lhp/templates/write/streaming_table.py.j2 -> build/bdist.macosx-11.0-arm64/wheel/./lhp/templates/write
+creating build/bdist.macosx-11.0-arm64/wheel/lhp/templates/packaging
+copying build/lib/lhp/templates/packaging/runner.py.j2 -> build/bdist.macosx-11.0-arm64/wheel/./lhp/templates/packaging
+creating build/bdist.macosx-11.0-arm64/wheel/lhp/templates/init
+creating build/bdist.macosx-11.0-arm64/wheel/lhp/templates/init/blueprints
+copying build/lib/lhp/templates/init/blueprints/BP001_example_system_bronze.yaml.tmpl -> build/bdist.macosx-11.0-arm64/wheel/./lhp/templates/init/blueprints
+creating build/bdist.macosx-11.0-arm64/wheel/lhp/templates/init/config
+copying build/lib/lhp/templates/init/config/monitoring_job_config_env.yaml.tmpl -> build/bdist.macosx-11.0-arm64/wheel/./lhp/templates/init/config
+copying build/lib/lhp/templates/init/config/pipeline_config_env.yaml.tmpl -> build/bdist.macosx-11.0-arm64/wheel/./lhp/templates/init/config
+copying build/lib/lhp/templates/init/config/job_config_env.yaml.tmpl -> build/bdist.macosx-11.0-arm64/wheel/./lhp/templates/init/config
+creating build/bdist.macosx-11.0-arm64/wheel/lhp/templates/init/expectations
+copying build/lib/lhp/templates/init/expectations/customer_quality.json.tmpl -> build/bdist.macosx-11.0-arm64/wheel/./lhp/templates/init/expectations
+creating build/bdist.macosx-11.0-arm64/wheel/lhp/templates/init/bundle
+creating build/bdist.macosx-11.0-arm64/wheel/lhp/templates/init/bundle/resources
+copying build/lib/lhp/templates/init/bundle/resources/.gitkeep -> build/bdist.macosx-11.0-arm64/wheel/./lhp/templates/init/bundle/resources
+copying build/lib/lhp/templates/init/bundle/databricks.yml.j2 -> build/bdist.macosx-11.0-arm64/wheel/./lhp/templates/init/bundle
+creating build/bdist.macosx-11.0-arm64/wheel/lhp/templates/init/pipelines
+creating build/bdist.macosx-11.0-arm64/wheel/lhp/templates/init/pipelines/example_system
+creating build/bdist.macosx-11.0-arm64/wheel/lhp/templates/init/pipelines/example_system/bronze
+copying build/lib/lhp/templates/init/pipelines/example_system/bronze/example_system_bronze_acme_BP001.yaml.tmpl -> build/bdist.macosx-11.0-arm64/wheel/./lhp/templates/init/pipelines/example_system/bronze
+creating build/bdist.macosx-11.0-arm64/wheel/lhp/templates/init/pipelines/02_bronze
+copying build/lib/lhp/templates/init/pipelines/02_bronze/customer_bronze.yaml.tmpl -> build/bdist.macosx-11.0-arm64/wheel/./lhp/templates/init/pipelines/02_bronze
+copying build/lib/lhp/templates/init/pipelines/02_bronze/orders_bronze.yaml.tmpl -> build/bdist.macosx-11.0-arm64/wheel/./lhp/templates/init/pipelines/02_bronze
+creating build/bdist.macosx-11.0-arm64/wheel/lhp/templates/init/pipelines/03_silver
+creating build/bdist.macosx-11.0-arm64/wheel/lhp/templates/init/pipelines/03_silver/dim
+copying build/lib/lhp/templates/init/pipelines/03_silver/dim/customer_silver_dim.yaml.tmpl -> build/bdist.macosx-11.0-arm64/wheel/./lhp/templates/init/pipelines/03_silver/dim
+creating build/bdist.macosx-11.0-arm64/wheel/lhp/templates/init/pipelines/03_silver/fct
+copying build/lib/lhp/templates/init/pipelines/03_silver/fct/orders_silver_fct.yaml.tmpl -> build/bdist.macosx-11.0-arm64/wheel/./lhp/templates/init/pipelines/03_silver/fct
+creating build/bdist.macosx-11.0-arm64/wheel/lhp/templates/init/pipelines/01_raw_ingestion
+creating build/bdist.macosx-11.0-arm64/wheel/lhp/templates/init/pipelines/01_raw_ingestion/csv_ingestions
+copying build/lib/lhp/templates/init/pipelines/01_raw_ingestion/csv_ingestions/orders_ingestion.yaml.tmpl -> build/bdist.macosx-11.0-arm64/wheel/./lhp/templates/init/pipelines/01_raw_ingestion/csv_ingestions
+copying build/lib/lhp/templates/init/pipelines/01_raw_ingestion/csv_ingestions/customer_ingestion.yaml.tmpl -> build/bdist.macosx-11.0-arm64/wheel/./lhp/templates/init/pipelines/01_raw_ingestion/csv_ingestions
+creating build/bdist.macosx-11.0-arm64/wheel/lhp/templates/init/schemas
+copying build/lib/lhp/templates/init/schemas/orders_schema.yaml.tmpl -> build/bdist.macosx-11.0-arm64/wheel/./lhp/templates/init/schemas
+copying build/lib/lhp/templates/init/schemas/customer_schema.yaml.tmpl -> build/bdist.macosx-11.0-arm64/wheel/./lhp/templates/init/schemas
+copying build/lib/lhp/templates/init/schemas/customer_schema.ddl.tmpl -> build/bdist.macosx-11.0-arm64/wheel/./lhp/templates/init/schemas
+copying build/lib/lhp/templates/init/lhp.yaml.j2 -> build/bdist.macosx-11.0-arm64/wheel/./lhp/templates/init
+copying build/lib/lhp/templates/init/.gitignore.j2 -> build/bdist.macosx-11.0-arm64/wheel/./lhp/templates/init
+creating build/bdist.macosx-11.0-arm64/wheel/lhp/templates/init/schema_transforms
+copying build/lib/lhp/templates/init/schema_transforms/orders_africa_bronze_schema.yaml.tmpl -> build/bdist.macosx-11.0-arm64/wheel/./lhp/templates/init/schema_transforms
+copying build/lib/lhp/templates/init/schema_transforms/lineitem_bronze_schema.yaml.tmpl -> build/bdist.macosx-11.0-arm64/wheel/./lhp/templates/init/schema_transforms
+creating build/bdist.macosx-11.0-arm64/wheel/lhp/templates/init/templates
+copying build/lib/lhp/templates/init/templates/standard_ingestion.yaml.tmpl -> build/bdist.macosx-11.0-arm64/wheel/./lhp/templates/init/templates
+creating build/bdist.macosx-11.0-arm64/wheel/lhp/templates/init/substitutions
+copying build/lib/lhp/templates/init/substitutions/tst.yaml.tmpl -> build/bdist.macosx-11.0-arm64/wheel/./lhp/templates/init/substitutions
+copying build/lib/lhp/templates/init/substitutions/dev.yaml.tmpl -> build/bdist.macosx-11.0-arm64/wheel/./lhp/templates/init/substitutions
+copying build/lib/lhp/templates/init/substitutions/prod.yaml.tmpl -> build/bdist.macosx-11.0-arm64/wheel/./lhp/templates/init/substitutions
+creating build/bdist.macosx-11.0-arm64/wheel/lhp/templates/init/presets
+copying build/lib/lhp/templates/init/presets/bronze_layer.yaml.tmpl -> build/bdist.macosx-11.0-arm64/wheel/./lhp/templates/init/presets
+copying build/lib/lhp/templates/init/README.md.j2 -> build/bdist.macosx-11.0-arm64/wheel/./lhp/templates/init
+creating build/bdist.macosx-11.0-arm64/wheel/lhp/templates/init/sql
+copying build/lib/lhp/templates/init/sql/orders_europe_bronze_cleanse.sql.tmpl -> build/bdist.macosx-11.0-arm64/wheel/./lhp/templates/init/sql
+creating build/bdist.macosx-11.0-arm64/wheel/lhp/templates/test
+copying build/lib/lhp/templates/test/custom_expectations.py.j2 -> build/bdist.macosx-11.0-arm64/wheel/./lhp/templates/test
+copying build/lib/lhp/templates/test/all_lookups_found.py.j2 -> build/bdist.macosx-11.0-arm64/wheel/./lhp/templates/test
+copying build/lib/lhp/templates/test/uniqueness.py.j2 -> build/bdist.macosx-11.0-arm64/wheel/./lhp/templates/test
+copying build/lib/lhp/templates/test/completeness.py.j2 -> build/bdist.macosx-11.0-arm64/wheel/./lhp/templates/test
+copying build/lib/lhp/templates/test/row_count.py.j2 -> build/bdist.macosx-11.0-arm64/wheel/./lhp/templates/test
+copying build/lib/lhp/templates/test/schema_match.py.j2 -> build/bdist.macosx-11.0-arm64/wheel/./lhp/templates/test
+copying build/lib/lhp/templates/test/custom_sql.py.j2 -> build/bdist.macosx-11.0-arm64/wheel/./lhp/templates/test
+copying build/lib/lhp/templates/test/range.py.j2 -> build/bdist.macosx-11.0-arm64/wheel/./lhp/templates/test
+copying build/lib/lhp/templates/test/referential_integrity.py.j2 -> build/bdist.macosx-11.0-arm64/wheel/./lhp/templates/test
+copying build/lib/lhp/templates/base.py.j2 -> build/bdist.macosx-11.0-arm64/wheel/./lhp/templates
+creating build/bdist.macosx-11.0-arm64/wheel/lhp/templates/bundle
+copying build/lib/lhp/templates/bundle/master_job_resource.yml.j2 -> build/bdist.macosx-11.0-arm64/wheel/./lhp/templates/bundle
+copying build/lib/lhp/templates/bundle/wheels_bundle.yml.j2 -> build/bdist.macosx-11.0-arm64/wheel/./lhp/templates/bundle
+copying build/lib/lhp/templates/bundle/job_resource.yml.j2 -> build/bdist.macosx-11.0-arm64/wheel/./lhp/templates/bundle
+copying build/lib/lhp/templates/bundle/pipeline_resource.yml.j2 -> build/bdist.macosx-11.0-arm64/wheel/./lhp/templates/bundle
+copying build/lib/lhp/templates/bundle/monitoring_job_resource.yml.j2 -> build/bdist.macosx-11.0-arm64/wheel/./lhp/templates/bundle
+creating build/bdist.macosx-11.0-arm64/wheel/lhp/templates/load
+copying build/lib/lhp/templates/load/sql.py.j2 -> build/bdist.macosx-11.0-arm64/wheel/./lhp/templates/load
+copying build/lib/lhp/templates/load/cloudfiles.py.j2 -> build/bdist.macosx-11.0-arm64/wheel/./lhp/templates/load
+copying build/lib/lhp/templates/load/custom_datasource.py.j2 -> build/bdist.macosx-11.0-arm64/wheel/./lhp/templates/load
+copying build/lib/lhp/templates/load/delta.py.j2 -> build/bdist.macosx-11.0-arm64/wheel/./lhp/templates/load
+copying build/lib/lhp/templates/load/struct_type.py.j2 -> build/bdist.macosx-11.0-arm64/wheel/./lhp/templates/load
+copying build/lib/lhp/templates/load/python.py.j2 -> build/bdist.macosx-11.0-arm64/wheel/./lhp/templates/load
+copying build/lib/lhp/templates/load/kafka.py.j2 -> build/bdist.macosx-11.0-arm64/wheel/./lhp/templates/load
+copying build/lib/lhp/templates/load/jdbc.py.j2 -> build/bdist.macosx-11.0-arm64/wheel/./lhp/templates/load
+creating build/bdist.macosx-11.0-arm64/wheel/lhp/templates/test_reporting
+copying build/lib/lhp/templates/test_reporting/hook.py.j2 -> build/bdist.macosx-11.0-arm64/wheel/./lhp/templates/test_reporting
+creating build/bdist.macosx-11.0-arm64/wheel/lhp/templates/sandbox
+copying build/lib/lhp/templates/sandbox/runtime_shim.py.j2 -> build/bdist.macosx-11.0-arm64/wheel/./lhp/templates/sandbox
+creating build/bdist.macosx-11.0-arm64/wheel/lhp/templates/init_sample
+creating build/bdist.macosx-11.0-arm64/wheel/lhp/templates/init_sample/examples_optional
+copying build/lib/lhp/templates/init_sample/examples_optional/jdbc_with_secret.yaml.txt -> build/bdist.macosx-11.0-arm64/wheel/./lhp/templates/init_sample/examples_optional
+creating build/bdist.macosx-11.0-arm64/wheel/lhp/templates/init_sample/config
+copying build/lib/lhp/templates/init_sample/config/pipeline_config.yaml -> build/bdist.macosx-11.0-arm64/wheel/./lhp/templates/init_sample/config
+copying build/lib/lhp/templates/init_sample/config/monitoring_job_config.yaml -> build/bdist.macosx-11.0-arm64/wheel/./lhp/templates/init_sample/config
+copying build/lib/lhp/templates/init_sample/config/job_config_env.yaml -> build/bdist.macosx-11.0-arm64/wheel/./lhp/templates/init_sample/config
+creating build/bdist.macosx-11.0-arm64/wheel/lhp/templates/init_sample/expectations
+copying build/lib/lhp/templates/init_sample/expectations/orders.yaml -> build/bdist.macosx-11.0-arm64/wheel/./lhp/templates/init_sample/expectations
+creating build/bdist.macosx-11.0-arm64/wheel/lhp/templates/init_sample/bundle
+creating build/bdist.macosx-11.0-arm64/wheel/lhp/templates/init_sample/bundle/resources
+copying build/lib/lhp/templates/init_sample/bundle/resources/sample_job.yml -> build/bdist.macosx-11.0-arm64/wheel/./lhp/templates/init_sample/bundle/resources
+copying build/lib/lhp/templates/init_sample/bundle/databricks.yml.j2 -> build/bdist.macosx-11.0-arm64/wheel/./lhp/templates/init_sample/bundle
+creating build/bdist.macosx-11.0-arm64/wheel/lhp/templates/init_sample/pipelines
+creating build/bdist.macosx-11.0-arm64/wheel/lhp/templates/init_sample/pipelines/02_silver
+copying build/lib/lhp/templates/init_sample/pipelines/02_silver/orders_clean.yaml -> build/bdist.macosx-11.0-arm64/wheel/./lhp/templates/init_sample/pipelines/02_silver
+copying build/lib/lhp/templates/init_sample/pipelines/02_silver/dim_supplier.yaml -> build/bdist.macosx-11.0-arm64/wheel/./lhp/templates/init_sample/pipelines/02_silver
+copying build/lib/lhp/templates/init_sample/pipelines/02_silver/dim_customer.yaml -> build/bdist.macosx-11.0-arm64/wheel/./lhp/templates/init_sample/pipelines/02_silver
+creating build/bdist.macosx-11.0-arm64/wheel/lhp/templates/init_sample/pipelines/03_gold
+copying build/lib/lhp/templates/init_sample/pipelines/03_gold/sales_by_nation.yaml -> build/bdist.macosx-11.0-arm64/wheel/./lhp/templates/init_sample/pipelines/03_gold
+creating build/bdist.macosx-11.0-arm64/wheel/lhp/templates/init_sample/pipelines/01_ingest
+copying build/lib/lhp/templates/init_sample/pipelines/01_ingest/orders_ingest.yaml -> build/bdist.macosx-11.0-arm64/wheel/./lhp/templates/init_sample/pipelines/01_ingest
+copying build/lib/lhp/templates/init_sample/pipelines/01_ingest/nation_region.yaml -> build/bdist.macosx-11.0-arm64/wheel/./lhp/templates/init_sample/pipelines/01_ingest
+copying build/lib/lhp/templates/init_sample/pipelines/01_ingest/lineitem_ingest.yaml -> build/bdist.macosx-11.0-arm64/wheel/./lhp/templates/init_sample/pipelines/01_ingest
+creating build/bdist.macosx-11.0-arm64/wheel/lhp/templates/init_sample/schemas
+copying build/lib/lhp/templates/init_sample/schemas/orders_hints.yaml -> build/bdist.macosx-11.0-arm64/wheel/./lhp/templates/init_sample/schemas
+creating build/bdist.macosx-11.0-arm64/wheel/lhp/templates/init_sample/transforms
+copying build/lib/lhp/templates/init_sample/transforms/normalize_tz.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/templates/init_sample/transforms
+copying build/lib/lhp/templates/init_sample/lhp.yaml.j2 -> build/bdist.macosx-11.0-arm64/wheel/./lhp/templates/init_sample
+copying build/lib/lhp/templates/init_sample/.gitignore.j2 -> build/bdist.macosx-11.0-arm64/wheel/./lhp/templates/init_sample
+creating build/bdist.macosx-11.0-arm64/wheel/lhp/templates/init_sample/schema_transforms
+copying build/lib/lhp/templates/init_sample/schema_transforms/orders_typed.yaml -> build/bdist.macosx-11.0-arm64/wheel/./lhp/templates/init_sample/schema_transforms
+creating build/bdist.macosx-11.0-arm64/wheel/lhp/templates/init_sample/functions
+copying build/lib/lhp/templates/init_sample/functions/supplier_snapshot.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/templates/init_sample/functions
+creating build/bdist.macosx-11.0-arm64/wheel/lhp/templates/init_sample/templates
+copying build/lib/lhp/templates/init_sample/templates/cloudfiles_ingest.yaml -> build/bdist.macosx-11.0-arm64/wheel/./lhp/templates/init_sample/templates
+creating build/bdist.macosx-11.0-arm64/wheel/lhp/templates/init_sample/substitutions
+copying build/lib/lhp/templates/init_sample/substitutions/dev.yaml -> build/bdist.macosx-11.0-arm64/wheel/./lhp/templates/init_sample/substitutions
+copying build/lib/lhp/templates/init_sample/substitutions/prod.yaml -> build/bdist.macosx-11.0-arm64/wheel/./lhp/templates/init_sample/substitutions
+creating build/bdist.macosx-11.0-arm64/wheel/lhp/templates/init_sample/presets
+copying build/lib/lhp/templates/init_sample/presets/bronze_layer.yaml -> build/bdist.macosx-11.0-arm64/wheel/./lhp/templates/init_sample/presets
+copying build/lib/lhp/templates/init_sample/presets/silver_quality.yaml -> build/bdist.macosx-11.0-arm64/wheel/./lhp/templates/init_sample/presets
+creating build/bdist.macosx-11.0-arm64/wheel/lhp/templates/init_sample/notebooks
+copying build/lib/lhp/templates/init_sample/notebooks/data_prep.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/templates/init_sample/notebooks
+copying build/lib/lhp/templates/init_sample/README.md.j2 -> build/bdist.macosx-11.0-arm64/wheel/./lhp/templates/init_sample
+creating build/bdist.macosx-11.0-arm64/wheel/lhp/templates/init_sample/sql
+copying build/lib/lhp/templates/init_sample/sql/sales_by_nation.sql -> build/bdist.macosx-11.0-arm64/wheel/./lhp/templates/init_sample/sql
+creating build/bdist.macosx-11.0-arm64/wheel/lhp/templates/uc_tagging
+copying build/lib/lhp/templates/uc_tagging/hook.py.j2 -> build/bdist.macosx-11.0-arm64/wheel/./lhp/templates/uc_tagging
+creating build/bdist.macosx-11.0-arm64/wheel/lhp/templates/monitoring
+copying build/lib/lhp/templates/monitoring/jobs_stats_loader.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/templates/monitoring
+copying build/lib/lhp/templates/monitoring/union_event_logs.py.j2 -> build/bdist.macosx-11.0-arm64/wheel/./lhp/templates/monitoring
+creating build/bdist.macosx-11.0-arm64/wheel/lhp/templates/transform
+copying build/lib/lhp/templates/transform/data_quality_quarantine.py.j2 -> build/bdist.macosx-11.0-arm64/wheel/./lhp/templates/transform
+copying build/lib/lhp/templates/transform/temp_table.py.j2 -> build/bdist.macosx-11.0-arm64/wheel/./lhp/templates/transform
+copying build/lib/lhp/templates/transform/schema.py.j2 -> build/bdist.macosx-11.0-arm64/wheel/./lhp/templates/transform
+copying build/lib/lhp/templates/transform/sql.py.j2 -> build/bdist.macosx-11.0-arm64/wheel/./lhp/templates/transform
+copying build/lib/lhp/templates/transform/python.py.j2 -> build/bdist.macosx-11.0-arm64/wheel/./lhp/templates/transform
+copying build/lib/lhp/templates/transform/data_quality.py.j2 -> build/bdist.macosx-11.0-arm64/wheel/./lhp/templates/transform
+creating build/bdist.macosx-11.0-arm64/wheel/lhp/generators
+copying build/lib/lhp/generators/registration.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/generators
+creating build/bdist.macosx-11.0-arm64/wheel/lhp/generators/write
+copying build/lib/lhp/generators/write/streaming_table.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/generators/write
+copying build/lib/lhp/generators/write/materialized_view.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/generators/write
+copying build/lib/lhp/generators/write/sink.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/generators/write
+creating build/bdist.macosx-11.0-arm64/wheel/lhp/generators/write/sinks
+copying build/lib/lhp/generators/write/sinks/custom_sink.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/generators/write/sinks
+copying build/lib/lhp/generators/write/sinks/foreachbatch_sink.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/generators/write/sinks
+copying build/lib/lhp/generators/write/sinks/base_sink.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/generators/write/sinks
+copying build/lib/lhp/generators/write/sinks/__init__.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/generators/write/sinks
+copying build/lib/lhp/generators/write/sinks/kafka_sink.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/generators/write/sinks
+copying build/lib/lhp/generators/write/sinks/delta_sink.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/generators/write/sinks
+copying build/lib/lhp/generators/write/__init__.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/generators/write
+copying build/lib/lhp/generators/write/_schema_tags_warning.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/generators/write
+copying build/lib/lhp/generators/write/snapshot_cdc_source_function.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/generators/write
+creating build/bdist.macosx-11.0-arm64/wheel/lhp/generators/test
+copying build/lib/lhp/generators/test/_base.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/generators/test
+copying build/lib/lhp/generators/test/custom_sql.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/generators/test
+copying build/lib/lhp/generators/test/referential_integrity.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/generators/test
+copying build/lib/lhp/generators/test/schema_match.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/generators/test
+copying build/lib/lhp/generators/test/range.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/generators/test
+copying build/lib/lhp/generators/test/custom_expectations.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/generators/test
+copying build/lib/lhp/generators/test/__init__.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/generators/test
+copying build/lib/lhp/generators/test/uniqueness.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/generators/test
+copying build/lib/lhp/generators/test/all_lookups_found.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/generators/test
+copying build/lib/lhp/generators/test/completeness.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/generators/test
+copying build/lib/lhp/generators/test/row_count.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/generators/test
+copying build/lib/lhp/generators/__init__.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/generators
+creating build/bdist.macosx-11.0-arm64/wheel/lhp/generators/load
+copying build/lib/lhp/generators/load/__init__.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/generators/load
+copying build/lib/lhp/generators/load/jdbc.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/generators/load
+copying build/lib/lhp/generators/load/cloudfiles.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/generators/load
+copying build/lib/lhp/generators/load/kafka.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/generators/load
+copying build/lib/lhp/generators/load/custom_datasource.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/generators/load
+copying build/lib/lhp/generators/load/delta.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/generators/load
+copying build/lib/lhp/generators/load/python.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/generators/load
+copying build/lib/lhp/generators/load/sql.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/generators/load
+creating build/bdist.macosx-11.0-arm64/wheel/lhp/generators/transform
+copying build/lib/lhp/generators/transform/__init__.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/generators/transform
+copying build/lib/lhp/generators/transform/temp_table.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/generators/transform
+copying build/lib/lhp/generators/transform/python.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/generators/transform
+copying build/lib/lhp/generators/transform/sql.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/generators/transform
+copying build/lib/lhp/generators/transform/schema.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/generators/transform
+copying build/lib/lhp/generators/transform/data_quality.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/generators/transform
+creating build/bdist.macosx-11.0-arm64/wheel/lhp/errors
+copying build/lib/lhp/errors/categories.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/errors
+copying build/lib/lhp/errors/codes.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/errors
+copying build/lib/lhp/errors/__init__.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/errors
+copying build/lib/lhp/errors/types.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/errors
+copying build/lib/lhp/errors/factory.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/errors
+creating build/bdist.macosx-11.0-arm64/wheel/lhp/presets
+copying build/lib/lhp/presets/__init__.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/presets
+copying build/lib/lhp/presets/preset_manager.py -> build/bdist.macosx-11.0-arm64/wheel/./lhp/presets
+running install_egg_info
+Copying src/lakehouse_plumber.egg-info to build/bdist.macosx-11.0-arm64/wheel/./lakehouse_plumber-0.9.2-py3.12.egg-info
+running install_scripts
+creating build/bdist.macosx-11.0-arm64/wheel/lakehouse_plumber-0.9.2.dist-info/WHEEL
+creating '/private/tmp/lhp-guidance-wheel/.tmp-dso58zdx/lakehouse_plumber-0.9.2-py3-none-any.whl' and adding 'build/bdist.macosx-11.0-arm64/wheel' to it
+adding 'lakehouse_plumber-0.9.2.dist-info/licenses/LICENSE'
+adding 'lhp/__init__.py'
+adding 'lhp/py.typed'
+adding 'lhp/api/__init__.py'
+adding 'lhp/api/_bundle_facade.py'
+adding 'lhp/api/_claude_routing.py'
+adding 'lhp/api/_converters_common.py'
+adding 'lhp/api/_dataset_index.py'
+adding 'lhp/api/_dependency_facade.py'
+adding 'lhp/api/_dependency_graph_converters.py'
+adding 'lhp/api/_generate_stream.py'
+adding 'lhp/api/_generation_converters.py'
+adding 'lhp/api/_generation_facade.py'
+adding 'lhp/api/_inspection_converters.py'
+adding 'lhp/api/_inspection_facade.py'
+adding 'lhp/api/_listings.py'
+adding 'lhp/api/_operational_metadata_converter.py'
+adding 'lhp/api/_plan_stream.py'
+adding 'lhp/api/_preflight.py'
+adding 'lhp/api/_progress.py'
+adding 'lhp/api/_sandbox_facade.py'
+adding 'lhp/api/_sandbox_run.py'
+adding 'lhp/api/_sandbox_view.py'
+adding 'lhp/api/_serialization.py'
+adding 'lhp/api/_skill_assets.py'
+adding 'lhp/api/_skill_facade.py'
+adding 'lhp/api/_stream_guard.py'
+adding 'lhp/api/_template_preview_worker.py'
+adding 'lhp/api/_validation_converters.py'
+adding 'lhp/api/_validation_facade.py'
+adding 'lhp/api/_wheel_facade.py'
+adding 'lhp/api/bootstrap.py'
+adding 'lhp/api/configuration.py'
+adding 'lhp/api/events.py'
+adding 'lhp/api/facade.py'
+adding 'lhp/api/responses.py'
+adding 'lhp/api/templates.py'
+adding 'lhp/api/views.py'
+adding 'lhp/bundle/__init__.py'
+adding 'lhp/bundle/detection.py'
+adding 'lhp/bundle/exceptions.py'
+adding 'lhp/bundle/manager.py'
+adding 'lhp/bundle/preflight.py'
+adding 'lhp/cli/__init__.py'
+adding 'lhp/cli/_app_context.py'
+adding 'lhp/cli/_lazy_group.py'
+adding 'lhp/cli/_version.py'
+adding 'lhp/cli/console.py'
+adding 'lhp/cli/error_boundary.py'
+adding 'lhp/cli/error_panel.py'
+adding 'lhp/cli/exit_codes.py'
+adding 'lhp/cli/logging_config.py'
+adding 'lhp/cli/main.py'
+adding 'lhp/cli/commands/__init__.py'
+adding 'lhp/cli/commands/_dag_options.py'
+adding 'lhp/cli/commands/_web_launch.py'
+adding 'lhp/cli/commands/dag_command.py'
+adding 'lhp/cli/commands/diff_command.py'
+adding 'lhp/cli/commands/generate_command.py'
+adding 'lhp/cli/commands/init_command.py'
+adding 'lhp/cli/commands/inspect_wheel_command.py'
+adding 'lhp/cli/commands/list_command.py'
+adding 'lhp/cli/commands/skill_command.py'
+adding 'lhp/cli/commands/substitutions_command.py'
+adding 'lhp/cli/commands/validate_command.py'
+adding 'lhp/cli/commands/web_command.py'
+adding 'lhp/cli/presenters/__init__.py'
+adding 'lhp/cli/presenters/_layout.py'
+adding 'lhp/cli/presenters/_style.py'
+adding 'lhp/cli/presenters/dag_files_presenter.py'
+adding 'lhp/cli/presenters/dag_presenter.py'
+adding 'lhp/cli/presenters/diff_presenter.py'
+adding 'lhp/cli/presenters/init_presenter.py'
+adding 'lhp/cli/presenters/list_presenter.py'
+adding 'lhp/cli/presenters/skill_presenter.py'
+adding 'lhp/cli/presenters/substitutions_presenter.py'
+adding 'lhp/cli/presenters/summary_presenter.py'
+adding 'lhp/cli/presenters/wheel_presenter.py'
+adding 'lhp/cli/presenters/event_stream/__init__.py'
+adding 'lhp/cli/presenters/event_stream/_event_dispatch.py'
+adding 'lhp/cli/presenters/event_stream/_flavor_words.py'
+adding 'lhp/cli/presenters/event_stream/_live_renderable.py'
+adding 'lhp/cli/presenters/event_stream/_model.py'
+adding 'lhp/cli/presenters/event_stream/_outcome.py'
+adding 'lhp/cli/presenters/event_stream/_status_line.py'
+adding 'lhp/cli/presenters/event_stream/live_renderer.py'
+adding 'lhp/cli/presenters/event_stream/log_renderer.py'
+adding 'lhp/cli/presenters/event_stream/renderer_factory.py'
+adding 'lhp/core/__init__.py'
+adding 'lhp/core/_interfaces.py'
+adding 'lhp/core/codegen/__init__.py'
+adding 'lhp/core/codegen/action_dispatch.py'
+adding 'lhp/core/codegen/assembler.py'
+adding 'lhp/core/codegen/context.py'
+adding 'lhp/core/codegen/coordinator.py'
+adding 'lhp/core/codegen/formatter.py'
+adding 'lhp/core/codegen/grouping.py'
+adding 'lhp/core/codegen/plan_builder.py'
+adding 'lhp/core/codegen/python_dependency_resolver.py'
+adding 'lhp/core/codegen/python_file_copier.py'
+adding 'lhp/core/codegen/python_import_rewriter.py'
+adding 'lhp/core/codegen/secret_code_generator.py'
+adding 'lhp/core/codegen/secrets.py'
+adding 'lhp/core/codegen/struct_type_emitter.py'
+adding 'lhp/core/codegen/template_renderer.py'
+adding 'lhp/core/codegen/test_reporting.py'
+adding 'lhp/core/codegen/tst_reporting_hook_generator.py'
+adding 'lhp/core/codegen/uc_tagging.py'
+adding 'lhp/core/codegen/uc_tagging_hook_generator.py'
+adding 'lhp/core/codegen/imports/__init__.py'
+adding 'lhp/core/codegen/imports/categorizer.py'
+adding 'lhp/core/codegen/imports/detector.py'
+adding 'lhp/core/codegen/imports/manager.py'
+adding 'lhp/core/codegen/imports/resolver.py'
+adding 'lhp/core/codegen/imports/source_parser.py'
+adding 'lhp/core/codegen/operational_metadata/__init__.py'
+adding 'lhp/core/codegen/operational_metadata/metadata.py'
+adding 'lhp/core/codegen/operational_metadata/service.py'
+adding 'lhp/core/coordination/__init__.py'
+adding 'lhp/core/coordination/_commit.py'
+adding 'lhp/core/coordination/_cross_flowgroup_issues.py'
+adding 'lhp/core/coordination/_flowgroup_pool.py'
+adding 'lhp/core/coordination/_generate_gate.py'
+adding 'lhp/core/coordination/_pool.py'
+adding 'lhp/core/coordination/_sandbox_warning_fold.py'
+adding 'lhp/core/coordination/_validation_outcome.py'
+adding 'lhp/core/coordination/_warning_merge.py'
+adding 'lhp/core/coordination/bootstrap_service.py'
+adding 'lhp/core/coordination/executor.py'
+adding 'lhp/core/coordination/flowgroup_worklist_builder.py'
+adding 'lhp/core/coordination/layers.py'
+adding 'lhp/core/coordination/monitoring_pipeline_builder.py'
+adding 'lhp/core/coordination/monitoring_service.py'
+adding 'lhp/core/coordination/orchestrator.py'
+adding 'lhp/core/coordination/sandbox_prepass.py'
+adding 'lhp/core/coordination/validation_service.py'
+adding 'lhp/core/dependencies/__init__.py'
+adding 'lhp/core/dependencies/_binding_rules.py'
+adding 'lhp/core/dependencies/_bindings.py'
+adding 'lhp/core/dependencies/_body_locator.py'
+adding 'lhp/core/dependencies/_bound_folding.py'
+adding 'lhp/core/dependencies/_call_resolution.py'
+adding 'lhp/core/dependencies/_canonical.py'
+adding 'lhp/core/dependencies/_extraction_visitor.py'
+adding 'lhp/core/dependencies/_function_index.py'
+adding 'lhp/core/dependencies/_graph_ops.py'
+adding 'lhp/core/dependencies/_parse_cache.py'
+adding 'lhp/core/dependencies/_producers.py'
+adding 'lhp/core/dependencies/_static_resolution.py'
+adding 'lhp/core/dependencies/_table_sites.py'
+adding 'lhp/core/dependencies/analyzer.py'
+adding 'lhp/core/dependencies/builder.py'
+adding 'lhp/core/dependencies/dependency_resolver.py'
+adding 'lhp/core/dependencies/graph_cache.py'
+adding 'lhp/core/dependencies/output.py'
+adding 'lhp/core/dependencies/output_writer.py'
+adding 'lhp/core/dependencies/python_parser.py'
+adding 'lhp/core/dependencies/service.py'
+adding 'lhp/core/dependencies/source_extractor.py'
+adding 'lhp/core/dependencies/source_parsing.py'
+adding 'lhp/core/dependencies/sql_extraction.py'
+adding 'lhp/core/discovery/__init__.py'
+adding 'lhp/core/discovery/_parse_pool.py'
+adding 'lhp/core/discovery/blueprint_discoverer.py'
+adding 'lhp/core/discovery/deprecation_scanner.py'
+adding 'lhp/core/discovery/flowgroup_discoverer.py'
+adding 'lhp/core/jobs/__init__.py'
+adding 'lhp/core/jobs/job_builder.py'
+adding 'lhp/core/jobs/job_generator.py'
+adding 'lhp/core/jobs/job_writer.py'
+adding 'lhp/core/loaders/__init__.py'
+adding 'lhp/core/loaders/_event_log_config_parser.py'
+adding 'lhp/core/loaders/_include_patterns_parser.py'
+adding 'lhp/core/loaders/_monitoring_config_parser.py'
+adding 'lhp/core/loaders/_operational_metadata_config_parser.py'
+adding 'lhp/core/loaders/_sandbox_config_parser.py'
+adding 'lhp/core/loaders/_test_reporting_config_parser.py'
+adding 'lhp/core/loaders/_uc_tagging_config_parser.py'
+adding 'lhp/core/loaders/_wheel_config_parser.py'
+adding 'lhp/core/loaders/external_file_loader.py'
+adding 'lhp/core/loaders/git_initializer.py'
+adding 'lhp/core/loaders/init_template_context.py'
+adding 'lhp/core/loaders/init_template_loader.py'
+adding 'lhp/core/loaders/job_config_loader.py'
+adding 'lhp/core/loaders/pipeline_config_loader.py'
+adding 'lhp/core/loaders/project_config_loader.py'
+adding 'lhp/core/loaders/sandbox_profile_loader.py'
+adding 'lhp/core/loaders/table_schema_resolver.py'
+adding 'lhp/core/loaders/version_enforcement.py'
+adding 'lhp/core/packaging/__init__.py'
+adding 'lhp/core/packaging/identity.py'
+adding 'lhp/core/packaging/packager.py'
+adding 'lhp/core/packaging/runner.py'
+adding 'lhp/core/packaging/wheel_builder.py'
+adding 'lhp/core/packaging/wheel_reader.py'
+adding 'lhp/core/processing/__init__.py'
+adding 'lhp/core/processing/blueprint_expander.py'
+adding 'lhp/core/processing/dqe.py'
+adding 'lhp/core/processing/flowgroup_resolver.py'
+adding 'lhp/core/processing/local_variables.py'
+adding 'lhp/core/processing/namespace_normalizer.py'
+adding 'lhp/core/processing/substitution.py'
+adding 'lhp/core/processing/template_authoring.py'
+adding 'lhp/core/processing/template_engine.py'
+adding 'lhp/core/processing/template_preview.py'
+adding 'lhp/core/processing/template_preview_dependencies.py'
+adding 'lhp/core/registry/__init__.py'
+adding 'lhp/core/registry/action_registry.py'
+adding 'lhp/core/registry/base_generator.py'
+adding 'lhp/core/registry/factories.py'
+adding 'lhp/core/sandbox/__init__.py'
+adding 'lhp/core/sandbox/_flowgroup_rewriter.py'
+adding 'lhp/core/sandbox/_fstring_sql.py'
+adding 'lhp/core/sandbox/_python_rewriter.py'
+adding 'lhp/core/sandbox/_renames.py'
+adding 'lhp/core/sandbox/_runtime_shim.py'
+adding 'lhp/core/sandbox/_text_rewriter.py'
+adding 'lhp/core/sandbox/scope_resolver.py'
+adding 'lhp/core/validators/__init__.py'
+adding 'lhp/core/validators/_base.py'
+adding 'lhp/core/validators/config_validator.py'
+adding 'lhp/core/validators/action/__init__.py'
+adding 'lhp/core/validators/action/_dq_transform.py'
+adding 'lhp/core/validators/action/_name_checks.py'
+adding 'lhp/core/validators/action/_schema_transform.py'
+adding 'lhp/core/validators/action/_test_requirements.py'
+adding 'lhp/core/validators/action/_write_sinks.py'
+adding 'lhp/core/validators/action/load.py'
+adding 'lhp/core/validators/action/test.py'
+adding 'lhp/core/validators/action/transform.py'
+adding 'lhp/core/validators/action/write.py'
+adding 'lhp/core/validators/compatibility/__init__.py'
+adding 'lhp/core/validators/compatibility/_cdc_fanin_messages.py'
+adding 'lhp/core/validators/compatibility/_cdc_helpers.py'
+adding 'lhp/core/validators/compatibility/cdc_config.py'
+adding 'lhp/core/validators/compatibility/cdc_fanin.py'
+adding 'lhp/core/validators/compatibility/cdc_schema.py'
+adding 'lhp/core/validators/compatibility/dlt_table_options.py'
+adding 'lhp/core/validators/compatibility/snapshot_cdc.py'
+adding 'lhp/core/validators/compatibility/table_creation.py'
+adding 'lhp/core/validators/field/__init__.py'
+adding 'lhp/core/validators/field/_field_catalog.py'
+adding 'lhp/core/validators/field/_field_suggestions.py'
+adding 'lhp/core/validators/field/config_field.py'
+adding 'lhp/core/validators/field/kafka_options.py'
+adding 'lhp/core/validators/field/secret_reference.py'
+adding 'lhp/core/validators/pipeline/__init__.py'
+adding 'lhp/core/validators/pipeline/job_name.py'
+adding 'lhp/errors/__init__.py'
+adding 'lhp/errors/categories.py'
+adding 'lhp/errors/codes.py'
+adding 'lhp/errors/factory.py'
+adding 'lhp/errors/types.py'
+adding 'lhp/generators/__init__.py'
+adding 'lhp/generators/registration.py'
+adding 'lhp/generators/load/__init__.py'
+adding 'lhp/generators/load/cloudfiles.py'
+adding 'lhp/generators/load/custom_datasource.py'
+adding 'lhp/generators/load/delta.py'
+adding 'lhp/generators/load/jdbc.py'
+adding 'lhp/generators/load/kafka.py'
+adding 'lhp/generators/load/python.py'
+adding 'lhp/generators/load/sql.py'
+adding 'lhp/generators/test/__init__.py'
+adding 'lhp/generators/test/_base.py'
+adding 'lhp/generators/test/all_lookups_found.py'
+adding 'lhp/generators/test/completeness.py'
+adding 'lhp/generators/test/custom_expectations.py'
+adding 'lhp/generators/test/custom_sql.py'
+adding 'lhp/generators/test/range.py'
+adding 'lhp/generators/test/referential_integrity.py'
+adding 'lhp/generators/test/row_count.py'
+adding 'lhp/generators/test/schema_match.py'
+adding 'lhp/generators/test/uniqueness.py'
+adding 'lhp/generators/transform/__init__.py'
+adding 'lhp/generators/transform/data_quality.py'
+adding 'lhp/generators/transform/python.py'
+adding 'lhp/generators/transform/schema.py'
+adding 'lhp/generators/transform/sql.py'
+adding 'lhp/generators/transform/temp_table.py'
+adding 'lhp/generators/write/__init__.py'
+adding 'lhp/generators/write/_schema_tags_warning.py'
+adding 'lhp/generators/write/materialized_view.py'
+adding 'lhp/generators/write/sink.py'
+adding 'lhp/generators/write/snapshot_cdc_source_function.py'
+adding 'lhp/generators/write/streaming_table.py'
+adding 'lhp/generators/write/sinks/__init__.py'
+adding 'lhp/generators/write/sinks/base_sink.py'
+adding 'lhp/generators/write/sinks/custom_sink.py'
+adding 'lhp/generators/write/sinks/delta_sink.py'
+adding 'lhp/generators/write/sinks/foreachbatch_sink.py'
+adding 'lhp/generators/write/sinks/kafka_sink.py'
+adding 'lhp/models/__init__.py'
+adding 'lhp/models/_action.py'
+adding 'lhp/models/_blueprint.py'
+adding 'lhp/models/_enums.py'
+adding 'lhp/models/_flowgroup.py'
+adding 'lhp/models/_monitoring.py'
+adding 'lhp/models/_operational_metadata.py'
+adding 'lhp/models/_project.py'
+adding 'lhp/models/_quarantine.py'
+adding 'lhp/models/_sandbox.py'
+adding 'lhp/models/_template.py'
+adding 'lhp/models/_test_reporting.py'
+adding 'lhp/models/_uc_tagging.py'
+adding 'lhp/models/dependencies.py'
+adding 'lhp/models/deprecations.py'
+adding 'lhp/models/processing.py'
+adding 'lhp/parsers/__init__.py'
+adding 'lhp/parsers/blueprint_parser.py'
+adding 'lhp/parsers/parse_cache.py'
+adding 'lhp/parsers/schema_parser.py'
+adding 'lhp/parsers/schema_transform_parser.py'
+adding 'lhp/parsers/tags_file_parser.py'
+adding 'lhp/parsers/unified_schema_format.py'
+adding 'lhp/parsers/yaml_loader.py'
+adding 'lhp/parsers/yaml_parser.py'
+adding 'lhp/presets/__init__.py'
+adding 'lhp/presets/preset_manager.py'
+adding 'lhp/resources/__init__.py'
+adding 'lhp/resources/skills/__init__.py'
+adding 'lhp/resources/skills/lhp/SKILL.md'
+adding 'lhp/resources/skills/lhp/__init__.py'
+adding 'lhp/resources/skills/lhp/references/__init__.py'
+adding 'lhp/resources/skills/lhp/references/actions-load-cloudfiles.md'
+adding 'lhp/resources/skills/lhp/references/actions-load-custom-datasource.md'
+adding 'lhp/resources/skills/lhp/references/actions-load-delta.md'
+adding 'lhp/resources/skills/lhp/references/actions-load-jdbc.md'
+adding 'lhp/resources/skills/lhp/references/actions-load-kafka.md'
+adding 'lhp/resources/skills/lhp/references/actions-load-python.md'
+adding 'lhp/resources/skills/lhp/references/actions-load-sql.md'
+adding 'lhp/resources/skills/lhp/references/actions-test-all-lookups-found.md'
+adding 'lhp/resources/skills/lhp/references/actions-test-completeness.md'
+adding 'lhp/resources/skills/lhp/references/actions-test-custom-expectations.md'
+adding 'lhp/resources/skills/lhp/references/actions-test-custom-sql.md'
+adding 'lhp/resources/skills/lhp/references/actions-test-range.md'
+adding 'lhp/resources/skills/lhp/references/actions-test-referential-integrity.md'
+adding 'lhp/resources/skills/lhp/references/actions-test-row-count.md'
+adding 'lhp/resources/skills/lhp/references/actions-test-schema-match.md'
+adding 'lhp/resources/skills/lhp/references/actions-test-uniqueness.md'
+adding 'lhp/resources/skills/lhp/references/actions-transform-data-quality.md'
+adding 'lhp/resources/skills/lhp/references/actions-transform-python.md'
+adding 'lhp/resources/skills/lhp/references/actions-transform-schema.md'
+adding 'lhp/resources/skills/lhp/references/actions-transform-sql.md'
+adding 'lhp/resources/skills/lhp/references/actions-transform-temp-table.md'
+adding 'lhp/resources/skills/lhp/references/actions-write-materialized-view.md'
+adding 'lhp/resources/skills/lhp/references/actions-write-sink-custom.md'
+adding 'lhp/resources/skills/lhp/references/actions-write-sink-delta.md'
+adding 'lhp/resources/skills/lhp/references/actions-write-sink-eventhubs.md'
+adding 'lhp/resources/skills/lhp/references/actions-write-sink-foreachbatch.md'
+adding 'lhp/resources/skills/lhp/references/actions-write-sink-kafka.md'
+adding 'lhp/resources/skills/lhp/references/actions-write-streaming-table-cdc.md'
+adding 'lhp/resources/skills/lhp/references/actions-write-streaming-table-snapshot-cdc.md'
+adding 'lhp/resources/skills/lhp/references/actions-write-streaming-table-standard.md'
+adding 'lhp/resources/skills/lhp/references/advanced.md'
+adding 'lhp/resources/skills/lhp/references/best-practices.md'
+adding 'lhp/resources/skills/lhp/references/blueprints.md'
+adding 'lhp/resources/skills/lhp/references/cdc-patterns.md'
+adding 'lhp/resources/skills/lhp/references/errors.md'
+adding 'lhp/resources/skills/lhp/references/monitoring.md'
+adding 'lhp/resources/skills/lhp/references/project-config.md'
+adding 'lhp/resources/skills/lhp/references/quickstart.md'
+adding 'lhp/resources/skills/lhp/references/sandbox.md'
+adding 'lhp/resources/skills/lhp/references/templates-presets.md'
+adding 'lhp/schemas/README.md'
+adding 'lhp/schemas/blueprint.schema.json'
+adding 'lhp/schemas/flowgroup.schema.json'
+adding 'lhp/schemas/instance.schema.json'
+adding 'lhp/schemas/job_config.schema.json'
+adding 'lhp/schemas/pipeline_config.schema.json'
+adding 'lhp/schemas/preset.schema.json'
+adding 'lhp/schemas/project.schema.json'
+adding 'lhp/schemas/schema.schema.json'
+adding 'lhp/schemas/substitution.schema.json'
+adding 'lhp/schemas/template.schema.json'
+adding 'lhp/schemas/help/flowgroup.json'
+adding 'lhp/schemas/help/job_config.json'
+adding 'lhp/schemas/help/pipeline_config.json'
+adding 'lhp/schemas/help/project.json'
+adding 'lhp/schemas/help/source-review.json'
+adding 'lhp/schemas/help/template.json'
+adding 'lhp/templates/base.py.j2'
+adding 'lhp/templates/bundle/job_resource.yml.j2'
+adding 'lhp/templates/bundle/master_job_resource.yml.j2'
+adding 'lhp/templates/bundle/monitoring_job_resource.yml.j2'
+adding 'lhp/templates/bundle/pipeline_resource.yml.j2'
+adding 'lhp/templates/bundle/wheels_bundle.yml.j2'
+adding 'lhp/templates/init/.gitignore.j2'
+adding 'lhp/templates/init/README.md.j2'
+adding 'lhp/templates/init/lhp.yaml.j2'
+adding 'lhp/templates/init/blueprints/BP001_example_system_bronze.yaml.tmpl'
+adding 'lhp/templates/init/bundle/databricks.yml.j2'
+adding 'lhp/templates/init/bundle/resources/.gitkeep'
+adding 'lhp/templates/init/config/job_config_env.yaml.tmpl'
+adding 'lhp/templates/init/config/monitoring_job_config_env.yaml.tmpl'
+adding 'lhp/templates/init/config/pipeline_config_env.yaml.tmpl'
+adding 'lhp/templates/init/expectations/customer_quality.json.tmpl'
+adding 'lhp/templates/init/pipelines/01_raw_ingestion/csv_ingestions/customer_ingestion.yaml.tmpl'
+adding 'lhp/templates/init/pipelines/01_raw_ingestion/csv_ingestions/orders_ingestion.yaml.tmpl'
+adding 'lhp/templates/init/pipelines/02_bronze/customer_bronze.yaml.tmpl'
+adding 'lhp/templates/init/pipelines/02_bronze/orders_bronze.yaml.tmpl'
+adding 'lhp/templates/init/pipelines/03_silver/dim/customer_silver_dim.yaml.tmpl'
+adding 'lhp/templates/init/pipelines/03_silver/fct/orders_silver_fct.yaml.tmpl'
+adding 'lhp/templates/init/pipelines/example_system/bronze/example_system_bronze_acme_BP001.yaml.tmpl'
+adding 'lhp/templates/init/presets/bronze_layer.yaml.tmpl'
+adding 'lhp/templates/init/schema_transforms/lineitem_bronze_schema.yaml.tmpl'
+adding 'lhp/templates/init/schema_transforms/orders_africa_bronze_schema.yaml.tmpl'
+adding 'lhp/templates/init/schemas/customer_schema.ddl.tmpl'
+adding 'lhp/templates/init/schemas/customer_schema.yaml.tmpl'
+adding 'lhp/templates/init/schemas/orders_schema.yaml.tmpl'
+adding 'lhp/templates/init/sql/orders_europe_bronze_cleanse.sql.tmpl'
+adding 'lhp/templates/init/substitutions/dev.yaml.tmpl'
+adding 'lhp/templates/init/substitutions/prod.yaml.tmpl'
+adding 'lhp/templates/init/substitutions/tst.yaml.tmpl'
+adding 'lhp/templates/init/templates/standard_ingestion.yaml.tmpl'
+adding 'lhp/templates/init_sample/.gitignore.j2'
+adding 'lhp/templates/init_sample/README.md.j2'
+adding 'lhp/templates/init_sample/lhp.yaml.j2'
+adding 'lhp/templates/init_sample/bundle/databricks.yml.j2'
+adding 'lhp/templates/init_sample/bundle/resources/sample_job.yml'
+adding 'lhp/templates/init_sample/config/job_config_env.yaml'
+adding 'lhp/templates/init_sample/config/monitoring_job_config.yaml'
+adding 'lhp/templates/init_sample/config/pipeline_config.yaml'
+adding 'lhp/templates/init_sample/examples_optional/jdbc_with_secret.yaml.txt'
+adding 'lhp/templates/init_sample/expectations/orders.yaml'
+adding 'lhp/templates/init_sample/functions/supplier_snapshot.py'
+adding 'lhp/templates/init_sample/notebooks/data_prep.py'
+adding 'lhp/templates/init_sample/pipelines/01_ingest/lineitem_ingest.yaml'
+adding 'lhp/templates/init_sample/pipelines/01_ingest/nation_region.yaml'
+adding 'lhp/templates/init_sample/pipelines/01_ingest/orders_ingest.yaml'
+adding 'lhp/templates/init_sample/pipelines/02_silver/dim_customer.yaml'
+adding 'lhp/templates/init_sample/pipelines/02_silver/dim_supplier.yaml'
+adding 'lhp/templates/init_sample/pipelines/02_silver/orders_clean.yaml'
+adding 'lhp/templates/init_sample/pipelines/03_gold/sales_by_nation.yaml'
+adding 'lhp/templates/init_sample/presets/bronze_layer.yaml'
+adding 'lhp/templates/init_sample/presets/silver_quality.yaml'
+adding 'lhp/templates/init_sample/schema_transforms/orders_typed.yaml'
+adding 'lhp/templates/init_sample/schemas/orders_hints.yaml'
+adding 'lhp/templates/init_sample/sql/sales_by_nation.sql'
+adding 'lhp/templates/init_sample/substitutions/dev.yaml'
+adding 'lhp/templates/init_sample/substitutions/prod.yaml'
+adding 'lhp/templates/init_sample/templates/cloudfiles_ingest.yaml'
+adding 'lhp/templates/init_sample/transforms/normalize_tz.py'
+adding 'lhp/templates/load/cloudfiles.py.j2'
+adding 'lhp/templates/load/custom_datasource.py.j2'
+adding 'lhp/templates/load/delta.py.j2'
+adding 'lhp/templates/load/jdbc.py.j2'
+adding 'lhp/templates/load/kafka.py.j2'
+adding 'lhp/templates/load/python.py.j2'
+adding 'lhp/templates/load/sql.py.j2'
+adding 'lhp/templates/load/struct_type.py.j2'
+adding 'lhp/templates/monitoring/jobs_stats_loader.py'
+adding 'lhp/templates/monitoring/union_event_logs.py.j2'
+adding 'lhp/templates/packaging/runner.py.j2'
+adding 'lhp/templates/sandbox/runtime_shim.py.j2'
+adding 'lhp/templates/test/all_lookups_found.py.j2'
+adding 'lhp/templates/test/completeness.py.j2'
+adding 'lhp/templates/test/custom_expectations.py.j2'
+adding 'lhp/templates/test/custom_sql.py.j2'
+adding 'lhp/templates/test/range.py.j2'
+adding 'lhp/templates/test/referential_integrity.py.j2'
+adding 'lhp/templates/test/row_count.py.j2'
+adding 'lhp/templates/test/schema_match.py.j2'
+adding 'lhp/templates/test/uniqueness.py.j2'
+adding 'lhp/templates/test_reporting/hook.py.j2'
+adding 'lhp/templates/transform/data_quality.py.j2'
+adding 'lhp/templates/transform/data_quality_quarantine.py.j2'
+adding 'lhp/templates/transform/python.py.j2'
+adding 'lhp/templates/transform/schema.py.j2'
+adding 'lhp/templates/transform/sql.py.j2'
+adding 'lhp/templates/transform/temp_table.py.j2'
+adding 'lhp/templates/uc_tagging/hook.py.j2'
+adding 'lhp/templates/write/materialized_view.py.j2'
+adding 'lhp/templates/write/streaming_table.py.j2'
+adding 'lhp/templates/write/sinks/custom_sink.py.j2'
+adding 'lhp/templates/write/sinks/delta_sink.py.j2'
+adding 'lhp/templates/write/sinks/foreachbatch_sink.py.j2'
+adding 'lhp/templates/write/sinks/kafka_sink.py.j2'
+adding 'lhp/utils/__init__.py'
+adding 'lhp/utils/file_header.py'
+adding 'lhp/utils/file_pattern_matcher.py'
+adding 'lhp/utils/performance_timer.py'
+adding 'lhp/utils/python_spans.py'
+adding 'lhp/utils/version.py'
+adding 'lhp/utils/yaml_filters.py'
+adding 'lhp/webapp/__init__.py'
+adding 'lhp/webapp/app.py'
+adding 'lhp/webapp/dependencies.py'
+adding 'lhp/webapp/settings.py'
+adding 'lhp/webapp/static_app.py'
+adding 'lhp/webapp/middleware/__init__.py'
+adding 'lhp/webapp/middleware/error_handler.py'
+adding 'lhp/webapp/middleware/origin_guard.py'
+adding 'lhp/webapp/middleware/request_logging.py'
+adding 'lhp/webapp/middleware/token_guard.py'
+adding 'lhp/webapp/routers/__init__.py'
+adding 'lhp/webapp/routers/_guards.py'
+adding 'lhp/webapp/routers/assistant.py'
+adding 'lhp/webapp/routers/assistant_config.py'
+adding 'lhp/webapp/routers/assistant_sessions.py'
+adding 'lhp/webapp/routers/blueprints.py'
+adding 'lhp/webapp/routers/config_templates.py'
+adding 'lhp/webapp/routers/configuration.py'
+adding 'lhp/webapp/routers/dependencies.py'
+adding 'lhp/webapp/routers/environments.py'
+adding 'lhp/webapp/routers/events.py'
+adding 'lhp/webapp/routers/files.py'
+adding 'lhp/webapp/routers/flowgroups.py'
+adding 'lhp/webapp/routers/health.py'
+adding 'lhp/webapp/routers/help.py'
+adding 'lhp/webapp/routers/lineage.py'
+adding 'lhp/webapp/routers/metadata.py'
+adding 'lhp/webapp/routers/pipelines.py'
+adding 'lhp/webapp/routers/presets.py'
+adding 'lhp/webapp/routers/project.py'
+adding 'lhp/webapp/routers/runs.py'
+adding 'lhp/webapp/routers/sandbox.py'
+adding 'lhp/webapp/routers/schemas.py'
+adding 'lhp/webapp/routers/streaming.py'
+adding 'lhp/webapp/routers/tables.py'
+adding 'lhp/webapp/routers/templates.py'
+adding 'lhp/webapp/schemas/__init__.py'
+adding 'lhp/webapp/schemas/assistant.py'
+adding 'lhp/webapp/schemas/blueprint.py'
+adding 'lhp/webapp/schemas/common.py'
+adding 'lhp/webapp/schemas/configuration.py'
+adding 'lhp/webapp/schemas/dependency.py'
+adding 'lhp/webapp/schemas/flowgroup.py'
+adding 'lhp/webapp/schemas/health.py'
+adding 'lhp/webapp/schemas/lineage.py'
+adding 'lhp/webapp/schemas/metadata.py'
+adding 'lhp/webapp/schemas/pipeline.py'
+adding 'lhp/webapp/schemas/preset.py'
+adding 'lhp/webapp/schemas/project.py'
+adding 'lhp/webapp/schemas/runs.py'
+adding 'lhp/webapp/schemas/sandbox.py'
+adding 'lhp/webapp/schemas/table.py'
+adding 'lhp/webapp/schemas/template.py'
+adding 'lhp/webapp/schemas/template_authoring.py'
+adding 'lhp/webapp/services/__init__.py'
+adding 'lhp/webapp/services/assistant_chat.py'
+adding 'lhp/webapp/services/assistant_provision.py'
+adding 'lhp/webapp/services/assistant_store.py'
+adding 'lhp/webapp/services/assistant_usage.py'
+adding 'lhp/webapp/services/claude_sdk_auth.py'
+adding 'lhp/webapp/services/claude_sdk_bash_policy.py'
+adding 'lhp/webapp/services/claude_sdk_bridge.py'
+adding 'lhp/webapp/services/claude_sdk_chat.py'
+adding 'lhp/webapp/services/claude_sdk_policy.py'
+adding 'lhp/webapp/services/claude_sdk_sessions.py'
+adding 'lhp/webapp/services/claude_sdk_translate.py'
+adding 'lhp/webapp/services/dataset_index.py'
+adding 'lhp/webapp/services/event_bus.py'
+adding 'lhp/webapp/services/file_io.py'
+adding 'lhp/webapp/services/file_watcher.py'
+adding 'lhp/webapp/services/graph_serializer.py'
+adding 'lhp/webapp/services/omnigent_client.py'
+adding 'lhp/webapp/services/omnigent_lifecycle.py'
+adding 'lhp/webapp/services/related_files_extractor.py'
+adding 'lhp/webapp/services/run_history.py'
+adding 'lhp/webapp/services/run_recorder.py'
+adding 'lhp/webapp/services/sqlite_migrations.py'
+adding 'lhp/webapp/services/sqlite_store.py'
+adding 'lhp/webapp/services/stream_adapter.py'
+adding 'lhp/webapp/static/favicon.svg'
+adding 'lhp/webapp/static/index.html'
+adding 'lhp/webapp/static/assets/AssistantPanel-qNOUwTc-.js'
+adding 'lhp/webapp/static/assets/CodeView-BUVxNPhW.js'
+adding 'lhp/webapp/static/assets/ConfigFormView-CUGlHO6g.js'
+adding 'lhp/webapp/static/assets/CreateFlowgroupDialog-Bsuqv6fS.js'
+adding 'lhp/webapp/static/assets/CreateFromTemplateDialog-BO4FlqyX.js'
+adding 'lhp/webapp/static/assets/CreateTemplateDialog-DCJ1LnM_.js'
+adding 'lhp/webapp/static/assets/DependencyEdge-DhLqRf3M.js'
+adding 'lhp/webapp/static/assets/DependencyGraph-Cwi3ToGQ.js'
+adding 'lhp/webapp/static/assets/DiffEditorWrapper-Dg2eWt_0.js'
+adding 'lhp/webapp/static/assets/EnumSelect-C6R29IRq.js'
+adding 'lhp/webapp/static/assets/FieldHelpBody-BBbeYyFn.js'
+adding 'lhp/webapp/static/assets/GraphView-CxR6gV6a.js'
+adding 'lhp/webapp/static/assets/InitProjectPage-BIzCJlhc.js'
+adding 'lhp/webapp/static/assets/MonacoEditorWrapper-CDLecclU.js'
+adding 'lhp/webapp/static/assets/OptionalNumberField-qycTERw4.js'
+adding 'lhp/webapp/static/assets/ParameterValueInput-D-RUZFDc.js'
+adding 'lhp/webapp/static/assets/PipelineDagView-Bfkf7Be-.js'
+adding 'lhp/webapp/static/assets/PipelineFilterOptions-CrfwvJ2K.js'
+adding 'lhp/webapp/static/assets/ProjectMapView-D0PBgjCk.js'
+adding 'lhp/webapp/static/assets/QuickOpenDialog-DHYMnabo.js'
+adding 'lhp/webapp/static/assets/RunHistoryView-Biz_vl_i.js'
+adding 'lhp/webapp/static/assets/RunStreamView-DPDTPz60.js'
+adding 'lhp/webapp/static/assets/StringListEditor-Dfsvpswi.js'
+adding 'lhp/webapp/static/assets/TemplateBuilder-DJNtIpOP.js'
+adding 'lhp/webapp/static/assets/TemplateInvocationParams-Sr74PNn4.js'
+adding 'lhp/webapp/static/assets/TemplatePreview-C7lO5sfD.js'
+adding 'lhp/webapp/static/assets/TemplatePreviewGraph-CH_cLNny.js'
+adding 'lhp/webapp/static/assets/TemplateResources-BJFl_4Fy.js'
+adding 'lhp/webapp/static/assets/TemplateUseActions-BbJLIKdo.js'
+adding 'lhp/webapp/static/assets/codicon-ngg6Pgfi.ttf'
+adding 'lhp/webapp/static/assets/command-CSIa_woi.js'
+adding 'lhp/webapp/static/assets/designerGraph-DQMFDZjG.js'
+adding 'lhp/webapp/static/assets/editor.worker-CdQrwHl8.js'
+adding 'lhp/webapp/static/assets/elk-worker.min-CHQ3eE7K.js'
+adding 'lhp/webapp/static/assets/elkjs-JnqVAAjn.js'
+adding 'lhp/webapp/static/assets/history-l5rBXDM9.js'
+adding 'lhp/webapp/static/assets/index-BCEJatB4.css'
+adding 'lhp/webapp/static/assets/index-CAynrxg4.js'
+adding 'lhp/webapp/static/assets/index-uH4eIl_k.js'
+adding 'lhp/webapp/static/assets/inter-cyrillic-ext-wght-normal-BOeWTOD4.woff2'
+adding 'lhp/webapp/static/assets/inter-cyrillic-wght-normal-DqGufNeO.woff2'
+adding 'lhp/webapp/static/assets/inter-greek-ext-wght-normal-DlzME5K_.woff2'
+adding 'lhp/webapp/static/assets/inter-greek-wght-normal-CkhJZR-_.woff2'
+adding 'lhp/webapp/static/assets/inter-latin-ext-wght-normal-DO1Apj_S.woff2'
+adding 'lhp/webapp/static/assets/inter-latin-wght-normal-Dx4kXJAl.woff2'
+adding 'lhp/webapp/static/assets/inter-vietnamese-wght-normal-CBcvBZtf.woff2'
+adding 'lhp/webapp/static/assets/jetbrains-mono-cyrillic-wght-normal-D73BlboJ.woff2'
+adding 'lhp/webapp/static/assets/jetbrains-mono-greek-wght-normal-Bw9x6K1M.woff2'
+adding 'lhp/webapp/static/assets/jetbrains-mono-latin-ext-wght-normal-DBQx-q_a.woff2'
+adding 'lhp/webapp/static/assets/jetbrains-mono-latin-wght-normal-B9CIFXIH.woff2'
+adding 'lhp/webapp/static/assets/jetbrains-mono-vietnamese-wght-normal-Bt-aOZkq.woff2'
+adding 'lhp/webapp/static/assets/json.worker-BoL8UZqY.js'
+adding 'lhp/webapp/static/assets/monaco-editor-CciUs1S1.js'
+adding 'lhp/webapp/static/assets/monaco-editor-WGlpN-0L.css'
+adding 'lhp/webapp/static/assets/monaco-setup-DKMUI19O.js'
+adding 'lhp/webapp/static/assets/react-flow-BSW1QCE0.js'
+adding 'lhp/webapp/static/assets/react-vendor-C1tmfhzI.js'
+adding 'lhp/webapp/static/assets/square-CZweSzcG.js'
+adding 'lhp/webapp/static/assets/template-authoring-B5Ksi5tL.js'
+adding 'lhp/webapp/static/assets/template-document-Bj_MgrRC.js'
+adding 'lhp/webapp/static/assets/textarea-Ckp3znPJ.js'
+adding 'lhp/webapp/static/assets/useElkLayout-BM7GtByP.js'
+adding 'lhp/webapp/static/assets/useTemplateAuthoring-bc8R1RqU.js'
+adding 'lhp/webapp/static/assets/yaml.worker-BEq0prsK.js'
+adding 'lakehouse_plumber-0.9.2.dist-info/METADATA'
+adding 'lakehouse_plumber-0.9.2.dist-info/WHEEL'
+adding 'lakehouse_plumber-0.9.2.dist-info/entry_points.txt'
+adding 'lakehouse_plumber-0.9.2.dist-info/top_level.txt'
+adding 'lakehouse_plumber-0.9.2.dist-info/RECORD'
+removing build/bdist.macosx-11.0-arm64/wheel
+Successfully built lakehouse_plumber-0.9.2-py3-none-any.whl

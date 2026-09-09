@@ -18,13 +18,18 @@ from ...parsers.yaml_parser import YAMLParser
 
 
 class TemplateEngine:
-    def __init__(self, templates_dir: Path | None = None):
+    def __init__(
+        self,
+        templates_dir: Path | None = None,
+        *,
+        jinja_environment: Environment | None = None,
+    ):
         self.templates_dir = templates_dir
         self.logger = logging.getLogger(__name__)
         self.yaml_parser = YAMLParser()
         self._template_cache: Dict[str, TemplateModel] = {}
 
-        self.jinja_env = Environment()  # nosec B701 — generates Python, not HTML
+        self.jinja_env = jinja_environment or Environment()  # nosec B701 — generates Python, not HTML
 
         # Per-instance cache of compiled inline templates, keyed on source string.
         # Bound to this instance's jinja_env (never a process-global cache).
@@ -101,6 +106,17 @@ class TemplateEngine:
                 templates_dir=str(self.templates_dir) if self.templates_dir else None,
             )
 
+        return self.render_model(template, parameters)
+
+    def render_model(
+        self, template: TemplateModel, parameters: Dict[str, Any]
+    ) -> List[Action]:
+        """Render an already parsed template using the same file-rendering semantics.
+
+        Draft inspection calls this with a request-owned model. It never seeds
+        or replaces the file cache used by ``render_template``.
+        """
+        template_name = template.name
         self._validate_parameters(template, parameters)
 
         final_params = self._apply_parameter_defaults(template, parameters)
