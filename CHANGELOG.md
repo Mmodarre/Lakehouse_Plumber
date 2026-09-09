@@ -79,9 +79,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   consecutive failures allowed and the hook is never disabled. Projects that
   regenerate will see `@dp.on_event_hook(max_allowable_consecutive_failures=None)` in
   `_uc_tagging_hook.py`. In practice a run raises at most twice (one combined `RUNNING`
-  warning, one terminal warning) and the counter resets each update because the module
-  re-imports per run, so a clean run never accumulated consecutive failures under the
-  old budget either. Set `uc_tagging.max_allowable_consecutive_failures: 3` to restore
+  warning, one terminal warning); under the old budget a hook that hit the limit was
+  disabled and, per Databricks, did not process new events until the pipeline was
+  restarted (#201). Set `uc_tagging.max_allowable_consecutive_failures: 3` to restore
   the previous behavior.
 
 ## [0.9.1] — 2026-06-10

@@ -200,10 +200,11 @@ never fail the update (event hooks cannot). Key-only tags use ``""``, ``~``, or
 an omitted value.
 
 A run raises at most twice — one combined ``RUNNING`` warning and one terminal
-warning — and the counter resets each update because the module re-imports per
-run, so a clean run never accumulates consecutive failures. Set
-``max_allowable_consecutive_failures`` to have SDP disable the hook after a given
-number of consecutive failures; by default there is no limit.
+warning. By default there is no failure limit: a hook that keeps failing keeps
+raising until the cause is fixed, and tags are applied again on the next
+successful run. Set ``max_allowable_consecutive_failures`` to have SDP disable
+the hook after that many consecutive failures; Databricks documents that a
+disabled hook does not process new events until the pipeline is restarted.
 
 Existing tag state is read once at module import with a single
 ``system.information_schema`` query (``table_tags`` ``UNION ALL``
