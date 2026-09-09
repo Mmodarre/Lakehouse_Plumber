@@ -1,15 +1,21 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { FilePlus2, FileText, LayoutTemplate, Loader2, Package, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '../../lib/utils'
 import { errorMessage } from '../../lib/errors'
 import { useUIStore } from '../../store/uiStore'
+import { useLayoutStore } from '../../store/layoutStore'
 import { useWorkspaceStore } from '../../store/workspaceStore'
 import { usePipelines } from '../../hooks/usePipelines'
 import { useFlowgroups } from '../../hooks/useFlowgroups'
 import { useFileList } from '../../hooks/useFiles'
-import { useTemplates, useTemplateDetail } from '../../hooks/useTemplates'
+import { useTemplateCatalog, useTemplateSource } from '../../hooks/useTemplateAuthoring'
+import type { TemplateCatalogEntry } from '../../api/template-authoring'
+import { TemplateInvocationParams } from '../template/TemplateInvocationParams'
+import { missingTemplateParameters } from '../../lib/template-invocation'
+import { openWorkspaceFile } from '../../workspace/openWorkspaceFile'
+import { captureWorkspaceEditors, focusInvalidWorkspaceDraft } from '../../workspace/editorCommands'
 import { useBlueprints } from '../../hooks/useBlueprints'
 import { ApiError } from '../../api/client'
 import { IF_MATCH_CREATE_ONLY, writeFile } from '../../api/files'
@@ -27,7 +33,7 @@ import { ParamsForm } from './ParamsForm'
 import { FlowgroupTargetPicker, PathPreview, type FlowgroupTarget } from './FlowgroupTargetPicker'
 import { BlueprintFields } from './BlueprintFields'
 import { fetchBlueprintParams } from './blueprintParams'
-import { mapTemplateParams, requiredParamsMissing } from './createFlowgroupSupport'
+import { requiredParamsMissing } from './createFlowgroupSupport'
 import {
   blueprintInstancePath,
   buildBlankFlowgroupYaml,
@@ -55,11 +61,15 @@ export function CreateFlowgroupDialog() {
   const open = useUIStore((s) => s.createFlowgroupDialog)
   const seed = useUIStore((s) => s.createFlowgroupSeed)
   const close = useUIStore((s) => s.closeCreateFlowgroupDialog)
+  const submitting = useRef(false)
+  const onSubmittingChange = useCallback((value: boolean) => { submitting.current = value }, [])
+  const requestClose = useCallback(() => { if (!submitting.current) close() }, [close])
+  const complete = useCallback(() => { submitting.current = false; close() }, [close])
 
   const { data: pipelineData } = usePipelines()
   const { data: flowgroupData } = useFlowgroups()
   const { data: fileTree, isLoading: loadingDirs } = useFileList()
-  const { data: templateData } = useTemplates()
+  const templateCatalog = useTemplateCatalog()
   const { data: blueprintData } = useBlueprints()
 
   if (!open) return null
@@ -73,14 +83,14 @@ export function CreateFlowgroupDialog() {
     set.add(f.name.toLowerCase())
     existingNamesByPipeline.set(f.pipeline, set)
   }
-  const templates = templateData?.templates ?? []
+  const templates = templateCatalog.data?.templates ?? []
   const blueprints = blueprintData?.blueprints.map((b) => b.name) ?? []
 
   return (
     <Dialog
       open
       onOpenChange={(o) => {
-        if (!o) close()
+        if (!o) requestClose()
       }}
     >
       <DialogContent
@@ -96,7 +106,12 @@ export function CreateFlowgroupDialog() {
           fileTree={fileTree}
           loadingDirs={loadingDirs}
           seedPipeline={seed?.pipeline}
-          close={close}
+          seedTemplatePath={seed?.templatePath}
+          templateCatalogError={templateCatalog.isError}
+          retryCatalog={() => { void templateCatalog.refetch() }}
+          close={requestClose}
+          complete={complete}
+          onSubmittingChange={onSubmittingChange}
         />
       </DialogContent>
     </Dialog>
@@ -106,12 +121,17 @@ export function CreateFlowgroupDialog() {
 interface CreateFlowgroupFormProps {
   pipelines: string[]
   existingNamesByPipeline: Map<string, Set<string>>
-  templates: string[]
+  templates: TemplateCatalogEntry[]
   blueprints: string[]
   fileTree: ReturnType<typeof useFileList>['data']
   loadingDirs: boolean
   seedPipeline?: string
+  seedTemplatePath?: string
+  templateCatalogError: boolean
+  retryCatalog: () => void
   close: () => void
+  complete: () => void
+  onSubmittingChange: (value: boolean) => void
 }
 
 const MODES: { mode: Mode; icon: typeof FileText; label: string; desc: string }[] = [
@@ -128,23 +148,28 @@ function CreateFlowgroupForm({
   fileTree,
   loadingDirs,
   seedPipeline,
+  seedTemplatePath,
+  templateCatalogError,
+  retryCatalog,
   close,
+  complete,
+  onSubmittingChange,
 }: CreateFlowgroupFormProps) {
   const queryClient = useQueryClient()
+  const viewerMode = useLayoutStore((s) => s.viewerMode)
   const openEntityTab = useWorkspaceStore((s) => s.openEntityTab)
 
-  const [mode, setMode] = useState<Mode>('blank')
+  const [mode, setMode] = useState<Mode>(seedTemplatePath ? 'template' : 'blank')
   const [target, setTarget] = useState<FlowgroupTarget>(EMPTY_TARGET)
   const handleTargetChange = useCallback((t: FlowgroupTarget) => setTarget(t), [])
 
   // Template mode.
-  const [template, setTemplate] = useState('')
+  const [template, setTemplate] = useState(seedTemplatePath ?? '')
   const [templateValues, setTemplateValues] = useState<Record<string, unknown>>({})
-  const { data: templateDetail } = useTemplateDetail(mode === 'template' && template ? template : null)
-  const templateParams = useMemo(
-    () => mapTemplateParams(templateDetail?.template.parameters),
-    [templateDetail],
-  )
+  const [templateValuesValid, setTemplateValuesValid] = useState(true)
+  const templateQuery = useTemplateSource(mode === 'template' && template ? template : null)
+  const templateInfo = templateQuery.data?.template
+  const templateParams = useMemo(() => templateInfo?.parameters ?? [], [templateInfo])
   useEffect(() => setTemplateValues({}), [template])
 
   // Blueprint mode.
@@ -162,6 +187,13 @@ function CreateFlowgroupForm({
 
   // Submit / overwrite state.
   const [submitting, setSubmitting] = useState(false)
+  const pending = useRef(false)
+  const setSubmission = (value: boolean) => {
+    pending.current = value
+    onSubmittingChange(value)
+    setSubmitting(value)
+  }
+  const disabled = submitting || viewerMode
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [overwrite, setOverwrite] = useState<{
     path: string
@@ -209,11 +241,11 @@ function CreateFlowgroupForm({
   const instanceNameError = instanceName ? validateName(instanceName) : null
 
   const canCreate = (() => {
-    if (submitting) return false
+    if (submitting || viewerMode) return false
     if (mode === 'blank') return target.valid
     if (mode === 'template') {
       return (
-        target.valid && template !== '' && !requiredParamsMissing(templateParams, templateValues)
+        target.valid && template !== '' && !templateQuery.isPending && !templateQuery.isFetching && !templateQuery.isError && templateInfo?.state === 'ready' && !!templateInfo.reference && templateValuesValid && missingTemplateParameters(templateParams, templateValues).length === 0
       )
     }
     return (
@@ -223,6 +255,15 @@ function CreateFlowgroupForm({
       !requiredParamsMissing(blueprintParams, blueprintValues)
     )
   })()
+
+  // Query notifications are scheduled: a refetch can start or finish between
+  // the last render and a click. Never submit against that superseded snapshot.
+  const templateMetadataCurrent = () => {
+    if (mode !== 'template') return true
+    const current = queryClient.getQueryState<{ template: TemplateCatalogEntry }>(['template', template])
+    return current?.status === 'success' && current.fetchStatus === 'idle'
+      && current.data?.template === templateInfo
+  }
 
   /** Build (path, yaml, pipeline, flowgroup) for the current mode. */
   const buildRequest = (): { path: string; yaml: string; pipeline: string; flowgroup: string } => {
@@ -237,7 +278,7 @@ function CreateFlowgroupForm({
     if (mode === 'template') {
       return {
         path: target.path,
-        yaml: buildTemplateFlowgroupYaml(target.pipeline, target.name, template, templateValues),
+        yaml: buildTemplateFlowgroupYaml(target.pipeline, target.name, templateInfo?.reference ?? '', templateValues),
         pipeline: target.pipeline,
         flowgroup: target.name,
       }
@@ -254,6 +295,12 @@ function CreateFlowgroupForm({
     req: { path: string; yaml: string; pipeline: string; flowgroup: string },
     createOnly: boolean,
   ) => {
+    if (useLayoutStore.getState().viewerMode) {
+      throw new Error('Viewer mode prevents creating or overwriting files')
+    }
+    if (!templateMetadataCurrent()) {
+      throw new Error('Wait for the current template parameters before creating the flowgroup')
+    }
     await writeFile(req.path, req.yaml, createOnly ? IF_MATCH_CREATE_ONLY : undefined)
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ['files'] }),
@@ -262,13 +309,16 @@ function CreateFlowgroupForm({
     ])
     toast.success(`Created ${req.path}`)
     openEntityTab(req.pipeline, req.flowgroup, req.path)
-    close()
+    complete()
   }
 
   const submit = async () => {
-    if (!canCreate) return
+    if (useLayoutStore.getState().viewerMode || pending.current || !canCreate || !templateMetadataCurrent()) return
+    captureWorkspaceEditors()
+    if (focusInvalidWorkspaceDraft()) return
+    if (useLayoutStore.getState().viewerMode || pending.current || !canCreate || !templateMetadataCurrent()) return
     const req = buildRequest()
-    setSubmitting(true)
+    setSubmission(true)
     setSubmitError(null)
     try {
       await persist(req, true)
@@ -280,13 +330,13 @@ function CreateFlowgroupForm({
         setSubmitError(errorMessage(err, 'Failed to create the flowgroup'))
       }
     } finally {
-      setSubmitting(false)
+      setSubmission(false)
     }
   }
 
   const confirmOverwrite = async () => {
-    if (overwrite === null) return
-    setSubmitting(true)
+    if (useLayoutStore.getState().viewerMode || pending.current || overwrite === null || !canCreate || !templateMetadataCurrent()) return
+    setSubmission(true)
     setSubmitError(null)
     try {
       await persist(overwrite, false)
@@ -294,7 +344,7 @@ function CreateFlowgroupForm({
     } catch (err) {
       setSubmitError(errorMessage(err, 'Failed to overwrite the file'))
     } finally {
-      setSubmitting(false)
+      setSubmission(false)
     }
   }
 
@@ -321,12 +371,14 @@ function CreateFlowgroupForm({
           className="text-muted-foreground"
           aria-label="Close"
           onClick={close}
+          disabled={submitting}
         >
           <X aria-hidden="true" />
         </Button>
       </div>
 
-      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4">
+      {viewerMode && <p role="status" className="px-5 pt-3 text-xs text-muted-foreground">Viewer mode: creation and overwrite are disabled.</p>}
+      <fieldset disabled={disabled} className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4">
         {/* Start-from cards */}
         <div>
           <span className="mb-1.5 block text-xs font-medium text-muted-foreground">Start from</span>
@@ -366,7 +418,7 @@ function CreateFlowgroupForm({
             loadingDirs={loadingDirs}
             seedPipeline={seedPipeline}
             onChange={handleTargetChange}
-            disabled={submitting}
+            disabled={disabled}
           />
         ) : (
           <BlueprintFields
@@ -376,7 +428,7 @@ function CreateFlowgroupForm({
             instanceName={instanceName}
             onInstanceName={setInstanceName}
             instanceNameError={instanceNameError}
-            disabled={submitting}
+            disabled={disabled}
           />
         )}
 
@@ -385,28 +437,28 @@ function CreateFlowgroupForm({
           <div className="space-y-3 border-t border-border pt-4">
             <div>
               <label className="mb-1 block text-xs font-medium text-muted-foreground">Template</label>
-              <Select value={template} onValueChange={setTemplate} disabled={submitting}>
+              <Select value={template} onValueChange={setTemplate} disabled={disabled}>
                 <SelectTrigger size="sm" className="w-full">
                   <SelectValue placeholder={templates.length ? 'Select template' : 'No templates found'} />
                 </SelectTrigger>
                 <SelectContent>
                   {templates.map((t) => (
-                    <SelectItem key={t} value={t}>
-                      {t}
+                    <SelectItem key={t.source_path} value={t.source_path} disabled={t.state !== 'ready' || !t.reference}>
+                      {t.declared_name || t.reference || t.source_path} · {t.source_path}{t.state !== 'ready' ? ' (unavailable)' : ''}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
-            {template && (
-              <ParamsForm
-                params={templateParams}
-                values={templateValues}
-                onSet={setTemplateValue}
-                onUnset={unsetTemplateValue}
-                disabled={submitting}
-              />
-            )}
+            {templateCatalogError && <p role="alert" className="text-xs text-destructive">Could not load templates. <Button size="sm" variant="ghost" onClick={retryCatalog}>Retry templates</Button></p>}
+            {template && templateQuery.isFetching && <p role="status" className="text-xs text-muted-foreground">Reading template parameters…</p>}
+            {template && templateQuery.isError && <p role="alert" className="text-xs text-destructive">Could not read this template. <Button size="sm" variant="ghost" onClick={() => { void templateQuery.refetch() }}>Retry template</Button></p>}
+            {templateInfo && <>
+              <Button size="sm" variant="ghost" onClick={() => { captureWorkspaceEditors(); if (focusInvalidWorkspaceDraft()) return; void openWorkspaceFile(template); close() }}>Edit template</Button>
+              {templateInfo.state !== 'ready' && <p role="alert" className="text-xs text-destructive">{templateInfo.diagnostics[0]?.message ?? 'This template cannot be invoked.'}</p>}
+              <TemplateInvocationParams key={template} params={templateParams} values={templateValues} onSet={setTemplateValue} onUnset={unsetTemplateValue} disabled={disabled} onValidityChange={setTemplateValuesValid} />
+              {templateInfo.reference && <details className="text-xs"><summary className="cursor-pointer text-muted-foreground">Flowgroup YAML</summary><pre className="mt-2 overflow-auto rounded bg-muted p-2">{buildTemplateFlowgroupYaml(target.pipeline || 'pipeline', target.name || 'flowgroup', templateInfo.reference, templateValues)}</pre></details>}
+            </>}
           </div>
         )}
 
@@ -437,7 +489,7 @@ function CreateFlowgroupForm({
                   onRemoveEntry={(k) => unsetBlueprintValue(k)}
                   onDeleteKey={() => setBlueprintValues({})}
                   allowEmpty
-                  disabled={submitting}
+                  disabled={disabled}
                 />
               </div>
             ) : (
@@ -446,7 +498,7 @@ function CreateFlowgroupForm({
                 values={blueprintValues}
                 onSet={setBlueprintValue}
                 onUnset={unsetBlueprintValue}
-                disabled={submitting}
+                disabled={disabled}
               />
             )}
           </div>
@@ -461,7 +513,7 @@ function CreateFlowgroupForm({
             {submitError}
           </p>
         )}
-      </div>
+      </fieldset>
 
       <div className="flex items-center justify-end gap-2 border-t border-border px-5 py-3">
         <Button variant="ghost" size="sm" onClick={close} disabled={submitting}>
@@ -472,7 +524,7 @@ function CreateFlowgroupForm({
             variant="destructive"
             size="sm"
             onClick={() => void confirmOverwrite()}
-            disabled={submitting}
+            disabled={disabled || !canCreate}
           >
             {submitting ? <Loader2 className="animate-spin" aria-hidden="true" /> : null}
             Overwrite

@@ -195,13 +195,13 @@ describe('ConfigFormView — viewer lens', () => {
 author: Data Team
 `
 
-  it('renders read-only: fields are inert and edits never reach the buffer', async () => {
+  it('renders read-only: mutation controls are disabled and edits never reach the buffer', async () => {
     renderView('lhp.yaml', 'project', PROJECT, { viewer: true })
     const author = await screen.findByLabelText('Author')
 
     // The re-host wrapper marks the whole body read-only.
     const view = screen.getByTestId('config-form-view')
-    expect(view.querySelector('[aria-disabled="true"]')).not.toBeNull()
+    expect(view.querySelector('[data-viewer="true"]')).not.toBeNull()
 
     const user = userEvent.setup()
     expect(author).toBeDisabled()

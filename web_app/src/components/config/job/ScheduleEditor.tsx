@@ -1,3 +1,4 @@
+import { useConfigReadOnly } from '@/components/config/shared/configEditingContext'
 import { useState } from 'react'
 import { Input } from '@/components/ui/input'
 import { isPlainObject } from '../../../lib/config-model'
@@ -5,7 +6,7 @@ import { SectionCard } from '../SectionCard'
 import { EnumSelect } from '../fields/EnumSelect'
 import { FieldChrome } from '../fields/FieldChrome'
 import { OptionalTextField } from '../fields/OptionalTextField'
-import { displayString, issueId } from '../fields/fieldSupport'
+import { displayString, descriptionIds } from '../fields/fieldSupport'
 import type { DocFormApi } from '../shared/docFormSupport'
 import { delWithCascade } from './jobFormSupport'
 
@@ -53,6 +54,8 @@ function TimezoneInput({
   onUnset: () => void
   issue?: { message: string; severity: 'error' | 'warning' }
 }) {
+  const configReadOnly = useConfigReadOnly()
+
   const initial = displayString(value)
   const [draft, setDraft] = useState(initial)
   // Re-sync when the committed value changes — render-phase adjustment.
@@ -62,6 +65,7 @@ function TimezoneInput({
     setDraft(initial)
   }
   const commit = () => {
+    if (configReadOnly) return
     const next = draft.trim()
     if (next === initial) return
     if (next === '') onUnset()
@@ -76,7 +80,7 @@ function TimezoneInput({
       issueSeverity={issue?.severity}
     >
       <>
-        <Input
+        <Input disabled={configReadOnly}
           id={id}
           list={`${id}-zones`}
           value={draft}
@@ -93,7 +97,7 @@ function TimezoneInput({
           placeholder="UTC"
           spellCheck={false}
           autoComplete="off"
-          aria-describedby={issueId(id)}
+          aria-describedby={descriptionIds(id)}
           className="max-w-64 font-mono text-xs"
         />
         <datalist id={`${id}-zones`}>
@@ -161,7 +165,7 @@ export function ScheduleEditor({ api, idPrefix }: { api: DocFormApi; idPrefix: s
           />
           <EnumSelect
             id={`${idPrefix}-pause-status`}
-            label="Pause status"
+            label="Pause status" helpPath={['schedule', 'pause_status']}
             value={pauseValue}
             options={PAUSE_STATUSES}
             unsetLabel="Not set"

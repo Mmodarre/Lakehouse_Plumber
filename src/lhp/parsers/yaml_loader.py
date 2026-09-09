@@ -77,6 +77,22 @@ def load_yaml_file(
         ) from e
 
 
+def load_yaml_text(
+    text: str, *, source_path: Path, allow_empty: bool = True
+) -> Optional[Dict[str, Any]]:
+    """Parse an in-memory single document with the file loader's YAML semantics."""
+    try:
+        documents = list(yaml.load_all(text, Loader=SAFE_LOADER))  # nosec B506
+        if len(documents) != 1:
+            raise MultiDocumentError(source_path, len(documents), "template draft")
+        content = documents[0]
+        return ({} if allow_empty else None) if content is None else content
+    except yaml.YAMLError as exc:
+        raise ErrorFactory.yaml_parse_error(
+            file_path=str(source_path), error_message=str(exc), context="template draft"
+        ) from exc
+
+
 def safe_load_yaml_with_fallback(
     file_path: Union[Path, str],
     fallback_value: Dict[str, Any] | None = None,

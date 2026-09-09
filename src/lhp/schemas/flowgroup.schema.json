@@ -13,7 +13,10 @@
     "definitions": {
         "SingleFlowGroup": {
             "type": "object",
-            "required": ["pipeline", "flowgroup"],
+            "required": [
+                "pipeline",
+                "flowgroup"
+            ],
             "properties": {
                 "pipeline": {
                     "type": "string",
@@ -59,7 +62,10 @@
         },
         "MultiFlowGroupArray": {
             "type": "object",
-            "required": ["pipeline", "flowgroups"],
+            "required": [
+                "pipeline",
+                "flowgroups"
+            ],
             "properties": {
                 "pipeline": {
                     "type": "string",
@@ -80,7 +86,9 @@
                     "minItems": 1,
                     "items": {
                         "type": "object",
-                        "required": ["flowgroup"],
+                        "required": [
+                            "flowgroup"
+                        ],
                         "properties": {
                             "flowgroup": {
                                 "type": "string",
@@ -168,7 +176,10 @@
         },
         "Action": {
             "type": "object",
-            "required": ["name", "type"],
+            "required": [
+                "name",
+                "type"
+            ],
             "properties": {
                 "name": {
                     "type": "string",
@@ -176,7 +187,12 @@
                 },
                 "type": {
                     "type": "string",
-                    "enum": ["load", "transform", "write","test"],
+                    "enum": [
+                        "load",
+                        "transform",
+                        "write",
+                        "test"
+                    ],
                     "description": "Type of action"
                 },
                 "source": {
@@ -202,7 +218,15 @@
                             "properties": {
                                 "type": {
                                     "type": "string",
-                                    "enum": ["cloudfiles", "delta", "sql", "jdbc", "python", "custom_datasource", "kafka"]
+                                    "enum": [
+                                        "cloudfiles",
+                                        "delta",
+                                        "sql",
+                                        "jdbc",
+                                        "python",
+                                        "custom_datasource",
+                                        "kafka"
+                                    ]
                                 },
                                 "path": {
                                     "type": "string",
@@ -210,7 +234,16 @@
                                 },
                                 "format": {
                                     "type": "string",
-                                    "enum": ["json", "parquet", "csv", "avro", "orc", "text", "binaryfile", "xml"],
+                                    "enum": [
+                                        "json",
+                                        "parquet",
+                                        "csv",
+                                        "avro",
+                                        "orc",
+                                        "text",
+                                        "binaryfile",
+                                        "xml"
+                                    ],
                                     "description": "File format"
                                 },
                                 "database": {
@@ -235,15 +268,15 @@
                                 },
                                 "url": {
                                     "type": "string",
-                                    "description": "JDBC URL"
+                                    "description": "JDBC connection URL containing the driver protocol, host, port and database, for example jdbc:postgresql://host:5432/warehouse. Supply credentials separately."
                                 },
                                 "user": {
                                     "type": "string",
-                                    "description": "Database user"
+                                    "description": "Database user supplied through a secret reference, for example ${secret:db/user}."
                                 },
                                 "password": {
                                     "type": "string",
-                                    "description": "Database password"
+                                    "description": "Database credential supplied as a secret reference, for example ${secret:db/password}. Keep the actual password out of committed YAML."
                                 },
                                 "driver": {
                                     "type": "string",
@@ -278,20 +311,23 @@
                                 },
                                 "schema": {
                                     "type": "string",
-                                    "description": "For delta sources: Unity Catalog schema name. For cloudfiles sources: Schema definition (DDL or path). For schema transforms, use 'schema_inline' or 'schema_file' at action level instead."
+                                    "description": "For Delta loads, the Unity Catalog schema name. For Auto Loader, a schema-file path (not inline DDL); use source.options.cloudFiles.schemaHints for DDL hints. Schema transforms use action-level schema_inline or schema_file."
                                 },
                                 "schema_file": {
                                     "type": "string",
-                                    "description": "Path to schema file (recommended for schema transforms)"
+                                    "description": "Legacy Auto Loader schema-file path. Do not combine with source.schema or cloudFiles.schemaHints. Schema transforms use action-level schema_file."
                                 },
                                 "readMode": {
                                     "type": "string",
-                                    "enum": ["batch", "stream"],
-                                    "description": "Read mode"
+                                    "enum": [
+                                        "batch",
+                                        "stream"
+                                    ],
+                                    "description": "Select batch or streaming reads where the load type supports this nested setting. Auto Loader and Kafka require stream; Delta defaults to batch. Custom DataSource uses action-level readMode instead."
                                 },
                                 "schema_location": {
                                     "type": "string",
-                                    "description": "Schema location"
+                                    "description": "Legacy Auto Loader schema-tracking location, not a schema-definition file. Do not also set source.options.cloudFiles.schemaLocation."
                                 },
                                 "schema_infer_column_types": {
                                     "type": "boolean",
@@ -303,8 +339,12 @@
                                 },
                                 "schema_evolution_mode": {
                                     "type": "string",
-                                    "enum": ["addNewColumns", "rescue", "failOnNewColumns"],
-                                    "description": "Schema evolution mode"
+                                    "enum": [
+                                        "addNewColumns",
+                                        "rescue",
+                                        "failOnNewColumns"
+                                    ],
+                                    "description": "Legacy Auto Loader behavior for newly discovered columns: addNewColumns, rescue, or failOnNewColumns. Do not also set cloudFiles.schemaEvolutionMode in source.options."
                                 },
                                 "rescue_data_column": {
                                     "type": "string",
@@ -361,7 +401,10 @@
                 },
                 "readMode": {
                     "type": "string",
-                    "enum": ["batch", "stream"],
+                    "enum": [
+                        "batch",
+                        "stream"
+                    ],
                     "description": "Read mode: 'batch' or 'stream'"
                 },
                 "write_target": {
@@ -370,7 +413,13 @@
                 },
                 "transform_type": {
                     "type": "string",
-                    "enum": ["sql", "python", "data_quality", "temp_table", "schema"],
+                    "enum": [
+                        "sql",
+                        "python",
+                        "data_quality",
+                        "temp_table",
+                        "schema"
+                    ],
                     "description": "Type of transformation. For 'python': requires module_path, function_name, and source as string/array"
                 },
                 "sql": {
@@ -401,13 +450,19 @@
                 },
                 "mode": {
                     "type": "string",
-                    "enum": ["dqe", "quarantine"],
+                    "enum": [
+                        "dqe",
+                        "quarantine"
+                    ],
                     "description": "Data quality mode: 'dqe' (default expectations decorators) or 'quarantine' (DLQ dead letter queue recycling)"
                 },
                 "quarantine": {
                     "type": "object",
                     "description": "Quarantine configuration for DLQ recycling (required when mode is 'quarantine')",
-                    "required": ["dlq_table", "source_table"],
+                    "required": [
+                        "dlq_table",
+                        "source_table"
+                    ],
                     "properties": {
                         "dlq_table": {
                             "type": "string",
@@ -430,7 +485,10 @@
                 },
                 "enforcement": {
                     "type": "string",
-                    "enum": ["strict", "permissive"],
+                    "enum": [
+                        "strict",
+                        "permissive"
+                    ],
                     "description": "Schema enforcement mode for schema transforms: 'strict' (only defined columns) or 'permissive' (allow extra columns). Default: permissive"
                 },
                 "once": {
@@ -554,11 +612,17 @@
         },
         "WriteTarget": {
             "type": "object",
-            "required": ["type"],
+            "required": [
+                "type"
+            ],
             "properties": {
                 "type": {
                     "type": "string",
-                    "enum": ["streaming_table", "materialized_view", "sink"],
+                    "enum": [
+                        "streaming_table",
+                        "materialized_view",
+                        "sink"
+                    ],
                     "description": "Type of write target"
                 },
                 "catalog": {
@@ -594,7 +658,10 @@
                 "tags": {
                     "type": "object",
                     "additionalProperties": {
-                        "type": ["string", "null"]
+                        "type": [
+                            "string",
+                            "null"
+                        ]
                     },
                     "description": "UC tags; applied during the run via the tagging hook. Table-level tags only — column-level tags require an external tags file ('tags_file')."
                 },
@@ -653,7 +720,12 @@
                 },
                 "refresh_policy": {
                     "type": "string",
-                    "enum": ["auto", "incremental", "incremental_strict", "full"],
+                    "enum": [
+                        "auto",
+                        "incremental",
+                        "incremental_strict",
+                        "full"
+                    ],
                     "description": "Refresh policy for materialized views. One of: auto, incremental, incremental_strict, full"
                 },
                 "sql": {
@@ -666,7 +738,12 @@
                 },
                 "sink_type": {
                     "type": "string",
-                    "enum": ["delta", "kafka", "custom", "foreachbatch"],
+                    "enum": [
+                        "delta",
+                        "kafka",
+                        "custom",
+                        "foreachbatch"
+                    ],
                     "description": "Type of sink (delta, kafka, custom, foreachbatch)"
                 },
                 "sink_name": {
@@ -700,7 +777,10 @@
                 },
                 "mode": {
                     "type": "string",
-                    "enum": ["cdc", "snapshot_cdc"],
+                    "enum": [
+                        "cdc",
+                        "snapshot_cdc"
+                    ],
                     "description": "Table mode for CDC operations"
                 },
                 "cdc_config": {
@@ -739,7 +819,10 @@
                         },
                         "stored_as_scd_type": {
                             "type": "string",
-                            "enum": ["1", "2"],
+                            "enum": [
+                                "1",
+                                "2"
+                            ],
                             "description": "SCD type for storage"
                         },
                         "track_history_column_list": {
@@ -765,7 +848,10 @@
                         },
                         "scd_type": {
                             "type": "integer",
-                            "enum": [1, 2],
+                            "enum": [
+                                1,
+                                2
+                            ],
                             "description": "1 overwrites; 2 tracks history."
                         }
                     }
@@ -806,7 +892,10 @@
                         },
                         "stored_as_scd_type": {
                             "type": "string",
-                            "enum": ["1", "2"],
+                            "enum": [
+                                "1",
+                                "2"
+                            ],
                             "description": "SCD type for storage"
                         },
                         "track_history_column_list": {

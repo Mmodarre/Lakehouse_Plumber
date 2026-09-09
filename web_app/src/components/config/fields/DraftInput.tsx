@@ -1,3 +1,4 @@
+import { useConfigReadOnly } from '@/components/config/shared/configEditingContext'
 import { useEffect, useState } from 'react'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -42,6 +43,10 @@ export function DraftInput({
   className,
   ...rest
 }: DraftInputProps) {
+  const configReadOnly = useConfigReadOnly()
+  const disabled = configReadOnly || rest.disabled
+  const canEdit = !disabled && !rest.readOnly
+
   const [draft, setDraft] = useState(initial)
   // Re-sync when the committed value changes (our own commit landing, or an
   // external reload adopting new content while the field is not being
@@ -64,7 +69,7 @@ export function DraftInput({
   }, [pending])
 
   const commit = () => {
-    if (draft !== initial) onCommit(draft)
+    if (canEdit && draft !== initial) onCommit(draft)
   }
   const onKeyDown = (e: React.KeyboardEvent) => {
     if (e.nativeEvent.isComposing || e.keyCode === 229) return
@@ -90,6 +95,7 @@ export function DraftInput({
         monospace={monospace}
         className={cn('text-xs', monospace && 'font-mono', className)}
         {...rest}
+        disabled={disabled}
       />
     )
   }
@@ -105,6 +111,7 @@ export function DraftInput({
     autoComplete: 'off',
     className: cn('text-xs', monospace && 'font-mono', className),
     ...rest,
+    disabled,
   }
   return multiline ? <Textarea rows={4} {...shared} /> : <Input {...shared} />
 }

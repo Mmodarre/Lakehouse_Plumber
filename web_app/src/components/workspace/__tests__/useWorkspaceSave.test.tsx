@@ -96,6 +96,23 @@ describe('useWorkspaceSave', () => {
     })
   })
 
+  it('refuses to save an older committed value while a malformed form draft is visible', async () => {
+    const path = 'templates/invalid-local.yaml'
+    useWorkspaceStore.getState().openBuffer(path, { content: 'name: example\nactions: []\n', exists: true })
+    const { result } = setup(path)
+    const input = document.createElement('input')
+    input.setAttribute('data-workspace-draft', '')
+    input.setAttribute('aria-invalid', 'true')
+    input.value = 'not a number'
+    document.body.append(input)
+    try {
+      await act(async () => { expect(await result.current.saveBuffer(path)).toBe(false) })
+      expect(mockWriteFile).not.toHaveBeenCalled()
+      expect(input).toHaveFocus()
+      expect(mockToastError).toHaveBeenCalledWith(expect.stringContaining('before saving'))
+    } finally { input.remove() }
+  })
+
   it('first save of a new flowgroup YAML invalidates inspection caches but NOT the graph keys (serve-stale)', async () => {
     // Under serve-stale a brand-new flowgroup misses the graph cache, so a
     // graph-key invalidation here would force an ungated cold rebuild and a

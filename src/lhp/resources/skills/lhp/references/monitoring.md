@@ -271,3 +271,16 @@ dev:                              prod:
 | Both `sql` and `sql_path` on same MV | LHP-CFG-008 | Use one or the other |
 | Alias + real name both in config | LHP-VAL-010 | Use only `__eventlog_monitoring` or the real name |
 | Alias used in a pipeline list | LHP-VAL-011 | Must be standalone `pipeline:` entry |
+
+## Monitoring notebook compute overrides
+
+`notebook_cluster` belongs to monitoring job settings, not orchestration
+pipeline tasks. Put a new cluster specification inside
+`notebook_cluster.new_cluster`; its `spark_version`, `node_type_id`,
+`num_workers` and other keys are rendered as written. To use an existing cluster,
+set `notebook_cluster.existing_cluster_id` instead. A `new_cluster` mapping takes
+precedence when both forms are present.
+
+Do not put cluster settings directly under `notebook_cluster` and expect them
+to be copied into `new_cluster`. The editor exposes the nested mapping that the
+monitoring job template actually reads.

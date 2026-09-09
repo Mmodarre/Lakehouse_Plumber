@@ -1,7 +1,8 @@
+import { useConfigReadOnly } from '@/components/config/shared/configEditingContext'
 import type { SchemaPath } from '@/lib/schema-help'
 import { DraftInput } from './DraftInput'
 import { FieldChrome } from './FieldChrome'
-import { displayString, issueId } from './fieldSupport'
+import { displayString, descriptionIds } from './fieldSupport'
 
 // ── OptionalTextField — optional string key ──────────────────
 //
@@ -57,6 +58,8 @@ export function OptionalTextField({
   issueSeverity,
   disabled,
 }: OptionalTextFieldProps) {
+  const configReadOnly = useConfigReadOnly()
+
   const initial = displayString(value)
   return (
     <FieldChrome
@@ -76,9 +79,9 @@ export function OptionalTextField({
         monospace={monospace}
         multiline={multiline}
         tokenComplete={tokenComplete}
-        disabled={disabled}
+        disabled={configReadOnly || (disabled)}
         aria-invalid={issue !== undefined && issueSeverity !== 'warning' ? true : undefined}
-        aria-describedby={issueId(id)}
+        aria-describedby={descriptionIds(id)}
       />
     </FieldChrome>
   )

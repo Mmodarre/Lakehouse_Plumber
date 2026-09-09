@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { WorkspaceTabRef } from '@/store/workspaceStore'
+import { normalizeEntityView, type WorkspaceTabRef } from '@/store/workspaceStore'
 
 export function encodeTab(tab: WorkspaceTabRef): string { return JSON.stringify(tab) }
 export function decodeTab(value: string | null): WorkspaceTabRef | null {
@@ -10,7 +10,7 @@ export function decodeTab(value: string | null): WorkspaceTabRef | null {
     switch (t.kind) {
       case 'file': return strings('path') ? { kind: 'file', path: t.path as string } : null
       case 'entity': return strings('pipeline', 'flowgroup', 'filePath') && ['flowgroup', 'template'].includes(String(t.docKind))
-        ? { kind: 'entity', pipeline: t.pipeline as string, flowgroup: t.flowgroup as string, filePath: t.filePath as string, docKind: t.docKind as 'flowgroup' | 'template', view: t.view === 'code' ? 'code' : 'graph' } : null
+        ? { kind: 'entity', pipeline: t.pipeline as string, flowgroup: t.flowgroup as string, filePath: t.filePath as string, docKind: t.docKind as 'flowgroup' | 'template', view: normalizeEntityView(t.docKind as 'flowgroup' | 'template', t.view === 'code' || t.view === 'preview' ? t.view : undefined) } : null
       case 'config': return strings('path') && ['project', 'pipeline', 'job'].includes(String(t.configKind))
         ? { kind: 'config', path: t.path as string, configKind: t.configKind as 'project' | 'pipeline' | 'job', view: t.view === 'yaml' ? 'yaml' : 'form' } : null
       case 'project-map': return { kind: 'project-map' }

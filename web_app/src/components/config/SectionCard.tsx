@@ -214,14 +214,9 @@ export function SectionCard({
           hidden={collapsed}
           className="space-y-3 px-4"
         >
-          <fieldset
-            disabled={readOnly}
-            inert={readOnly ? true : undefined}
-            aria-disabled={readOnly || undefined}
-            className="min-w-0 space-y-3"
-          >
+          <div className="min-w-0 space-y-3">
             {children}
-          </fieldset>
+          </div>
         </CardContent>
       )}
       {presence && (

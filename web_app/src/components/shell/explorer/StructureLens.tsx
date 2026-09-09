@@ -6,12 +6,12 @@ const CreateFromTemplateDialog = lazy(() =>
     default: module.CreateFromTemplateDialog,
   })),
 )
+const TemplateResources = lazy(() => import('../../template/TemplateResources').then((m) => ({ default: m.TemplateResources })))
 import type { LucideIcon } from 'lucide-react'
 import {
   ChevronRight,
   FileCog,
   Layers,
-  LayoutTemplate,
   Map as MapIcon,
   PackageOpen,
   Search,
@@ -22,7 +22,6 @@ import { usePipelines } from '../../../hooks/usePipelines'
 import { useFlowgroups } from '../../../hooks/useFlowgroups'
 import { useFileList } from '../../../hooks/useFiles'
 import { usePresets } from '../../../hooks/usePresets'
-import { useTemplates } from '../../../hooks/useTemplates'
 import { useBlueprints } from '../../../hooks/useBlueprints'
 import { useEnvironments } from '../../../hooks/useEnvironments'
 import { useWorkspaceStore, entityTabId } from '../../../store/workspaceStore'
@@ -178,7 +177,6 @@ export function StructureLens() {
   } = useFlowgroups()
   const { data: tree, isError: filesError, refetch: retryFiles } = useFileList()
   const { data: presetData } = usePresets()
-  const { data: templateData } = useTemplates()
   const { data: blueprintData } = useBlueprints()
   const { data: envData } = useEnvironments()
 
@@ -243,7 +241,6 @@ export function StructureLens() {
   }, [pipelineTree, query])
 
   const presets = presetData?.presets ?? []
-  const templates = templateData?.templates ?? []
   const blueprints = blueprintData?.blueprints ?? []
   const environments = envData?.environments ?? []
 
@@ -435,30 +432,7 @@ export function StructureLens() {
             />
           )}
         />
-        <ResourceGroup
-          id="res:templates"
-          label="Templates"
-          icon={LayoutTemplate}
-          open={isOpen('res:templates', false)}
-          onToggle={toggle}
-          items={templates}
-          emptyHint="No templates"
-          renderItem={(name) => (
-            <Row
-              key={name}
-              depth={1}
-              label={name}
-              mono
-              active={
-                activePath ===
-                `resource:template:${resolveResourceFilePath(paths, 'templates', name)}`
-              }
-              onClick={() =>
-                openResourceTab('template', name, resolveResourceFilePath(paths, 'templates', name))
-              }
-            />
-          )}
-        />
+        <Suspense fallback={<SectionHead>Templates</SectionHead>}><TemplateResources /></Suspense>
         <ResourceGroup
           id="res:blueprints"
           label="Blueprints"

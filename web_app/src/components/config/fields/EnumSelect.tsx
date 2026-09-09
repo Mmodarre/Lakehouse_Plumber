@@ -1,3 +1,4 @@
+import { useConfigReadOnly } from '@/components/config/shared/configEditingContext'
 import {
   Select,
   SelectContent,
@@ -8,7 +9,7 @@ import {
 import { SegmentedControl } from '@/components/ui/segmented-control'
 import type { SchemaPath } from '@/lib/schema-help'
 import { FieldChrome } from './FieldChrome'
-import { issueId } from './fieldSupport'
+import { descriptionIds } from './fieldSupport'
 
 // ── EnumSelect — optional enum key ───────────────────────────
 //
@@ -62,6 +63,8 @@ export function EnumSelect({
   disabled,
   display,
 }: EnumSelectProps) {
+  const configReadOnly = useConfigReadOnly()
+
   const known = value !== undefined && options.includes(value)
   const selectValue = known ? value : value === undefined && unsetLabel ? UNSET : undefined
 
@@ -85,7 +88,7 @@ export function EnumSelect({
           // to `onSet` (SegmentedControl only forwards concrete option values,
           // never UNSET, so no unset routing is needed here).
           onValueChange={onSet}
-          options={options.map((option) => ({ value: String(option), label: option, disabled }))}
+          options={options.map((option) => ({ value: String(option), label: option, disabled: disabled || configReadOnly }))}
         />
       </FieldChrome>
     )
@@ -106,14 +109,14 @@ export function EnumSelect({
           if (next === UNSET) onUnset?.()
           else onSet(next)
         }}
-        disabled={disabled}
+        disabled={configReadOnly || (disabled)}
       >
         <SelectTrigger
           id={id}
           size="sm"
           className="w-full font-mono text-xs"
           aria-invalid={issue !== undefined ? true : undefined}
-          aria-describedby={issueId(id)}
+          aria-describedby={descriptionIds(id)}
         >
           <SelectValue placeholder={value !== undefined ? String(value) : 'Select…'} />
         </SelectTrigger>

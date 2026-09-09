@@ -1,7 +1,9 @@
-import { useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import type { LucideIcon } from 'lucide-react'
-import { Code2, Waypoints } from 'lucide-react'
+import { Code2, Waypoints, PanelsTopLeft, Play } from 'lucide-react'
 
+import { captureWorkspaceEditors, focusInvalidWorkspaceDraft } from '@/workspace/editorCommands'
+import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import {
   useWorkspaceStore,
@@ -30,25 +32,38 @@ const VIEWS: readonly ViewOption[] = [
   { key: 'code', label: 'Code', Icon: Code2 },
 ]
 
+const TEMPLATE_VIEWS: readonly ViewOption[] = [
+  { key: 'builder', label: 'Builder', Icon: PanelsTopLeft },
+  { key: 'code', label: 'Code', Icon: Code2 },
+  { key: 'preview', label: 'Preview', Icon: Play },
+]
+
 export function EntityHeader({ tab }: { tab: EntityTab }) {
   const setTabView = useWorkspaceStore((s) => s.setTabView)
   const tabId = workspaceTabId(tab)
   const view = tab.view
   const isTemplate = tab.docKind === 'template'
+  const views = isTemplate ? TEMPLATE_VIEWS : VIEWS
   const tablistRef = useRef<HTMLDivElement>(null)
+
+  const switchView = useCallback((next: EntityView) => {
+    captureWorkspaceEditors()
+    if (focusInvalidWorkspaceDraft()) { toast.error('Correct this value or press Escape to restore it before changing views.'); return }
+    setTabView(tabId, next)
+  }, [setTabView, tabId])
 
   // Ctrl/⌘ Alt 1 / 2 (or Ctrl on non-mac) select Graph / Code (§6.4).
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (!(e.metaKey || e.ctrlKey) || !e.altKey || e.shiftKey) return
-      const idx = e.key === '1' ? 0 : e.key === '2' ? 1 : -1
-      if (idx === -1) return
+      const idx = ['1', '2', '3'].indexOf(e.key)
+      if (idx < 0 || idx >= views.length) return
       e.preventDefault()
-      setTabView(tabId, VIEWS[idx].key)
+      switchView(views[idx].key)
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [tabId, setTabView])
+  }, [switchView, views])
 
   const focusTab = (idx: number) => {
     const btns = tablistRef.current?.querySelectorAll<HTMLButtonElement>('[role="tab"]')
@@ -58,10 +73,10 @@ export function EntityHeader({ tab }: { tab: EntityTab }) {
   const onTablistKeyDown = (e: React.KeyboardEvent) => {
     if (!['ArrowRight', 'ArrowLeft', 'Home', 'End'].includes(e.key)) return
     e.preventDefault()
-    const current = VIEWS.findIndex((v) => v.key === view)
+    const current = views.findIndex((v) => v.key === view)
     const dir = e.key === 'ArrowRight' ? 1 : -1
-    const nextIdx = e.key === 'Home' ? 0 : e.key === 'End' ? VIEWS.length - 1 : (current + dir + VIEWS.length) % VIEWS.length
-    setTabView(tabId, VIEWS[nextIdx].key)
+    const nextIdx = e.key === 'Home' ? 0 : e.key === 'End' ? views.length - 1 : (current + dir + views.length) % views.length
+    switchView(views[nextIdx].key)
     focusTab(nextIdx)
   }
 
@@ -69,7 +84,7 @@ export function EntityHeader({ tab }: { tab: EntityTab }) {
   const crumbName = tab.flowgroup
 
   return (
-    <div className="flex items-center justify-between gap-2 border-b border-border bg-card px-4 py-1.5">
+    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border bg-card px-4 py-1.5">
       <nav aria-label="Breadcrumb" className="flex min-w-0 items-center gap-1.5 text-2xs">
         {crumbLead !== '' && (
           <>
@@ -89,7 +104,7 @@ export function EntityHeader({ tab }: { tab: EntityTab }) {
         onKeyDown={onTablistKeyDown}
         className="flex shrink-0 items-center gap-0.5 rounded-sm border border-border bg-background p-0.5"
       >
-        {VIEWS.map(({ key, label, Icon }) => {
+        {views.map(({ key, label, Icon }) => {
           const selected = view === key
           return (
             <button
@@ -98,7 +113,7 @@ export function EntityHeader({ tab }: { tab: EntityTab }) {
               role="tab"
               aria-selected={selected}
               tabIndex={selected ? 0 : -1}
-              onClick={() => setTabView(tabId, key)}
+              onClick={() => switchView(key)}
               className={cn(
                 'flex items-center gap-1 rounded-[3px] px-2 py-0.5 text-2xs font-medium transition-colors duration-150',
                 'outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/60',

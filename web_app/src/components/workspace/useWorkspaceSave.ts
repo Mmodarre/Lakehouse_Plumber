@@ -1,3 +1,5 @@
+import { focusInvalidWorkspaceDraft } from '@/workspace/editorCommands'
+import { markTemplatePreviewsStale } from '@/store/templatePreviewStore'
 import { useCallback, useState } from 'react'
 import type { RefObject } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
@@ -73,6 +75,7 @@ export function useWorkspaceSave({
 
   const saveBuffer = useCallback(
     async (path: string, overrides?: SaveOverrides): Promise<boolean> => {
+      if (focusInvalidWorkspaceDraft()) { toast.error('Correct this value or press Escape to restore it before saving.'); return false }
       const store = useWorkspaceStore.getState()
       const buffer = store.buffers.find((b) => b.path === path)
       if (!buffer || buffer.isSaving) return false
@@ -133,6 +136,11 @@ export function useWorkspaceSave({
         }
 
         queryClient.invalidateQueries({ queryKey: ['files'] })
+        markTemplatePreviewsStale()
+        if (path.startsWith('templates/')) {
+          void queryClient.invalidateQueries({ queryKey: ['templates'] })
+          void queryClient.invalidateQueries({ queryKey: ['template'] })
+        }
         if (wasNew && isYaml) {
           // First save of a new flowgroup YAML changes the project topology
           // (the retired create-modal's post-create invalidations). Refetch the

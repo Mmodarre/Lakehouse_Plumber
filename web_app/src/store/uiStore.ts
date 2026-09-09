@@ -43,8 +43,8 @@ interface UIState {
   // Create flowgroup dialog
   createFlowgroupDialog: boolean
   /** Optional seed for the dialog (e.g. the pipeline the drill modal opened from). */
-  createFlowgroupSeed: { pipeline?: string } | null
-  openCreateFlowgroupDialog: (seed?: { pipeline?: string }) => void
+  createFlowgroupSeed: { pipeline?: string; templatePath?: string } | null
+  openCreateFlowgroupDialog: (seed?: { pipeline?: string; templatePath?: string }) => void
   closeCreateFlowgroupDialog: () => void
 
   /**

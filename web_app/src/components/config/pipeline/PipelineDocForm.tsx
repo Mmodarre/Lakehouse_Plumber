@@ -91,7 +91,7 @@ export function PipelineDocForm({
           </div>
         )}
 
-        <fieldset disabled={readOnly} inert={readOnly ? true : undefined} className="min-w-0">
+        <div  className="min-w-0">
           {kind === 'pipeline' &&
             (Array.isArray(rawPipeline) ? (
               <GroupMembershipEditor
@@ -130,7 +130,7 @@ export function PipelineDocForm({
                 />
               </FieldChrome>
             ))}
-        </fieldset>
+        </div>
 
         <ConfigSections key={`${scope}#${api.docIndex}`} scope={`${scope}#${api.docIndex}`}>
           <PipelineCoreFields api={api} idPrefix={idPrefix} />

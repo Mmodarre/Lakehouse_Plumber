@@ -35,7 +35,7 @@ export function EventLogSection({ form }: { form: ProjectFormApi }) {
       <SectionIssues issues={issuesAtExactly(form.issues, [...BASE])} />
       {!broken && (
         <>
-          <BoolSwitch
+          <BoolSwitch helpPath={[...[...BASE], 'enabled']}
             id="event-log-enabled"
             label="Enabled"
             value={'enabled' in section ? parseLaxBool(section.enabled) : undefined}
@@ -64,7 +64,7 @@ export function EventLogSection({ form }: { form: ProjectFormApi }) {
             helpPath={['event_log', 'schema']}
             issue={issueText(form.issues, [...BASE, 'schema'])?.message}
           />
-          <OptionalTextField
+          <OptionalTextField helpPath={[...[...BASE], 'name_prefix']}
             id="event-log-name-prefix"
             label="Name prefix"
             value={section.name_prefix}
@@ -73,7 +73,7 @@ export function EventLogSection({ form }: { form: ProjectFormApi }) {
             monospace
             issue={issueText(form.issues, [...BASE, 'name_prefix'])?.message}
           />
-          <OptionalTextField
+          <OptionalTextField helpPath={[...[...BASE], 'name_suffix']}
             id="event-log-name-suffix"
             label="Name suffix"
             value={section.name_suffix}

@@ -53,7 +53,7 @@ export function PipelineAdvancedFields({ api, idPrefix }: { api: DocFormApi; idP
         configured={['event_log'].some((key) => key in api.settings)}
         description="Overrides the project-level event_log injection for this document's pipelines."
       >
-        <EnumSelect
+        <EnumSelect helpPath={['event_log']}
           id={`${idPrefix}-event-log-mode`}
           label="Event log mode"
           value={mode}
@@ -72,7 +72,7 @@ export function PipelineAdvancedFields({ api, idPrefix }: { api: DocFormApi; idP
         )}
         {eventLogMap && (
           <>
-            <OptionalTextField
+            <OptionalTextField helpPath={['event_log', 'name']}
               id={`${idPrefix}-event-log-name`}
               label="Event log table name"
               value={eventLogMap.name}
@@ -80,7 +80,7 @@ export function PipelineAdvancedFields({ api, idPrefix }: { api: DocFormApi; idP
               onUnset={() => api.del(['event_log', 'name'])}
               monospace
             />
-            <OptionalTextField
+            <OptionalTextField helpPath={['event_log', 'catalog']}
               id={`${idPrefix}-event-log-catalog`}
               label="Event log catalog"
               value={eventLogMap.catalog}
@@ -88,7 +88,7 @@ export function PipelineAdvancedFields({ api, idPrefix }: { api: DocFormApi; idP
               onUnset={() => api.del(['event_log', 'catalog'])}
               monospace
             />
-            <OptionalTextField
+            <OptionalTextField helpPath={['event_log', 'schema']}
               id={`${idPrefix}-event-log-schema`}
               label="Event log schema"
               value={eventLogMap.schema}
@@ -107,7 +107,7 @@ export function PipelineAdvancedFields({ api, idPrefix }: { api: DocFormApi; idP
       >
         <StringListEditor
           id={`${idPrefix}-dependencies`}
-          label="Dependencies"
+          label="Dependencies" helpPath={['environment', 'dependencies']}
           value={dependencies}
           onEditItem={(index, value) => api.set(['environment', 'dependencies', index], value)}
           onAddItem={(value) =>

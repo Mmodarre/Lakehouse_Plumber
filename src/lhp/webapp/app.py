@@ -66,6 +66,7 @@ _ROUTER_MODULES: tuple[str, ...] = (
     "dependencies",
     "sandbox",
     "schemas",
+    "help",
     "config_templates",
     "configuration",
     "files",

@@ -1,0 +1,779 @@
+{
+  "version": 1,
+  "entries": [
+    {
+      "id": "pipeline.serverless",
+      "summary": "Choose Databricks-managed compute for this pipeline.",
+      "sources": [
+        {
+          "file": "docs/reference/config/bundle.rst"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "serverless"
+          ]
+        }
+      ],
+      "details": [
+        "With serverless off, supply a clusters configuration. Classic-only options such as edition and photon are ignored for serverless pipelines."
+      ],
+      "unsetBehavior": "Inherit project defaults; if neither level sets it, LHP uses true.",
+      "choices": [
+        {
+          "value": "true",
+          "explanation": "Use serverless compute."
+        },
+        {
+          "value": "false",
+          "explanation": "Use the configured classic clusters."
+        }
+      ]
+    },
+    {
+      "id": "pipeline.edition",
+      "summary": "Select the pipeline edition for classic compute.",
+      "sources": [
+        {
+          "file": "docs/reference/config/bundle.rst"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "edition"
+          ]
+        }
+      ],
+      "details": [
+        "CORE, PRO and ADVANCED are the accepted values. This field is omitted from the generated pipeline resource when serverless is enabled."
+      ],
+      "unsetBehavior": "Inherit project defaults; LHP’s built-in edition is ADVANCED."
+    },
+    {
+      "id": "pipeline.channel",
+      "summary": "Choose the pipeline runtime release channel.",
+      "sources": [
+        {
+          "file": "docs/reference/config/bundle.rst"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "channel"
+          ]
+        }
+      ],
+      "details": [
+        "Use CURRENT for the stable channel or PREVIEW when deliberately evaluating upcoming runtime features."
+      ],
+      "unsetBehavior": "Inherit project defaults; LHP’s built-in channel is CURRENT.",
+      "choices": [
+        {
+          "value": "CURRENT",
+          "explanation": "Stable runtime channel."
+        },
+        {
+          "value": "PREVIEW",
+          "explanation": "Preview runtime features."
+        }
+      ]
+    },
+    {
+      "id": "pipeline.continuous",
+      "summary": "Control whether the pipeline keeps running between updates.",
+      "sources": [
+        {
+          "file": "docs/reference/config/bundle.rst"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "continuous"
+          ]
+        }
+      ],
+      "details": [
+        "This is a pipeline execution setting. It is separate from an action’s readMode, which chooses how that action reads data."
+      ],
+      "unsetBehavior": "Inherit project defaults; LHP’s built-in setting is false."
+    },
+    {
+      "id": "pipeline.packaging",
+      "summary": "Choose how the generated pipeline code is shipped.",
+      "sources": [
+        {
+          "file": "docs/reference/config/bundle.rst"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "packaging"
+          ]
+        }
+      ],
+      "details": [
+        "source ships source files; wheel builds a Python wheel and requires wheel.artifact_volume in lhp.yaml."
+      ],
+      "examples": [
+        {
+          "label": "YAML example",
+          "yaml": "project_defaults:\n  packaging: wheel"
+        }
+      ],
+      "unsetBehavior": "Inherit project defaults; only when neither level specifies packaging does LHP use source.",
+      "choices": [
+        {
+          "value": "source",
+          "explanation": "Ship generated source files."
+        },
+        {
+          "value": "wheel",
+          "explanation": "Build and upload a Python wheel."
+        }
+      ],
+      "relatedHelpIds": [
+        "project.wheel.artifact_volume"
+      ]
+    },
+    {
+      "id": "pipeline.catalog",
+      "summary": "Choose the Unity Catalog catalog for this pipeline’s tables.",
+      "sources": [
+        {
+          "file": "docs/reference/config/bundle.rst"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "catalog"
+          ]
+        }
+      ],
+      "details": [
+        "Enter a literal name or a substitution token. Both catalog and schema must resolve to nonempty values for bundle generation."
+      ],
+      "examples": [
+        {
+          "label": "YAML example",
+          "yaml": "project_defaults:\n  catalog: \"${catalog}\"\n  schema: \"${bronze_schema}\""
+        }
+      ],
+      "unsetBehavior": "Inherit the project-default catalog; no usable value means bundle generation cannot proceed."
+    },
+    {
+      "id": "pipeline.schema",
+      "summary": "Choose the Unity Catalog schema for this pipeline’s tables.",
+      "sources": [
+        {
+          "file": "docs/reference/config/bundle.rst"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "schema"
+          ]
+        }
+      ],
+      "details": [
+        "Enter a literal name or a substitution token. Both schema and catalog must resolve to nonempty values for bundle generation."
+      ],
+      "examples": [
+        {
+          "label": "YAML example",
+          "yaml": "project_defaults:\n  catalog: \"${catalog}\"\n  schema: \"${bronze_schema}\""
+        }
+      ],
+      "unsetBehavior": "Inherit the project-default schema; no usable value means bundle generation cannot proceed."
+    },
+    {
+      "id": "pipeline.configuration",
+      "summary": "Pass named string settings to the pipeline.",
+      "sources": [
+        {
+          "file": "docs/reference/config/bundle.rst"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "configuration"
+          ]
+        }
+      ],
+      "details": [
+        "Every value in this mapping must be a string, including numbers and booleans. Nested mappings merge with defaults by key."
+      ],
+      "examples": [
+        {
+          "label": "YAML example",
+          "yaml": "configuration:\n  spark.databricks.delta.schema.autoMerge.enabled: \"true\""
+        }
+      ],
+      "unsetBehavior": "Inherit the project-default mapping."
+    },
+    {
+      "id": "pipeline.environment",
+      "summary": "Declare the runtime environment used by the pipeline.",
+      "sources": [
+        {
+          "file": "docs/reference/config/bundle.rst"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "environment"
+          ]
+        }
+      ],
+      "details": [
+        "Use dependencies for pip requirement specifiers needed by pipeline code; the environment mapping is passed to the generated pipeline resource."
+      ],
+      "unsetBehavior": "When unset here, the project-default value applies. If neither level sets this key, only a documented LHP or platform default applies; omission is not the same as an explicit value."
+    },
+    {
+      "id": "pipeline.environment.dependencies",
+      "summary": "Install Python requirements needed by pipeline code.",
+      "sources": [
+        {
+          "file": "docs/reference/config/bundle.rst"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "environment",
+            "dependencies"
+          ]
+        }
+      ],
+      "details": [
+        "List pip requirement specifiers such as requests==2.32.3. A locally declared list replaces the inherited list rather than appending to it."
+      ],
+      "examples": [
+        {
+          "label": "YAML example",
+          "yaml": "environment:\n  dependencies:\n    - requests==2.32.3"
+        }
+      ],
+      "unsetBehavior": "Inherit the dependency list from project defaults."
+    },
+    {
+      "id": "pipeline.clusters",
+      "summary": "Configure classic compute when serverless is disabled.",
+      "sources": [
+        {
+          "file": "docs/reference/config/bundle.rst"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "clusters"
+          ]
+        }
+      ],
+      "details": [
+        "Enter pipeline cluster definitions. This list is required for classic compute and replaces an inherited list rather than merging individual entries."
+      ],
+      "unsetBehavior": "Inherit clusters from project defaults; classic compute still requires an effective configuration."
+    },
+    {
+      "id": "pipeline.notifications",
+      "summary": "Choose email recipients and pipeline events that trigger notifications.",
+      "sources": [
+        {
+          "file": "docs/reference/config/bundle.rst"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "notifications"
+          ]
+        }
+      ],
+      "details": [
+        "Each notification block pairs email_recipients with alerts. A per-pipeline list replaces the inherited list."
+      ],
+      "examples": [
+        {
+          "label": "YAML example",
+          "yaml": "notifications:\n  - email_recipients: [data-team@example.com]\n    alerts: [on-update-failure]"
+        }
+      ]
+    },
+    {
+      "id": "pipeline.notifications.*.alerts",
+      "summary": "Select pipeline events that should send this notification.",
+      "sources": [
+        {
+          "file": "docs/reference/config/bundle.rst"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "notifications",
+            "*",
+            "alerts"
+          ]
+        }
+      ],
+      "details": [
+        "Use event names such as on-update-success, on-update-failure, on-update-fatal-failure or on-flow-failure."
+      ],
+      "examples": [
+        {
+          "label": "YAML example",
+          "yaml": "alerts: [on-update-failure]"
+        }
+      ]
+    },
+    {
+      "id": "pipeline.notifications.*.email_recipients",
+      "summary": "Choose who receives this pipeline notification.",
+      "sources": [
+        {
+          "file": "docs/reference/config/bundle.rst"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "notifications",
+            "*",
+            "email_recipients"
+          ]
+        }
+      ],
+      "details": [
+        "Provide email addresses for the selected alerts. Recipients belong to this notification block, not to the whole job."
+      ],
+      "examples": [
+        {
+          "label": "YAML example",
+          "yaml": "email_recipients: [data-team@example.com]"
+        }
+      ]
+    },
+    {
+      "id": "pipeline.tags",
+      "summary": "Attach compute tags to a classic pipeline.",
+      "sources": [
+        {
+          "file": "docs/reference/config/bundle.rst"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "tags"
+          ]
+        }
+      ],
+      "details": [
+        "These are pipeline compute tags, separate from Unity Catalog table tags on write actions. Serverless tags come from the compute policy."
+      ],
+      "unsetBehavior": "Inherit tags by mapping key from project defaults."
+    },
+    {
+      "id": "pipeline.photon",
+      "summary": "Enable Photon for classic pipeline compute.",
+      "sources": [
+        {
+          "file": "docs/reference/config/bundle.rst"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "photon"
+          ]
+        }
+      ],
+      "details": [
+        "This setting is ignored when serverless is enabled. It does not select the pipeline runtime channel."
+      ],
+      "unsetBehavior": "When unset here, the project-default value applies. If neither level sets this key, only a documented LHP or platform default applies; omission is not the same as an explicit value."
+    },
+    {
+      "id": "pipeline.event_log",
+      "summary": "Override event-log configuration for this pipeline.",
+      "sources": [
+        {
+          "file": "docs/reference/config/bundle.rst"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "event_log"
+          ]
+        }
+      ],
+      "details": [
+        "An object replaces the lhp.yaml event_log configuration for this pipeline; false explicitly disables event logging here."
+      ],
+      "examples": [
+        {
+          "label": "YAML example",
+          "yaml": "event_log: false"
+        }
+      ],
+      "unsetBehavior": "Use the project event-log behavior unless the pipeline configuration inherits an override."
+    },
+    {
+      "id": "pipeline.run_as",
+      "summary": "Choose the identity used to execute this pipeline.",
+      "sources": [
+        {
+          "file": "docs/reference/config/bundle.rst"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "run_as"
+          ]
+        }
+      ],
+      "details": [
+        "Supply the supported identity mapping, for example service_principal_name. This controls execution identity, while permissions control who can access the pipeline."
+      ],
+      "examples": [
+        {
+          "label": "YAML example",
+          "yaml": "run_as:\n  service_principal_name: \"${pipeline_principal}\""
+        }
+      ],
+      "unsetBehavior": "When unset here, the project-default value applies. If neither level sets this key, only a documented LHP or platform default applies; omission is not the same as an explicit value."
+    },
+    {
+      "id": "pipeline.permissions",
+      "summary": "Grant access to this pipeline.",
+      "sources": [
+        {
+          "file": "docs/reference/config/bundle.rst"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "permissions"
+          ]
+        }
+      ],
+      "details": [
+        "Each entry needs a permission level and exactly one identity: a user, group or service principal. An explicit list replaces the inherited list."
+      ],
+      "examples": [
+        {
+          "label": "YAML example",
+          "yaml": "permissions:\n  - level: CAN_VIEW\n    group_name: data_readers"
+        }
+      ]
+    },
+    {
+      "id": "pipeline.permissions.*.level",
+      "summary": "Choose the access level for this identity.",
+      "sources": [
+        {
+          "file": "docs/reference/config/bundle.rst"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "permissions",
+            "*",
+            "level"
+          ]
+        }
+      ],
+      "details": [
+        "Select an access level supported for this resource, such as CAN_VIEW or CAN_MANAGE. Give the identity the access it needs to perform its role."
+      ]
+    },
+    {
+      "id": "pipeline.permissions.*.user_name",
+      "summary": "Identify a user by their email address.",
+      "sources": [
+        {
+          "file": "docs/reference/config/bundle.rst"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "permissions",
+            "*",
+            "user_name"
+          ]
+        }
+      ],
+      "details": [
+        "Set only one of user_name, group_name and service_principal_name in an entry."
+      ]
+    },
+    {
+      "id": "pipeline.permissions.*.group_name",
+      "summary": "Grant this permission to a workspace group.",
+      "sources": [
+        {
+          "file": "docs/reference/config/bundle.rst"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "permissions",
+            "*",
+            "group_name"
+          ]
+        }
+      ],
+      "details": [
+        "Use the group name, and leave user_name and service_principal_name unset in this entry."
+      ]
+    },
+    {
+      "id": "pipeline.permissions.*.service_principal_name",
+      "summary": "Grant this permission to a service principal.",
+      "sources": [
+        {
+          "file": "docs/reference/config/bundle.rst"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "permissions",
+            "*",
+            "service_principal_name"
+          ]
+        }
+      ],
+      "details": [
+        "Use the service principal application ID, not its display name; leave the other identity fields unset."
+      ]
+    },
+    {
+      "id": "pipeline.event_log.name",
+      "summary": "Name the event-log table for this pipeline.",
+      "details": [
+        "This is part of a full per-pipeline event-log override; the object replaces the project-level event-log setting."
+      ],
+      "sources": [
+        {
+          "file": "docs/reference/config/bundle.rst"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "event_log",
+            "name"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "pipeline.event_log.catalog",
+      "summary": "Choose the catalog for this pipeline’s event-log table.",
+      "details": [
+        "Provide this together with schema and name in the custom event-log override."
+      ],
+      "sources": [
+        {
+          "file": "docs/reference/config/bundle.rst"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "event_log",
+            "catalog"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "pipeline.event_log.schema",
+      "summary": "Choose the schema for this pipeline’s event-log table.",
+      "details": [
+        "This is event-log storage, separate from the catalog/schema for business output tables."
+      ],
+      "sources": [
+        {
+          "file": "docs/reference/config/bundle.rst"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "event_log",
+            "schema"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "pipeline.clusters.*.label",
+      "summary": "Identify the role of this pipeline cluster.",
+      "details": [
+        "Use the pipeline cluster label, commonly default. It distinguishes this cluster definition from other compute roles."
+      ],
+      "sources": [
+        {
+          "file": "docs/reference/config/bundle.rst"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "clusters",
+            "*",
+            "label"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "pipeline.clusters.*.node_type_id",
+      "summary": "Choose the cloud instance type for cluster workers.",
+      "details": [
+        "Use a node type available in your workspace’s cloud and region. This is a classic-compute setting."
+      ],
+      "sources": [
+        {
+          "file": "docs/reference/config/bundle.rst"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "clusters",
+            "*",
+            "node_type_id"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "pipeline.clusters.*.driver_node_type_id",
+      "summary": "Choose the cloud instance type for the cluster driver.",
+      "details": [
+        "The driver coordinates the Spark workload. This setting is separate from the worker node type."
+      ],
+      "sources": [
+        {
+          "file": "docs/reference/config/bundle.rst"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "clusters",
+            "*",
+            "driver_node_type_id"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "pipeline.clusters.*.policy_id",
+      "summary": "Apply a workspace compute policy to this cluster.",
+      "details": [
+        "Use the policy identifier. The policy can constrain which other cluster settings are allowed."
+      ],
+      "sources": [
+        {
+          "file": "docs/reference/config/bundle.rst"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "clusters",
+            "*",
+            "policy_id"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "pipeline.clusters.*.autoscale.min_workers",
+      "summary": "Set the lower worker limit for classic cluster autoscaling.",
+      "details": [
+        "Keep this no greater than max_workers; the autoscaler can resize within the configured bounds."
+      ],
+      "sources": [
+        {
+          "file": "docs/reference/config/bundle.rst"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "clusters",
+            "*",
+            "autoscale",
+            "min_workers"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "pipeline.clusters.*.autoscale.max_workers",
+      "summary": "Set the upper worker limit for classic cluster autoscaling.",
+      "details": [
+        "Keep this no smaller than min_workers. The upper bound limits how far compute can scale out."
+      ],
+      "sources": [
+        {
+          "file": "docs/reference/config/bundle.rst"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "clusters",
+            "*",
+            "autoscale",
+            "max_workers"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "pipeline.clusters.*.autoscale.mode",
+      "summary": "Choose the autoscaling mode for the pipeline cluster.",
+      "details": [
+        "Use the mode supported by your pipeline configuration; ENHANCED is the common pipeline autoscaling mode."
+      ],
+      "sources": [
+        {
+          "file": "docs/reference/config/bundle.rst"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "clusters",
+            "*",
+            "autoscale",
+            "mode"
+          ]
+        }
+      ]
+    }
+  ]
+}

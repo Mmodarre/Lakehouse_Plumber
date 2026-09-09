@@ -78,6 +78,9 @@ jobs:
         python scripts/check_codegen_inline.py --all
       shell: bash
 
+    - name: Check field guidance and documentation review drift
+      run: python scripts/check_field_help.py
+
     - name: Type-check public API surface (mypy --strict)
       run: |
         pip install mypy

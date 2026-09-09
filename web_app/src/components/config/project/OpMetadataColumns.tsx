@@ -1,3 +1,4 @@
+import { useConfigReadOnly } from '@/components/config/shared/configEditingContext'
 import { useState } from 'react'
 import { Plus, X } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
@@ -31,6 +32,8 @@ function ColumnEditor({
   value: unknown
   count: number
 }) {
+  const configReadOnly = useConfigReadOnly()
+
   const base = [...COLUMNS_PATH, name]
   const shorthand = typeof value === 'string'
   const spec = isPlainObject(value) ? value : {}
@@ -68,7 +71,7 @@ function ColumnEditor({
             </Badge>
           )}
         </p>
-        <Button
+        <Button disabled={configReadOnly}
           type="button"
           variant="ghost"
           size="icon-sm"
@@ -83,7 +86,7 @@ function ColumnEditor({
         <>
           <OptionalTextField
             id={`om-column-${name}-expression`}
-            label="Expression"
+            label="Expression" helpPath={[...base, 'expression']}
             value={expression}
             onSet={(v) => setField('expression', v)}
             onUnset={() => delField('expression')}
@@ -92,7 +95,7 @@ function ColumnEditor({
           />
           <OptionalTextField
             id={`om-column-${name}-description`}
-            label="Description"
+            label="Description" helpPath={[...base, 'description']}
             value={spec.description}
             onSet={(v) => setField('description', v)}
             onUnset={() => delField('description')}
@@ -152,6 +155,8 @@ export function OpMetadataColumns({
   form: ProjectFormApi
   columns: Record<string, unknown> | undefined
 }) {
+  const configReadOnly = useConfigReadOnly()
+
   const [newName, setNewName] = useState('')
   const [nameError, setNameError] = useState<string | null>(null)
   const names = columns !== undefined ? Object.keys(columns) : []
@@ -184,7 +189,7 @@ export function OpMetadataColumns({
         />
       ))}
       <div className="flex items-center gap-1.5">
-        <Input
+        <Input disabled={configReadOnly}
           value={newName}
           onChange={(e) => {
             setNewName(e.target.value)
@@ -207,7 +212,7 @@ export function OpMetadataColumns({
           variant="outline"
           size="sm"
           onClick={addColumn}
-          disabled={newName.trim() === ''}
+          disabled={configReadOnly || (newName.trim() === '')}
         >
           <Plus aria-hidden="true" />
           Add column

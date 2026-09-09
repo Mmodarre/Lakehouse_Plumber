@@ -16,7 +16,7 @@ import { EmptyState } from '../../common/EmptyState'
 import { CloseTabsDialog } from '../../workspace/CloseTabsDialog'
 import { Button } from '../../ui/button'
 import { useLayoutStore } from '../../../store/layoutStore'
-import { captureWorkspaceEditors, registerWorkspaceEditor } from '../../../workspace/editorCommands'
+import { captureWorkspaceEditors, focusInvalidWorkspaceDraft, registerWorkspaceEditor } from '../../../workspace/editorCommands'
 import { closingDocumentPaths } from '../../../workspace/tabCommands'
 import { ConflictDialog } from '../../editor/ConflictDialog'
 import { isYamlPath } from '../../editor/yamlSaveSupport'
@@ -44,6 +44,10 @@ const GraphView = lazy(() =>
 const ConfigFormView = lazy(() =>
   import('../../entity/ConfigFormView').then((m) => ({ default: m.ConfigFormView })),
 )
+
+const TemplateBuilder = lazy(() => import('../../template/TemplateBuilder').then((m) => ({ default: m.TemplateBuilder })))
+const TemplatePreview = lazy(() => import('../../template/TemplatePreview').then((m) => ({ default: m.TemplatePreview })))
+const TemplateUseActions = lazy(() => import('../../template/TemplateUseActions').then((m) => ({ default: m.TemplateUseActions })))
 
 // ── CenterArea — the active-tab host (§3 / §6.4) ─────────────
 //
@@ -137,6 +141,8 @@ export function CenterArea() {
   }, [activeTab])
 
   useEffect(() => { activeDocumentPathRef.current = activeBodyBufferPath }, [activeBodyBufferPath])
+
+  const projectRoot = useWorkspaceStore((s) => s.projectRoot)
 
   const anyDirty = buffers.some((b) => b.isDirty)
   const dirtyCount = buffers.filter((b) => b.isDirty).length
@@ -354,6 +360,8 @@ export function CenterArea() {
     (id: string) => {
       // The store-subscribe flush (above) captures the outgoing buffer inside
       // this synchronous set() before YamlView re-keys/unmounts.
+      captureWorkspaceEditors()
+      if (focusInvalidWorkspaceDraft()) { toast.error('Correct this value or press Escape to restore it before changing tabs.'); return }
       setActive(id)
     },
     [setActive],
@@ -486,6 +494,13 @@ export function CenterArea() {
               />
             </Suspense>
           )
+        if (activeTab.docKind === 'template') {
+          return <Suspense fallback={<CenterSkeleton />}>
+            {activeTab.view === 'preview'
+              ? <TemplatePreview key={`${projectRoot}::${activeTab.filePath}`} path={activeTab.filePath} tabId={entityTabId} />
+              : <TemplateBuilder key={activeTab.filePath} path={activeTab.filePath} tabId={entityTabId} />}
+          </Suspense>
+        }
         return (
           <Suspense fallback={<CenterSkeleton />}>
             <GraphView
@@ -553,6 +568,7 @@ export function CenterArea() {
         </div>
       )}
       {activeTab?.kind === 'entity' && <EntityHeader tab={activeTab} />}
+      {activeTab?.kind === 'entity' && activeTab.docKind === 'template' && <Suspense fallback={null}><TemplateUseActions key={`${projectRoot}::${activeTab.filePath}`} path={activeTab.filePath} onSave={() => { captureWorkspaceEditors(); return saveBuffer(activeTab.filePath, { validate: false }) }} /></Suspense>}
       {activeTab?.kind === 'config' && <ConfigHeader tab={activeTab} />}
       {activeBodyBufferPath && (() => {
         const buffer = buffers.find((b) => b.path === activeBodyBufferPath)

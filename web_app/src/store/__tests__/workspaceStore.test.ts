@@ -667,7 +667,7 @@ describe('workspaceStore — persist migrate (v1 DesignerTab→EntityTab; v2 Gra
         flowgroup: 'csv_tpl',
         filePath: 'templates/csv.yaml',
         docKind: 'template',
-        view: 'graph',
+        view: 'builder',
       },
     ])
     expect(s.activePath).toBe('entity:tpl:templates/csv.yaml')

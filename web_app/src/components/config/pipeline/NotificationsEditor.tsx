@@ -1,3 +1,4 @@
+import { useConfigReadOnly } from '@/components/config/shared/configEditingContext'
 import { Plus, X } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -30,6 +31,8 @@ function NotificationEntry({
   entry: Record<string, unknown>
   isLast: boolean
 }) {
+  const configReadOnly = useConfigReadOnly()
+
   const id = `${idPrefix}-notification-${index}`
   const unknownKeys = Object.keys(entry).filter(
     (key) => key !== 'email_recipients' && key !== 'alerts',
@@ -60,7 +63,7 @@ function NotificationEntry({
       <CardContent className="space-y-3 px-4">
         <div className="flex items-center justify-between">
           <p className="text-2xs font-medium text-muted-foreground">Notification {index + 1}</p>
-          <Button
+          <Button disabled={configReadOnly}
             type="button"
             variant="ghost"
             size="icon-xs"
@@ -74,7 +77,7 @@ function NotificationEntry({
         </div>
         <StringListEditor
           id={`${id}-emails`}
-          label="Email recipients"
+          label="Email recipients" helpPath={['notifications', index, 'email_recipients']}
           {...listHandlers('email_recipients')}
           placeholder="team@company.com"
           monospace
@@ -107,6 +110,8 @@ function NotificationEntry({
 }
 
 export function NotificationsEditor({ api, idPrefix }: { api: DocFormApi; idPrefix: string }) {
+  const configReadOnly = useConfigReadOnly()
+
   const raw = api.settings.notifications
   const notifications = Array.isArray(raw) ? raw : undefined
 
@@ -138,7 +143,7 @@ export function NotificationsEditor({ api, idPrefix }: { api: DocFormApi; idPref
               </p>
             ),
           )}
-          <Button
+          <Button disabled={configReadOnly}
             type="button"
             variant="outline"
             size="sm"

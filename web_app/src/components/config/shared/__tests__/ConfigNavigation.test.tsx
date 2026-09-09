@@ -1,3 +1,4 @@
+vi.mock('@/api/help', () => ({ loadHelpCached: vi.fn().mockResolvedValue({ version: 1, entries: [] }) }))
 import { useLayoutStore } from '@/store/layoutStore'
 import { useUIStore } from '@/store/uiStore'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'

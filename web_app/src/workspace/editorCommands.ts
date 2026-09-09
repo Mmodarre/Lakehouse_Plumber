@@ -13,3 +13,11 @@ export function captureWorkspaceEditors(): void {
   if ((active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement) && !active.closest('.monaco-editor')) active.blur()
   for (const capture of captures) capture()
 }
+
+/** Keep malformed typed values visible until the user corrects or restores them. */
+export function focusInvalidWorkspaceDraft(): boolean {
+  const invalid = document.querySelector<HTMLInputElement | HTMLTextAreaElement>('[data-workspace-draft][aria-invalid="true"]')
+  if (!invalid) return false
+  invalid.focus()
+  return true
+}

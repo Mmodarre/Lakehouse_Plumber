@@ -80,8 +80,8 @@ vi.mock('../../../../hooks/useFiles', () => ({
 vi.mock('../../../../hooks/usePresets', () => ({
   usePresets: () => ({ data: { presets: ['bronze_layer'], total: 1 } }),
 }))
-vi.mock('../../../../hooks/useTemplates', () => ({
-  useTemplates: () => ({ data: { templates: [], total: 0 } }),
+vi.mock('../../../../hooks/useTemplateAuthoring', () => ({
+  useTemplateCatalog: () => ({ data: { templates: [], total: 0 }, isSuccess: true, isPending: false, isError: false, refetch: vi.fn() }),
 }))
 vi.mock('../../../../hooks/useBlueprints', () => ({
   useBlueprints: () => ({ data: { blueprints: [], total: 0 } }),

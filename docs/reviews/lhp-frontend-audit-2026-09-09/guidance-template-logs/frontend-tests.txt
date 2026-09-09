@@ -1,0 +1,11 @@
+> web_app@0.0.0 test
+> vitest --run --maxWorkers=4
+
+
+ RUN  v4.1.9 /private/tmp/lhp-frontend-guidance-templates-092/web_app
+
+
+ Test Files  190 passed (190)
+      Tests  1746 passed (1746)
+   Start at  19:43:03
+   Duration  70.90s (transform 5.72s, setup 19.84s, import 40.89s, tests 68.69s, environment 114.20s)

@@ -1,3 +1,5 @@
+import { useConfigReadOnly } from '@/components/config/shared/configEditingContext'
+import { FieldHint } from './FieldHint'
 import { useState } from 'react'
 import { Plus, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -5,7 +7,7 @@ import { Input } from '@/components/ui/input'
 import type { SchemaPath } from '@/lib/schema-help'
 import { DraftInput } from './DraftInput'
 import { FieldLabel } from './FieldLabel'
-import { displayString, issueId } from './fieldSupport'
+import { displayString, descriptionIds, issueId } from './fieldSupport'
 
 // ── StringListEditor — ordered list of strings ───────────────
 //
@@ -67,6 +69,8 @@ export function StringListEditor({
   itemIssue,
   disabled,
 }: StringListEditorProps) {
+  const configReadOnly = useConfigReadOnly()
+
   const [addDraft, setAddDraft] = useState('')
   const items = Array.isArray(value) ? value : undefined
 
@@ -87,8 +91,9 @@ export function StringListEditor({
         htmlFor={`${id}-add`}
         label={label}
         helpPath={helpPath}
-        help={help ?? description}
+        help={help}
       />
+      <FieldHint id={id} helpPath={helpPath} help={help} fallback={description} />
 
       {items === undefined ? (
         <p className="text-2xs text-muted-foreground">Not set</p>
@@ -110,8 +115,9 @@ export function StringListEditor({
                       next.trim() === '' ? removeRow(index) : onEditItem(index, next)
                     }
                     monospace={monospace}
-                    disabled={disabled}
+                    disabled={configReadOnly || (disabled)}
                     aria-label={`${label} item ${index + 1}`}
+                    aria-describedby={descriptionIds(id)}
                     aria-invalid={rowIssue !== undefined ? true : undefined}
                   />
                   <Button
@@ -119,7 +125,7 @@ export function StringListEditor({
                     variant="ghost"
                     size="icon-sm"
                     onClick={() => removeRow(index)}
-                    disabled={disabled}
+                    disabled={configReadOnly || (disabled)}
                     aria-label={`Remove ${label} item ${index + 1}`}
                   >
                     <X aria-hidden="true" />
@@ -150,16 +156,16 @@ export function StringListEditor({
           placeholder={placeholder ?? 'Add item…'}
           spellCheck={false}
           autoComplete="off"
-          disabled={disabled}
+          disabled={configReadOnly || (disabled)}
           className={monospace ? 'font-mono text-xs' : 'text-xs'}
-          aria-describedby={issueId(id)}
+          aria-describedby={descriptionIds(id)}
         />
         <Button
           type="button"
           variant="outline"
           size="icon-sm"
           onClick={commitAdd}
-          disabled={disabled || addDraft.trim() === ''}
+          disabled={configReadOnly || (disabled || addDraft.trim() === '')}
           aria-label={`Add ${label} item`}
         >
           <Plus aria-hidden="true" />

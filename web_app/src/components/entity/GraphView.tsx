@@ -1,6 +1,9 @@
 import { useDocumentHistoryStore } from '@/store/documentHistoryStore'
 import { loadBufferContent } from '@/components/workspace/flowgroupBuffers'
 import { EntityDetails } from './EntityDetails'
+import { deleteAction, duplicateAction, renameAction } from '@/lib/flowgroup-doc'
+import { DraftInput } from '@/components/config/fields/DraftInput'
+import { toast } from 'sonner'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Background,
@@ -78,6 +81,9 @@ export interface GraphViewProps {
   /** Project-relative path of the flowgroup/template YAML. */
   filePath: string
   docKind: DocKind
+  hideDetails?: boolean
+  actionSaveMode?: 'persist' | 'apply'
+  presentation?: 'graph' | 'list'
 }
 
 const nodeTypes: NodeTypes = {
@@ -127,7 +133,7 @@ export function GraphView(props: GraphViewProps) {
   )
 }
 
-function GraphViewInner({ tabId, filePath, docKind }: GraphViewProps) {
+function GraphViewInner({ tabId, filePath, docKind, hideDetails = false, actionSaveMode = 'persist', presentation = 'graph' }: GraphViewProps) {
   const { doc, meta, actions, params, graph, commit, readOnly, readOnlyReason, multipleFlowgroups } = useFlowgroupDoc(
     filePath,
     docKind,
@@ -390,6 +396,16 @@ function GraphViewInner({ tabId, filePath, docKind }: GraphViewProps) {
         </Button>
       </CanvasNotice>
     )
+  } else if (presentation === 'list') {
+    body = <div className="h-full overflow-auto p-4"><div className="mb-3 flex justify-end"><Button size="sm" disabled={!compose.canCompose} onClick={() => compose.openPalette()}><Plus aria-hidden="true" />Add action</Button></div><ol className="space-y-3">{actions.map((action) => {
+      const node = graph?.nodes.find((item) => item.actionIndex === action.index)
+      if (!node) return null
+      return <li key={node.id} className="space-y-3 rounded-md border border-border bg-card p-4">
+        <div className="flex flex-wrap items-center gap-2"><span className="text-xs text-muted-foreground">{action.index + 1}. {action.kind} · {action.subType}</span><div className="ml-auto flex flex-wrap gap-1"><Button size="xs" variant="outline" onClick={() => openActionModal(node.id)}>Edit action</Button><Button size="xs" variant="ghost" disabled={readOnly} onClick={() => commit((body) => duplicateAction(body, node.id))}>Duplicate</Button><Button size="xs" variant="ghost" disabled={readOnly} onClick={() => commit((body) => deleteAction(body, node.id))}>Delete</Button></div></div>
+        <label className="block space-y-1 text-xs">Action name<DraftInput initial={action.name} aria-label={`Action ${action.index + 1} name`} monospace disabled={readOnly} onCommit={(name) => { if (!commit((body) => renameAction(body, node.id, name))) toast.error('Choose a nonempty, unique action name.') }} /></label>
+        <p className="break-all text-xs text-muted-foreground">{action.sources.length ? `Inputs: ${action.sources.join(', ')}` : 'No input view'}{action.target ? ` → ${action.target}` : ''}</p>
+      </li>
+    })}</ol></div>
   } else if (isLayouting) {
     body = <LoadingSpinner className="h-full" />
   } else {
@@ -398,7 +414,7 @@ function GraphViewInner({ tabId, filePath, docKind }: GraphViewProps) {
 
   return (
     <div className="flex h-full min-h-0 flex-1 flex-col">
-      {doc !== null && <EntityDetails filePath={filePath} docKind={docKind} meta={meta} params={params} commit={commit} readOnly={readOnly} />}
+      {doc !== null && !hideDetails && <EntityDetails filePath={filePath} docKind={docKind} meta={meta} params={params} commit={commit} readOnly={readOnly} />}
       {doc !== null && <div className="flex shrink-0 items-center gap-2 border-b border-border px-3 py-1">
         <Button size="xs" variant="ghost" disabled={readOnly || buffer?.isSaving || !history?.undo.length || history.undo.at(-1)?.after !== buffer?.content} onClick={() => useDocumentHistoryStore.getState().apply(filePath, 'undo')}>Undo graph change</Button>
         <Button size="xs" variant="ghost" disabled={readOnly || buffer?.isSaving || !history?.redo.length || history.redo.at(-1)?.before !== buffer?.content} onClick={() => useDocumentHistoryStore.getState().apply(filePath, 'redo')}>Redo</Button>
@@ -462,6 +478,8 @@ function GraphViewInner({ tabId, filePath, docKind }: GraphViewProps) {
               actionId={modalNodeId}
               filePath={filePath}
               docKind={docKind}
+              saveMode={actionSaveMode}
+              onApplied={() => { setModalDirty(false); setModalNodeId(null) }}
               onDirtyChange={setModalDirty}
               onSaved={() => { setModalDirty(false); setModalNodeId(null) }}
               // Cancel discards the staged edits and closes — the same close as

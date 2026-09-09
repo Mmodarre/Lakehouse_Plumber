@@ -1,7 +1,7 @@
+import { useConfigReadOnly } from '@/components/config/shared/configEditingContext'
 import { Plus, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
-import { Label } from '@/components/ui/label'
 import {
   Select,
   SelectContent,
@@ -11,8 +11,9 @@ import {
 } from '@/components/ui/select'
 import type { SchemaPath } from '@/lib/schema-help'
 import { DraftInput } from './DraftInput'
+import { FieldChrome } from './FieldChrome'
 import { FieldLabel } from './FieldLabel'
-import { displayString } from './fieldSupport'
+import { displayString, descriptionIds } from './fieldSupport'
 
 // ── PermissionsEditor — permissions[] entries ────────────────
 //
@@ -84,6 +85,8 @@ function PermissionEntry({
   onRemove: () => void
   disabled?: boolean
 }) {
+  const configReadOnly = useConfigReadOnly()
+
   const present = IDENTITY_KEYS.filter((key) => key in entry)
   const level = typeof entry.level === 'string' ? entry.level : undefined
   const levelOptions =
@@ -102,22 +105,19 @@ function PermissionEntry({
             size="icon-xs"
             aria-label={`Remove permission ${index + 1}`}
             onClick={onRemove}
-            disabled={disabled}
+            disabled={configReadOnly || (disabled)}
           >
             <X aria-hidden="true" />
           </Button>
         </div>
 
-        <div className="space-y-1.5">
-          <Label htmlFor={`${id}-level`} className="text-xs">
-            Level
-          </Label>
+        <FieldChrome id={`${id}-level`} label="Level" helpPath={['permissions', index, 'level']}>
           <Select
             value={level}
             onValueChange={(next) => set([index, 'level'], next)}
-            disabled={disabled}
+            disabled={configReadOnly || (disabled)}
           >
-            <SelectTrigger id={`${id}-level`} size="sm" className="w-full font-mono text-xs">
+            <SelectTrigger id={`${id}-level`} aria-describedby={descriptionIds(`${id}-level`)} size="sm" className="w-full font-mono text-xs">
               <SelectValue placeholder="Select level…" />
             </SelectTrigger>
             <SelectContent>
@@ -128,7 +128,7 @@ function PermissionEntry({
               ))}
             </SelectContent>
           </Select>
-        </div>
+        </FieldChrome>
 
         <fieldset className="space-y-1.5">
           <legend className="text-xs font-medium">Principal</legend>
@@ -149,7 +149,7 @@ function PermissionEntry({
                     }
                     set([index, key], carried ?? '')
                   }}
-                  disabled={disabled || present.length > 1}
+                  disabled={configReadOnly || (disabled || present.length > 1)}
                   aria-label={`${IDENTITY_LABELS[key]} principal for permission ${index + 1}`}
                 />
                 {IDENTITY_LABELS[key]}
@@ -162,7 +162,8 @@ function PermissionEntry({
             </p>
           )}
           {present.length === 1 && (
-            <DraftInput
+            <FieldChrome id={`${id}-identity`} label={IDENTITY_LABELS[present[0]!]} helpPath={['permissions', index, present[0]!]}>
+            <DraftInput id={`${id}-identity`} aria-describedby={descriptionIds(`${id}-identity`)}
               initial={displayString(entry[present[0]!])}
               onCommit={(next) => set([index, present[0]!], next)}
               monospace
@@ -170,8 +171,9 @@ function PermissionEntry({
                 present[0] === 'group_name' ? 'data-engineers' : 'user@example.com'
               }
               aria-label={`${IDENTITY_LABELS[present[0]!]} name for permission ${index + 1}`}
-              disabled={disabled}
+              disabled={configReadOnly || (disabled)}
             />
+            </FieldChrome>
           )}
           {present.length > 1 &&
             present.map((key) => (
@@ -188,7 +190,7 @@ function PermissionEntry({
                   size="icon-xs"
                   aria-label={`Remove ${key} from permission ${index + 1}`}
                   onClick={() => del([index, key])}
-                  disabled={disabled}
+                  disabled={configReadOnly || (disabled)}
                 >
                   <X aria-hidden="true" />
                 </Button>
@@ -218,6 +220,8 @@ export function PermissionsEditor({
   onDeleteKey,
   disabled,
 }: PermissionsEditorProps) {
+  const configReadOnly = useConfigReadOnly()
+
   const entries = Array.isArray(value) ? value : undefined
   const keyIssue = issueAt([])
 
@@ -265,7 +269,7 @@ export function PermissionsEditor({
               ? set([], [{ level: 'CAN_MANAGE', user_name: '' }])
               : set([entries.length], { level: 'CAN_MANAGE', user_name: '' })
           }
-          disabled={disabled}
+          disabled={configReadOnly || (disabled)}
         >
           <Plus aria-hidden="true" />
           Add permission

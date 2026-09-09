@@ -1,3 +1,4 @@
+import { markTemplatePreviewsStale } from '@/store/templatePreviewStore'
 import { useEffect } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import {
@@ -128,6 +129,7 @@ export function usePushChannel(): void {
     const handleFileChanged = (event: Event) => {
       const payload = parseEventData(event)
       if (!isFileChangedPayload(payload)) return
+      markTemplatePreviewsStale()
       for (const key of FILE_CHANGED_KEYS) {
         void queryClient.invalidateQueries({ queryKey: [key] })
       }
@@ -172,6 +174,7 @@ export function usePushChannel(): void {
         backoffMs = INITIAL_BACKOFF_MS
         if (hadDisconnect) {
           hadDisconnect = false
+          markTemplatePreviewsStale()
           void queryClient.invalidateQueries()
         }
       }

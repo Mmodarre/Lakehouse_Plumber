@@ -81,6 +81,7 @@ from lhp.api.responses import (
     ValidationResponse,
     WheelExtractionResult,
 )
+from lhp.api.templates import preview_template, template_catalog, template_source
 from lhp.api.views import (
     ActionView,
     BlueprintInstanceView,
@@ -237,6 +238,9 @@ __all__: list[str] = [
     "WheelModuleView",
     "collect_response",
     "preview_configuration",
+    "preview_template",
     "should_enable_bundle_support",
+    "template_catalog",
+    "template_source",
     "to_dict",
 ]

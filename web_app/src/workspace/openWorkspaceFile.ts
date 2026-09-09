@@ -1,4 +1,5 @@
 import { toast } from 'sonner'
+import { captureWorkspaceEditors, focusInvalidWorkspaceDraft } from './editorCommands'
 import { errorMessage } from '@/lib/errors'
 import { fetchFileContentWithMeta } from '@/api/files'
 import { tabBufferPath, useWorkspaceStore, workspaceTabId, type ConfigKind } from '@/store/workspaceStore'
@@ -17,6 +18,10 @@ export function configurationKindForPath(path: string): ConfigKind | undefined {
   return undefined
 }
 
+export function isTemplateSourcePath(path: string): boolean {
+  return /^templates\/.+\.ya?ml$/i.test(path)
+}
+
 /** Every file entry point uses document ownership, never a raw path as a tab ID. */
 async function openWorkspaceFileInternal(
   filePath: string,
@@ -27,7 +32,13 @@ async function openWorkspaceFileInternal(
   if (!path) return
   let state = useWorkspaceStore.getState()
   const configKind = options.configKind ?? configurationKindForPath(path)
-  if (configKind) state.openConfigTab(path, configKind, options.source === undefined ? undefined : { view: options.source ? 'yaml' : 'form' })
+  if (isTemplateSourcePath(path)) {
+    const existing = state.tabs.find((tab) => tabBufferPath(tab) === path)
+    const name = existing?.kind === 'entity' ? existing.flowgroup : path.slice('templates/'.length).replace(/\.ya?ml$/i, '')
+    state.openEntityTab('', name, path, { docKind: 'template', ...(options.source || options.line ? { view: 'code' as const } : {}) })
+  } else if (configKind) {
+    state.openConfigTab(path, configKind, options.source === undefined ? undefined : { view: options.source ? 'yaml' : 'form' })
+  }
   state = useWorkspaceStore.getState()
   const owner = state.tabs.find((t) => workspaceTabId(t) === state.activePath && tabBufferPath(t) === path)
     ?? state.tabs.find((t) => tabBufferPath(t) === path)
@@ -65,6 +76,13 @@ export async function openWorkspaceFile(
   filePath: string,
   options: { source?: boolean; line?: number; configKind?: ConfigKind } = {},
 ): Promise<void> {
-  try { await openWorkspaceFileInternal(filePath, options, ++latestRequest) }
+  try {
+    captureWorkspaceEditors()
+    if (focusInvalidWorkspaceDraft()) {
+      toast.error('Correct the invalid field before opening another file')
+      return
+    }
+    await openWorkspaceFileInternal(filePath, options, ++latestRequest)
+  }
   catch (error) { toast.error(errorMessage(error, 'Failed to open file')) }
 }

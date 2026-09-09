@@ -1,0 +1,2 @@
+> web_app@0.0.0 lint
+> eslint .
