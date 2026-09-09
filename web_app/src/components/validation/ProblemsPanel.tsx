@@ -1,13 +1,10 @@
-import { useCallback } from 'react'
 import { CircleX, Loader2, TriangleAlert } from 'lucide-react'
-import { toast } from 'sonner'
 import { useRunStore } from '../../store/runStore'
 import { useWorkspaceStore } from '../../store/workspaceStore'
-import { fetchFileContentWithMeta } from '../../api/files'
-import { errorMessage } from '../../lib/errors'
 import { relativeTime } from '../../lib/utils'
 import type { ValidationIssue } from '../../types/api'
 import { IssueList } from './IssueList'
+import { openWorkspaceFile } from '@/workspace/openWorkspaceFile'
 import type { IssueListItem } from './IssueList'
 
 // ── ProblemsPanel — compact post-run issues list ────────────
@@ -23,12 +20,6 @@ import type { IssueListItem } from './IssueList'
 // root to strip), so we just normalize away any leading slash and open
 // the path as-is.
 
-/** Normalize a reported `file_path` to a project-relative path suitable for
- * the file API (strip any leading slash). */
-function toProjectRelative(filePath: string): string {
-  return filePath.replace(/^\/+/, '')
-}
-
 /** Project stream `ValidationIssue`s onto the shared `IssueList` row shape. */
 function toIssueItems(issues: ValidationIssue[]): IssueListItem[] {
   return issues.map((issue) => {
@@ -37,6 +28,8 @@ function toIssueItems(issues: ValidationIssue[]): IssueListItem[] {
       severity: issue.severity,
       code: issue.code,
       message: issue.title,
+      details: issue.details,
+      suggestions: issue.suggestions,
       file: issue.file_path,
       line: typeof line === 'number' ? line : null,
     }
@@ -47,28 +40,7 @@ export function ProblemsPanel() {
   const issues = useRunStore((s) => s.issues)
   const isRunning = useRunStore((s) => s.isRunning)
   const hydratedFrom = useRunStore((s) => s.hydratedFrom)
-  const openBuffer = useWorkspaceStore((s) => s.openBuffer)
-  const setActiveBuffer = useWorkspaceStore((s) => s.setActive)
-
-  const handleOpen = useCallback(
-    async (filePath: string) => {
-      const relative = toProjectRelative(filePath)
-      if (relative === '') return
-      // Already open in the workspace → just focus it (never clobber edits).
-      if (useWorkspaceStore.getState().buffers.some((b) => b.path === relative)) {
-        setActiveBuffer(relative)
-        return
-      }
-      try {
-        const { content, etag } = await fetchFileContentWithMeta(relative)
-        openBuffer(relative, { content, etag, exists: true })
-      } catch (err) {
-        toast.error(errorMessage(err, 'Failed to open file'))
-      }
-    },
-    [openBuffer, setActiveBuffer],
-  )
-
+  const dirty = useWorkspaceStore((s) => s.buffers.some((b) => b.isDirty))
   const errorCount = issues.filter((i) => i.severity === 'error').length
   const warningCount = issues.length - errorCount
   const countSummary = [
@@ -86,6 +58,7 @@ export function ProblemsPanel() {
       <span role="status" className="sr-only">
         {issues.length > 0 ? `Problems: ${countSummary}` : ''}
       </span>
+      {dirty && <p className="px-3 py-1 text-xs text-warning">Results describe saved files. Save and validate to include your current edits.</p>}
       {issues.length > 0 && (
         <div className="rounded-lg border border-border bg-card">
           <div className="flex items-center gap-3 border-b border-border px-3 py-2">
@@ -121,10 +94,11 @@ export function ProblemsPanel() {
             )}
           </div>
           <IssueList
+        filterable
             issues={toIssueItems(issues)}
             onSelect={(item) => {
               // Rows without a file are inert (nothing to open).
-              if (item.file) void handleOpen(item.file)
+              if (item.file) void openWorkspaceFile(item.file, { source: true, line: item.line ?? undefined })
             }}
           />
         </div>

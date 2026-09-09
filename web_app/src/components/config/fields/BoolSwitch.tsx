@@ -10,7 +10,7 @@ import { issueId } from './fieldSupport'
 // did not ask for:
 //   • key absent  → the switch shows the loader's default, subtly marked
 //     "default: on/off"; flipping it SETS the key explicitly;
-//   • key present → the explicit value shows, plus a "Reset to default"
+//   • key present → the explicit value shows, plus a "Reset to inherited"
 //     affordance that DELETES the key (pristine absence — the file goes
 //     back to not mentioning the key at all).
 
@@ -63,8 +63,21 @@ export function BoolSwitch({
         <div className="flex shrink-0 items-center gap-2">
           {!isSet && (
             <span className="text-2xs text-muted-foreground">
-              default: {defaultValue ? 'on' : 'off'}
+              not set · fallback: {defaultValue ? 'on' : 'off'}
             </span>
+          )}
+          {!isSet && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-6 px-1.5 text-2xs"
+              disabled={disabled}
+              aria-label={`Set ${label} override`}
+              onClick={() => onSet(defaultValue)}
+            >
+              Set override
+            </Button>
           )}
           {isSet && (
             <Button
@@ -75,7 +88,7 @@ export function BoolSwitch({
               onClick={onReset}
               disabled={disabled}
             >
-              Reset to default
+              Reset to inherited
             </Button>
           )}
           <Switch

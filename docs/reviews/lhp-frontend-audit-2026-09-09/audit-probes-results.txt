@@ -1,0 +1,12 @@
+
+> web_app@0.0.0 test
+> vitest --run src/test/frontend-audit.probe.test.tsx
+
+
+ RUN  v4.1.9 /Users/mehdi.modarressi/Coding/Lakehouse_Plumber/web_app
+
+
+ Test Files  1 passed (1)
+      Tests  9 passed (9)
+   Start at  16:16:32
+   Duration  1.25s (transform 162ms, setup 113ms, import 374ms, tests 81ms, environment 525ms)

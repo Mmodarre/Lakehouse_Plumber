@@ -389,6 +389,7 @@ function looksLikeTemplate(js: Record<string, unknown>): boolean {
  * value came from the file root (array form only).
  */
 export interface FlowgroupMeta {
+  description?: string
   pipeline?: string
   flowgroup?: string
   job_name?: string
@@ -419,6 +420,8 @@ export function readFlowgroupMeta(doc: FlowgroupDocHandle): FlowgroupMeta {
   }
 
   const meta: FlowgroupMeta = { inherited }
+  const description = effective('description')
+  if (typeof description === 'string') meta.description = description
   const pipeline = effective('pipeline')
   if (typeof pipeline === 'string') meta.pipeline = pipeline
   const flowgroup = effective('flowgroup')

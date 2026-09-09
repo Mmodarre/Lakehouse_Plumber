@@ -26,6 +26,7 @@ import { ApiError } from '../../api/client'
 import { errorMessage } from '../../lib/errors'
 import { useFileList } from '../../hooks/useFiles'
 import { useUIStore } from '../../store/uiStore'
+import { useLayoutStore } from '../../store/layoutStore'
 import {
   defaultTemplatePath,
   listAllFilePaths,
@@ -87,6 +88,7 @@ function CreateFromTemplateForm({
   const queryClient = useQueryClient()
   const { data: tree } = useFileList()
   const selectedEnv = useUIStore((s) => s.selectedEnv)
+  const viewerMode = useLayoutStore((state) => state.viewerMode)
 
   const kinds = TEMPLATE_KINDS_BY_TAB[kind]
   const [templateKind, setTemplateKind] = useState<ConfigTemplateKind>(kinds[0])
@@ -105,12 +107,16 @@ function CreateFromTemplateForm({
   }
 
   const submit = async () => {
-    if (validationError !== null || submitting) return
+    if (validationError !== null || submitting || useLayoutStore.getState().viewerMode) return
     const targetPath = path.trim()
     setSubmitting(true)
     setSubmitError(null)
     try {
       const template = await fetchConfigTemplate(templateKind)
+      if (useLayoutStore.getState().viewerMode) {
+        setSubmitError('File creation is unavailable in viewer mode.')
+        return
+      }
       await writeFile(targetPath, template, IF_MATCH_CREATE_ONLY)
       await queryClient.invalidateQueries({ queryKey: ['files'] })
       toast.success(`Created ${targetPath}`)
@@ -195,7 +201,11 @@ function CreateFromTemplateForm({
         <Button type="button" variant="ghost" size="sm" onClick={() => onOpenChange(false)}>
           Cancel
         </Button>
-        <Button type="submit" size="sm" disabled={validationError !== null || submitting}>
+        <Button
+          type="submit"
+          size="sm"
+          disabled={validationError !== null || submitting || viewerMode}
+        >
           {submitting ? (
             <Loader2 className="animate-spin" aria-hidden="true" />
           ) : (

@@ -1,0 +1,124 @@
+// Temporary audit probes: assertions document existing defects, not desired behavior.
+import { type PropsWithChildren } from 'react'
+import { act, fireEvent, render, renderHook, screen } from '@testing-library/react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { beforeEach, expect, it, vi } from 'vitest'
+import { useWorkspaceStore } from '../store/workspaceStore'
+import { useDocumentStore } from '../store/documentStore'
+import { useRunController, useRunStore } from '../store/runStore'
+import { useHydrateProblems } from '../hooks/useHydrateProblems'
+import { ProblemsPanel } from '../components/validation/ProblemsPanel'
+import { useFlowgroupDoc } from '../components/entity/useFlowgroupDoc'
+import { fetchRuns, fetchRun } from '../api/runs'
+import { startStream } from '../api/stream'
+import { FileBrowser } from '../components/sidebar/FileBrowser'
+import { writeFile } from '../api/files'
+
+vi.mock('../api/runs', () => ({ fetchRuns: vi.fn(), fetchRun: vi.fn() }))
+vi.mock('../api/stream', () => ({ startStream: vi.fn() }))
+vi.mock('../api/files', () => ({ writeFile: vi.fn(), fetchFileContentWithMeta: vi.fn(), deleteFile: vi.fn() }))
+vi.mock('../hooks/useFiles', () => ({ useFileList: () => ({ data: { name: '', path: '', type: 'directory', children: [] }, isLoading: false }) }))
+vi.mock('../hooks/useFlowgroups', () => ({ useFlowgroups: () => ({ data: { flowgroups: [] } }) }))
+vi.mock('../components/sandbox/useSandboxScope', () => ({ useSandboxScope: () => null }))
+
+const wrapper = ({ children }: PropsWithChildren) => <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>{children}</QueryClientProvider>
+const path = 'pipelines/orders.yaml'
+beforeEach(() => {
+  vi.clearAllMocks()
+  useWorkspaceStore.getState().closeAllBuffers()
+  useDocumentStore.setState({ docs: {} })
+  useRunStore.getState().reset()
+})
+
+it('B01: New file sends an unconditional empty write for an existing path', async () => {
+  vi.mocked(writeFile).mockResolvedValue({ written: true, path, etag: 'x', yaml_error: null })
+  render(<FileBrowser />, { wrapper })
+  fireEvent.click(screen.getByRole('button', { name: 'New file' }))
+  const input = screen.getByPlaceholderText('path/to/new_file.yaml')
+  fireEvent.change(input, { target: { value: path } })
+  await act(async () => { fireEvent.keyDown(input, { key: 'Enter' }) })
+  expect(writeFile).toHaveBeenCalledWith(path, '')
+})
+
+it('B02: delayed save acknowledgement replaces newer buffer edits', () => {
+  const s = useWorkspaceStore.getState()
+  s.openBuffer(path, { content: 'old', exists: true })
+  s.updateContent(path, 'save snapshot')
+  s.setSaving(path, true)
+  s.updateContent(path, 'newer unsaved edits')
+  s.setEtagAndBaseline(path, 'new-etag', 'save snapshot')
+  expect(useWorkspaceStore.getState().buffers[0]).toMatchObject({ content: 'save snapshot', isDirty: false })
+})
+
+it('B04: Problems cannot focus a buffer owned by a config tab', () => {
+  const s = useWorkspaceStore.getState()
+  s.openConfigTab('lhp.yaml', 'project')
+  s.openBuffer('lhp.yaml', { content: 'name: project', exists: true })
+  s.openProjectMap()
+  useRunStore.setState({ issues: [{ severity: 'error', code: 'AUDIT', title: 'Audit issue', category: 'validation', file_path: 'lhp.yaml', pipeline_name: null, flowgroup_name: null, details: null, suggestions: [], context: { line: 1 }, doc_link: null }] })
+  render(<ProblemsPanel />)
+  fireEvent.click(screen.getByRole('button', { name: /Audit issue/ }))
+  expect(useWorkspaceStore.getState().activePath).toBe('project-map')
+})
+
+it('B07: StrictMode cancels hydration and the done ref prevents its retry', async () => {
+  vi.mocked(fetchRuns).mockResolvedValue({ runs: [{ run_id: 'audit-run', kind: 'validate', status: 'success' }] } as never)
+  vi.mocked(fetchRun).mockResolvedValue({ events: [] } as never)
+  renderHook(() => useHydrateProblems(), { reactStrictMode: true })
+  await act(async () => { await Promise.resolve() })
+  expect(fetchRuns).toHaveBeenCalledTimes(1)
+  expect(fetchRun).not.toHaveBeenCalled()
+  expect(useRunStore.getState().hydratedFrom).toBeNull()
+})
+
+it('B08: abort is reported as success without a completion frame', async () => {
+  vi.mocked(startStream).mockImplementation((_path, _body, signal) => new Promise((_resolve, reject) => signal?.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')))))
+  const { result } = renderHook(() => useRunController(), { wrapper })
+  act(() => result.current.startGenerate())
+  await act(async () => { result.current.abort() })
+  expect(useRunStore.getState()).toMatchObject({ isRunning: false, terminal: 'success', runKind: 'generate' })
+})
+
+it('B09: two controller instances start competing streams against one run store', async () => {
+  vi.mocked(startStream).mockImplementation((_path, _body, signal) => new Promise((_resolve, reject) => signal?.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')))))
+  const { result } = renderHook(() => ({ first: useRunController(), second: useRunController() }), { wrapper })
+  act(() => result.current.first.startGenerate())
+  expect(result.current.second.isRunning).toBe(false)
+  act(() => result.current.second.startValidate())
+  expect(startStream).toHaveBeenCalledTimes(2)
+  expect(useRunStore.getState().runKind).toBe('validate')
+  await act(async () => { result.current.first.abort(); result.current.second.abort() })
+})
+
+it('B09: unmounting the launching view aborts its validation stream', async () => {
+  let captured: AbortSignal | undefined
+  vi.mocked(startStream).mockImplementation((_path, _body, signal) => {
+    captured = signal
+    return new Promise((_resolve, reject) => signal?.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError'))))
+  })
+  const { result, unmount } = renderHook(() => useRunController(), { wrapper })
+  act(() => result.current.startValidate())
+  await act(async () => unmount())
+  expect(captured?.aborted).toBe(true)
+  expect(useRunStore.getState().terminal).toBe('success')
+})
+
+it('B06: selecting second flowgroup still projects the first document', () => {
+  const text = 'pipeline: bronze\nflowgroup: first\nactions: []\n---\npipeline: bronze\nflowgroup: second\nactions: []\n'
+  const s = useWorkspaceStore.getState()
+  s.openBuffer(path, { content: text, exists: true })
+  s.openEntityTab('bronze', 'second', path)
+  const { result } = renderHook(() => useFlowgroupDoc(path, 'flowgroup'))
+  expect(useWorkspaceStore.getState().activePath).toBe('entity:bronze/second')
+  expect(result.current.meta?.flowgroup).toBe('first')
+})
+
+it('B10: file-first config opening creates two tabs sharing a buffer, and closing one drops it', () => {
+  const s = useWorkspaceStore.getState()
+  s.openBuffer('lhp.yaml', { content: 'name: audit', exists: true })
+  s.openConfigTab('lhp.yaml', 'project')
+  expect(useWorkspaceStore.getState().tabs).toHaveLength(2)
+  s.closeTab('config:lhp.yaml')
+  expect(useWorkspaceStore.getState().tabs).toEqual([{ kind: 'file', path: 'lhp.yaml' }])
+  expect(useWorkspaceStore.getState().buffers).toHaveLength(0)
+})

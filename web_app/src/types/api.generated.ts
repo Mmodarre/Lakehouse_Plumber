@@ -413,6 +413,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/configuration/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Configuration Preview */
+        get: operations["get_configuration_preview_api_configuration_preview_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/dependencies": {
         parameters: {
             query?: never;
@@ -1493,6 +1510,38 @@ export interface components {
             has_circular: boolean;
             /** Total Cycles */
             total_cycles: number;
+        };
+        /** ConfigurationPreviewResponse */
+        ConfigurationPreviewResponse: {
+            /** Env */
+            env: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "pipeline" | "job";
+            /** Path */
+            path: string;
+            /**
+             * Source
+             * @constant
+             */
+            source: "saved";
+            /** Target */
+            target: string;
+            /** Targets */
+            targets: string[];
+            /** Tiers */
+            tiers: string[];
+            /**
+             * Values
+             * @description Resolved saved settings from LHP's production resolvers
+             */
+            values: {
+                [key: string]: unknown;
+            };
+            /** Warnings */
+            warnings: string[];
         };
         /**
          * CrossPipelineConnection
@@ -3203,6 +3252,40 @@ export interface operations {
                 };
                 content: {
                     "text/plain": string;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_configuration_preview_api_configuration_preview_get: {
+        parameters: {
+            query: {
+                path: string;
+                kind: "pipeline" | "job";
+                env: string;
+                target?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConfigurationPreviewResponse"];
                 };
             };
             /** @description Validation Error */

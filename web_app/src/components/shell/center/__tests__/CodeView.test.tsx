@@ -164,6 +164,7 @@ function renderCodeView() {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  useWorkspaceStore.getState().closeAllBuffers()
   seedWorkspace()
   // The live editor starts in sync with the seeded buffer (getValue === content),
   // so the reconcile effect is a no-op until a test drives it.
@@ -282,4 +283,21 @@ describe('CodeView', () => {
     expect(fakeEditor.setValue).toHaveBeenCalledWith(YAML_CONTENT)
     expect(fakeEditor.state.value).toBe(YAML_CONTENT)
   })
+  it('restores the selected artifact when returning to the same open tab', async () => {
+    const first = renderCodeView()
+    await userEvent.click(await screen.findByRole('tab', { name: /bronze_customers\.py/ }))
+    expect(await screen.findByTestId('readonly-monaco')).toHaveAttribute('data-path', PY)
+    first.unmount()
+    renderCodeView()
+    expect(await screen.findByTestId('readonly-monaco')).toHaveAttribute('data-path', PY)
+  })
+
+  it('an explicit source location selects YAML even when a generated artifact was active', async () => {
+    renderCodeView()
+    await userEvent.click(await screen.findByRole('tab', { name: /bronze_customers\.py/ }))
+    expect(await screen.findByTestId('readonly-monaco')).toBeInTheDocument()
+    act(() => useWorkspaceStore.getState().revealFile(FILE, 12))
+    expect(await screen.findByTestId('yaml-view')).toBeInTheDocument()
+  })
+
 })

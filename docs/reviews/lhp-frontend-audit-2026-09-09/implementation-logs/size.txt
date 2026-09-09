@@ -1,0 +1,12 @@
+
+> web_app@0.0.0 size
+> size-limit
+
+
+  app code (dist/assets/index-*.js, brotli; 108→150 KB for the Designer + Config UI)
+  Size limit: 150 kB
+  Size:       147.47 kB brotlied
+
+  total JS payload (all chunks + workers, brotli; 1.85→1.95 MB for the lazy assistant markdown stack ≈ +40-50 KB)
+  Size limit: 1.95 MB
+  Size:       1.87 MB brotlied

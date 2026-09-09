@@ -88,6 +88,8 @@ export interface DesignerCanvasWiringArgs {
   setSelectedId: (id: string | null) => void
   /** The inspector panel — Enter hands keyboard focus to it. */
   inspectorRef: RefObject<HTMLElement | null>
+  onEditSelected?: (id: string) => void
+  preserveInitialViewport?: boolean
   isLayouting: boolean
   fitView: (options?: { padding?: number; duration?: number }) => void
 }
@@ -99,10 +101,13 @@ export function useDesignerCanvasWiring({
   selectedId,
   setSelectedId,
   inspectorRef,
+  onEditSelected,
+  preserveInitialViewport = false,
   isLayouting,
   fitView,
 }: DesignerCanvasWiringArgs) {
   const prefersReducedMotion = usePrefersReducedMotion()
+  const initialLayout = useRef({ key: '', changed: false })
 
   // Refit only on structural change (not on selection or data-only refreshes).
   const structureKey = useMemo(
@@ -115,9 +120,12 @@ export function useDesignerCanvasWiring({
   )
   useEffect(() => {
     if (structureKey === '' || isLayouting) return
+    if (!initialLayout.current.key) initialLayout.current.key = structureKey
+    if (initialLayout.current.key !== structureKey) initialLayout.current.changed = true
+    if (preserveInitialViewport && !initialLayout.current.changed) return
     const timer = setTimeout(() => fitView({ padding: 0.15, duration: 300 }), 50)
     return () => clearTimeout(timer)
-  }, [structureKey, isLayouting, fitView])
+  }, [structureKey, isLayouting, fitView, preserveInitialViewport])
 
   const currentKeys = useMemo(() => stableKeysFor(rfEdges, edgeMeta), [rfEdges, edgeMeta])
   const newEdgeKeys = useNewEdgeKeys(currentKeys)
@@ -166,7 +174,8 @@ export function useDesignerCanvasWiring({
       }
       if (e.key === 'Enter' && selectedId !== null) {
         e.preventDefault()
-        inspectorRef.current?.focus()
+        if (onEditSelected) onEditSelected(selectedId)
+        else inspectorRef.current?.focus()
         return
       }
       if (e.key === 'Escape' && selectedId !== null) {
@@ -174,7 +183,7 @@ export function useDesignerCanvasWiring({
         setSelectedId(null)
       }
     },
-    [selectedId, nodePoints, setSelectedId, inspectorRef],
+    [selectedId, nodePoints, setSelectedId, inspectorRef, onEditSelected],
   )
 
   // aria-activedescendant points the group at the keyboard-selected node's DOM

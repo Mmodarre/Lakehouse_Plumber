@@ -186,7 +186,10 @@ function WebhookIdList({
   )
 }
 
-function blockOf(api: DocFormApi, key: BlockKey): {
+function blockOf(
+  api: DocFormApi,
+  key: BlockKey,
+): {
   block: Record<string, unknown> | undefined
   notAMapping: boolean
 } {
@@ -195,13 +198,7 @@ function blockOf(api: DocFormApi, key: BlockKey): {
   return { block, notAMapping: raw !== undefined && block === undefined }
 }
 
-export function JobNotificationsEditor({
-  api,
-  idPrefix,
-}: {
-  api: DocFormApi
-  idPrefix: string
-}) {
+export function JobNotificationsEditor({ api, idPrefix }: { api: DocFormApi; idPrefix: string }) {
   const email = blockOf(api, 'email_notifications')
   const webhook = blockOf(api, 'webhook_notifications')
 
@@ -209,6 +206,7 @@ export function JobNotificationsEditor({
     <>
       <SectionCard
         title="Email notifications"
+        configured={['email_notifications'].some((key) => key in api.settings)}
         description="Recipient lists per job event — a list is rendered only when it has entries."
       >
         {email.notAMapping ? (
@@ -234,9 +232,7 @@ export function JobNotificationsEditor({
                   id={`${idPrefix}-email-${key}`}
                   label={LIST_LABELS[key]}
                   value={items}
-                  onEditItem={(index, value) =>
-                    api.set(['email_notifications', key, index], value)
-                  }
+                  onEditItem={(index, value) => api.set(['email_notifications', key, index], value)}
                   onAddItem={(value) =>
                     items === undefined
                       ? api.set(['email_notifications', key], [value])
@@ -257,6 +253,7 @@ export function JobNotificationsEditor({
 
       <SectionCard
         title="Webhook notifications"
+        configured={['webhook_notifications'].some((key) => key in api.settings)}
         description="Notification-destination ids per job event — the template renders each entry's id."
       >
         {webhook.notAMapping ? (

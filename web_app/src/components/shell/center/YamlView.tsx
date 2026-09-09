@@ -27,6 +27,7 @@ function EditorSkeleton() {
 }
 
 interface YamlViewProps {
+  showCommands?: boolean
   buffer: EditorBuffer
   editorRef: RefObject<MonacoEditorHandle | null>
   isReadOnly: boolean
@@ -41,6 +42,7 @@ interface YamlViewProps {
 }
 
 export function YamlView({
+  showCommands = true,
   buffer,
   editorRef,
   isReadOnly,
@@ -57,7 +59,7 @@ export function YamlView({
   return (
     <div className="flex h-full min-h-0 flex-col bg-card">
       {/* Compact save bar (relocated from the old editor tab-strip row). */}
-      <div className="flex items-center justify-end gap-2 border-b border-border bg-sidebar px-3 py-1">
+      {showCommands && <div className="flex items-center justify-end gap-2 border-b border-border bg-sidebar px-3 py-1">
         {isReadOnly ? (
           <Badge
             variant="outline"
@@ -76,12 +78,12 @@ export function YamlView({
             {buffer.isSaving ? 'Saving...' : 'Save'}
           </Button>
         )}
-        {dirtyCount > 1 && (
+        {dirtyCount > 1 && !isReadOnly && (
           <Button variant="outline" size="xs" onClick={onSaveAll} disabled={anySaving}>
             Save All ({dirtyCount})
           </Button>
         )}
-      </div>
+      </div>}
 
       {loadFailed && (
         <div className="flex items-center gap-3 border-b border-border bg-muted px-4 py-2 text-xs">

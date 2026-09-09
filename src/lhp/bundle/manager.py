@@ -256,6 +256,30 @@ class BundleManager:
     def _get_monitoring_pipeline_name(self) -> Optional[str]:
         return resolve_monitoring_pipeline_name(self.project_config)
 
+    def resolve_pipeline_settings(self, pipeline_name: str, env: str) -> Dict[str, Any]:
+        """Resolve saved settings without generating files or resource paths.
+
+        Shared by resource generation and configuration inspection, so event-log
+        injection and environment substitution retain one implementation.
+        Packaging artifacts and template-generated fields are added later.
+        """
+        pipeline_config_raw = self.config_loader.get_pipeline_config(pipeline_name)
+
+        # Skip event_log injection for the monitoring pipeline (no self-reference)
+        monitoring_name = self._get_monitoring_pipeline_name()
+        if pipeline_name != monitoring_name:
+            pipeline_config_raw = self._inject_project_event_log(
+                pipeline_config_raw, pipeline_name
+            )
+
+        sub_mgr = self._get_substitution_manager(env)
+        if sub_mgr is not None:
+            pipeline_config_resolved = sub_mgr.substitute_yaml(pipeline_config_raw)
+        else:
+            pipeline_config_resolved = pipeline_config_raw
+
+        return pipeline_config_resolved
+
     def generate_resource_file_content(
         self, pipeline_name: str, output_dir: Path, env: str
     ) -> str:
@@ -285,20 +309,7 @@ class BundleManager:
             LHPConfigError: ``LHP-GEN-001`` if preflight was bypassed and
                 catalog/schema is still missing/empty at the bundle-write phase.
         """
-        pipeline_config_raw = self.config_loader.get_pipeline_config(pipeline_name)
-
-        # Skip event_log injection for the monitoring pipeline (no self-reference)
-        monitoring_name = self._get_monitoring_pipeline_name()
-        if pipeline_name != monitoring_name:
-            pipeline_config_raw = self._inject_project_event_log(
-                pipeline_config_raw, pipeline_name
-            )
-
-        sub_mgr = self._get_substitution_manager(env)
-        if sub_mgr is not None:
-            pipeline_config_resolved = sub_mgr.substitute_yaml(pipeline_config_raw)
-        else:
-            pipeline_config_resolved = pipeline_config_raw
+        pipeline_config_resolved = self.resolve_pipeline_settings(pipeline_name, env)
 
         # R8: ``packaging`` is an LHP-internal toggle consumed by the generator,
         # never by Databricks. Strip it in BOTH modes BEFORE render — the

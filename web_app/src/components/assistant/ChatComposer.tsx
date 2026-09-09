@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useChatDraftStore } from '@/store/chatDraftStore'
 import { Send, Shield, ShieldAlert, ShieldCheck, Square } from 'lucide-react'
 import { Button } from '../ui/button'
 import { Textarea } from '../ui/textarea'
@@ -80,16 +81,23 @@ function PermissionModeSelect() {
 export function ChatComposer({
   streaming,
   onSend,
+  conversationKey,
+  disabled = false,
 }: {
   streaming: boolean
+  conversationKey?: string
+  disabled?: boolean
   onSend: (message: string) => void
 }) {
-  const [draft, setDraft] = useState('')
+  const [localDraft, setLocalDraft] = useState('')
+  const storedDraft = useChatDraftStore((s) => conversationKey ? s.drafts[conversationKey] ?? '' : '')
+  const draft = conversationKey ? storedDraft : localDraft
+  const setDraft = (value: string) => conversationKey ? useChatDraftStore.getState().setDraft(conversationKey, value) : setLocalDraft(value)
   const interrupt = useInterruptAssistant()
 
   const send = () => {
     const message = draft.trim()
-    if (message === '' || streaming) return
+    if (message === '' || streaming || disabled) return
     setDraft('')
     onSend(message)
   }
@@ -99,9 +107,10 @@ export function ChatComposer({
       <div className="flex items-end gap-1.5">
         <Textarea
           value={draft}
+          disabled={disabled}
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
+            if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing && e.nativeEvent.keyCode !== 229) {
               e.preventDefault()
               send()
             }
@@ -128,7 +137,7 @@ export function ChatComposer({
           <Button
             size="icon-sm"
             onClick={send}
-            disabled={draft.trim() === ''}
+            disabled={disabled || draft.trim() === ''}
             aria-label="Send message"
             title="Send message"
           >
@@ -136,6 +145,7 @@ export function ChatComposer({
           </Button>
         )}
       </div>
+      <p className="mt-1 text-xs text-muted-foreground">Context: project files on disk. Mention a path or paste edits to focus the conversation.</p>
       {/* Applies from the NEXT sent message; changing it mid-turn does not
           affect the running turn. */}
       <div className="mt-1 flex items-center">

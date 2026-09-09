@@ -1,4 +1,6 @@
+import { useConfigReadOnly } from '../shared/configEditingContext'
 import { Trash2 } from 'lucide-react'
+import { ConfigSections } from '../shared/ConfigSections'
 import { Button } from '@/components/ui/button'
 import { SchemaKindProvider } from '../../common/SchemaKindContext'
 import type { ValidationIssue } from '../../../lib/config-model'
@@ -26,6 +28,7 @@ import type { DocFormApi } from '../shared/docFormSupport'
 
 export interface PipelineDocFormProps {
   api: DocFormApi
+  scope?: string
   kind: 'defaults' | 'pipeline'
   /** Full doc snapshot (settings + the `pipeline` key for pipeline docs). */
   docSnapshot: Record<string, unknown>
@@ -40,6 +43,7 @@ export interface PipelineDocFormProps {
 
 export function PipelineDocForm({
   api,
+  scope = 'config',
   kind,
   docSnapshot,
   duplicates,
@@ -47,98 +51,110 @@ export function PipelineDocForm({
   onDelete,
   focusMembership = false,
 }: PipelineDocFormProps) {
+  const readOnly = useConfigReadOnly()
   const idPrefix = `doc${api.docIndex}`
   const rawPipeline = docSnapshot.pipeline
   const passthroughKeys = listPipelinePassthroughKeys(docSnapshot)
 
   return (
     <SchemaKindProvider kind="pipeline_config">
-    <div className="space-y-4">
-      <div className="flex items-start justify-between gap-3">
-        <h3 className="text-sm font-semibold text-foreground">
-          {kind === 'defaults' ? 'Project defaults' : 'Pipeline document'}
-        </h3>
-        <Button type="button" variant="outline" size="sm" onClick={onDelete}>
-          <Trash2 aria-hidden="true" />
-          Delete document
-        </Button>
-      </div>
-
-      {docScopeIssues.length > 0 && (
-        <div className="space-y-1">
-          {docScopeIssues.map((issue, i) => (
-            <p
-              key={i}
-              role="alert"
-              className={
-                issue.severity === 'error'
-                  ? 'text-2xs text-destructive'
-                  : 'text-2xs text-warning'
-              }
-            >
-              {issue.message}
-            </p>
-          ))}
+      <div className="space-y-4">
+        <div className="flex items-start justify-between gap-3">
+          <h3 className="text-sm font-semibold text-foreground">
+            {kind === 'defaults' ? 'Project defaults' : 'Pipeline document'}
+          </h3>
+          <Button type="button" variant="outline" size="sm" disabled={readOnly} onClick={onDelete}>
+            <Trash2 aria-hidden="true" />
+            Delete document
+          </Button>
         </div>
-      )}
 
-      {kind === 'pipeline' &&
-        (Array.isArray(rawPipeline) ? (
-          <GroupMembershipEditor
-            id={`${idPrefix}-group`}
-            members={rawPipeline}
-            duplicates={duplicates}
-            onAdd={(name) => api.set(['pipeline', rawPipeline.length], name)}
-            onRemove={(index) => api.del(['pipeline', index])}
-            issue={api.issueAt(['pipeline'])?.message}
-            memberIssue={(index) => api.issueAt(['pipeline', index])?.message}
-            autoFocus={focusMembership}
-          />
-        ) : (
-          <FieldChrome
-            id={`${idPrefix}-name`}
-            label="Pipeline name"
-            issue={
-              api.issueAt(['pipeline'])?.message ??
-              (duplicates.has(String(rawPipeline ?? ''))
-                ? `'${String(rawPipeline)}' is also defined in another document`
-                : undefined)
-            }
+        <p className="text-2xs text-muted-foreground">
+          {kind === 'defaults'
+            ? 'These file defaults apply to pipelines using this configuration file. Project settings in lhp.yaml are separate.'
+            : 'Fields set here override this file’s project_defaults. Reset or remove a key to inherit its value again. Unset controls show built-in fallbacks; the saved preview shows resolved values.'}
+        </p>
+
+        {docScopeIssues.length > 0 && (
+          <div className="space-y-1">
+            {docScopeIssues.map((issue, i) => (
+              <p
+                key={i}
+                role="alert"
+                className={
+                  issue.severity === 'error' ? 'text-2xs text-destructive' : 'text-2xs text-warning'
+                }
+              >
+                {issue.message}
+              </p>
+            ))}
+          </div>
+        )}
+
+        <fieldset disabled={readOnly} inert={readOnly ? true : undefined} className="min-w-0">
+          {kind === 'pipeline' &&
+            (Array.isArray(rawPipeline) ? (
+              <GroupMembershipEditor
+                id={`${idPrefix}-group`}
+                members={rawPipeline}
+                duplicates={duplicates}
+                onAdd={(name) => api.set(['pipeline', rawPipeline.length], name)}
+                onRemove={(index) => api.del(['pipeline', index])}
+                issue={api.issueAt(['pipeline'])?.message}
+                memberIssue={(index) => api.issueAt(['pipeline', index])?.message}
+                autoFocus={focusMembership}
+              />
+            ) : (
+              <FieldChrome
+                id={`${idPrefix}-name`}
+                label="Pipeline name"
+                issue={
+                  api.issueAt(['pipeline'])?.message ??
+                  (duplicates.has(String(rawPipeline ?? ''))
+                    ? `'${String(rawPipeline)}' is also defined in another document`
+                    : undefined)
+                }
+              >
+                <DraftInput
+                  id={`${idPrefix}-name`}
+                  initial={
+                    typeof rawPipeline === 'string' ? rawPipeline : String(rawPipeline ?? '')
+                  }
+                  // An empty name never deletes the key (that would change the
+                  // doc's classification) — the commit is simply refused.
+                  onCommit={(next) => {
+                    if (next.trim() !== '') api.set(['pipeline'], next.trim())
+                  }}
+                  monospace
+                  aria-describedby={`${idPrefix}-name-issue`}
+                />
+              </FieldChrome>
+            ))}
+        </fieldset>
+
+        <ConfigSections key={`${scope}#${api.docIndex}`} scope={`${scope}#${api.docIndex}`}>
+          <PipelineCoreFields api={api} idPrefix={idPrefix} />
+          <ClustersEditor api={api} idPrefix={idPrefix} />
+          <PipelineMapsFields api={api} idPrefix={idPrefix} />
+          <NotificationsEditor api={api} idPrefix={idPrefix} />
+          <SectionCard
+            title="Permissions"
+            configured={['permissions'].some((key) => key in api.settings)}
+            description="Each entry: a level plus exactly one user / group / service principal."
           >
-            <DraftInput
-              id={`${idPrefix}-name`}
-              initial={typeof rawPipeline === 'string' ? rawPipeline : String(rawPipeline ?? '')}
-              // An empty name never deletes the key (that would change the
-              // doc's classification) — the commit is simply refused.
-              onCommit={(next) => {
-                if (next.trim() !== '') api.set(['pipeline'], next.trim())
-              }}
-              monospace
-              aria-describedby={`${idPrefix}-name-issue`}
+            <PermissionsEditor
+              id={`${idPrefix}-permissions`}
+              value={api.settings.permissions}
+              issueAt={(rel) => api.issueAt(['permissions', ...rel])}
+              set={(rel, value) => api.set(['permissions', ...rel], value)}
+              del={(rel) => api.del(['permissions', ...rel])}
+              onDeleteKey={() => api.del(['permissions'])}
             />
-          </FieldChrome>
-        ))}
-
-      <PipelineCoreFields api={api} idPrefix={idPrefix} />
-      <ClustersEditor api={api} idPrefix={idPrefix} />
-      <PipelineMapsFields api={api} idPrefix={idPrefix} />
-      <NotificationsEditor api={api} idPrefix={idPrefix} />
-      <SectionCard
-        title="Permissions"
-        description="Each entry: a level plus exactly one user / group / service principal."
-      >
-        <PermissionsEditor
-          id={`${idPrefix}-permissions`}
-          value={api.settings.permissions}
-          issueAt={(rel) => api.issueAt(['permissions', ...rel])}
-          set={(rel, value) => api.set(['permissions', ...rel], value)}
-          del={(rel) => api.del(['permissions', ...rel])}
-          onDeleteKey={() => api.del(['permissions'])}
-        />
-      </SectionCard>
-      <PipelineAdvancedFields api={api} idPrefix={idPrefix} />
-      <PassthroughKeysCard keys={passthroughKeys} />
-    </div>
+          </SectionCard>
+          <PipelineAdvancedFields api={api} idPrefix={idPrefix} />
+          <PassthroughKeysCard keys={passthroughKeys} />
+        </ConfigSections>
+      </div>
     </SchemaKindProvider>
   )
 }

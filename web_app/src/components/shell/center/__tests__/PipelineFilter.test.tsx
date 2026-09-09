@@ -86,6 +86,7 @@ describe('ProjectMapView PipelineFilter — sandbox-scoped picker (item 6)', () 
     const trigger = screen.getByRole('combobox', { name: 'Filter by pipeline' })
     expect(trigger).toHaveTextContent('All pipelines')
     expect(trigger).not.toHaveTextContent('p_beta')
+    expect(useUIStore.getState().pipelineFilter).toBeNull()
   })
 
   it('selecting a pipeline drives uiStore.pipelineFilter', async () => {

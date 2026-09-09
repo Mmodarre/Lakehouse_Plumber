@@ -18,6 +18,7 @@ export function IncludesSection({ form }: { form: ProjectFormApi }) {
   return (
     <SectionCard
       title="Includes"
+      configured={LISTS.some(([key]) => key in form.doc)}
       description="Glob patterns selecting which YAML files each generate run reads."
     >
       {LISTS.map(([key, label]) => {

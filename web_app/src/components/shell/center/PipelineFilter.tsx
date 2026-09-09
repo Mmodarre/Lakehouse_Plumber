@@ -1,20 +1,12 @@
-import { useMemo, useState } from 'react'
-import { Boxes, Check, ChevronsUpDown } from 'lucide-react'
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
+import { Boxes, ChevronsUpDown } from 'lucide-react'
 import { useFlowgroups } from '../../../hooks/useFlowgroups'
 import { useUIStore } from '../../../store/uiStore'
 import { useSandboxScope } from '../../sandbox/useSandboxScope'
 import { filterFlowgroupsForScope } from '../../sandbox/scopeFilter'
 import { Button } from '../../ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '../../ui/popover'
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from '../../ui/command'
-import { cn } from '../../../lib/utils'
+const PipelineFilterOptions = lazy(() => import('./PipelineFilterOptions'))
 
 /** Pipeline scope picker for the project map's single toolbar row.
  *
@@ -34,11 +26,14 @@ export function PipelineFilter() {
     return [...new Set(scoped.map((fg) => fg.pipeline))].sort()
   }, [flowgroupData, scope])
 
-  // Display-only: never surface a stale filter that fell out of the (scoped)
-  // list — the store keeps the raw value, but the trigger/check-marks reflect
-  // only what this scoped dropdown can actually show.
-  const shownFilter =
-    pipelineFilter && pipelines.includes(pipelineFilter) ? pipelineFilter : null
+  // Reconcile the actual store, including when this picker lives in the
+  // persistent command bar and the project map is closed.
+  useEffect(() => {
+    if (flowgroupData && pipelineFilter && !pipelines.includes(pipelineFilter)) {
+      setPipelineFilter(null)
+    }
+  }, [flowgroupData, pipelineFilter, pipelines, setPipelineFilter])
+  const shownFilter = pipelineFilter
 
   const select = (value: string | null) => {
     setPipelineFilter(value)
@@ -64,31 +59,7 @@ export function PipelineFilter() {
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-56 p-0" align="start">
-        <Command>
-          <CommandInput placeholder="Search pipelines…" />
-          <CommandList>
-            <CommandEmpty>No pipelines found.</CommandEmpty>
-            <CommandGroup>
-              <CommandItem value="__all__" onSelect={() => select(null)}>
-                <Check
-                  className={cn('size-3.5', shownFilter === null ? 'opacity-100' : 'opacity-0')}
-                />
-                All pipelines
-              </CommandItem>
-              {pipelines.map((name) => (
-                <CommandItem key={name} value={name} onSelect={() => select(name)}>
-                  <Check
-                    className={cn(
-                      'size-3.5',
-                      shownFilter === name ? 'opacity-100' : 'opacity-0',
-                    )}
-                  />
-                  {name}
-                </CommandItem>
-              ))}
-            </CommandGroup>
-          </CommandList>
-        </Command>
+        {open && <Suspense fallback={<p role="status" className="p-3 text-xs text-muted-foreground">Loading pipeline search…</p>}><PipelineFilterOptions pipelines={pipelines} shownFilter={shownFilter} select={select} /></Suspense>}
       </PopoverContent>
     </Popover>
   )

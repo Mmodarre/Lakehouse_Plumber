@@ -1,12 +1,7 @@
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest'
 import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import {
-  fetchMock,
-  lineDiff,
-  renderProjectForm,
-  serveProject,
-} from './projectFormTestSupport'
+import { fetchMock, lineDiff, renderProjectForm, serveProject } from './projectFormTestSupport'
 
 vi.mock('sonner', () => ({
   toast: { error: vi.fn(), success: vi.fn(), dismiss: vi.fn() },
@@ -104,7 +99,9 @@ describe('ProjectConfigForm — byte preservation', () => {
     await renderProjectForm()
     const user = userEvent.setup()
 
-    const toggle = await screen.findByRole('switch', { name: 'Enable UC tagging section' })
+    const toggle = await screen.findByRole('button', {
+      name: 'Add UC tagging section',
+    })
     await user.click(toggle)
 
     const body = bufferContent()
@@ -116,7 +113,9 @@ describe('ProjectConfigForm — byte preservation', () => {
     await renderProjectForm()
     const user = userEvent.setup()
 
-    const toggle = await screen.findByRole('switch', { name: 'Enable Sandbox section' })
+    const toggle = await screen.findByRole('button', {
+      name: 'Remove Sandbox section',
+    })
     await user.click(toggle)
     // Confirm the removal dialog.
     const dialog = await screen.findByRole('alertdialog')
@@ -159,7 +158,11 @@ describe('ProjectConfigForm — byte preservation', () => {
     await renderProjectForm()
     const user = userEvent.setup()
 
-    await user.click(await screen.findByRole('button', { name: 'Edit retention_days as text' }))
+    await user.click(
+      await screen.findByRole('button', {
+        name: 'Edit retention_days as text',
+      }),
+    )
     const retention = screen.getByLabelText('retention_days value')
     expect(retention).not.toHaveAttribute('readonly')
     await user.clear(retention)

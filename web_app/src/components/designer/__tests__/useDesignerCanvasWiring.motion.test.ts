@@ -1,3 +1,4 @@
+import { createElement, StrictMode, type ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import { act, renderHook } from '@testing-library/react'
 import type { Edge, Node } from '@xyflow/react'
@@ -105,5 +106,31 @@ describe('useDesignerCanvasWiring — draw-on reaches only the new edge', () => 
     )
     expect(drawOnOf(result.current.displayEdges, 'b', 'c')).toBe(DRAWON_CLASS)
     expect(drawOnOf(result.current.displayEdges, 'a', 'b')).toBe('')
+  })
+})
+
+
+describe('restored graph viewport', () => {
+  it('survives StrictMode effect replay and refits after a structural change', () => {
+    vi.useFakeTimers()
+    try {
+      const node = (id: string): Node => ({ id, position: { x: 0, y: 0 }, data: {} })
+      const fitView = vi.fn()
+      const initialProps: DesignerCanvasWiringArgs = {
+        rfNodes: [node('a')], rfEdges: [], edgeMeta: [], selectedId: null,
+        setSelectedId: vi.fn(), inspectorRef: { current: null }, isLayouting: false,
+        preserveInitialViewport: true, fitView,
+      }
+      const { rerender, unmount } = renderHook(useDesignerCanvasWiring, {
+        initialProps,
+        wrapper: ({ children }: { children: ReactNode }) => createElement(StrictMode, null, children),
+      })
+      act(() => vi.advanceTimersByTime(100))
+      expect(fitView).not.toHaveBeenCalled()
+      rerender({ ...initialProps, rfNodes: [node('a'), node('b')] })
+      act(() => vi.advanceTimersByTime(100))
+      expect(fitView).toHaveBeenCalledOnce()
+      unmount()
+    } finally { vi.useRealTimers() }
   })
 })

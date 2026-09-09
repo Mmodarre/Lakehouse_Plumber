@@ -40,8 +40,8 @@ describe('JobConfigEditor — field behaviors', () => {
       expect(bufferContent()).toBe(DEFAULTS_ONLY + '  queue:\n    enabled: false\n'),
     )
 
-    // Reset to default deletes queue entirely (enabled was its only key).
-    await user.click(screen.getByRole('button', { name: 'Reset to default' }))
+    // Reset to inherited deletes queue entirely (enabled was its only key).
+    await user.click(screen.getByRole('button', { name: 'Reset to inherited' }))
     await waitFor(() => expect(bufferContent()).toBe(DEFAULTS_ONLY))
   })
 
@@ -87,7 +87,9 @@ describe('JobConfigEditor — field behaviors', () => {
       'project_defaults:\n  max_concurrent_runs: 1\n---\njob_name: solo\ngenerate_master_job: false\n',
     )
     renderJobEditor()
-    const nav = await screen.findByRole('navigation', { name: 'Configuration documents' })
+    const nav = await screen.findByRole('navigation', {
+      name: 'Configuration documents',
+    })
     const user = userEvent.setup()
 
     // Defaults doc: the Master job section is editable.
@@ -109,7 +111,9 @@ describe('JobConfigEditor — field behaviors', () => {
     // job_config project_defaults only) and the knobs are excluded from the
     // verbatim passthrough render — "only takes effect in the project
     // defaults document" would wrongly suggest adding one to THIS file.
-    serveJob('generate_master_job: false\n', { path: MONITORING_JOB_CONFIG_PATH })
+    serveJob('generate_master_job: false\n', {
+      path: MONITORING_JOB_CONFIG_PATH,
+    })
     renderJobEditor(MONITORING_JOB_CONFIG_PATH)
     await screen.findByText('Notebook cluster')
 
@@ -130,7 +134,9 @@ describe('JobConfigEditor — field behaviors', () => {
   it('monitoring notebook_cluster: new_cluster map edits write through; clearing cascades', async () => {
     const MONITORING =
       'max_concurrent_runs: 1\nnotebook_cluster:\n  new_cluster:\n    num_workers: 2\n'
-    const { bufferContent } = serveJob(MONITORING, { path: MONITORING_JOB_CONFIG_PATH })
+    const { bufferContent } = serveJob(MONITORING, {
+      path: MONITORING_JOB_CONFIG_PATH,
+    })
     renderJobEditor(MONITORING_JOB_CONFIG_PATH)
     await screen.findByText('Notebook cluster')
     const user = userEvent.setup()

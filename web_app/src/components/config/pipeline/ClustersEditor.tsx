@@ -65,9 +65,7 @@ function ClusterEntry({
             variant="ghost"
             size="icon-xs"
             aria-label={`Remove cluster ${index + 1}`}
-            onClick={() =>
-              isLast ? api.del(['clusters']) : api.del(['clusters', index])
-            }
+            onClick={() => (isLast ? api.del(['clusters']) : api.del(['clusters', index]))}
           >
             <X aria-hidden="true" />
           </Button>
@@ -131,7 +129,10 @@ function ClusterEntry({
             size="sm"
             className="h-6 px-2 text-2xs"
             onClick={() =>
-              api.set(['clusters', index, 'autoscale'], { min_workers: 1, max_workers: 4 })
+              api.set(['clusters', index, 'autoscale'], {
+                min_workers: 1,
+                max_workers: 4,
+              })
             }
           >
             <Plus aria-hidden="true" />
@@ -166,12 +167,11 @@ export function ClustersEditor({ api, idPrefix }: { api: DocFormApi; idPrefix: s
   return (
     <SectionCard
       title="Clusters"
+      configured={['clusters'].some((key) => key in api.settings)}
       description="Compute for classic (non-serverless) pipelines — rendered only when serverless is off."
     >
       {raw !== undefined && clusters === undefined ? (
-        <p className="text-2xs text-warning">
-          clusters is not a list — edit it in the YAML view.
-        </p>
+        <p className="text-2xs text-warning">clusters is not a list — edit it in the YAML view.</p>
       ) : (
         <>
           {(clusters ?? []).map((cluster, index) =>

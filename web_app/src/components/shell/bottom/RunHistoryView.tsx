@@ -1,5 +1,12 @@
 import { useState } from 'react'
+import { useHistoryViewState } from '../../../store/runHistoryViewStore'
+import { toast } from 'sonner'
+import { fetchRun } from '../../../api/runs'
+import { openWorkspaceFile } from '../../../workspace/openWorkspaceFile'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../../ui/dialog'
 import {
+  Download,
+  Maximize2,
   ChevronDown,
   ChevronRight,
   CircleCheck,
@@ -19,14 +26,6 @@ import type { RunIssue, RunSummary } from '../../../types/api'
 import { Badge } from '../../ui/badge'
 import { Button } from '../../ui/button'
 import { cn } from '../../../lib/utils'
-
-// ── RunHistoryView — the bottom-panel History tab (§6.7 / D12) ──
-//
-// Recomposes the RunHistoryPage table (useRuns/useRun expandable rows) into
-// the bottom dock, dropping the page's title/description/padding chrome. The
-// original pages/RunHistoryPage.tsx stays untouched on disk (it is deleted in
-// T1.6). Presentational helpers are copied verbatim; the data hooks, IssueList
-// and JsonTree are reused directly.
 
 function StatusBadge({ status }: { status: string }) {
   if (status === 'completed') {
@@ -97,7 +96,9 @@ function toIssueItems(issues: RunIssue[]): IssueListItem[] {
 }
 
 function RunDetailPanel({ runId }: { runId: string }) {
-  const [showEvents, setShowEvents] = useState(false)
+  const showEvents = useHistoryViewState((s) => s.eventsFor[runId] ?? false)
+  const setShowEvents = () => useHistoryViewState.setState((s) => ({ eventsFor: { ...s.eventsFor, [runId]: !showEvents } }))
+  const [exporting, setExporting] = useState(false)
   const { data, isLoading, isError, error } = useRun(runId, showEvents)
 
   if (isLoading) return <TableSkeleton rows={3} />
@@ -111,9 +112,26 @@ function RunDetailPanel({ runId }: { runId: string }) {
   if (!data) return null
 
   const events = data.events ?? []
+  const exportRun = async () => {
+    setExporting(true)
+    try {
+      const complete = await fetchRun(runId, true)
+      const url = URL.createObjectURL(new Blob([JSON.stringify(complete, null, 2)], { type: 'application/json' }))
+      const anchor = document.createElement('a')
+      anchor.href = url
+      anchor.download = `lhp-run-${runId}.json`
+      anchor.click()
+      setTimeout(() => URL.revokeObjectURL(url), 0)
+    } catch (error) { toast.error(errorMessage(error, 'Could not export run')) }
+    finally { setExporting(false) }
+  }
 
   return (
     <div className="space-y-3 px-3 py-2.5">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-xs text-muted-foreground">Recorded results for saved files at run time. Current edits may differ.</p>
+        <Button variant="outline" size="xs" disabled={exporting} onClick={() => { void exportRun() }}><Download /> Export run JSON</Button>
+      </div>
       {data.summary && Object.keys(data.summary).length > 0 && (
         <div>
           <h4 className="mb-1.5 text-2xs font-semibold tracking-[0.05em] text-muted-foreground uppercase">
@@ -129,7 +147,9 @@ function RunDetailPanel({ runId }: { runId: string }) {
         </h4>
         {data.issues.length > 0 ? (
           <div className="rounded-md border border-border">
-            <IssueList issues={toIssueItems(data.issues)} />
+            <IssueList issues={toIssueItems(data.issues)} onSelect={(issue) => {
+              if (issue.file) void openWorkspaceFile(issue.file, { source: true, line: issue.line ?? undefined })
+            }} />
           </div>
         ) : (
           <p className="text-xs text-muted-foreground">No issues recorded for this run.</p>
@@ -140,7 +160,7 @@ function RunDetailPanel({ runId }: { runId: string }) {
         <Button
           variant="outline"
           size="xs"
-          onClick={() => setShowEvents((s) => !s)}
+          onClick={setShowEvents}
           aria-expanded={showEvents}
         >
           {showEvents ? <ChevronDown /> : <ChevronRight />}
@@ -171,10 +191,12 @@ function RunRow({
   run,
   selected,
   onToggle,
+  onExpand,
 }: {
   run: RunSummary
   selected: boolean
   onToggle: () => void
+  onExpand: () => void
 }) {
   return (
     <>
@@ -211,7 +233,7 @@ function RunRow({
           <StatusBadge status={run.status} />
         </td>
         <td className="px-3 py-1.5 whitespace-nowrap text-muted-foreground tabular-nums">
-          {formatStarted(run.started_at)}
+          <time dateTime={run.started_at} title={run.started_at}>{formatStarted(run.started_at)}</time>
         </td>
         <td className="px-3 py-1.5 whitespace-nowrap text-muted-foreground tabular-nums">
           {formatDuration(run)}
@@ -220,6 +242,7 @@ function RunRow({
       {selected && (
         <tr>
           <td colSpan={7} className="border-t border-border/60 bg-background/50 p-0">
+            <div className="flex justify-end px-3 pt-2"><Button variant="ghost" size="xs" onClick={onExpand}><Maximize2 /> Expand run details</Button></div>
             <RunDetailPanel runId={run.run_id} />
           </td>
         </tr>
@@ -229,10 +252,14 @@ function RunRow({
 }
 
 export function RunHistoryView() {
-  const { data, isLoading, isError, error } = useRuns(50)
-  const [selectedRunId, setSelectedRunId] = useState<string | null>(null)
-
-  const runs = data?.runs ?? []
+  const { selectedRunId, env, pipeline, status, limit } = useHistoryViewState()
+  const { data, isLoading, isError, error, isFetching, refetch } = useRuns(limit)
+  const [expandedRunId, setExpandedRunId] = useState<string | null>(null)
+  const allRuns = data?.runs ?? []
+  const runs = allRuns.filter((run) => (!env || run.env === env)
+    && (!pipeline || (run.pipeline ?? '__all__') === pipeline) && (!status || run.status === status))
+  const environments = [...new Set(allRuns.map((run) => run.env).filter(Boolean))].sort()
+  const pipelines = [...new Set(allRuns.map((run) => run.pipeline ?? '__all__'))].sort()
 
   if (isLoading) {
     return (
@@ -248,11 +275,12 @@ export function RunHistoryView() {
         title="Failed to load run history"
         message={errorMessage(error, 'The runs endpoint is unavailable.')}
         icon={History}
+        action={{ label: 'Retry', onClick: () => { void refetch() } }}
       />
     )
   }
 
-  if (runs.length === 0) {
+  if (allRuns.length === 0) {
     return (
       <EmptyState
         title="No runs yet"
@@ -264,6 +292,26 @@ export function RunHistoryView() {
 
   return (
     <div className="h-full overflow-auto">
+      <div className="sticky top-0 z-10 flex flex-wrap items-center gap-2 border-b border-border bg-surface px-3 py-2 text-xs">
+        <label className="flex items-center gap-1">Environment
+          <select className="rounded border border-border bg-background px-2 py-1" value={env} onChange={(event) => useHistoryViewState.setState({ env: event.target.value })}>
+            <option value="">All environments</option>{environments.map((name) => <option key={name} value={name}>{name}</option>)}
+          </select>
+        </label>
+        <label className="flex items-center gap-1">Pipeline
+          <select className="rounded border border-border bg-background px-2 py-1" value={pipeline} onChange={(event) => useHistoryViewState.setState({ pipeline: event.target.value })}>
+            <option value="">All scopes</option>{pipelines.map((name) => <option key={name} value={name}>{name === '__all__' ? 'All pipelines run' : name}</option>)}
+          </select>
+        </label>
+        <label className="flex items-center gap-1">Status
+          <select className="rounded border border-border bg-background px-2 py-1" value={status} onChange={(event) => useHistoryViewState.setState({ status: event.target.value })}>
+            <option value="">All statuses</option>{['running', 'completed', 'failed'].map((name) => <option key={name} value={name}>{name}</option>)}
+          </select>
+        </label>
+        {(env || pipeline || status) && <Button variant="ghost" size="xs" onClick={() => useHistoryViewState.setState({ env: '', pipeline: '', status: '' })}>Clear filters</Button>}
+        <span className="ml-auto text-muted-foreground">{runs.length} of {allRuns.length} loaded · local time ({Intl.DateTimeFormat().resolvedOptions().timeZone})</span>
+      </div>
+      {runs.length === 0 && <p className="p-3 text-xs text-muted-foreground">No loaded runs match these filters. Clear filters or load older runs.</p>}
       <table className="w-full text-xs">
         <thead>
           <tr className="border-b border-border bg-muted/50 text-left text-2xs tracking-[0.05em] text-muted-foreground uppercase">
@@ -284,12 +332,23 @@ export function RunHistoryView() {
                 key={run.run_id}
                 run={run}
                 selected={selected}
-                onToggle={() => setSelectedRunId(selected ? null : run.run_id)}
+                onToggle={() => useHistoryViewState.setState({ selectedRunId: selected ? null : run.run_id })}
+                onExpand={() => setExpandedRunId(run.run_id)}
               />
             )
           })}
         </tbody>
       </table>
+      <div className="flex items-center justify-center gap-2 border-t border-border p-2 text-xs text-muted-foreground">
+        {allRuns.length >= limit && limit < 200 ? <Button variant="outline" size="sm" disabled={isFetching} onClick={() => useHistoryViewState.setState({ limit: Math.min(200, limit + 50) })}>{isFetching ? 'Loading…' : 'Load older runs'}</Button>
+          : <span>{limit >= 200 && allRuns.length >= 200 ? 'Showing the latest 200 runs (server limit).' : 'All available runs loaded.'}</span>}
+      </div>
+      <Dialog open={expandedRunId !== null} onOpenChange={(open) => { if (!open) setExpandedRunId(null) }}>
+        <DialogContent className="max-h-[90vh] overflow-auto sm:max-w-5xl">
+          <DialogHeader><DialogTitle>Run details</DialogTitle><DialogDescription>{expandedRunId}</DialogDescription></DialogHeader>
+          {expandedRunId && <RunDetailPanel runId={expandedRunId} />}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

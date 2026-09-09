@@ -25,7 +25,7 @@ export function useFlowgroupRelatedFiles(name: string | null, env: string) {
   return useQuery({
     queryKey: ['flowgroup-related-files', name, env],
     queryFn: () => fetchFlowgroupRelatedFiles(name!, env),
-    enabled: !!name,
+    enabled: !!name && !!env,
   })
 }
 
@@ -33,6 +33,6 @@ export function useFlowgroupResolved(name: string | null, env: string) {
   return useQuery({
     queryKey: ['flowgroup-resolved', name, env],
     queryFn: () => fetchFlowgroupResolved(name!, env),
-    enabled: !!name,
+    enabled: !!name && !!env,
   })
 }

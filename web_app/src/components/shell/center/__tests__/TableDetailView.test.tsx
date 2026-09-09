@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { TableDetailView } from '../TableDetailView'
 import { useUIStore } from '../../../../store/uiStore'
@@ -110,8 +110,8 @@ describe('TableDetailView', () => {
     expect(screen.getByText('customers')).toBeInTheDocument()
     expect(screen.getAllByText('main.bronze.customers').length).toBeGreaterThan(0)
     // Lineage rail chain nodes (upstream views).
-    expect(screen.getByText('v_customers_raw')).toBeInTheDocument()
-    expect(screen.getByText('v_customers_clean')).toBeInTheDocument()
+    expect(screen.getAllByText('v_customers_raw').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('v_customers_clean').length).toBeGreaterThan(0)
     expect(screen.getByText('/Volumes/main/raw/customers/')).toBeInTheDocument()
     // Produced-by action + jump-to-flowgroup.
     expect(screen.getByText('write_customers')).toBeInTheDocument()
@@ -122,6 +122,25 @@ describe('TableDetailView', () => {
     ).toBeInTheDocument()
     // Consumer appears (rail + list).
     expect(screen.getAllByText('main.silver.customers').length).toBeGreaterThan(0)
+  })
+
+  it('renders only reported lineage edges for branching inputs', () => {
+    const branching = response({ edges: [{ source: 'ext', target: 'load' }, { source: 'ext', target: 'xf' }, { source: 'load', target: 'w' }, { source: 'xf', target: 'w' }] })
+    useLineageMock.mockReturnValue(ok(branching))
+    const { container } = renderView('main.bronze.customers')
+    const edges = Array.from(container.querySelectorAll('[data-lineage-edge]'))
+    expect(edges.map((edge) => edge.getAttribute('data-lineage-edge'))).toEqual(['ext→load', 'ext→xf', 'load→w', 'xf→w'])
+    expect(container.querySelector('[data-lineage-edge="load→xf"]')).toBeNull()
+    expect(within(edges[0] as HTMLElement).getByText('v_customers_raw')).toBeInTheDocument()
+    expect(within(edges[1] as HTMLElement).getByText('v_customers_clean')).toBeInTheDocument()
+  })
+
+  it('shows disconnected nodes independently when no edges were reported', () => {
+    useLineageMock.mockReturnValue(ok(response({ edges: [] })))
+    const { container } = renderView('main.bronze.customers')
+    expect(container.querySelectorAll('[data-lineage-edge]')).toHaveLength(0)
+    expect(screen.getByText(/Nodes are shown independently/)).toBeInTheDocument()
+    expect(screen.getByText('v_customers_raw')).toBeInTheDocument()
   })
 
   it('opens the producing flowgroup as a YAML entity tab', async () => {

@@ -1,7 +1,6 @@
 import { Square } from 'lucide-react'
 import { Button } from '../../ui/button'
-import { useRunStore } from '../../../store/runStore'
-import { abortActiveStream } from '../../../hooks/useEventStream'
+import { abortCurrentRun, useRunStore } from '../../../store/runStore'
 import { ValidationPanel } from '../../validation/ValidationPanel'
 
 // ── RunStreamView — the bottom-panel Run tab (§6.7 / D12) ───────
@@ -18,16 +17,25 @@ import { ValidationPanel } from '../../validation/ValidationPanel'
 // ValidationPanel (the timer reads runStore.startedAt, set in begin()).
 
 export function RunStreamView() {
+  const queued = useRunStore((s) => s.validationQueued)
+  const inputs = useRunStore((s) => s.inputs)
   const isRunning = useRunStore((s) => s.isRunning)
 
   return (
     <div className="flex h-full min-h-0 flex-col">
+      {inputs && (
+        <p className="border-b border-border px-3 py-1.5 text-xs text-muted-foreground">
+          {inputs.env} · {inputs.sandbox ? 'sandbox scope' : inputs.pipeline ?? 'all pipelines'}
+          {' · '}{inputs.pipeline_config ?? 'no pipeline config'} · saved files
+          {queued && <span className="ml-2 text-info">Validation queued after this run</span>}
+        </p>
+      )}
       {isRunning && (
         <div className="flex shrink-0 items-center justify-end border-b border-border px-3 py-1.5">
           <Button
             variant="outline"
             size="xs"
-            onClick={() => abortActiveStream()}
+            onClick={() => abortCurrentRun()}
             title="Stop the run (finishes the current flowgroup)"
           >
             <Square aria-hidden="true" />

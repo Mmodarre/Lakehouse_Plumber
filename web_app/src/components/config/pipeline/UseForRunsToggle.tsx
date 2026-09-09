@@ -18,8 +18,7 @@ export function UseForRunsToggle({ path }: { path: string }) {
   const selected = useUIStore((s) => s.selectedPipelineConfig)
   const setSelected = useUIStore((s) => s.setSelectedPipelineConfig)
   const checked = selected === path
-  const otherName =
-    selected !== null && selected !== path ? (selected.split('/').pop() ?? selected) : null
+  const otherName = selected !== null && selected !== path ? selected : null
 
   return (
     <div className="flex max-w-72 flex-col items-end gap-0.5">
@@ -40,14 +39,16 @@ export function UseForRunsToggle({ path }: { path: string }) {
       <p id="use-for-runs-note" className="text-right text-2xs text-muted-foreground">
         {otherName !== null ? (
           <>
-            Runs currently use <span className="font-mono">{otherName}</span> — toggle on to
-            switch to this file.
+            Runs currently use <span className="font-mono">{otherName}</span> — toggle on to switch
+            to this file.
+          </>
+        ) : checked ? (
+          <>
+            Validate/Generate use this file. On bundle projects (databricks.yml), Generate also
+            writes resources/lhp/.
           </>
         ) : (
-          <>
-            Validate/Generate use this file. On bundle projects (databricks.yml), Generate
-            also writes resources/lhp/.
-          </>
+          <>This file is not used for runs. Enable to use it for Validate and Generate.</>
         )}
       </p>
     </div>

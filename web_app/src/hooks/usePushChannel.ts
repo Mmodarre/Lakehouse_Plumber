@@ -51,6 +51,21 @@ const FILE_CHANGED_KEYS = [
   'execution-order',
   'circular-deps',
   'stats',
+  'flowgroup-related',
+  'templates',
+  'template',
+  'presets',
+  'preset',
+  'blueprints',
+  'blueprint-params',
+  'operational-metadata',
+  'environments',
+  'environment-resolved',
+  'project',
+  'sandbox',
+  'lineage',
+  'file-exists',
+  'cross-pipeline',
 ] as const
 
 /**
@@ -137,11 +152,13 @@ export function usePushChannel(): void {
       // The run-history page arrives in a later phase; invalidating a
       // key with no active queries is harmless.
       void queryClient.invalidateQueries({ queryKey: ['run-history'] })
+      void queryClient.invalidateQueries({ queryKey: ['run', payload.run_id] })
       if (payload.kind === 'generate' && payload.status === 'completed') {
         // Mirrors the existing post-generate invalidation for runs that
         // completed in another tab / on the server side.
-        void queryClient.invalidateQueries({ queryKey: ['files'] })
-        void queryClient.invalidateQueries({ queryKey: ['dep-graph'] })
+        for (const key of ['files', 'dep-graph', 'flowgroup-related', 'flowgroup-related-files', 'file-content', 'file-exists', 'tables', 'lineage']) {
+          void queryClient.invalidateQueries({ queryKey: [key] })
+        }
       }
     }
 

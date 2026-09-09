@@ -22,7 +22,13 @@ const TEXT_FIELDS: [string, string, boolean, string?][] = [
 export function GeneralSection({ form }: { form: ProjectFormApi }) {
   const applyFormatting = form.doc.apply_formatting
   return (
-    <SectionCard title="General" description="Project identity and generation defaults.">
+    <SectionCard
+      title="General"
+      configured={[...TEXT_FIELDS.map(([key]) => key), 'apply_formatting'].some(
+        (key) => key in form.doc,
+      )}
+      description="Project identity and generation defaults."
+    >
       {TEXT_FIELDS.map(([key, label, mono, placeholder]) => {
         const issue = issueText(form.issues, [key])
         return (

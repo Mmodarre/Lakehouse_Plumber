@@ -36,15 +36,14 @@ export function FieldLabel({
 }: FieldLabelProps) {
   const text = useFieldHelp(helpPath, help)
   return (
-    <div className={cn('flex items-center gap-1', className)}>
+    <div
+      className={cn('flex items-center gap-1', className)}
+      data-setting-path={helpPath?.join('.')}
+    >
       <Label htmlFor={htmlFor} className={labelClassName}>
         {label}
       </Label>
-      <FieldHelp
-        text={text}
-        label={typeof label === 'string' ? label : undefined}
-        side={side}
-      />
+      <FieldHelp text={text} label={typeof label === 'string' ? label : undefined} side={side} />
     </div>
   )
 }

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { startAssistantChat } from '../api/assistant'
+import { useChatDraftStore } from '../store/chatDraftStore'
 import { useAssistantStore } from '../store/assistantStore'
 import type { AssistantFrame } from '../types/assistant'
 import { parseLine, splitLines } from './useEventStream'
@@ -103,6 +104,7 @@ export function useAssistantStream(): UseAssistantStreamResult {
               // the tab and move this stream's bookkeeping with it.
               const fromKey = key
               key = frame.session_id
+              useChatDraftStore.getState().moveConversation(fromKey, key)
               store.rekeyTab(fromKey, key)
               runningRef.current.delete(fromKey)
               runningRef.current.add(key)

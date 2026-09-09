@@ -50,6 +50,7 @@ export function PipelineAdvancedFields({ api, idPrefix }: { api: DocFormApi; idP
     <>
       <SectionCard
         title="Event log"
+        configured={['event_log'].some((key) => key in api.settings)}
         description="Overrides the project-level event_log injection for this document's pipelines."
       >
         <EnumSelect
@@ -101,6 +102,7 @@ export function PipelineAdvancedFields({ api, idPrefix }: { api: DocFormApi; idP
 
       <SectionCard
         title="Environment"
+        configured={['environment'].some((key) => key in api.settings)}
         description="pip dependencies installed for the pipeline (rendered verbatim into the bundle resource)."
       >
         <StringListEditor

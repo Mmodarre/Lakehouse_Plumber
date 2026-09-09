@@ -1,4 +1,8 @@
+import { useConfigReadOnly } from '../shared/configEditingContext'
+import { EffectiveConfigPreview } from '../EffectiveConfigPreview'
+import { useCompactConfigNavigation } from '../shared/useCompactConfigNavigation'
 import { useMemo, useState } from 'react'
+import { useConfigViewStore } from '../shared/configViewState'
 import type { ReactNode } from 'react'
 import { TriangleAlert } from 'lucide-react'
 import {
@@ -60,8 +64,8 @@ function BuiltinDefaultsCard() {
       <CardHeader className="px-4">
         <CardTitle className="text-xs">Built-in defaults</CardTitle>
         <CardDescription className="text-2xs">
-          Built into LHP — the lowest merge layer. A value here applies whenever
-          neither project defaults nor a pipeline's own document sets the key.
+          Built into LHP — the lowest merge layer. A value here applies whenever neither project
+          defaults nor a pipeline's own document sets the key.
         </CardDescription>
       </CardHeader>
       <CardContent className="px-4">
@@ -89,8 +93,8 @@ function UnrecognizedDocCard({ doc }: { doc: unknown }) {
       <CardHeader className="px-4">
         <CardTitle className="text-xs">Unrecognized document</CardTitle>
         <CardDescription className="text-2xs">
-          This document is ignored by LHP — it has neither project_defaults nor
-          pipeline. Its content is kept exactly as written on save.
+          This document is ignored by LHP — it has neither project_defaults nor pipeline. Its
+          content is kept exactly as written on save.
         </CardDescription>
       </CardHeader>
       {keys.length > 0 && (
@@ -111,6 +115,8 @@ function UnrecognizedDocCard({ doc }: { doc: unknown }) {
 }
 
 export function PipelineConfigEditor({ file }: PipelineConfigEditorProps) {
+  const readOnly = useConfigReadOnly()
+  const { ref: navigationRef, compact } = useCompactConfigNavigation()
   const parsed = file.handle !== null && file.errors.length === 0
 
   // The handle is mutable: derive ONLY from [handle, version] (hook contract).
@@ -127,7 +133,9 @@ export function PipelineConfigEditor({ file }: PipelineConfigEditorProps) {
   // at render time (defaults doc, else first doc, else the built-ins
   // row). Deriving instead of initializing via an effect means the form
   // appears in the same commit as the rail — no intermediate state.
-  const [chosen, setChosen] = useState<RailSelection | null>(null)
+  const chosen = useConfigViewStore((state) => state.views[file.path ?? 'config']?.selection)
+  const setChosen = (selection: RailSelection) =>
+    useConfigViewStore.getState().update(file.path ?? 'config', { selection })
   const [focusMembership, setFocusMembership] = useState(false)
   const [pendingDelete, setPendingDelete] = useState<number | null>(null)
 
@@ -136,7 +144,6 @@ export function PipelineConfigEditor({ file }: PipelineConfigEditorProps) {
   const [pathFor, setPathFor] = useState(file.path)
   if (pathFor !== file.path) {
     setPathFor(file.path)
-    setChosen(null)
     setFocusMembership(false)
   }
 
@@ -156,6 +163,7 @@ export function PipelineConfigEditor({ file }: PipelineConfigEditorProps) {
   }
 
   const addDoc = (initial: unknown, focusGroup = false) => {
+    if (readOnly) return
     let index = -1
     file.mutate((handle) => {
       index = addDocument(handle, initial)
@@ -165,6 +173,7 @@ export function PipelineConfigEditor({ file }: PipelineConfigEditorProps) {
   }
 
   const confirmDelete = () => {
+    if (readOnly) return
     const index = pendingDelete
     setPendingDelete(null)
     if (index === null) return
@@ -218,6 +227,7 @@ export function PipelineConfigEditor({ file }: PipelineConfigEditorProps) {
       ]
       detail = (
         <PipelineDocForm
+          scope={file.path ?? undefined}
           api={bindDocApi(file, activeSelection, base, settings, issues)}
           kind={kind}
           docSnapshot={docMap}
@@ -231,12 +241,13 @@ export function PipelineConfigEditor({ file }: PipelineConfigEditorProps) {
 
     body = (
       <>
-        <div className="flex gap-5">
+        <div ref={navigationRef} className={`flex gap-5 ${compact ? 'flex-col' : ''}`}>
           <PipelineDocList
+            compact={compact}
             rail={rail}
             selected={activeSelection}
             onSelect={select}
-            canEdit={parsed}
+            canEdit={parsed && !readOnly}
             onAddSingle={() => addDoc({ pipeline: 'new_pipeline' })}
             onAddGroup={() => addDoc({ pipeline: [] }, true)}
             onAddDefaults={() => addDoc({ project_defaults: {} })}
@@ -255,6 +266,9 @@ export function PipelineConfigEditor({ file }: PipelineConfigEditorProps) {
         </div>
       )}
       {body}
+      {file.path && parsed && (
+        <EffectiveConfigPreview key={file.path} path={file.path} kind="pipeline" />
+      )}
       <AlertDialog
         open={pendingDelete !== null}
         onOpenChange={(open) => {
@@ -265,13 +279,18 @@ export function PipelineConfigEditor({ file }: PipelineConfigEditorProps) {
           <AlertDialogHeader>
             <AlertDialogTitle className="text-base">Delete this document?</AlertDialogTitle>
             <AlertDialogDescription className="text-xs">
-              Removes the whole YAML document from the file (its comments go with
-              it). Other documents keep their exact bytes.
+              Removes the whole YAML document from the file (its comments go with it). Other
+              documents keep their exact bytes.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel size="sm">Keep document</AlertDialogCancel>
-            <AlertDialogAction variant="destructive" size="sm" onClick={confirmDelete}>
+            <AlertDialogAction
+              disabled={readOnly}
+              variant="destructive"
+              size="sm"
+              onClick={confirmDelete}
+            >
               Delete
             </AlertDialogAction>
           </AlertDialogFooter>

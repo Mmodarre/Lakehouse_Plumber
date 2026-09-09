@@ -67,6 +67,7 @@ _ROUTER_MODULES: tuple[str, ...] = (
     "sandbox",
     "schemas",
     "config_templates",
+    "configuration",
     "files",
     "streaming",
     "runs",

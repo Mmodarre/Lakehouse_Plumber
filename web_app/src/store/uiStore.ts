@@ -2,6 +2,10 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
 interface UIState {
+  environmentByProject: Record<string, string>
+  environmentProject: string | null
+  reconcileEnvironments: (project: string, environments: string[]) => void
+
   // Environment
   selectedEnv: string
   setSelectedEnv: (env: string) => void
@@ -74,8 +78,27 @@ export const useUIStore = create<UIState>()(
   persist(
     (set) => ({
       // Environment
-      selectedEnv: 'dev',
-      setSelectedEnv: (env) => set({ selectedEnv: env }),
+      selectedEnv: '',
+      environmentByProject: {},
+      environmentProject: null,
+      setSelectedEnv: (env) => set((s) => ({
+        selectedEnv: env,
+        environmentByProject: s.environmentProject
+          ? { ...s.environmentByProject, [s.environmentProject]: env }
+          : s.environmentByProject,
+      })),
+      reconcileEnvironments: (project, environments) => set((s) => {
+        const preferred = s.environmentProject === project
+          ? s.selectedEnv : s.environmentByProject[project]
+        const selectedEnv = preferred && environments.includes(preferred)
+          ? preferred : environments.includes('dev') ? 'dev' : environments[0] ?? ''
+        if (s.environmentProject === project && s.selectedEnv === selectedEnv) return {}
+        return {
+          selectedEnv,
+          environmentProject: project,
+          environmentByProject: { ...s.environmentByProject, [project]: selectedEnv },
+        }
+      }),
 
       // Sandbox mode (persisted)
       sandboxEnabled: false,
@@ -121,6 +144,7 @@ export const useUIStore = create<UIState>()(
       // Everything else in this store is deliberately session-only; only the
       // run-config binding and the sandbox toggle survive a reload.
       partialize: (s) => ({
+        environmentByProject: s.environmentByProject,
         selectedPipelineConfig: s.selectedPipelineConfig,
         sandboxEnabled: s.sandboxEnabled,
       }),

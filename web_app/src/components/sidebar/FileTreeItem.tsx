@@ -1,3 +1,4 @@
+import { useState, type ReactNode } from 'react'
 import type { LucideIcon } from 'lucide-react'
 import {
   Braces,
@@ -9,8 +10,11 @@ import {
   Folder,
   FolderOpen,
   Trash2,
+  MoreHorizontal,
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from '../ui/dropdown-menu'
+import { configurationKindForPath } from '../../workspace/openWorkspaceFile'
 import type { FileNode } from '../../types/api'
 
 /** Client-side junk filter: hides dotfiles/dot-directories (.DS_Store, .git, …).
@@ -63,6 +67,34 @@ interface FileTreeItemProps {
   onToggle: (path: string) => void
   onClick: (path: string) => void
   onDelete: (path: string) => void
+  canMutate?: (path: string) => boolean
+  onNewHere?: (folder: string) => void
+  onDuplicate?: (path: string) => void
+  onOpenSource?: (path: string) => void
+  onOpenConfig?: (path: string) => void
+}
+
+function FileActions({ node, children, canMutate, onNewHere, onDuplicate, onOpenSource, onOpenConfig, onDelete }: Pick<FileTreeItemProps, 'node' | 'canMutate' | 'onNewHere' | 'onDuplicate' | 'onOpenSource' | 'onOpenConfig' | 'onDelete'> & { children: ReactNode }) {
+  const [open, setOpen] = useState(false)
+  const directory = node.type === 'directory'
+  const folder = directory ? node.path : node.path.split('/').slice(0, -1).join('/')
+  const writable = canMutate?.(node.path) ?? true
+  return <DropdownMenu modal={false} open={open} onOpenChange={setOpen}>
+    <div className="group flex min-w-0 items-center" onContextMenu={(event) => { event.preventDefault(); event.stopPropagation(); setOpen(true) }}
+      onKeyDown={(event) => { if (event.key === 'ContextMenu' || (event.shiftKey && event.key === 'F10')) { event.preventDefault(); setOpen(true) } }}>
+      <div className="min-w-0 flex-1">{children}</div>
+      <DropdownMenuTrigger asChild><button className="shrink-0 rounded p-1 text-muted-foreground opacity-0 group-hover:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100" aria-label={`Actions for ${node.name}`} title="File actions"><MoreHorizontal className="size-3.5" /></button></DropdownMenuTrigger>
+    </div>
+    <DropdownMenuContent align="start">
+      <DropdownMenuItem onSelect={() => { void navigator.clipboard?.writeText(node.path) }}>Copy relative path</DropdownMenuItem>
+      {!directory && <DropdownMenuItem onSelect={() => onOpenSource?.(node.path)}>Open in Code</DropdownMenuItem>}
+      {!directory && configurationKindForPath(node.path) && <DropdownMenuItem onSelect={() => onOpenConfig?.(node.path)}>Open configuration form</DropdownMenuItem>}
+      <DropdownMenuSeparator />
+      <DropdownMenuItem disabled={!writable} title={!writable ? 'Unavailable in viewer mode or a read-only folder' : undefined} onSelect={() => onNewHere?.(folder)}>New file here</DropdownMenuItem>
+      {!directory && <DropdownMenuItem disabled={!writable} onSelect={() => onDuplicate?.(node.path)}>Duplicate file…</DropdownMenuItem>}
+      {!directory && <DropdownMenuItem variant="destructive" disabled={!writable} onSelect={() => onDelete(node.path)}>Delete file…</DropdownMenuItem>}
+    </DropdownMenuContent>
+  </DropdownMenu>
 }
 
 export function FileTreeItem({
@@ -73,17 +105,22 @@ export function FileTreeItem({
   onToggle,
   onClick,
   onDelete,
+  canMutate, onNewHere, onDuplicate, onOpenSource, onOpenConfig,
 }: FileTreeItemProps) {
   const { name, path, type } = node
   const isExpanded = expandedPaths.has(path)
+  const actionProps = { node, onDelete, canMutate, onNewHere, onDuplicate, onOpenSource, onOpenConfig }
 
   if (type === 'directory') {
     return (
       <div>
+        <FileActions {...actionProps}>
         <button
           type="button"
           className="flex h-[26px] w-full items-center gap-1.5 rounded-sm px-2 text-left text-sm text-foreground transition-colors duration-150 hover:bg-muted/60 motion-reduce:transition-none"
           onClick={() => onToggle(path)}
+          aria-expanded={isExpanded}
+          title={path}
         >
           <IndentGuides depth={depth} />
           <ChevronRight
@@ -100,6 +137,7 @@ export function FileTreeItem({
           )}
           <span className="truncate font-medium">{name}</span>
         </button>
+        </FileActions>
 
         {isExpanded && (
           <div>
@@ -113,6 +151,7 @@ export function FileTreeItem({
                 onToggle={onToggle}
                 onClick={onClick}
                 onDelete={onDelete}
+                canMutate={canMutate} onNewHere={onNewHere} onDuplicate={onDuplicate} onOpenSource={onOpenSource} onOpenConfig={onOpenConfig}
               />
             ))}
           </div>
@@ -125,7 +164,9 @@ export function FileTreeItem({
   const isActive = activePath === path
 
   return (
+    <FileActions {...actionProps}>
     <div
+      data-file-path={path}
       className={cn(
         'group relative flex h-[26px] items-center rounded-sm transition-colors duration-150 motion-reduce:transition-none',
         isActive ? 'bg-accent' : 'hover:bg-muted/60',
@@ -139,6 +180,8 @@ export function FileTreeItem({
         type="button"
         className="flex h-full min-w-0 flex-1 items-center gap-1.5 px-2 text-left text-sm"
         onClick={() => onClick(path)}
+        title={path}
+        aria-current={isActive ? 'page' : undefined}
       >
         <IndentGuides depth={depth} />
         {/* Chevron-width spacer keeps file icons aligned with folder icons */}
@@ -159,6 +202,7 @@ export function FileTreeItem({
         type="button"
         aria-label={`Delete ${name}`}
         title="Delete file"
+        disabled={!(canMutate?.(path) ?? true)}
         onClick={(e) => {
           e.stopPropagation()
           onDelete(path)
@@ -168,5 +212,6 @@ export function FileTreeItem({
         <Trash2 aria-hidden="true" className="size-3.5" />
       </button>
     </div>
+    </FileActions>
   )
 }

@@ -3,6 +3,8 @@ import type { ReactNode } from 'react'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { writeFile } from '../../../../api/files'
+import { ApiError } from '../../../../api/client'
 import { CenterArea } from '../CenterArea'
 import {
   useWorkspaceStore,
@@ -12,6 +14,8 @@ import {
 } from '../../../../store/workspaceStore'
 import { useDocumentStore } from '../../../../store/documentStore'
 import { loadBufferContent } from '../../../workspace/flowgroupBuffers'
+
+vi.mock('../../../../api/files', () => ({ writeFile: vi.fn(), IF_MATCH_CREATE_ONLY: 'create-only' }))
 
 // Heavy view bodies are mocked to sentinels: the subject under test is
 // CenterArea's tab-kind / EntityTab-view routing + the view-switch flush and
@@ -78,6 +82,7 @@ function setWorkspace(over: {
     buffers: over.buffers ?? [],
     projectRoot: '/proj',
     restoredDirtyCount: 0,
+    pinnedTabIds: [], closedTabs: [], revealLocation: null,
   })
 }
 
@@ -99,6 +104,7 @@ const ENTITY = {
 }
 
 beforeEach(() => {
+  vi.mocked(writeFile).mockReset()
   fakeEditorValue = 'x'
   setWorkspace({})
   useDocumentStore.setState({ docs: {} })
@@ -147,16 +153,16 @@ describe('CenterArea', () => {
     expect(useWorkspaceStore.getState().tabs[0]).toMatchObject({ kind: 'entity', view: 'code' })
   })
 
-  it('⌘2 / ⌘1 switch the entity view between Code and Graph', () => {
+  it('⌘ Alt 2 / ⌘ Alt 1 switch the entity view between Code and Graph', () => {
     setWorkspace({
       tabs: [{ kind: 'entity', ...ENTITY, view: 'graph' }],
       activePath: 'entity:p/f',
     })
     renderCenter()
     // ⌘2 → Code, ⌘1 → Graph (⌘3 is gone — Form/YAML are retired).
-    fireEvent.keyDown(window, { key: '2', metaKey: true })
+    fireEvent.keyDown(window, { key: '2', metaKey: true, altKey: true })
     expect(useWorkspaceStore.getState().tabs[0]).toMatchObject({ kind: 'entity', view: 'code' })
-    fireEvent.keyDown(window, { key: '1', metaKey: true })
+    fireEvent.keyDown(window, { key: '1', metaKey: true, altKey: true })
     expect(useWorkspaceStore.getState().tabs[0]).toMatchObject({ kind: 'entity', view: 'graph' })
     // ⌘3 no longer maps to a view — no churn.
     const before = useWorkspaceStore.getState().tabs
@@ -294,8 +300,8 @@ describe('CenterArea', () => {
 
     await user.click(screen.getByRole('button', { name: 'Close p·f' }))
     // Dirty → the discard prompt appears; the tab/buffer are untouched so far.
-    expect(await screen.findByRole('alertdialog')).toBeInTheDocument()
-    expect(screen.getByText('Discard unsaved changes?')).toBeInTheDocument()
+    expect(await screen.findByRole('dialog')).toBeInTheDocument()
+    expect(screen.getByText('Save changes before closing?')).toBeInTheDocument()
     expect(useWorkspaceStore.getState().tabs).toHaveLength(1)
 
     await user.click(screen.getByRole('button', { name: 'Discard changes' }))
@@ -324,4 +330,35 @@ describe('CenterArea', () => {
     expect(s.buffers.map((b) => b.path)).toEqual(['a.yaml'])
     expect(s.tabs.map((t) => workspaceTabId(t))).toEqual(['a.yaml'])
   })
+  it('bulk close reviews all dirty files once and Cancel preserves every tab', async () => {
+    const user = userEvent.setup()
+    setWorkspace({ tabs: [{ kind: 'file', path: 'a.sql' }, { kind: 'file', path: 'b.sql' }, { kind: 'project-map' }],
+      activePath: 'project-map', buffers: [buffer('a.sql', { content: 'edit a', isDirty: true }), buffer('b.sql', { content: 'edit b', isDirty: true })] })
+    renderCenter()
+    fireEvent.contextMenu(screen.getByText('Project map'))
+    await user.click(await screen.findByRole('menuitem', { name: 'Close all tabs' }))
+    expect(await screen.findByRole('dialog')).toHaveTextContent('a.sql')
+    expect(screen.getByRole('dialog')).toHaveTextContent('b.sql')
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(useWorkspaceStore.getState().tabs).toHaveLength(3)
+    expect(useWorkspaceStore.getState().buffers.every((b) => b.isDirty)).toBe(true)
+    expect(writeFile).not.toHaveBeenCalled()
+  })
+
+  it('bulk Save and close retains a failed file while closing successful and clean tabs', async () => {
+    const user = userEvent.setup()
+    setWorkspace({ tabs: [{ kind: 'file', path: 'a.sql' }, { kind: 'file', path: 'b.sql' }, { kind: 'project-map' }],
+      activePath: 'project-map', buffers: [buffer('a.sql', { content: 'edit a', isDirty: true }), buffer('b.sql', { content: 'edit b', isDirty: true })] })
+    vi.mocked(writeFile).mockImplementation(async (path) => {
+      if (path === 'b.sql') throw new ApiError(412, { code: 'STALE', category: 'io', message: 'Changed on disk', details: '', suggestions: [], context: {}, http_status: 412 })
+      return { written: true, path, etag: 'saved' }
+    })
+    renderCenter()
+    fireEvent.contextMenu(screen.getByText('Project map'))
+    await user.click(await screen.findByRole('menuitem', { name: 'Close all tabs' }))
+    await user.click(await screen.findByRole('button', { name: 'Save and close' }))
+    await waitFor(() => expect(useWorkspaceStore.getState().tabs.map(workspaceTabId)).toEqual(['b.sql']))
+    expect(useWorkspaceStore.getState().buffers[0]).toMatchObject({ path: 'b.sql', content: 'edit b', isDirty: true })
+  })
+
 })
