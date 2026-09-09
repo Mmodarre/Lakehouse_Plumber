@@ -23,6 +23,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   job aborted with `NameError: name '_meta' is not defined` before creating any
   schema — taking the whole quickstart down. Regression in v0.9.1.
 
+- **Python load/transform actions that omit `parameters` now receive `{}`
+  instead of the unbound name `null`.** A `transform_type: python` action with
+  no `parameters:` block (or a bare `parameters:` key, which YAML reads as
+  null) generated `parameters = null`, so the deployed pipeline imported
+  cleanly and then failed with `NameError: name 'null' is not defined` the
+  first time the view was evaluated. The same applied to a `source.type:
+  python` load with an explicit `parameters:` null. Both now emit
+  `parameters = {}`, the default the reference documentation always described.
 - **SQL dependency extraction no longer invents edges from opaque `stream()`
   arguments.** sqlglot 28 began emitting a dedicated `exp.Stream` node above
   the wrapped table, which bypassed the opaqueness check: `stream('bronze.x')`

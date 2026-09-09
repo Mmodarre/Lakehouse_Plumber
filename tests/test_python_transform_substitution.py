@@ -199,7 +199,7 @@ def simple_transform(df, spark, parameters):
         code = generator.generate(action, context)
 
         assert "simple_transform" in code
-        assert "parameters =" in code  # May be {} or null depending on how it's handled
+        assert "parameters = {}" in code
 
         transform_file.unlink()
 
