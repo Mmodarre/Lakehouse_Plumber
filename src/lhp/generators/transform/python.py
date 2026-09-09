@@ -22,7 +22,10 @@ class PythonTransformGenerator(BaseActionGenerator):
         )
         module_path = getattr(action, "module_path", None)
         function_name = getattr(action, "function_name", None)
-        parameters = getattr(action, "parameters", {})
+        # Coalesce, don't rely on getattr's default: the model field exists with
+        # value None when YAML omits (or nulls) it, and the template renders
+        # `parameters` unconditionally — None would emit the unbound name `null`.
+        parameters = getattr(action, "parameters", None) or {}
 
         if "substitution_manager" in context:
             substitution_mgr = context["substitution_manager"]
