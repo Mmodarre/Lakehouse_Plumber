@@ -114,16 +114,17 @@ class TestConflictResolution:
         assert "from pyspark.sql.functions import col, lit" not in imports
         assert len([imp for imp in imports if "pyspark.sql.functions" in imp]) == 1
 
-    def test_submodule_conflict_resolution(self):
+    def test_submodule_wildcard_keeps_parent_import(self):
+        """A submodule wildcard binds none of the names a parent import binds."""
         self.manager.add_import("from pyspark.sql import functions as F")
         self.manager.add_import("from pyspark.sql.functions import *")
 
         imports = self.manager.get_consolidated_imports()
 
         assert "from pyspark.sql.functions import *" in imports
-        assert "from pyspark.sql import functions as F" not in imports
+        assert "from pyspark.sql import functions as F" in imports
 
-    def test_multiple_submodule_conflicts(self):
+    def test_multiple_submodule_wildcards_keep_their_parents(self):
         self.manager.add_import("from pyspark.sql import functions as F")
         self.manager.add_import("from pyspark.sql import types as T")
         self.manager.add_import("from pyspark.sql.functions import *")
@@ -133,8 +134,8 @@ class TestConflictResolution:
 
         assert "from pyspark.sql.functions import *" in imports
         assert "from pyspark.sql.types import *" in imports
-        assert "from pyspark.sql import functions as F" not in imports
-        assert "from pyspark.sql import types as T" not in imports
+        assert "from pyspark.sql import functions as F" in imports
+        assert "from pyspark.sql import types as T" in imports
 
     def test_non_conflicting_submodules(self):
         self.manager.add_import("from pyspark.sql import SparkSession")
@@ -187,15 +188,13 @@ class TestConflictResolution:
         assert len(imports) == 4
 
     def test_partial_conflicts(self):
-        self.manager.add_import("import os")  # No conflict
-        self.manager.add_import(
-            "from pyspark.sql import functions as F"
-        )  # Will conflict
-        self.manager.add_import("from pathlib import Path")  # No conflict
-        self.manager.add_import(
-            "from pyspark.sql.functions import *"
-        )  # Conflicts with F import
-        self.manager.add_import("from pyspark import pipelines as dp")  # No conflict
+        """A mixed set: only same-module wildcard-vs-specific collapses."""
+        self.manager.add_import("import os")
+        self.manager.add_import("from pyspark.sql import functions as F")
+        self.manager.add_import("from pathlib import Path")
+        self.manager.add_import("from pyspark.sql.functions import col")
+        self.manager.add_import("from pyspark.sql.functions import *")
+        self.manager.add_import("from pyspark import pipelines as dp")
 
         imports = self.manager.get_consolidated_imports()
 
@@ -203,9 +202,13 @@ class TestConflictResolution:
         assert "from pathlib import Path" in imports
         assert "from pyspark import pipelines as dp" in imports
         assert "from pyspark.sql.functions import *" in imports
-        assert "from pyspark.sql import functions as F" not in imports
+        # Same module as the wildcard, which binds 'col' too — collapsed.
+        assert "from pyspark.sql.functions import col" not in imports
+        # A different module from the wildcard's — kept, it binds 'F'.
+        assert "from pyspark.sql import functions as F" in imports
 
     def test_different_alias_patterns(self):
+        """Every parent-import form survives; each binds a distinct name."""
         self.manager.add_import("from pyspark.sql import functions as F")
         self.manager.add_import(
             "from pyspark.sql import functions as pyspark_functions"
@@ -216,11 +219,10 @@ class TestConflictResolution:
         imports = self.manager.get_consolidated_imports()
 
         assert "from pyspark.sql.functions import *" in imports
-        assert not any(
-            "from pyspark.sql import functions" in imp
-            for imp in imports
-            if "import *" not in imp
-        )
+        assert "from pyspark.sql import functions as F" in imports
+        assert "from pyspark.sql import functions as pyspark_functions" in imports
+        # The unaliased form binds 'functions', which the wildcard also lacks.
+        assert "from pyspark.sql import functions" in imports
 
 
 class TestImportSorting:
@@ -653,7 +655,8 @@ class TestRealWorldScenarios:
         ]
 
         assert len(wildcard_imports) == 1
-        assert len(f_alias_imports) == 0
+        # The detected F. expressions need the alias; the wildcard cannot supply it.
+        assert len(f_alias_imports) == 1
 
     def test_operational_metadata_integration(self):
         metadata_expressions = [
