@@ -1,10 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ReactNode } from 'react'
-import { render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { AppShell } from '../AppShell'
 import { useLayoutStore } from '../../../store/layoutStore'
+import { useWorkspaceStore } from '../../../store/workspaceStore'
+import { encodeTab } from '../../../workspace/navigation'
+import { useNavigationStore } from '../../../workspace/navigation'
 import { useUIStore } from '../../../store/uiStore'
 
 // Side-effecting shell wiring is stubbed so the smoke test stays deterministic
@@ -50,8 +53,12 @@ function renderShell() {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  window.history.replaceState({}, '', '/')
+  useNavigationStore.getState().reset()
+  useWorkspaceStore.setState({ tabs: [], buffers: [], activePath: null, projectRoot: null })
+  vi.stubGlobal('innerWidth', 1500)
   vi.stubGlobal('fetch', pendingFetch)
-  useLayoutStore.setState({ assistantOpen: false, viewerMode: false })
+  useLayoutStore.setState({ assistantOpen: false, viewerMode: false, focusMode: false, explorerCollapsed: false, inspectorCollapsed: false })
   useUIStore.setState({ selectedEnv: 'dev', createFlowgroupDialog: false, selectedPipelineConfig: null })
 })
 
@@ -76,6 +83,28 @@ describe('AppShell', () => {
     expect(screen.getByTestId('explorer')).toBeInTheDocument()
     expect(screen.getByTestId('center')).toBeInTheDocument()
     expect(screen.getByTestId('bottom-panel')).toBeInTheDocument()
+  })
+
+  it('applies a deep link only after clearing a workspace restored from a different project', async () => {
+    const linked = { kind: 'config', path: 'lhp.yaml', configKind: 'project', view: 'yaml' } as const
+    useNavigationStore.getState().visit({ kind: 'file', path: 'old-project-only.yaml' })
+    useWorkspaceStore.setState({ projectRoot: '/old-project', tabs: [{ kind: 'project-map' }], activePath: 'project-map' })
+    window.history.replaceState({}, '', `/?tab=${encodeURIComponent(encodeTab(linked))}`)
+    renderShell()
+    await waitFor(() => expect(useWorkspaceStore.getState().activePath).toBe('config:lhp.yaml'))
+    expect(useWorkspaceStore.getState().projectRoot).toBe('/proj')
+    await waitFor(() => expect(useNavigationStore.getState().entries).toEqual([linked]))
+    expect(new URLSearchParams(window.location.search).get('tab')).toBe(encodeTab(linked))
+  })
+
+  it('keeps a manually reopened drawer open while resizing within the same breakpoint', () => {
+    vi.stubGlobal('innerWidth', 900)
+    renderShell()
+    expect(useLayoutStore.getState().explorerCollapsed).toBe(true)
+    act(() => useLayoutStore.getState().setExplorerCollapsed(false))
+    vi.stubGlobal('innerWidth', 920)
+    fireEvent(window, new Event('resize'))
+    expect(useLayoutStore.getState().explorerCollapsed).toBe(false)
   })
 
   it('assistant toggle flips layoutStore.assistantOpen', async () => {

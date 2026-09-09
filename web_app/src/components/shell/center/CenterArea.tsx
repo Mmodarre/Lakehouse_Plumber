@@ -1,6 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
-import { Network } from 'lucide-react'
+import { Network, Save } from 'lucide-react'
 import {
   isReadOnlyPath,
   tabBufferPath,
@@ -13,7 +13,11 @@ import { useDocumentStore } from '../../../store/documentStore'
 import { useDirtyGuardSource } from '../../../store/dirtyGuardStore'
 import { useBeforeUnloadGuard } from '../../../hooks/useBeforeUnloadGuard'
 import { EmptyState } from '../../common/EmptyState'
-import { DiscardChangesDialog } from '../../editor/DiscardChangesDialog'
+import { CloseTabsDialog } from '../../workspace/CloseTabsDialog'
+import { Button } from '../../ui/button'
+import { useLayoutStore } from '../../../store/layoutStore'
+import { captureWorkspaceEditors, registerWorkspaceEditor } from '../../../workspace/editorCommands'
+import { closingDocumentPaths } from '../../../workspace/tabCommands'
 import { ConflictDialog } from '../../editor/ConflictDialog'
 import { isYamlPath } from '../../editor/yamlSaveSupport'
 import { loadBufferContent } from '../../workspace/flowgroupBuffers'
@@ -85,7 +89,10 @@ export function CenterArea() {
   const activePath = useWorkspaceStore((s) => s.activePath)
   const buffers = useWorkspaceStore((s) => s.buffers)
   const setActive = useWorkspaceStore((s) => s.setActive)
-  const closeTab = useWorkspaceStore((s) => s.closeTab)
+  const closeTabs = useWorkspaceStore((s) => s.closeTabs)
+  const closedCount = useWorkspaceStore((s) => s.closedTabs.length)
+  const viewerMode = useLayoutStore((s) => s.viewerMode)
+  const revealLocation = useWorkspaceStore((s) => s.revealLocation)
   const openProjectMap = useWorkspaceStore((s) => s.openProjectMap)
   const updateContent = useWorkspaceStore((s) => s.updateContent)
   const setDirty = useWorkspaceStore((s) => s.setDirty)
@@ -99,7 +106,9 @@ export function CenterArea() {
   const activePathRef = useRef<string | null>(null)
   const captureTimerRef = useRef<number | null>(null)
 
-  const [pendingClose, setPendingClose] = useState<string | null>(null)
+  const [pendingClose, setPendingClose] = useState<string[] | null>(null)
+  const [closingBusy, setClosingBusy] = useState(false)
+  const activeDocumentPathRef = useRef<string | null>(null)
 
   const activeTab = useMemo(
     () => tabs.find((t) => workspaceTabId(t) === activePath) ?? null,
@@ -126,6 +135,8 @@ export function CenterArea() {
         return null
     }
   }, [activeTab])
+
+  useEffect(() => { activeDocumentPathRef.current = activeBodyBufferPath }, [activeBodyBufferPath])
 
   const anyDirty = buffers.some((b) => b.isDirty)
   const dirtyCount = buffers.filter((b) => b.isDirty).length
@@ -160,6 +171,8 @@ export function CenterArea() {
       }
     }
   }, [cancelCapture, updateContent])
+
+  useEffect(() => registerWorkspaceEditor(captureActive), [captureActive])
 
   const scheduleCapture = useCallback(() => {
     if (captureTimerRef.current !== null) window.clearTimeout(captureTimerRef.current)
@@ -238,7 +251,7 @@ export function CenterArea() {
     for (const b of useWorkspaceStore.getState().buffers) {
       if (b.loading) void loadBufferContent(b.path)
     }
-  }, [])
+  }, [tabs])
 
   // Ensure the active buffer-backed tab has a buffer: entity/config tabs opened
   // by the explorer (openEntityTab / openConfigTab) carry NO buffer, and a
@@ -259,12 +272,22 @@ export function CenterArea() {
 
   // ── save pipeline ──────────────────────────────────────────
 
-  const { saveActive, saveAllDirty, conflict, cancelConflict, resolveKeepMine, resolveTakeTheirs } =
-    useWorkspaceSave({ editorRef, activePathRef, captureActive })
+  const { saveBuffer, saveActive, saveAllDirty, conflict, cancelConflict, resolveKeepMine, resolveTakeTheirs } =
+    useWorkspaceSave({ editorRef, activePathRef, activeDocumentPathRef, captureActive })
 
   // Re-derive YAML syntax markers from the synthetic Problems issue on mount
   // (models are disposed on tab switch, so squiggles would otherwise vanish).
+  const revealRequestedLine = useCallback(() => {
+    const location = useWorkspaceStore.getState().revealLocation
+    if (location?.path === activePathRef.current && editorRef.current?.revealLine) {
+      if (location.line > 0) editorRef.current.revealLine(location.line)
+      useWorkspaceStore.getState().clearReveal(location.requestId)
+    }
+  }, [])
+  useEffect(() => { revealRequestedLine() }, [revealLocation, revealRequestedLine])
+
   const handleEditorMount = useCallback(() => {
+    revealRequestedLine()
     const path = activePathRef.current
     if (!path || !isYamlPath(path)) return
     const issue = useRunStore
@@ -275,7 +298,7 @@ export function CenterArea() {
     const column = issue.context['column']
     if (typeof line !== 'number' || typeof column !== 'number') return
     editorRef.current?.setYamlMarkers([{ line, column, message: issue.title }])
-  }, [])
+  }, [revealRequestedLine])
 
   const handleRetryLoad = useCallback((path: string) => {
     void loadBufferContent(path).then(() => {
@@ -336,48 +359,76 @@ export function CenterArea() {
     [setActive],
   )
 
-  /** Remove a tab (and any backing buffer) regardless of kind by delegating to
-   * the store's closeTab (which owns the neighbour-focus + buffer-drop
-   * mutation, uniform across kinds). cancelCapture and the stale-content toast
-   * dismissal stay here because they are UI concerns. */
-  const removeTab = useCallback(
-    (id: string) => {
-      cancelCapture()
-      const s = useWorkspaceStore.getState()
-      const tab = s.tabs.find((t) => workspaceTabId(t) === id)
-      const bp = tab ? tabBufferPath(tab) : null
-      if (bp) {
-        toast.dismiss(`stale:${bp}`)
-        // Drop the entity document's parse handle so handles don't accumulate as
-        // tabs close (documentStore is layered on the buffer; closeTab drops the
-        // buffer below, this drops the handle). No-op when nothing is open at bp.
-        useDocumentStore.getState().close(bp)
+  const removeTabs = useCallback((ids: string[]) => {
+    captureWorkspaceEditors()
+    cancelCapture()
+    const state = useWorkspaceStore.getState()
+    const paths = closingDocumentPaths(state.tabs, ids)
+    closeTabs(ids)
+    for (const path of paths) {
+      if (!useWorkspaceStore.getState().buffers.some((b) => b.path === path)) {
+        toast.dismiss(`stale:${path}`)
+        useDocumentStore.getState().close(path)
       }
-      closeTab(id)
-    },
-    [cancelCapture, closeTab],
-  )
-
-  const handleClose = useCallback((id: string) => {
-    const s = useWorkspaceStore.getState()
-    const tab = s.tabs.find((t) => workspaceTabId(t) === id)
-    if (!tab) return
-    const bp = tabBufferPath(tab)
-    const buf = bp ? s.buffers.find((b) => b.path === bp) : null
-    if (buf?.isDirty) {
-      setPendingClose(id)
-      return
     }
-    removeTab(id)
-  }, [removeTab])
+  }, [cancelCapture, closeTabs])
 
-  const handleConfirmedClose = useCallback(() => {
-    if (pendingClose === null) return
-    removeTab(pendingClose)
-    setPendingClose(null)
-  }, [pendingClose, removeTab])
+  const handleCloseMany = useCallback((requested: string[]) => {
+    captureWorkspaceEditors()
+    const state = useWorkspaceStore.getState()
+    const ids = requested.filter((id) => {
+      const tab = state.tabs.find((t) => workspaceTabId(t) === id)
+      return tab && !state.buffers.find((b) => b.path === tabBufferPath(tab))?.isSaving
+    })
+    if (ids.length !== requested.length) toast.info('Files currently saving will stay open.')
+    const paths = closingDocumentPaths(state.tabs, ids)
+    if (state.buffers.some((b) => paths.includes(b.path) && b.isDirty)) setPendingClose(ids)
+    else removeTabs(ids)
+  }, [removeTabs])
 
-  const pendingCloseName = pendingClose?.split('/').pop() ?? pendingClose
+  const handleClose = useCallback((id: string) => handleCloseMany([id]), [handleCloseMany])
+  const pendingPaths = pendingClose ? closingDocumentPaths(tabs, pendingClose).filter((path) => buffers.some((b) => b.path === path && b.isDirty)) : null
+
+  const saveAndClose = useCallback(async () => {
+    if (!pendingClose) return
+    setClosingBusy(true)
+    const ids = pendingClose
+    captureWorkspaceEditors()
+    const state = useWorkspaceStore.getState()
+    const paths = closingDocumentPaths(state.tabs, ids).filter((path) => state.buffers.some((b) => b.path === path && b.isDirty))
+    const failed = new Set<string>()
+    try {
+      for (const path of paths) if (!await saveBuffer(path)) failed.add(path)
+      captureWorkspaceEditors()
+      const latest = useWorkspaceStore.getState()
+      const safeIds = ids.filter((id) => {
+        const tab = latest.tabs.find((t) => workspaceTabId(t) === id)
+        const path = tab ? tabBufferPath(tab) : null
+        const buffer = latest.buffers.find((b) => b.path === path)
+        return !path || (!failed.has(path) && !buffer?.isDirty && !buffer?.isSaving)
+      })
+      removeTabs(safeIds)
+      if (safeIds.length < ids.length) toast.info('Unsaved files remain open. Resolve any errors, then save again.')
+      setPendingClose(null)
+    } finally { setClosingBusy(false) }
+  }, [pendingClose, removeTabs, saveBuffer])
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (!(event.metaKey || event.ctrlKey)) return
+      if (document.querySelector('[role="dialog"], [role="alertdialog"]')) return
+      if (event.key.toLowerCase() === 's') {
+        event.preventDefault(); event.stopPropagation()
+        if (event.shiftKey) void saveAllDirty()
+        else void saveActive()
+      } else if (event.shiftKey && event.key.toLowerCase() === 't') {
+        event.preventDefault(); event.stopPropagation()
+        useWorkspaceStore.getState().reopenClosedTab()
+      }
+    }
+    window.addEventListener('keydown', onKey, true)
+    return () => window.removeEventListener('keydown', onKey, true)
+  }, [saveActive, saveAllDirty])
 
   // ── body routing ───────────────────────────────────────────
 
@@ -386,9 +437,10 @@ export function CenterArea() {
     if (!buf || buf.loading) return <CenterSkeleton />
     return (
       <YamlView
+        showCommands={false}
         buffer={buf}
         editorRef={editorRef}
-        isReadOnly={isReadOnlyPath(buf.path)}
+        isReadOnly={viewerMode || isReadOnlyPath(buf.path)}
         dirtyCount={dirtyCount}
         anySaving={anySaving}
         onDirtyChange={handleDirtyChange}
@@ -426,6 +478,7 @@ export function CenterArea() {
             <Suspense fallback={<CenterSkeleton />}>
               <CodeView
                 key={activeTab.filePath}
+                showCommands={false}
                 tabId={entityTabId}
                 pipeline={activeTab.pipeline}
                 flowgroup={activeTab.flowgroup}
@@ -494,23 +547,28 @@ export function CenterArea() {
 
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-col bg-background">
-      {tabs.length > 0 && (
+      {(tabs.length > 0 || closedCount > 0) && (
         <div className="flex items-center border-b border-border bg-sidebar">
-          <TabStrip onSelect={handleSelect} onClose={handleClose} />
+          <TabStrip onSelect={handleSelect} onClose={handleClose} onCloseMany={handleCloseMany} />
         </div>
       )}
       {activeTab?.kind === 'entity' && <EntityHeader tab={activeTab} />}
       {activeTab?.kind === 'config' && <ConfigHeader tab={activeTab} />}
+      {activeBodyBufferPath && (() => {
+        const buffer = buffers.find((b) => b.path === activeBodyBufferPath)
+        const readOnly = viewerMode || isReadOnlyPath(activeBodyBufferPath)
+        return <div className="flex min-w-0 items-center gap-2 border-b border-border px-3 py-1.5" aria-label="Document commands">
+          <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground" title={activeBodyBufferPath}>{activeBodyBufferPath}</span>
+          <span role="status" className="whitespace-nowrap text-xs text-muted-foreground">{readOnly ? 'Read-only' : buffer?.isSaving ? 'Saving…' : buffer?.isDirty ? 'Unsaved changes' : buffer?.loading ? 'Loading…' : buffer?.loadFailed ? 'Load failed' : 'Saved'}</span>
+          <Button size="sm" variant="outline" disabled={readOnly || !buffer || buffer.isSaving || buffer.loading || buffer.loadFailed} onClick={() => { void saveActive() }} title="Save document (Ctrl/⌘ S)"><Save />Save</Button>
+          {dirtyCount > 1 && <Button size="sm" variant="ghost" disabled={viewerMode || anySaving} onClick={() => { void saveAllDirty() }}>Save all ({dirtyCount})</Button>}
+        </div>
+      })()}
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">{renderBody()}</div>
 
-      <DiscardChangesDialog
-        open={pendingClose !== null}
-        onOpenChange={(open) => {
-          if (!open) setPendingClose(null)
-        }}
-        description={`Unsaved changes to ${pendingCloseName ?? 'this file'} will be lost.`}
-        onDiscard={handleConfirmedClose}
-      />
+      <CloseTabsDialog paths={pendingPaths} busy={closingBusy} onCancel={() => setPendingClose(null)}
+        onDiscard={() => { if (pendingClose) removeTabs(pendingClose); setPendingClose(null) }}
+        onSave={() => { void saveAndClose() }} />
 
       <ConflictDialog
         conflict={conflict}

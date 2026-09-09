@@ -58,6 +58,7 @@ describe('Inspector', () => {
   it('shows an empty state when there are no issues (project scope)', () => {
     render(<Inspector />)
     expect(screen.getByText('No issues')).toBeInTheDocument()
+    expect(screen.getByText(/Not validated/)).toBeInTheDocument()
   })
 
   it('renders scoped issues and opens the offending file on row click', async () => {
@@ -74,6 +75,7 @@ describe('Inspector', () => {
     render(<Inspector />)
 
     expect(screen.getByText('customers.yaml:12')).toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: 'Issue severity' })).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: /missing target table/i }))
 
     await waitFor(() =>
@@ -86,6 +88,7 @@ describe('Inspector', () => {
         ),
       ).toBe(true),
     )
+    expect(useWorkspaceStore.getState().revealLocation).toMatchObject({ path: 'pipelines/bronze/customers.yaml', line: 12 })
   })
 
   it('scopes issues to the active entity tab', () => {
@@ -100,8 +103,16 @@ describe('Inspector', () => {
       .openEntityTab('bronze', 'orders', 'pipelines/bronze/orders.yaml', { view: 'graph' })
     render(<Inspector />)
 
-    expect(screen.getByText('orders issue')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /orders issue/ })).toBeInTheDocument()
     expect(screen.queryByText('customers issue')).not.toBeInTheDocument()
+  })
+
+  it('keeps an empty active-file scope instead of displaying an unrelated issue', () => {
+    useRunStore.setState({ issues: [makeIssue({ title: 'Unrelated issue', file_path: 'elsewhere.yaml' })] })
+    useWorkspaceStore.getState().openBuffer('clean.yaml', { content: 'clean: true', exists: true })
+    render(<Inspector />)
+    expect(screen.getByText(/No issues for clean.yaml\./)).toBeInTheDocument()
+    expect(screen.queryByText('Unrelated issue')).not.toBeInTheDocument()
   })
 
   it('surfaces client-side config validator issues for the active config tab', () => {
@@ -114,14 +125,16 @@ describe('Inspector', () => {
     ws.openConfigTab('lhp.yaml', 'project')
     render(<Inspector />)
 
-    expect(screen.getByText('lhp.yaml must be a mapping')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /lhp.yaml must be a mapping/ })).toBeInTheDocument()
   })
 
-  it('shows the Help placeholder on the Help tab', async () => {
+  it('provides workspace help and shortcuts on the Help tab', async () => {
     const user = userEvent.setup()
     render(<Inspector />)
     await user.click(screen.getByRole('tab', { name: 'Help' }))
-    expect(screen.getByText(/Field help arrives with the inspector routing task/)).toBeInTheDocument()
+    expect(screen.getByText('Workspace guide')).toBeInTheDocument()
+    expect(screen.getByText('Quick open')).toBeInTheDocument()
+    expect(screen.getByText('Ctrl/⌘ K')).toBeInTheDocument()
   })
 
   it('no longer renders an Action tab (editing moved to the graph modal — Fix #3)', () => {

@@ -11,11 +11,14 @@ import {
   resolveArtifactPaths,
   type ArtifactRef,
 } from '../../../lib/artifactPaths'
+import { tablistKeyDown } from '../../../lib/keyboard'
 import { cn } from '../../../lib/utils'
+import { useLayoutStore } from '../../../store/layoutStore'
+import { registerWorkspaceEditor } from '../../../workspace/editorCommands'
 import { useUIStore } from '../../../store/uiStore'
 import { useDocumentStore } from '../../../store/documentStore'
 import { useRunStore } from '../../../store/runStore'
-import { isReadOnlyPath, useWorkspaceStore, workspaceTabId } from '../../../store/workspaceStore'
+import { isReadOnlyPath, tabBufferPath, useWorkspaceStore, workspaceTabId } from '../../../store/workspaceStore'
 import { isYamlPath } from '../../editor/yamlSaveSupport'
 import { ConflictDialog } from '../../editor/ConflictDialog'
 import type { MonacoEditorHandle } from '../../editor/MonacoEditorWrapper'
@@ -43,10 +46,16 @@ import { YamlView } from './YamlView'
 const MonacoEditorWrapper = lazy(() => import('../../editor/MonacoEditorWrapper'))
 
 const CAPTURE_DEBOUNCE_MS = 500
+const artifactSelections = new Map<string, string>()
+useWorkspaceStore.subscribe((state) => {
+  const open = new Set(state.tabs.map(tabBufferPath).filter(Boolean).map((path) => `${state.projectRoot ?? ''}::${path}`))
+  for (const key of artifactSelections.keys()) if (!open.has(key)) artifactSelections.delete(key)
+})
 
 /** Props contract consumed by CenterArea. Identity-only — the view re-derives
  * its artifacts from the flowgroup at `filePath` for the active env. */
 export interface CodeViewProps {
+  showCommands?: boolean
   /** Strip-wide tab id (used to detect this tab losing focus). */
   tabId: string
   /** '' for a template (which has no pipeline). */
@@ -125,7 +134,9 @@ function ReadOnlyArtifactPane({ path }: { path: string }) {
   )
 }
 
-export function CodeView({ tabId, pipeline, flowgroup, filePath }: CodeViewProps) {
+export function CodeView({ tabId, pipeline, flowgroup, filePath, showCommands = true }: CodeViewProps) {
+  const viewerMode = useLayoutStore((s) => s.viewerMode)
+  const revealLocation = useWorkspaceStore((s) => s.revealLocation)
   const env = useUIStore((s) => s.selectedEnv)
   const isFlowgroup = pipeline !== ''
 
@@ -134,7 +145,7 @@ export function CodeView({ tabId, pipeline, flowgroup, filePath }: CodeViewProps
   const relatedQuery = useQuery({
     queryKey: ['flowgroup-related', flowgroup, env],
     queryFn: () => fetchFlowgroupRelatedFiles(flowgroup, env),
-    enabled: isFlowgroup && flowgroup !== '',
+    enabled: isFlowgroup && flowgroup !== '' && !!env,
     retry: false,
   })
 
@@ -184,7 +195,8 @@ export function CodeView({ tabId, pipeline, flowgroup, filePath }: CodeViewProps
   ])
 
   // ── active sub-tab ──────────────────────────────────────────
-  const [selectedArtifactPath, setSelectedArtifactPath] = useState(filePath)
+  const selectionKey = `${useWorkspaceStore.getState().projectRoot ?? ''}::${filePath}`
+  const [selectedArtifactPath, setSelectedArtifactPath] = useState(() => useWorkspaceStore.getState().revealLocation?.path === filePath ? filePath : artifactSelections.get(selectionKey) ?? filePath)
   // Derive the effective selection so one that no longer resolves (the artifact
   // list changed) falls back to the source yaml — no setState-in-effect.
   const activeArtifactPath = artifacts.some((a) => a.path === selectedArtifactPath)
@@ -243,6 +255,8 @@ export function CodeView({ tabId, pipeline, flowgroup, filePath }: CodeViewProps
     }
   }, [cancelCapture])
 
+  useEffect(() => registerWorkspaceEditor(captureActive), [captureActive])
+
   const scheduleCapture = useCallback(() => {
     if (captureTimerRef.current !== null) window.clearTimeout(captureTimerRef.current)
     captureTimerRef.current = window.setTimeout(() => {
@@ -296,7 +310,23 @@ export function CodeView({ tabId, pipeline, flowgroup, filePath }: CodeViewProps
   const { saveActive, saveAllDirty, conflict, cancelConflict, resolveKeepMine, resolveTakeTheirs } =
     useWorkspaceSave({ editorRef, activePathRef, captureActive })
 
+  const revealRequestedLine = useCallback(() => {
+    const location = useWorkspaceStore.getState().revealLocation
+    if (location?.path === filePath && editorRef.current?.revealLine) {
+      if (location.line > 0) editorRef.current.revealLine(location.line)
+      useWorkspaceStore.getState().clearReveal(location.requestId)
+    }
+  }, [filePath])
+  useEffect(() => { revealRequestedLine() }, [revealLocation, revealRequestedLine])
+  useEffect(() => useWorkspaceStore.subscribe((state) => {
+    if (state.revealLocation?.path === filePath) {
+      artifactSelections.set(selectionKey, filePath)
+      setSelectedArtifactPath(filePath)
+    }
+  }), [filePath, selectionKey])
+
   const handleEditorMount = useCallback(() => {
+    revealRequestedLine()
     const path = activePathRef.current
     if (!path || !isYamlPath(path)) return
     const issue = useRunStore
@@ -307,7 +337,7 @@ export function CodeView({ tabId, pipeline, flowgroup, filePath }: CodeViewProps
     const column = issue.context['column']
     if (typeof line !== 'number' || typeof column !== 'number') return
     editorRef.current?.setYamlMarkers([{ line, column, message: issue.title }])
-  }, [])
+  }, [revealRequestedLine])
 
   const handleRetryLoad = useCallback((path: string) => {
     void loadBufferContent(path).then(() => {
@@ -358,9 +388,11 @@ export function CodeView({ tabId, pipeline, flowgroup, filePath }: CodeViewProps
       if (path === activeArtifactPath) return
       // Flush the editable yaml editor before it unmounts on the sub-tab switch.
       if (activePathRef.current) captureActive()
+      artifactSelections.set(selectionKey, path)
+      if (artifactSelections.size > 100) artifactSelections.delete(artifactSelections.keys().next().value!)
       setSelectedArtifactPath(path)
     },
-    [activeArtifactPath, captureActive],
+    [activeArtifactPath, captureActive, selectionKey],
   )
 
   const renderPane = () => {
@@ -369,9 +401,10 @@ export function CodeView({ tabId, pipeline, flowgroup, filePath }: CodeViewProps
       if (!buffer || buffer.loading) return <ArtifactSkeleton />
       return (
         <YamlView
+          showCommands={showCommands}
           buffer={buffer}
           editorRef={editorRef}
-          isReadOnly={isReadOnlyPath(buffer.path)}
+          isReadOnly={viewerMode || isReadOnlyPath(buffer.path)}
           dirtyCount={dirtyCount}
           anySaving={anySaving}
           onDirtyChange={handleDirtyChange}
@@ -400,6 +433,7 @@ export function CodeView({ tabId, pipeline, flowgroup, filePath }: CodeViewProps
     <div className="flex min-h-0 flex-1 flex-col bg-card">
       <div
         role="tablist"
+        onKeyDown={tablistKeyDown}
         aria-label="Artifacts"
         className="flex flex-none items-stretch overflow-x-auto border-b border-border bg-sidebar"
       >
@@ -412,6 +446,7 @@ export function CodeView({ tabId, pipeline, flowgroup, filePath }: CodeViewProps
               type="button"
               role="tab"
               aria-selected={active}
+              tabIndex={active ? 0 : -1}
               onClick={() => selectArtifact(a.path)}
               className={cn(
                 'flex h-[34px] shrink-0 items-center gap-1.5 border-b-2 px-3 text-xs font-medium transition-colors',

@@ -1,4 +1,6 @@
-import { useCallback, useReducer, useRef, useState, type ReactNode } from 'react'
+import { captureWorkspaceEditors } from '@/workspace/editorCommands'
+import { useBeforeUnloadGuard } from '@/hooks/useBeforeUnloadGuard'
+import { useCallback, useEffect, useReducer, useRef, useState, type ReactNode } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { ChevronDown, ChevronRight, TriangleAlert } from 'lucide-react'
@@ -8,6 +10,7 @@ import {
   listActions,
   parseFlowgroupFile,
   selectFlowgroupAt,
+  listFlowgroups,
   selectTemplate,
   setActionField,
 } from '@/lib/flowgroup-doc'
@@ -88,6 +91,7 @@ export interface ActionModalEditorProps {
   actionId: string
   /** Called only after a Save that both replayed AND persisted (host closes). */
   onSaved?: () => void
+  onDirtyChange?: (dirty: boolean) => void
   /** Discard + close (host closes the Dialog); never writes. */
   onCancel?: () => void
   /** Escape hatch for a failed persist (412 / yaml_error): host closes + jumps
@@ -103,7 +107,7 @@ function selectWorkingDoc(
 ): FlowgroupDocHandle | null {
   return docKind === 'template'
     ? (selectTemplate(file)?.body ?? null)
-    : (selectFlowgroupAt(file, 0) ?? null)
+    : (listFlowgroups(file).length === 1 ? selectFlowgroupAt(file, 0) ?? null : null)
 }
 
 export function ActionModalEditor({
@@ -112,6 +116,7 @@ export function ActionModalEditor({
   action,
   actionId,
   onSaved,
+  onDirtyChange,
   onCancel,
   onOpenCodeView,
 }: ActionModalEditorProps) {
@@ -159,6 +164,7 @@ export function ActionModalEditor({
   )
 
   const save = useCallback(async () => {
+    captureWorkspaceEditors()
     if (recorded.current.length === 0 || readOnly) return
     setSaveFailed(false)
     const mutators = recorded.current.slice()
@@ -195,6 +201,8 @@ export function ActionModalEditor({
   const spec = getActionSpec(action.kind, currentSubType)
   const workingRaw = workingDoc ? listActions(workingDoc)[action.index]?.raw : undefined
   const dirty = recorded.current.length > 0
+  useBeforeUnloadGuard(dirty)
+  useEffect(() => { onDirtyChange?.(dirty) }, [dirty, onDirtyChange])
 
   // The kind's registered sub-types → segmented options (value=subType, label=title).
   const subTypeOptions = listActionSpecs()
@@ -265,7 +273,7 @@ export function ActionModalEditor({
       <Button
         type="button"
         size="xs"
-        disabled={!dirty || saving || readOnly}
+        disabled={saving || readOnly}
         onClick={() => void save()}
       >
         Save

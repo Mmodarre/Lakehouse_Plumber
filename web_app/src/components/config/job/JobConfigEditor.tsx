@@ -1,4 +1,8 @@
+import { useConfigReadOnly } from '../shared/configEditingContext'
+import { EffectiveConfigPreview } from '../EffectiveConfigPreview'
+import { useCompactConfigNavigation } from '../shared/useCompactConfigNavigation'
 import { useMemo, useState } from 'react'
+import { useConfigViewStore } from '../shared/configViewState'
 import type { ReactNode } from 'react'
 import { TriangleAlert } from 'lucide-react'
 import {
@@ -64,6 +68,8 @@ export interface JobConfigEditorProps {
 }
 
 export function JobConfigEditor({ file }: JobConfigEditorProps) {
+  const readOnly = useConfigReadOnly()
+  const { ref: navigationRef, compact } = useCompactConfigNavigation()
   const parsed = file.handle !== null && file.errors.length === 0
 
   // The handle is mutable: derive ONLY from [handle, version] (hook contract).
@@ -85,7 +91,9 @@ export function JobConfigEditor({ file }: JobConfigEditorProps) {
   // Selection (standard mode): null = "not chosen yet" → the per-file
   // default is DERIVED at render time (defaults doc, else first doc, else
   // the built-ins row) — same commit as the rail, no intermediate state.
-  const [chosen, setChosen] = useState<RailSelection | null>(null)
+  const chosen = useConfigViewStore((state) => state.views[file.path ?? 'config']?.selection)
+  const setChosen = (selection: RailSelection) =>
+    useConfigViewStore.getState().update(file.path ?? 'config', { selection })
   const [pendingDelete, setPendingDelete] = useState<number | null>(null)
 
   // Reset the choice when the hook switches files (render-phase state
@@ -93,12 +101,9 @@ export function JobConfigEditor({ file }: JobConfigEditorProps) {
   const [pathFor, setPathFor] = useState(file.path)
   if (pathFor !== file.path) {
     setPathFor(file.path)
-    setChosen(null)
   }
 
-  const defaultsIndex = docs.findIndex(
-    (doc) => classifyJobDoc(doc, present.length) === 'defaults',
-  )
+  const defaultsIndex = docs.findIndex((doc) => classifyJobDoc(doc, present.length) === 'defaults')
   const selected: RailSelection =
     chosen ?? (defaultsIndex >= 0 ? defaultsIndex : docs.length > 0 ? 0 : 'builtin')
   // Clamp a selection that outlived its document (external reload shrank the file).
@@ -106,6 +111,7 @@ export function JobConfigEditor({ file }: JobConfigEditorProps) {
     typeof selected === 'number' && selected >= docs.length ? 'builtin' : selected
 
   const addDoc = (initial: unknown) => {
+    if (readOnly) return
     let index = -1
     file.mutate((handle) => {
       index = addDocument(handle, initial)
@@ -114,6 +120,7 @@ export function JobConfigEditor({ file }: JobConfigEditorProps) {
   }
 
   const confirmDelete = () => {
+    if (readOnly) return
     const index = pendingDelete
     setPendingDelete(null)
     if (index === null) return
@@ -153,6 +160,7 @@ export function JobConfigEditor({ file }: JobConfigEditorProps) {
       : listJobPassthroughKeys(docMap, present.length)
     return (
       <JobDocForm
+        scope={file.path ?? undefined}
         api={bindDocApi(file, docIndex, base, settings, issues)}
         variant={variant}
         docSnapshot={docMap}
@@ -184,9 +192,9 @@ export function JobConfigEditor({ file }: JobConfigEditorProps) {
       <>
         {monitoringMultiDoc ? (
           <p role="alert" className="text-xs text-destructive">
-            This monitoring job config has {docs.length} YAML documents — the monitoring
-            loader requires exactly one, and generation fails on this file. Merge the documents
-            in the YAML view.
+            This monitoring job config has {docs.length} YAML documents — the monitoring loader
+            requires exactly one, and generation fails on this file. Merge the documents in the YAML
+            view.
           </p>
         ) : first === undefined ? (
           <>
@@ -195,11 +203,15 @@ export function JobConfigEditor({ file }: JobConfigEditorProps) {
               title="Empty file"
               message="LHP's built-in defaults apply as-is. Add a settings document to override them."
               icon={TriangleAlert}
-              action={{
-                label: 'Add settings',
-                onClick: () => addDoc({}),
-                variant: 'outline',
-              }}
+              action={
+                readOnly
+                  ? undefined
+                  : {
+                      label: 'Add settings',
+                      onClick: () => addDoc({}),
+                      variant: 'outline',
+                    }
+              }
             />
           </>
         ) : (
@@ -207,8 +219,8 @@ export function JobConfigEditor({ file }: JobConfigEditorProps) {
             <MonitoringFormatCard />
             {misusedKeys.map((key) => (
               <p key={key} role="alert" className="text-2xs text-warning">
-                '{key}' has no meaning in a monitoring job config — the whole file is already
-                the settings, so this key is rendered verbatim into the job resource.
+                '{key}' has no meaning in a monitoring job config — the whole file is already the
+                settings, so this key is rendered verbatim into the job resource.
               </p>
             ))}
             {docForm(first.index, 'monitoring', { flat: true })}
@@ -229,9 +241,7 @@ export function JobConfigEditor({ file }: JobConfigEditorProps) {
   } else {
     const activeDoc = typeof activeSelection === 'number' ? docs[activeSelection] : undefined
     const activeKind =
-      typeof activeSelection === 'number'
-        ? classifyJobDoc(activeDoc, present.length)
-        : 'builtin'
+      typeof activeSelection === 'number' ? classifyJobDoc(activeDoc, present.length) : 'builtin'
 
     let detail: ReactNode
     if (activeSelection === 'builtin') {
@@ -256,12 +266,13 @@ export function JobConfigEditor({ file }: JobConfigEditorProps) {
     }
 
     body = (
-      <div className="flex gap-5">
+      <div ref={navigationRef} className={`flex gap-5 ${compact ? 'flex-col' : ''}`}>
         <JobDocList
+          compact={compact}
           rail={rail}
           selected={activeSelection}
           onSelect={setChosen}
-          canEdit={parsed}
+          canEdit={parsed && !readOnly}
           onAddSingle={() => addDoc({ job_name: 'new_job' })}
           onAddGroup={() => addDoc({ job_name: [] })}
           onAddDefaults={() => addDoc({ project_defaults: {} })}
@@ -274,6 +285,9 @@ export function JobConfigEditor({ file }: JobConfigEditorProps) {
   return (
     <>
       {body}
+      {file.path && parsed && (
+        <EffectiveConfigPreview key={file.path} path={file.path} kind="job" />
+      )}
       <AlertDialog
         open={pendingDelete !== null}
         onOpenChange={(open) => {
@@ -284,13 +298,18 @@ export function JobConfigEditor({ file }: JobConfigEditorProps) {
           <AlertDialogHeader>
             <AlertDialogTitle className="text-base">Delete this document?</AlertDialogTitle>
             <AlertDialogDescription className="text-xs">
-              Removes the whole YAML document from the file (its comments go with
-              it). Other documents keep their exact bytes.
+              Removes the whole YAML document from the file (its comments go with it). Other
+              documents keep their exact bytes.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel size="sm">Keep document</AlertDialogCancel>
-            <AlertDialogAction variant="destructive" size="sm" onClick={confirmDelete}>
+            <AlertDialogAction
+              disabled={readOnly}
+              variant="destructive"
+              size="sm"
+              onClick={confirmDelete}
+            >
               Delete
             </AlertDialogAction>
           </AlertDialogFooter>

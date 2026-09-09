@@ -14,7 +14,7 @@ import {
 //
 // The center header above an entity tab's body: a breadcrumb (pipeline ▸
 // flowgroup, or Template ▸ name) and a segmented view switcher. The switcher is
-// an ARIA tablist with roving tabindex (arrow keys move + select; ⌘1/2 select
+// an ARIA tablist with roving tabindex (arrow keys move + select; Ctrl/⌘ Alt 1/2 select
 // Graph/Code). Selecting a view calls workspaceStore.setTabView — both views
 // are the SAME live-synced document (D2), so switching never loses edits
 // (CenterArea flushes the outgoing Monaco buffer on the transition).
@@ -37,10 +37,10 @@ export function EntityHeader({ tab }: { tab: EntityTab }) {
   const isTemplate = tab.docKind === 'template'
   const tablistRef = useRef<HTMLDivElement>(null)
 
-  // ⌘1 / ⌘2 (or Ctrl on non-mac) select Graph / Code (§6.4).
+  // Ctrl/⌘ Alt 1 / 2 (or Ctrl on non-mac) select Graph / Code (§6.4).
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (!(e.metaKey || e.ctrlKey) || e.altKey || e.shiftKey) return
+      if (!(e.metaKey || e.ctrlKey) || !e.altKey || e.shiftKey) return
       const idx = e.key === '1' ? 0 : e.key === '2' ? 1 : -1
       if (idx === -1) return
       e.preventDefault()
@@ -56,11 +56,11 @@ export function EntityHeader({ tab }: { tab: EntityTab }) {
   }
 
   const onTablistKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return
+    if (!['ArrowRight', 'ArrowLeft', 'Home', 'End'].includes(e.key)) return
     e.preventDefault()
     const current = VIEWS.findIndex((v) => v.key === view)
     const dir = e.key === 'ArrowRight' ? 1 : -1
-    const nextIdx = (current + dir + VIEWS.length) % VIEWS.length
+    const nextIdx = e.key === 'Home' ? 0 : e.key === 'End' ? VIEWS.length - 1 : (current + dir + VIEWS.length) % VIEWS.length
     setTabView(tabId, VIEWS[nextIdx].key)
     focusTab(nextIdx)
   }
@@ -73,9 +73,7 @@ export function EntityHeader({ tab }: { tab: EntityTab }) {
       <nav aria-label="Breadcrumb" className="flex min-w-0 items-center gap-1.5 text-2xs">
         {crumbLead !== '' && (
           <>
-            <span className="truncate font-medium uppercase tracking-[0.05em] text-muted-foreground">
-              {crumbLead}
-            </span>
+            <button type="button" className="truncate font-medium uppercase tracking-[0.05em] text-muted-foreground hover:underline" onClick={() => isTemplate ? useWorkspaceStore.getState().openProjectMap() : useWorkspaceStore.getState().openPipelineDag(tab.pipeline)}>{crumbLead}</button>
             <span className="text-faint" aria-hidden="true">
               /
             </span>

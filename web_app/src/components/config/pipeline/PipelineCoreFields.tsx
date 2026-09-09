@@ -34,6 +34,9 @@ export function PipelineCoreFields({ api, idPrefix }: { api: DocFormApi; idPrefi
     <>
       <SectionCard
         title="Compute & runtime"
+        configured={['serverless', 'edition', 'channel', 'continuous', 'photon', 'packaging'].some(
+          (key) => key in api.settings,
+        )}
         description="Unset fields inherit from project defaults, then LHP's built-ins."
       >
         <BoolSwitch
@@ -51,7 +54,7 @@ export function PipelineCoreFields({ api, idPrefix }: { api: DocFormApi; idPrefi
           label="Edition"
           value={stringAt(api.settings, 'edition')}
           options={PIPELINE_ALLOWED_EDITIONS}
-          unsetLabel={`Not set (default: ${PIPELINE_BUILTIN_DEFAULTS.edition})`}
+          unsetLabel={`Not set (built-in: ${PIPELINE_BUILTIN_DEFAULTS.edition})`}
           onSet={(value) => api.set(['edition'], value)}
           onUnset={() => api.del(['edition'])}
           helpPath={['edition']}
@@ -62,7 +65,7 @@ export function PipelineCoreFields({ api, idPrefix }: { api: DocFormApi; idPrefi
           label="Channel"
           value={stringAt(api.settings, 'channel')}
           options={PIPELINE_ALLOWED_CHANNELS}
-          unsetLabel={`Not set (default: ${PIPELINE_BUILTIN_DEFAULTS.channel})`}
+          unsetLabel={`Not set (built-in: ${PIPELINE_BUILTIN_DEFAULTS.channel})`}
           onSet={(value) => api.set(['channel'], value)}
           onUnset={() => api.del(['channel'])}
           issue={api.issueAt(['channel'])?.message}
@@ -92,7 +95,7 @@ export function PipelineCoreFields({ api, idPrefix }: { api: DocFormApi; idPrefi
           label="Packaging"
           value={stringAt(api.settings, 'packaging')}
           options={PIPELINE_ALLOWED_PACKAGING_MODES}
-          unsetLabel="Not set (default: source)"
+          unsetLabel="Not set (built-in: source)"
           onSet={(value) => api.set(['packaging'], value)}
           onUnset={() => api.del(['packaging'])}
           helpPath={['packaging']}
@@ -102,6 +105,7 @@ export function PipelineCoreFields({ api, idPrefix }: { api: DocFormApi; idPrefi
 
       <SectionCard
         title="Target"
+        configured={['catalog', 'schema'].some((key) => key in api.settings)}
         description="Both catalog and schema must resolve for bundle generation (here or in project defaults)."
       >
         <OptionalTextField

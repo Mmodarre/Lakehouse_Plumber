@@ -1,3 +1,4 @@
+import { tablistKeyDown } from '@/lib/keyboard'
 import { useCallback, useRef } from 'react'
 import type { LucideIcon } from 'lucide-react'
 import { FileText, Table2, Workflow } from 'lucide-react'
@@ -33,6 +34,7 @@ function LensSwitcher({
   return (
     <div
       role="tablist"
+      onKeyDown={tablistKeyDown}
       aria-label="Explorer lens"
       className="m-1.5 flex gap-0.5 rounded-sm border border-border bg-background p-0.5"
     >
@@ -44,6 +46,7 @@ function LensSwitcher({
             type="button"
             role="tab"
             aria-selected={active}
+            tabIndex={active ? 0 : -1}
             onClick={() => onSelect(id)}
             className={cn(
               'flex h-[26px] flex-1 items-center justify-center gap-1.5 rounded-xs text-2xs font-semibold transition-colors',
@@ -90,11 +93,11 @@ export function Explorer() {
     [setExplorerWidth],
   )
 
-  if (collapsed) return null
 
   return (
     <nav
       ref={rootRef}
+      style={{ display: collapsed ? 'none' : undefined }}
       aria-label="Entity explorer"
       className="relative flex h-full min-w-0 flex-col overflow-hidden border-r border-border bg-surface"
     >
@@ -103,17 +106,9 @@ export function Explorer() {
       {/* Flex column so the Structure lens can pin its own bottom region; the
           Structure lens owns its scroll, while Tables/Files scroll here. */}
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-        {explorerLens === 'structure' && <StructureLens />}
-        {explorerLens === 'tables' && (
-          <div className="min-h-0 flex-1 overflow-auto">
-            <TablesLens />
-          </div>
-        )}
-        {explorerLens === 'files' && (
-          <div className="min-h-0 flex-1 overflow-auto">
-            <FilesLens />
-          </div>
-        )}
+        <div hidden={explorerLens !== 'structure'} className="h-full min-h-0"><StructureLens /></div>
+        <div hidden={explorerLens !== 'tables'} className="h-full min-h-0 overflow-auto"><TablesLens /></div>
+        <div hidden={explorerLens !== 'files'} className="h-full min-h-0 overflow-auto"><FilesLens /></div>
       </div>
 
       {/* Right-edge drag-resize handle → layoutStore.explorerWidth. */}
@@ -121,6 +116,11 @@ export function Explorer() {
         role="separator"
         aria-orientation="vertical"
         aria-label="Resize explorer"
+        tabIndex={0}
+        aria-valuemin={200}
+        aria-valuemax={420}
+        aria-valuenow={useLayoutStore.getState().explorerWidth}
+        onKeyDown={(e) => { if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') { e.preventDefault(); setExplorerWidth(useLayoutStore.getState().explorerWidth + (e.key === 'ArrowRight' ? 20 : -20)) } }}
         onPointerDown={onHandlePointerDown}
         className="group absolute inset-y-0 -right-0.5 z-10 w-1.5 cursor-col-resize"
       >

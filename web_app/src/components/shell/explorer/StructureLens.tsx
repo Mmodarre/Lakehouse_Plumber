@@ -1,4 +1,11 @@
-import { useCallback, useMemo, useState } from 'react'
+import { lazy, Suspense, useCallback, useMemo, useState } from 'react'
+import { useLayoutStore } from '../../../store/layoutStore'
+import { Button } from '@/components/ui/button'
+const CreateFromTemplateDialog = lazy(() =>
+  import('../../config/CreateFromTemplateDialog').then((module) => ({
+    default: module.CreateFromTemplateDialog,
+  })),
+)
 import type { LucideIcon } from 'lucide-react'
 import {
   ChevronRight,
@@ -52,6 +59,7 @@ function Row({
   onClick,
   trailing,
   ariaCurrent,
+  title,
 }: {
   depth?: 0 | 1
   icon?: LucideIcon
@@ -61,19 +69,18 @@ function Row({
   onClick: () => void
   trailing?: React.ReactNode
   ariaCurrent?: boolean
+  title?: string
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
       aria-current={ariaCurrent ? 'true' : undefined}
-      title={label}
+      title={title ?? label}
       className={cn(
         'relative flex w-full items-center gap-1.5 py-1 pr-2.5 text-left text-xs transition-colors',
         depth === 0 ? 'pl-3' : 'pl-7',
-        active
-          ? 'bg-accent-weak font-medium text-foreground'
-          : 'text-foreground/90 hover:bg-card',
+        active ? 'bg-accent-weak font-medium text-foreground' : 'text-foreground/90 hover:bg-card',
       )}
     >
       {active && (
@@ -115,10 +122,7 @@ function TreeGroup({
         className="flex w-full items-center gap-1.5 py-1 pr-2.5 pl-2 text-left text-xs font-semibold text-foreground transition-colors hover:bg-card"
       >
         <ChevronRight
-          className={cn(
-            'size-3.5 shrink-0 text-faint transition-transform',
-            open && 'rotate-90',
-          )}
+          className={cn('size-3.5 shrink-0 text-faint transition-transform', open && 'rotate-90')}
           aria-hidden="true"
         />
         {Icon && <Icon className="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />}
@@ -160,9 +164,19 @@ function Hint({ children, depth = 1 }: { children: React.ReactNode; depth?: 0 | 
 type PipelineNode = { name: string; flowgroups: FlowgroupSummary[] }
 
 export function StructureLens() {
-  const { data: pipelineData, isLoading: pipelinesLoading } = usePipelines()
-  const { data: flowgroupData, isLoading: flowgroupsLoading } = useFlowgroups()
-  const { data: tree } = useFileList()
+  const {
+    data: pipelineData,
+    isLoading: pipelinesLoading,
+    isError: pipelinesError,
+    refetch: retryPipelines,
+  } = usePipelines()
+  const {
+    data: flowgroupData,
+    isLoading: flowgroupsLoading,
+    isError: flowgroupsError,
+    refetch: retryFlowgroups,
+  } = useFlowgroups()
+  const { data: tree, isError: filesError, refetch: retryFiles } = useFileList()
   const { data: presetData } = usePresets()
   const { data: templateData } = useTemplates()
   const { data: blueprintData } = useBlueprints()
@@ -180,6 +194,8 @@ export function StructureLens() {
 
   const { isOpen, toggle } = useGroupToggle()
   const [search, setSearch] = useState('')
+  const [createKind, setCreateKind] = useState<'pipeline' | 'job' | null>(null)
+  const viewerMode = useLayoutStore((state) => state.viewerMode)
   const query = search.trim().toLowerCase()
 
   const paths = useMemo(() => flattenFilePaths(tree), [tree])
@@ -270,7 +286,22 @@ export function StructureLens() {
       {/* Single scrolling region: the pipelines tree only */}
       <div className="min-h-0 flex-1 overflow-auto pb-2" data-testid="explorer-pipelines">
         <SectionHead>Pipelines</SectionHead>
-        {pipelinesLoading || flowgroupsLoading ? (
+        {pipelinesError || flowgroupsError ? (
+          <div role="alert" className="space-y-1 px-3 py-2 text-xs text-destructive">
+            <p>Could not load project structure.</p>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                void retryPipelines()
+                void retryFlowgroups()
+              }}
+            >
+              Retry structure
+            </Button>
+          </div>
+        ) : pipelinesLoading || flowgroupsLoading ? (
           <Hint depth={0}>Loading…</Hint>
         ) : visibleTree.length === 0 ? (
           <Hint depth={0}>{query ? 'No matches' : 'No pipelines'}</Hint>
@@ -322,16 +353,33 @@ export function StructureLens() {
         data-testid="explorer-pinned"
       >
         {/* Config */}
-        <SectionHead>Config</SectionHead>
+        <SectionHead>Configuration</SectionHead>
+        {filesError && (
+          <div role="alert" className="px-3 py-1 text-xs text-destructive">
+            Could not load configuration files.
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              onClick={() => {
+                void retryFiles()
+              }}
+            >
+              Retry files
+            </Button>
+          </div>
+        )}
         <Row
           icon={FileCog}
-          label="Project"
+          label="Project settings"
+          title="Project settings · lhp.yaml"
           active={activePath === 'config:lhp.yaml'}
           onClick={() => openConfigTab('lhp.yaml', 'project')}
         />
         <ConfigGroup
           id="cfg:pipeline"
-          label="Pipeline"
+          label="Pipeline configurations"
+          onCreate={viewerMode ? undefined : () => setCreateKind('pipeline')}
           files={configGroups.pipeline}
           open={isOpen('cfg:pipeline', true)}
           onToggle={toggle}
@@ -341,7 +389,8 @@ export function StructureLens() {
         />
         <ConfigGroup
           id="cfg:job"
-          label="Job"
+          label="Job configurations"
+          onCreate={viewerMode ? undefined : () => setCreateKind('job')}
           files={configGroups.job}
           open={isOpen('cfg:job', true)}
           onToggle={toggle}
@@ -377,7 +426,9 @@ export function StructureLens() {
               depth={1}
               label={name}
               mono
-              active={activePath === `resource:preset:${resolveResourceFilePath(paths, 'presets', name)}`}
+              active={
+                activePath === `resource:preset:${resolveResourceFilePath(paths, 'presets', name)}`
+              }
               onClick={() =>
                 openResourceTab('preset', name, resolveResourceFilePath(paths, 'presets', name))
               }
@@ -399,7 +450,8 @@ export function StructureLens() {
               label={name}
               mono
               active={
-                activePath === `resource:template:${resolveResourceFilePath(paths, 'templates', name)}`
+                activePath ===
+                `resource:template:${resolveResourceFilePath(paths, 'templates', name)}`
               }
               onClick={() =>
                 openResourceTab('template', name, resolveResourceFilePath(paths, 'templates', name))
@@ -422,10 +474,15 @@ export function StructureLens() {
               label={name}
               mono
               active={
-                activePath === `resource:blueprint:${resolveResourceFilePath(paths, 'blueprints', name)}`
+                activePath ===
+                `resource:blueprint:${resolveResourceFilePath(paths, 'blueprints', name)}`
               }
               onClick={() =>
-                openResourceTab('blueprint', name, resolveResourceFilePath(paths, 'blueprints', name))
+                openResourceTab(
+                  'blueprint',
+                  name,
+                  resolveResourceFilePath(paths, 'blueprints', name),
+                )
               }
             />
           )}
@@ -453,6 +510,18 @@ export function StructureLens() {
           }}
         />
       </div>
+      {createKind && (
+        <Suspense fallback={null}>
+          <CreateFromTemplateDialog
+            kind={createKind}
+            open
+            onOpenChange={(open) => {
+              if (!open) setCreateKind(null)
+            }}
+            onCreated={(path) => openConfigTab(path, createKind)}
+          />
+        </Suspense>
+      )}
     </div>
   )
 }
@@ -504,6 +573,7 @@ function ConfigGroup({
   activePath,
   onOpen,
   tabIdFor = (path) => path,
+  onCreate,
 }: {
   id: string
   label: string
@@ -513,6 +583,7 @@ function ConfigGroup({
   activePath: string | null
   onOpen: (path: string) => void
   tabIdFor?: (path: string) => string
+  onCreate?: () => void
 }) {
   return (
     <TreeGroup id={id} label={label} open={open} onToggle={onToggle}>
@@ -524,11 +595,17 @@ function ConfigGroup({
             key={path}
             depth={1}
             label={path.split('/').pop() ?? path}
+            title={path}
             mono
             active={activePath === tabIdFor(path)}
             onClick={() => onOpen(path)}
           />
         ))
+      )}
+      {onCreate && (
+        <Button type="button" size="sm" variant="ghost" className="ml-5 text-xs" onClick={onCreate}>
+          New {id === 'cfg:pipeline' ? 'pipeline' : 'job'} configuration
+        </Button>
       )}
     </TreeGroup>
   )

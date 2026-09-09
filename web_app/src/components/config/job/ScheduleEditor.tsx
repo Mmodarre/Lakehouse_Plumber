@@ -116,13 +116,12 @@ export function ScheduleEditor({ api, idPrefix }: { api: DocFormApi; idPrefix: s
   // Present-but-invalid values display coerced (never as "Not set") — the
   // validator's warning supplies the issue line.
   const pauseValue =
-    schedule !== undefined && 'pause_status' in schedule
-      ? String(schedule.pause_status)
-      : undefined
+    schedule !== undefined && 'pause_status' in schedule ? String(schedule.pause_status) : undefined
 
   return (
     <SectionCard
       title="Schedule"
+      configured={['schedule'].some((key) => key in api.settings)}
       description="Cron trigger for the job. When a schedule is present the template renders all three fields — set them together. Clearing all three removes the schedule from the file."
     >
       {notAMapping ? (

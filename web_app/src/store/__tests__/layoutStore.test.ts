@@ -96,6 +96,7 @@ describe('layoutStore — persistence', () => {
       bottomCollapsed: true,
       bottomTab: 'problems',
       viewerMode: false,
+      density: 'compact',
     })
   })
 

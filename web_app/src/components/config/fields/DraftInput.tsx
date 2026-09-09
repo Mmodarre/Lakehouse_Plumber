@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { TokenAutocomplete } from '@/components/designer/TokenAutocomplete'
@@ -52,10 +52,22 @@ export function DraftInput({
     setDraft(initial)
   }
 
+  const pending = draft !== initial
+  useEffect(() => {
+    if (!pending) return
+    const warnBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault()
+      event.returnValue = ''
+    }
+    window.addEventListener('beforeunload', warnBeforeUnload)
+    return () => window.removeEventListener('beforeunload', warnBeforeUnload)
+  }, [pending])
+
   const commit = () => {
     if (draft !== initial) onCommit(draft)
   }
   const onKeyDown = (e: React.KeyboardEvent) => {
+    if (e.nativeEvent.isComposing || e.keyCode === 229) return
     if (e.key === 'Enter' && !multiline) {
       e.preventDefault()
       commit()
@@ -83,6 +95,7 @@ export function DraftInput({
   }
 
   const shared = {
+    'data-workspace-draft': true,
     value: draft,
     onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
       setDraft(e.target.value),

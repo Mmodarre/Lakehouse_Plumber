@@ -1,0 +1,2 @@
+pyproject.toml: note: unused section(s): module = ['tests.*']
+Success: no issues found in 33 source files

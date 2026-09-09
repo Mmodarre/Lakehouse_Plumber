@@ -11,7 +11,9 @@ import { useDocumentStore } from '../../../store/documentStore'
 import { useLayoutStore } from '../../../store/layoutStore'
 import { installRadixStubs } from '../../config/shared/__tests__/configFormTestSupport'
 
-vi.mock('sonner', () => ({ toast: { error: vi.fn(), success: vi.fn(), dismiss: vi.fn() } }))
+vi.mock('sonner', () => ({
+  toast: { error: vi.fn(), success: vi.fn(), dismiss: vi.fn() },
+}))
 
 // ── ConfigFormView — config surfaces re-hosted on the document core ──
 //
@@ -51,9 +53,12 @@ function renderView(
 ): void {
   resetStores()
   if (opts.viewer) useLayoutStore.setState({ viewerMode: true })
-  useWorkspaceStore
-    .getState()
-    .openBuffer(path, { content, originalContent: content, exists: true, etag: 'e0' })
+  useWorkspaceStore.getState().openBuffer(path, {
+    content,
+    originalContent: content,
+    exists: true,
+    etag: 'e0',
+  })
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   qc.setQueryData(['schema', SCHEMA_KIND[configKind]], {})
   const wrapper = ({ children }: { children: ReactNode }) => (
@@ -116,7 +121,9 @@ schema: raw # keep this
 
   it('lists both documents in the rail and edits docIndex>0 byte-anchored', async () => {
     renderView('config/pipeline_config.yaml', 'pipeline', MULTI)
-    const nav = await screen.findByRole('navigation', { name: 'Configuration documents' })
+    const nav = await screen.findByRole('navigation', {
+      name: 'Configuration documents',
+    })
     // Rail lists both docs: the defaults tier and the bronze pipeline.
     expect(within(nav).getByText('Project defaults')).toBeInTheDocument()
     const bronzeRow = within(nav).getByRole('button', { name: /bronze/ })
@@ -177,9 +184,7 @@ author: Data Team
       useWorkspaceStore.getState().updateContent('lhp.yaml', 'name: acme\nauthor: [unterminated\n')
     })
 
-    await waitFor(() =>
-      expect(screen.getByTestId('config-degraded-banner')).toBeInTheDocument(),
-    )
+    await waitFor(() => expect(screen.getByTestId('config-degraded-banner')).toBeInTheDocument())
     // The form is gone (editing paused) — YAML is the fix-it surface.
     expect(screen.queryByLabelText('Author')).not.toBeInTheDocument()
   })
@@ -199,9 +204,10 @@ author: Data Team
     expect(view.querySelector('[aria-disabled="true"]')).not.toBeNull()
 
     const user = userEvent.setup()
-    await user.clear(author)
-    await user.type(author, 'Someone Else')
-    await user.tab()
+    expect(author).toBeDisabled()
+    await user.click(screen.getByRole('button', { name: 'Collapse General section' }))
+    await user.type(screen.getByRole('searchbox', { name: 'Search settings' }), 'author')
+    expect(author).toBeVisible()
 
     // The viewer mutate gate is a no-op: the buffer is untouched.
     expect(bufferContent('lhp.yaml')).toBe(PROJECT)

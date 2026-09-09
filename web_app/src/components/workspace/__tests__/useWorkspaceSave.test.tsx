@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 vi.mock('../../../api/files', () => ({
   writeFile: vi.fn(),
+  IF_MATCH_CREATE_ONLY: 'create-only',
 }))
 vi.mock('sonner', () => ({
   toast: {
@@ -20,6 +21,7 @@ vi.mock('../../../store/runStore', () => ({
   useRunController: () => ({
     isRunning: false,
     startValidate: vi.fn(),
+    queueValidate: vi.fn(),
     startGenerate: vi.fn(),
     abort: vi.fn(),
   }),
@@ -220,4 +222,39 @@ describe('useWorkspaceSave', () => {
     })
     expect(mockWriteFile).not.toHaveBeenCalled()
   })
+  it('preserves keystrokes still in Monaco when a delayed save acknowledges older text', async () => {
+    const path = 'a.sql'
+    useWorkspaceStore.getState().openBuffer(path, { content: 'disk', etag: '1', exists: true })
+    useWorkspaceStore.getState().updateContent(path, 'submitted')
+    const { result, type } = setup(path)
+    let finish!: (value: Awaited<ReturnType<typeof writeFile>>) => void
+    mockWriteFile.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve }))
+    let pending!: Promise<boolean>
+    act(() => { pending = result.current.saveBuffer(path) })
+    type('newer live text')
+    await act(async () => { finish({ written: true, path, etag: '2' }); await pending })
+    expect(bufferFor(path)).toMatchObject({ content: 'newer live text', originalContent: 'submitted', isDirty: true, etag: '2' })
+  })
+
+  it('does not admit overlapping saves of the same document', async () => {
+    const path = 'a.sql'
+    useWorkspaceStore.getState().openBuffer(path, { content: 'submitted', etag: '1', exists: true })
+    const { result } = setup(path)
+    let finish!: (value: Awaited<ReturnType<typeof writeFile>>) => void
+    mockWriteFile.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve }))
+    let pending!: Promise<boolean>
+    act(() => { pending = result.current.saveBuffer(path) })
+    await act(async () => { expect(await result.current.saveBuffer(path)).toBe(false) })
+    expect(mockWriteFile).toHaveBeenCalledTimes(1)
+    await act(async () => { finish({ written: true, path, etag: '2' }); await pending })
+  })
+
+  it('Save captures the live editor but does not write an unchanged document', async () => {
+    const path = 'unchanged.sql'
+    useWorkspaceStore.getState().openBuffer(path, { content: 'disk', etag: '1', exists: true })
+    const { result } = setup(path)
+    await act(async () => { expect(await result.current.saveActive()).toBe(true) })
+    expect(mockWriteFile).not.toHaveBeenCalled()
+  })
+
 })

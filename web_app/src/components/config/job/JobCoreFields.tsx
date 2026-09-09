@@ -71,14 +71,15 @@ export function JobCoreFields({
   const notebookRaw = api.settings.notebook_cluster
   const notebook = isPlainObject(notebookRaw) ? notebookRaw : undefined
   const newCluster =
-    notebook !== undefined && isPlainObject(notebook.new_cluster)
-      ? notebook.new_cluster
-      : undefined
+    notebook !== undefined && isPlainObject(notebook.new_cluster) ? notebook.new_cluster : undefined
 
   return (
     <>
       <SectionCard
         title="Execution"
+        configured={['max_concurrent_runs', 'performance_target', 'timeout_seconds', 'queue'].some(
+          (key) => key in api.settings,
+        )}
         description="Unset fields inherit from project defaults, then LHP's built-ins."
       >
         <OptionalNumberField
@@ -96,7 +97,7 @@ export function JobCoreFields({
           label="Performance target"
           value={stringAt(api.settings, 'performance_target')}
           options={PERFORMANCE_TARGETS}
-          unsetLabel={`Not set (default: ${JOB_BUILTIN_DEFAULTS.performance_target})`}
+          unsetLabel={`Not set (built-in: ${JOB_BUILTIN_DEFAULTS.performance_target})`}
           onSet={(value) => api.set(['performance_target'], value)}
           onUnset={() => api.del(['performance_target'])}
           helpPath={['performance_target']}
@@ -131,7 +132,7 @@ export function JobCoreFields({
         )}
       </SectionCard>
 
-      <SectionCard title="Tags">
+      <SectionCard title="Tags" configured={['tags'].some((key) => key in api.settings)}>
         <KeyValueMapEditor
           id={`${idPrefix}-tags`}
           label="Tags"
@@ -144,6 +145,7 @@ export function JobCoreFields({
       {variant === 'defaults' ? (
         <SectionCard
           title="Master job"
+          configured={['generate_master_job', 'master_job_name'].some((key) => key in api.settings)}
           description="LHP control knobs — read from project defaults only, never emitted into the job resource."
         >
           <BoolSwitch
@@ -173,9 +175,7 @@ export function JobCoreFields({
         </SectionCard>
       ) : (
         <InertKeysNote
-          keys={['generate_master_job', 'master_job_name'].filter(
-            (key) => key in api.settings,
-          )}
+          keys={['generate_master_job', 'master_job_name'].filter((key) => key in api.settings)}
           reason={
             variant === 'monitoring'
               ? // Monitoring configs never feed master-job generation (it reads
@@ -190,6 +190,7 @@ export function JobCoreFields({
       {variant === 'monitoring' ? (
         <SectionCard
           title="Notebook cluster"
+          configured={['notebook_cluster'].some((key) => key in api.settings)}
           description="Compute override for the union-event-logs notebook task. new_cluster keys render verbatim; existing_cluster_id applies only when new_cluster is absent."
         >
           {notebookRaw !== undefined && notebook === undefined ? (
@@ -210,9 +211,7 @@ export function JobCoreFields({
                   api.del(['notebook_cluster', 'new_cluster', oldKey])
                   api.set(['notebook_cluster', 'new_cluster', newKey], rawValue)
                 }}
-                onRemoveEntry={(entryKey) =>
-                  api.del(['notebook_cluster', 'new_cluster', entryKey])
-                }
+                onRemoveEntry={(entryKey) => api.del(['notebook_cluster', 'new_cluster', entryKey])}
                 onDeleteKey={() => delWithCascade(api, 'notebook_cluster', 'new_cluster')}
                 helpPath={['notebook_cluster', 'new_cluster']}
                 issue={api.issueAt(['notebook_cluster', 'new_cluster'])?.message}

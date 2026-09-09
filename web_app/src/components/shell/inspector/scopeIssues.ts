@@ -7,8 +7,7 @@ import type { WorkspaceTabRef } from '../../../store/workspaceStore'
 // active in the center (§3 / §6.4). Pure and unit-tested so the Inspector
 // component stays a thin renderer:
 //   • entity tab   → issues for that pipeline + flowgroup
-//   • file tab     → issues whose file_path is that file (project-wide when
-//                    the file has no file-scoped issues)
+//   • file tab     → issues whose file_path is that file
 //   • config/resource tab → same file-path match
 //   • project-map / table-detail / no tab → the whole project
 //
@@ -44,9 +43,6 @@ function scopeByFile(issues: readonly ValidationIssue[], path: string): ScopedIs
   const matched = issues.filter(
     (i) => i.file_path !== null && toProjectRelative(i.file_path) === rel,
   )
-  // No file-scoped issues for this file → fall back to the whole project so
-  // the tab is never confusingly empty (per T1.5 scoping rule).
-  if (matched.length === 0) return { issues: [...issues], scope: PROJECT }
   return { issues: matched, scope: { label: basename(rel), projectWide: false } }
 }
 

@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { ConfigSections } from '../shared/ConfigSections'
 import { TriangleAlert } from 'lucide-react'
 import { EmptyState } from '../../common/EmptyState'
 import { SchemaKindProvider } from '../../common/SchemaKindContext'
@@ -45,7 +46,10 @@ export function ProjectConfigForm({ file }: ProjectConfigFormProps) {
   const { docRaw, docCount } = useMemo(() => {
     if (!parsed || file.handle === null) return { docRaw: undefined, docCount: 0 }
     const count = documentCount(file.handle)
-    return { docRaw: count > 0 ? toJS(file.handle, 0) : undefined, docCount: count }
+    return {
+      docRaw: count > 0 ? toJS(file.handle, 0) : undefined,
+      docCount: count,
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- version IS the handle's change signal
   }, [file.handle, file.version, parsed])
 
@@ -78,7 +82,7 @@ export function ProjectConfigForm({ file }: ProjectConfigFormProps) {
         )}
         <SectionIssues issues={issuesAtExactly(issues, [])} />
         {!unmapped && (
-          <>
+          <ConfigSections key={file.path} scope={file.path ?? 'project'}>
             <GeneralSection form={form} />
             <IncludesSection form={form} />
             <OperationalMetadataSection form={form} />
@@ -88,7 +92,7 @@ export function ProjectConfigForm({ file }: ProjectConfigFormProps) {
             <TestReportingWheelSection form={form} />
             <SandboxSection form={form} />
             <PassthroughKeysCard keys={passthroughKeys} />
-          </>
+          </ConfigSections>
         )}
       </>
     )

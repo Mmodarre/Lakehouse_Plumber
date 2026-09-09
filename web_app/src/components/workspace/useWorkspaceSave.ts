@@ -2,10 +2,12 @@ import { useCallback, useState } from 'react'
 import type { RefObject } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { writeFile } from '../../api/files'
+import { writeFile, IF_MATCH_CREATE_ONLY } from '../../api/files'
 import { ApiError } from '../../api/client'
 import { useRunController, useRunStore } from '../../store/runStore'
 import { isReadOnlyPath, useWorkspaceStore } from '../../store/workspaceStore'
+import { captureWorkspaceEditors } from '../../workspace/editorCommands'
+import { useLayoutStore } from '../../store/layoutStore'
 import { useDocumentStore } from '../../store/documentStore'
 import {
   isYamlPath,
@@ -32,6 +34,7 @@ import type { ConflictInfo } from '../editor/ConflictDialog'
 
 interface SaveOverrides {
   /** Save this text instead of the buffer content (conflict keep-mine/merge). */
+  validate?: boolean
   contentOverride?: string
   /** Use this etag instead of the buffer's (fresh on-disk etag from the
    * ConflictDialog — never the stale one, so no double-clobber). */
@@ -44,12 +47,13 @@ interface UseWorkspaceSaveArgs {
   activePathRef: RefObject<string | null>
   /** Sync the live editor's text into the store (called before saves). */
   captureActive: () => void
+  activeDocumentPathRef?: RefObject<string | null>
 }
 
 export interface WorkspaceSaveApi {
   saveBuffer: (path: string, overrides?: SaveOverrides) => Promise<boolean>
-  saveActive: () => void
-  saveAllDirty: () => void
+  saveActive: () => Promise<boolean>
+  saveAllDirty: (options?: { validate?: boolean }) => Promise<boolean>
   conflict: ConflictInfo | null
   cancelConflict: () => void
   resolveKeepMine: (path: string, content: string, freshEtag: string | null) => void
@@ -60,6 +64,7 @@ export function useWorkspaceSave({
   editorRef,
   activePathRef,
   captureActive,
+  activeDocumentPathRef = activePathRef,
 }: UseWorkspaceSaveArgs): WorkspaceSaveApi {
   const queryClient = useQueryClient()
   const runController = useRunController()
@@ -72,7 +77,7 @@ export function useWorkspaceSave({
       const buffer = store.buffers.find((b) => b.path === path)
       if (!buffer || buffer.isSaving) return false
       const filename = path.split('/').pop() ?? path
-      if (isReadOnlyPath(path)) {
+      if (isReadOnlyPath(path) || useLayoutStore.getState().viewerMode) {
         toast.error('This file is read-only')
         return false
       }
@@ -89,9 +94,16 @@ export function useWorkspaceSave({
       const isYaml = isYamlPath(path)
       const wasNew = buffer.isNew && !buffer.exists
 
+      // Apply an explicit merge at submission, so later typing has a clear baseline.
+      if (overrides?.contentOverride !== undefined) {
+        if (activePathRef.current === path) editorRef.current?.setValue(content)
+        store.updateContent(path, content)
+      }
       store.setSaving(path, true)
       try {
-        const res = await writeFile(path, content, etag)
+        const res = await writeFile(path, content, buffer.exists || (overrides && 'etagOverride' in overrides) ? etag : IF_MATCH_CREATE_ONLY)
+        captureWorkspaceEditors()
+        if (activePathRef.current === path) captureActive()
         // A successful save supersedes any lingering stale-file warning.
         toast.dismiss(`stale:${path}`)
         useWorkspaceStore.getState().setEtagAndBaseline(path, res.etag ?? null, content)
@@ -99,12 +111,8 @@ export function useWorkspaceSave({
         // (risk 11): no-op for paths documentStore hasn't open + echo-suppressed
         // in the common case; genuinely re-parses on a merged / kept-mine save
         // whose text differs from the handle's last projection.
-        useDocumentStore.getState().reparse(path, content)
-        // Conflict resolutions save text the live editor doesn't hold yet
-        // (merged / kept-mine after a reload) — push it in.
-        if (overrides?.contentOverride !== undefined && activePathRef.current === path) {
-          editorRef.current?.setValue(content)
-        }
+        const current = useWorkspaceStore.getState().buffers.find((b) => b.path === path)
+        if (current) useDocumentStore.getState().reparse(path, current.content)
 
         if (isYaml && res.yaml_error) {
           // Write persisted but the YAML is unparseable: marker + Problems
@@ -119,7 +127,7 @@ export function useWorkspaceSave({
             if (activePathRef.current === path) editorRef.current?.clearYamlMarkers()
             setSyntheticSyntaxIssue(path, null)
             const pipeline = derivePipelineFromYaml(content) ?? undefined
-            startScopedValidate(runController, pipeline)
+            if (overrides?.validate !== false) startScopedValidate(runController, pipeline)
           }
           toast.success(`Saved ${filename}`)
         }
@@ -173,24 +181,25 @@ export function useWorkspaceSave({
     [editorRef, activePathRef, captureActive, queryClient, runController, setSyntheticSyntaxIssue],
   )
 
-  const saveActive = useCallback(() => {
-    const path = activePathRef.current
-    if (!path) return
+  const saveActive = useCallback(async (): Promise<boolean> => {
+    const path = activeDocumentPathRef.current
+    if (!path) return false
+    captureWorkspaceEditors()
     captureActive()
-    void saveBuffer(path)
-  }, [activePathRef, captureActive, saveBuffer])
+    const buffer = useWorkspaceStore.getState().buffers.find((b) => b.path === path)
+    if (buffer?.exists && !buffer.isDirty && !buffer.loading && !buffer.loadFailed) return true
+    return saveBuffer(path)
+  }, [activeDocumentPathRef, captureActive, saveBuffer])
 
-  const saveAllDirty = useCallback(() => {
+  const saveAllDirty = useCallback(async (options?: { validate?: boolean }): Promise<boolean> => {
+    captureWorkspaceEditors()
     captureActive()
-    const dirtyPaths = useWorkspaceStore
-      .getState()
-      .buffers.filter((b) => b.isDirty && !b.loading && !b.loadFailed && !isReadOnlyPath(b.path))
-      .map((b) => b.path)
-    void (async () => {
-      for (const path of dirtyPaths) {
-        await saveBuffer(path)
-      }
-    })()
+    const dirtyPaths = useWorkspaceStore.getState().buffers.filter((b) => b.isDirty).map((b) => b.path)
+    let success = true
+    for (const path of dirtyPaths) {
+      if (!await saveBuffer(path, options)) success = false
+    }
+    return success && !useWorkspaceStore.getState().buffers.some((b) => b.isDirty)
   }, [captureActive, saveBuffer])
 
   const cancelConflict = useCallback(() => setConflict(null), [])

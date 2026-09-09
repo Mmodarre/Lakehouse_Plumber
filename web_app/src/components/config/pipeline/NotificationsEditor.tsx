@@ -59,9 +59,7 @@ function NotificationEntry({
     <Card className="gap-0 py-3">
       <CardContent className="space-y-3 px-4">
         <div className="flex items-center justify-between">
-          <p className="text-2xs font-medium text-muted-foreground">
-            Notification {index + 1}
-          </p>
+          <p className="text-2xs font-medium text-muted-foreground">Notification {index + 1}</p>
           <Button
             type="button"
             variant="ghost"
@@ -113,7 +111,11 @@ export function NotificationsEditor({ api, idPrefix }: { api: DocFormApi; idPref
   const notifications = Array.isArray(raw) ? raw : undefined
 
   return (
-    <SectionCard title="Notifications" description="Email alerts for pipeline events.">
+    <SectionCard
+      title="Notifications"
+      configured={['notifications'].some((key) => key in api.settings)}
+      description="Email alerts for pipeline events."
+    >
       {raw !== undefined && notifications === undefined ? (
         <p className="text-2xs text-warning">
           notifications is not a list — edit it in the YAML view.

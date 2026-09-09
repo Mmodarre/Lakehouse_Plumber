@@ -86,6 +86,24 @@ describe('ProblemsPanel', () => {
     )
   })
 
+  it('focuses an existing structured config tab and reveals the issue line without losing its edits', async () => {
+    const user = userEvent.setup()
+    const store = useWorkspaceStore.getState()
+    store.openBuffer('lhp.yaml', { content: 'name: saved', etag: 'old', exists: true })
+    store.openConfigTab('lhp.yaml', 'project')
+    store.updateContent('lhp.yaml', 'name: edited')
+    store.openBuffer('other.yaml', { content: 'other: true', exists: true })
+    useRunStore.setState({ issues: [makeIssue({ file_path: 'lhp.yaml', context: { line: 8 } })] })
+    render(<ProblemsPanel />)
+    expect(screen.getByText(/Results describe saved files/)).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: /missing target table/i }))
+    expect(fetchFileMock).not.toHaveBeenCalled()
+    expect(useWorkspaceStore.getState().activePath).toBe('config:lhp.yaml')
+    expect(useWorkspaceStore.getState().tabs.find((tab) => tab.kind === 'config')).toMatchObject({ view: 'yaml' })
+    expect(useWorkspaceStore.getState().buffers.find((buffer) => buffer.path === 'lhp.yaml')?.content).toBe('name: edited')
+    expect(useWorkspaceStore.getState().revealLocation).toMatchObject({ path: 'lhp.yaml', line: 8 })
+  })
+
   it('leaves rows without a file inert', async () => {
     const user = userEvent.setup()
     useRunStore.setState({ issues: [makeIssue({ file_path: null })] })

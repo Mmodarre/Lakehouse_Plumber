@@ -175,6 +175,7 @@ export function TokenAutocomplete({
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.nativeEvent.isComposing || e.keyCode === 229) return
     if (open) {
       if (e.key === 'Escape') {
         // Belongs to the popover — never DraftInput's revert.
@@ -225,6 +226,7 @@ export function TokenAutocomplete({
   }
 
   const inputProps = {
+    'data-workspace-draft': true,
     id,
     value,
     placeholder,

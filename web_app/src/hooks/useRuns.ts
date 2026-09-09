@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query'
+import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { fetchRuns, fetchRun } from '../api/runs'
 
 // List key is ['run-history', limit]: usePushChannel invalidates the
@@ -8,6 +8,7 @@ export function useRuns(limit = 50) {
   return useQuery({
     queryKey: ['run-history', limit],
     queryFn: () => fetchRuns(limit),
+    placeholderData: keepPreviousData,
   })
 }
 

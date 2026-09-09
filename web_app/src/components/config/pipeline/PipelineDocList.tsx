@@ -1,3 +1,4 @@
+import { DocumentSelector } from '../shared/DocumentSelector'
 import { Boxes, FileQuestion, Layers, SlidersHorizontal, Workflow } from 'lucide-react'
 import { AddButton, Connector, RailRow } from '../shared/Rail'
 import type { RailSelection } from '../shared/docFormSupport'
@@ -20,6 +21,7 @@ import type { RailDoc } from './pipelineFormSupport'
 // the job editor); only the tier composition here is pipeline-specific.
 
 export interface PipelineDocListProps {
+  compact?: boolean
   rail: RailDoc[]
   selected: RailSelection
   onSelect: (selection: RailSelection) => void
@@ -31,6 +33,7 @@ export interface PipelineDocListProps {
 }
 
 export function PipelineDocList({
+  compact = false,
   rail,
   selected,
   onSelect,
@@ -41,6 +44,20 @@ export function PipelineDocList({
 }: PipelineDocListProps) {
   const defaultsDocs = rail.filter((doc) => doc.kind === 'defaults')
   const otherDocs = rail.filter((doc) => doc.kind !== 'defaults')
+
+  if (compact)
+    return (
+      <DocumentSelector
+        kind="pipeline"
+        rail={rail}
+        selected={selected}
+        onSelect={onSelect}
+        canEdit={canEdit}
+        onAddSingle={onAddSingle}
+        onAddGroup={onAddGroup}
+        onAddDefaults={defaultsDocs.length === 0 ? onAddDefaults : undefined}
+      />
+    )
 
   return (
     <nav aria-label="Configuration documents" className="w-60 shrink-0">
@@ -91,8 +108,8 @@ export function PipelineDocList({
           never a chain. */}
       <div className="ml-4 border-l border-border pl-2">
         <p className="px-2 pb-1 text-2xs text-muted-foreground">
-          Per-pipeline documents — one tier: each pipeline merges built-in →
-          project defaults → its own document.
+          Per-pipeline documents — one tier: each pipeline merges built-in → project defaults → its
+          own document.
         </p>
         <div className="space-y-0.5">
           {otherDocs.map((doc) => (

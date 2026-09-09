@@ -9,6 +9,10 @@ import { render } from '@testing-library/react'
 // spurious-dirty bug the wrapper's suppression fixes).
 const h = vi.hoisted(() => {
   interface FakeEditor {
+    saveViewState: () => object | null
+    restoreViewState: (state: object) => void
+    setPosition: (position: object) => void
+    revealLineInCenter: (line: number) => void
     getValue: () => string
     setValue: (v: string) => void
     onDidChangeModelContent: (cb: () => void) => { dispose: () => void }
@@ -24,6 +28,10 @@ const h = vi.hoisted(() => {
     const listeners: Array<() => void> = []
     const fire = () => listeners.forEach((l) => l())
     return {
+      saveViewState: vi.fn(() => null),
+      restoreViewState: vi.fn(),
+      setPosition: vi.fn(),
+      revealLineInCenter: vi.fn(),
       getValue: () => value,
       setValue: (v: string) => {
         value = v
@@ -140,4 +148,21 @@ describe('MonacoEditorWrapper programmatic setValue (Fix 1)', () => {
     expect(buf.isDirty).toBe(false)
     expect(buf.content).toBe('disk version')
   })
+  it('restores cursor and scroll state when returning to a document', () => {
+    const first = render(<MonacoEditorWrapper path="retained.sql" content="select 1" />)
+    const savedView = { cursorState: [{ position: { lineNumber: 37, column: 4 } }], scrollTop: 600 }
+    vi.mocked(h.state.editor!.saveViewState).mockReturnValue(savedView)
+    first.unmount()
+    render(<MonacoEditorWrapper path="retained.sql" content="select 1" />)
+    expect(h.state.editor!.restoreViewState).toHaveBeenCalledWith(savedView)
+  })
+
+  it('reveals an explicitly requested diagnostic line after mounting', () => {
+    const ref = createRef<MonacoEditorHandle>()
+    render(<MonacoEditorWrapper ref={ref} path="diagnostic.sql" content="select 1" />)
+    ref.current?.revealLine?.(12)
+    expect(h.state.editor!.setPosition).toHaveBeenCalledWith({ lineNumber: 12, column: 1 })
+    expect(h.state.editor!.revealLineInCenter).toHaveBeenCalledWith(12)
+  })
+
 })

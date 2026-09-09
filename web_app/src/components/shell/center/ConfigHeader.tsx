@@ -17,7 +17,7 @@ import {
 // file name) and a segmented view switcher. Config surfaces get Form | YAML
 // only — there is no Graph view (§6.2). Mirrors EntityHeader's interaction
 // contract: an ARIA tablist with roving tabindex (arrow keys move + select;
-// ⌘1/⌘2 select Form/YAML). Both views are the SAME live-synced document (D2),
+// ⌘⌥1/⌘⌥2 select Form/YAML). Both views are the SAME live-synced document (D2),
 // so switching never loses edits (CenterArea flushes the outgoing Monaco
 // buffer on the transition).
 
@@ -33,9 +33,9 @@ const VIEWS: readonly ViewOption[] = [
 ]
 
 const KIND_LABEL: Record<ConfigKind, string> = {
-  project: 'Project',
-  pipeline: 'Pipeline',
-  job: 'Job',
+  project: 'Project settings',
+  pipeline: 'Pipeline configuration',
+  job: 'Job configuration',
 }
 
 export function ConfigHeader({ tab }: { tab: ConfigTab }) {
@@ -44,10 +44,10 @@ export function ConfigHeader({ tab }: { tab: ConfigTab }) {
   const view = tab.view
   const tablistRef = useRef<HTMLDivElement>(null)
 
-  // ⌘1 / ⌘2 (or Ctrl on non-mac) select Form / YAML (§6.4 — no Graph for config).
+  // ⌘⌥1 / ⌘⌥2 (or Ctrl on non-mac) select Form / YAML (§6.4 — no Graph for config).
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (!(e.metaKey || e.ctrlKey) || e.altKey || e.shiftKey) return
+      if (!(e.metaKey || e.ctrlKey) || !e.altKey || e.shiftKey) return
       const idx = e.key === '1' ? 0 : e.key === '2' ? 1 : -1
       if (idx === -1) return
       e.preventDefault()
@@ -72,8 +72,6 @@ export function ConfigHeader({ tab }: { tab: ConfigTab }) {
     focusTab(nextIdx)
   }
 
-  const crumbName = tab.path.split('/').pop() ?? tab.path
-
   return (
     <div className="flex items-center justify-between gap-2 border-b border-border bg-card px-4 py-1.5">
       <nav aria-label="Breadcrumb" className="flex min-w-0 items-center gap-1.5 text-2xs">
@@ -83,7 +81,9 @@ export function ConfigHeader({ tab }: { tab: ConfigTab }) {
         <span className="text-faint" aria-hidden="true">
           /
         </span>
-        <span className="truncate font-mono text-xs font-semibold text-foreground">{crumbName}</span>
+        <span title={tab.path} className="truncate font-mono text-xs font-semibold text-foreground">
+          {tab.path}
+        </span>
       </nav>
 
       <div

@@ -16,15 +16,19 @@ function setup(value: boolean | undefined, defaultValue = true) {
       onReset={onReset}
     />,
   )
-  return { onSet, onReset, toggle: screen.getByRole('switch', { name: 'Flag' }) }
+  return {
+    onSet,
+    onReset,
+    toggle: screen.getByRole('switch', { name: 'Flag' }),
+  }
 }
 
 describe('BoolSwitch (tri-state)', () => {
   it('unset: shows the inherited default subtly and no reset affordance', () => {
     const { toggle } = setup(undefined, true)
     expect(toggle).toBeChecked()
-    expect(screen.getByText('default: on')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Reset to default' })).not.toBeInTheDocument()
+    expect(screen.getByText('not set · fallback: on')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Reset to inherited' })).not.toBeInTheDocument()
   })
 
   it('toggling from unset SETS the key explicitly (opposite of the default)', async () => {
@@ -41,9 +45,9 @@ describe('BoolSwitch (tri-state)', () => {
     expect(onSet).toHaveBeenCalledExactlyOnceWith(true)
   })
 
-  it('explicit value: "Reset to default" DELETES the key', async () => {
+  it('explicit value: "Reset to inherited" DELETES the key', async () => {
     const { onSet, onReset } = setup(true)
-    await userEvent.setup().click(screen.getByRole('button', { name: 'Reset to default' }))
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Reset to inherited' }))
     expect(onReset).toHaveBeenCalledOnce()
     expect(onSet).not.toHaveBeenCalled()
   })

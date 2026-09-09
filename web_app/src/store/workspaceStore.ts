@@ -205,6 +205,7 @@ export function tabBufferPath(tab: WorkspaceTabRef): string | null {
     case 'file':
       return tab.path
     case 'entity':
+    case 'designer':
       return tab.filePath
     case 'config':
       return tab.path
@@ -372,6 +373,15 @@ function upsertSimpleTab(
 
 interface WorkspaceState {
   buffers: EditorBuffer[]
+  pinnedTabIds: string[]
+  closedTabs: WorkspaceTabRef[]
+  revealLocation: { path: string; line: number; requestId: number } | null
+  revealFile: (path: string, line: number) => void
+  clearReveal: (requestId: number) => void
+  closeTabs: (ids: string[]) => void
+  reopenClosedTab: () => void
+  togglePinned: (id: string) => void
+  moveTab: (id: string, direction: -1 | 1) => void
   /** Ordered tab strip across kinds (file tabs reference `buffers` by path). */
   tabs: WorkspaceTabRef[]
   /** Active tab id — a file-buffer path or a namespaced tab id
@@ -471,6 +481,60 @@ export const useWorkspaceStore = create<WorkspaceState>()(
   persist(
     (set, get) => ({
       buffers: [],
+      pinnedTabIds: [],
+      closedTabs: [],
+      revealLocation: null,
+      revealFile: (path, line) => set((s) => ({ revealLocation: { path, line, requestId: (s.revealLocation?.requestId ?? 0) + 1 } })),
+      clearReveal: (requestId) => set((s) => s.revealLocation?.requestId === requestId ? { revealLocation: null } : {}),
+      togglePinned: (id) => set((s) => !s.tabs.some((t) => workspaceTabId(t) === id) ? {} : ({
+        pinnedTabIds: s.pinnedTabIds.includes(id) ? s.pinnedTabIds.filter((p) => p !== id) : [...s.pinnedTabIds, id],
+      })),
+      moveTab: (id, direction) => set((s) => {
+        const index = s.tabs.findIndex((t) => workspaceTabId(t) === id)
+        const destination = index + direction
+        if (index < 0 || destination < 0 || destination >= s.tabs.length) return {}
+        const tabs = s.tabs.slice()
+        ;[tabs[index], tabs[destination]] = [tabs[destination], tabs[index]]
+        return { tabs }
+      }),
+      closeTabs: (ids) => set((s) => {
+        const targets = new Set(ids)
+        const removed = s.tabs.filter((t) => targets.has(workspaceTabId(t)))
+        if (removed.length === 0) return {}
+        const tabs = s.tabs.filter((t) => !targets.has(workspaceTabId(t)))
+        const remainingPaths = new Set(tabs.map(tabBufferPath))
+        const removedPaths = new Set(removed.map(tabBufferPath))
+        const buffers = s.buffers.filter((b) => !removedPaths.has(b.path) || remainingPaths.has(b.path))
+        const activeIndex = s.tabs.findIndex((t) => workspaceTabId(t) === s.activePath)
+        const next = s.tabs.slice(activeIndex + 1).find((t) => !targets.has(workspaceTabId(t)))
+          ?? s.tabs.slice(0, activeIndex).reverse().find((t) => !targets.has(workspaceTabId(t)))
+        return {
+          tabs, buffers,
+          activePath: s.activePath && targets.has(s.activePath) ? (next ? workspaceTabId(next) : null) : s.activePath,
+          pinnedTabIds: s.pinnedTabIds.filter((id) => !targets.has(id)),
+          // Keep identity only: explicit discarded drafts must never reappear.
+          closedTabs: [...s.closedTabs, ...removed].slice(-30),
+        }
+      }),
+      reopenClosedTab: () => set((s) => {
+        const tab = s.closedTabs.at(-1)
+        if (!tab) return {}
+        const id = workspaceTabId(tab)
+        const path = tabBufferPath(tab)
+        const owner = path ? s.tabs.find((t) => tabBufferPath(t) === path) : undefined
+        const existing = s.tabs.find((t) => workspaceTabId(t) === id) ?? owner
+        const buffer = path ? s.buffers.find((b) => b.path === path) : undefined
+        return {
+          closedTabs: s.closedTabs.slice(0, -1),
+          tabs: existing ? s.tabs : [...s.tabs, tab],
+          activePath: existing ? workspaceTabId(existing) : id,
+          buffers: path && !buffer ? [...s.buffers, {
+            path, language: languageForPath(path), category: categoryForPath(path),
+            content: '', originalContent: '', isDirty: false, isSaving: false,
+            etag: null, exists: true, isNew: false, loading: true, loadFailed: false,
+          }] : s.buffers,
+        }
+      }),
       tabs: [],
       activePath: null,
       projectRoot: null,
@@ -519,32 +583,16 @@ export const useWorkspaceStore = create<WorkspaceState>()(
           }
         }),
 
-      closeBuffer: (path) =>
-        set((s) => {
-          if (!s.buffers.some((b) => b.path === path)) return {}
-          const buffers = s.buffers.filter((b) => b.path !== path)
-          return { buffers, ...removeTabEntry(s, path) }
-        }),
-
-      closeTab: (id) => {
-        const tab = get().tabs.find((t) => workspaceTabId(t) === id)
-        if (!tab) return
-        // File tabs reuse the existing buffer-close path unchanged.
-        if (tab.kind === 'file') {
-          get().closeBuffer(tab.path)
-          return
+      closeBuffer: (path) => {
+        const s = get()
+        const tab = s.tabs.find((t) => t.kind === 'file' && t.path === path)
+        if (tab) s.closeTabs([path])
+        else if (s.buffers.some((b) => b.path === path) && !s.tabs.some((t) => tabBufferPath(t) === path)) {
+          set({ buffers: s.buffers.filter((b) => b.path !== path) })
         }
-        set((s) => {
-          const bp = tabBufferPath(tab)
-          const base = removeTabEntry(s, id)
-          // Buffer-backed entity/config/resource tabs also drop their backing
-          // buffer; non-buffer tabs (project-map/table-detail/designer) just
-          // lose their strip entry.
-          return bp ? { ...base, buffers: s.buffers.filter((b) => b.path !== bp) } : base
-        })
       },
-
-      closeAllBuffers: () => set({ buffers: [], tabs: [], activePath: null }),
+      closeTab: (id) => get().closeTabs([id]),
+      closeAllBuffers: () => set({ buffers: [], tabs: [], activePath: null, pinnedTabIds: [], closedTabs: [], revealLocation: null }),
 
       setActive: (path) =>
         set((s) => {
@@ -613,7 +661,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
             // id (the raw path) no longer resolves — remap activePath to the
             // entity id so it doesn't dangle into page view.
             const activePath = activate || s.activePath === filePath ? id : s.activePath
-            return { tabs, activePath }
+            return { tabs, activePath, pinnedTabIds: s.pinnedTabIds.map((p) => p === filePath ? id : p) }
           }
           return { tabs: [...s.tabs, entityTab], activePath: activate ? id : s.activePath }
         }),
@@ -638,6 +686,13 @@ export const useWorkspaceStore = create<WorkspaceState>()(
             return patch
           }
           const tab: ConfigTab = { kind: 'config', path, configKind, view: opts?.view ?? 'form' }
+          const fileIdx = s.tabs.findIndex((t) => t.kind === 'file' && t.path === path)
+          if (fileIdx !== -1) {
+            const tabs = s.tabs.slice()
+            tabs[fileIdx] = tab
+            return { tabs, activePath: activate || s.activePath === path ? id : s.activePath,
+              pinnedTabIds: s.pinnedTabIds.map((p) => p === path ? id : p) }
+          }
           return { tabs: [...s.tabs, tab], activePath: activate ? id : s.activePath }
         }),
 
@@ -710,7 +765,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
           if (s.tabs.some((t, i) => i !== idx && workspaceTabId(t) === newId)) return {}
           const tabs = s.tabs.slice()
           tabs[idx] = updated
-          return { tabs, activePath: s.activePath === id ? newId : s.activePath }
+          return { tabs, activePath: s.activePath === id ? newId : s.activePath, pinnedTabIds: s.pinnedTabIds.map((p) => p === id ? newId : p) }
         }),
 
       openDesignerTab: (pipeline, flowgroup, filePath) =>
@@ -794,11 +849,12 @@ export const useWorkspaceStore = create<WorkspaceState>()(
 
       setEtagAndBaseline: (path, etag, content) =>
         set((s) => {
+          const current = s.buffers.find((b) => b.path === path)
+          if (!current) return {}
           const next = patchBuffer(s.buffers, path, {
             etag,
-            content,
             originalContent: content,
-            isDirty: false,
+            isDirty: current.content !== content,
             isSaving: false,
             exists: true,
             isNew: false,
@@ -884,6 +940,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
             tabs: [],
             activePath: null,
             restoredDirtyCount: 0,
+            pinnedTabIds: [], closedTabs: [], revealLocation: null,
           }
         }),
     }),
@@ -959,6 +1016,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
           return { ...base, content: '', originalContent: '', loading: true }
         }),
         tabs: s.tabs,
+        pinnedTabIds: s.pinnedTabIds,
         activePath: s.activePath,
         projectRoot: s.projectRoot,
       }),
