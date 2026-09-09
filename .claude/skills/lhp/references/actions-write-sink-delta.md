@@ -28,3 +28,4 @@
 
 - In `options`, `tableName` and `path` are mutually exclusive — use one.
 - `mergeSchema: "true"` and other Delta writer options pass through `options`.
+- **Dependency graph:** a `sink_type: delta` write with `options.tableName` registers that table as a producer, so a downstream action reading it forms an internal dependency edge. A delta sink writing to a `path` (not `tableName`) registers **no** producer — it is a terminal/external write, like `kafka` and `custom`/ForEachBatch sinks. To force an edge from an unregistered sink (path-based, kafka, custom), declare it with the `depends_on` field on the downstream action.

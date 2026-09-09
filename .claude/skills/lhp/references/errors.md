@@ -16,7 +16,7 @@ Terminal output includes: error code, description, context, fix suggestions, and
 | Validation | `VAL` | Missing required fields, invalid values, structural problems in actions |
 | I/O | `IO` | Files not found, read/write failures, format issues |
 | Action | `ACT` | Unknown action types, subtypes, or preset names |
-| Dependency | `DEP` | Circular dependencies between views or preset inheritance |
+| Dependency | `DEP` | Circular dependencies (error) plus advisory extraction warnings from `lhp dag` |
 | Deprecation | `DEPR` | Soft-deprecation warnings for fields/syntax slated for removal; surfaced as warnings, not failures |
 | General | `GEN` | Worker exceptions, unexpected errors, internal-error guards (mostly post-0.8.7 parallel-generation failures) |
 
@@ -44,6 +44,16 @@ Terminal output includes: error code, description, context, fix suggestions, and
 | **CFG-033** | `ruff format` terminal pass exited non-zero — generated code written but not formatted; error carries ruff's exit code + stderr/stdout | Inspect ruff's output for the offending file; confirm ruff is installed and the generated tree is valid Python; re-run with `--no-format` to skip formatting and inspect the raw code |
 | **CFG-034** | `ruff` executable not found for the generated-code formatting pass (not in the active env's scripts dir or on `PATH`) | ruff ships as an LHP runtime dependency — `pip install ruff`, or reinstall LHP (`pip install lakehouse-plumber`); in isolated/custom envs ensure ruff is on `PATH` |
 | **CFG-054** | Invalid/malformed blueprint instance definition — `use_blueprint:`/`blueprint:` reference is not a single non-empty string (list, mapping, empty, or null), or the instance doc otherwise fails to parse | Set `use_blueprint: <blueprint_name>` to one non-empty string naming an existing blueprint; do not use a list/mapping/empty value (one of the instance-shape errors `CFG-047`–`058`) |
+| **CFG-060** | Malformed top-level `wheel` block in `lhp.yaml` — not a mapping, or `artifact_volume` is not a string (the `/Volumes/...` shape is checked later, see `CFG-061`) | Define `wheel:` as a mapping with an optional `artifact_volume:` set to a single string path |
+| **CFG-061** | A pipeline uses `packaging: wheel` but `wheel.artifact_volume` is missing/empty or resolves (post-substitution) to a non-`/Volumes/` path — serverless installs custom wheels only from a UC volume | Set `wheel.artifact_volume` to a `/Volumes/...` path for the env; verify `${tokens}` resolve; or set the pipeline back to `packaging: source` |
+| **CFG-062** | Invalid `sandbox:` block in `lhp.yaml` — not a mapping, unknown `strategy` (v1 supports `table` only), or `allowed_envs: []` (empty list would forbid sandbox in every environment) | Define `sandbox:` as a mapping; use `strategy: table`; omit `allowed_envs` for unrestricted, or list at least one env. See [sandbox.md](sandbox.md) |
+| **CFG-063** | Invalid sandbox `table_pattern` — missing `{namespace}` or `{table}` placeholder (both required), unrecognized placeholder, conversion (`!r`) / format spec (`:>10`), or literal text outside `[A-Za-z0-9_]` | Use only the `{namespace}` and `{table}` placeholders with letters/digits/underscores between them, e.g. `{namespace}__{table}` |
+| **CFG-064** | Invalid sandbox profile `.lhp/profile.yaml` — unreadable/bad YAML, non-mapping root, missing top-level `sandbox:` key, or failed validation (`namespace` regex, empty `pipelines`) | `namespace` must match `^[a-z][a-z0-9_]{0,63}$`; `pipelines` must be a non-empty list of names or globs; nest both under a top-level `sandbox:` key |
+| **CFG-065** | `--sandbox` run against an environment not listed in `lhp.yaml` `sandbox.allowed_envs` | Run against an allowed env, or have the team add the env to `allowed_envs` (absent `allowed_envs` = unrestricted) |
+| **CFG-066** | A declared UC tag key or value is illegal under Unity Catalog's charset/length rules — raised at generation time when a tag key contains a prohibited character (`, - = :`), a key or value has leading/trailing whitespace, or exceeds 256 characters | UC tag keys may not contain any of `, - = :`; keep keys and values ≤256 chars with no leading/trailing whitespace |
+| **CFG-067** | Invalid unified schema/tags file — non-mapping, unknown top-level key (the retired `column_tags` key now errors as unknown), a `columns` that is not a list, or a `columns` entry that is not a mapping or has an unknown key. Read as a `tags_file` it also rejects a wrong-typed `table`/`name`/`tags`, a missing/empty/duplicate column `name`, or a non-mapping per-column `tags`. Legacy `version`/`description`/`primary_key` top-level keys are tolerated and ignored | Use the unified format (optional identifier `table` or its alias `name`; a table-level `tags` mapping and/or a `columns` list; per-column `name`/`type`/`nullable`/`comment`/`tags`); as a `tags_file` set `table:` to the write target's table name |
+| **CFG-068** | *Warning, logged (not a structured event)* — a UC `tags_file` identifier is inconsistent: it does not match the write target's table (generation proceeds using the write target's table; check skipped under `--sandbox`), or the file declares both `table` and `name` with differing values (`table` wins) | Set the sidecar's `table:`/`name:` to the write target's table name, or accept the mismatch |
+| **CFG-069** | *Warning, logged (not a structured event)* — a write target's `table_schema` file carries UC tags (top-level `tags:` or a per-column `tags:`) but is not also wired as that action's `tags_file`, so those tags are dropped. Emitted at generate time by the streaming-table and materialized-view writes only (never the cloudfiles load path) | Point `tags_file` at the same file to apply the tags, or drop the `tags:` keys from the schema file |
 
 ## Validation Errors (LHP-VAL)
 
@@ -57,6 +67,13 @@ Terminal output includes: error code, description, context, fix suggestions, and
 | **VAL-010** | Both `__eventlog_monitoring` alias and real pipeline name in config | Use only one — alias or real name |
 | **VAL-011** | Multiple validation causes; commonly: eventlog alias misuse OR schema column-type syntax. See source for the specific site. | Check the error context for the specific cause |
 | **VAL-012** | Invalid source format (string where dict needed) | Provide full source config with `type`, `path`, etc. |
+| **VAL-016** | Invalid schema definition — a schema file missing `columns`, a column missing `name` or `type`, or a temp-table transform with no source view | Fix the schema per the message |
+| **VAL-062** | A pipeline's `packaging` value is not `source` or `wheel` (case-sensitive; e.g. `wheels`, `whl`, `Wheel`) | Use exactly `source` or `wheel` |
+| **VAL-063** | Malformed `depends_on` entry on an action — not a non-empty string, more than three dot-separated parts, or a blank dotted part | Each entry must be a well-formed table ref: `catalog.schema.table`, `schema.table`, or `table` (no blank parts) |
+| **VAL-064** | A sandbox profile `pipelines` entry matched zero pipelines (all offending entries aggregated into one error), or an exact entry names the monitoring pipeline (cannot be sandboxed) | Fix the entry against the available pipeline names listed in the error; remove the monitoring pipeline entry (globs silently skip it) |
+| **VAL-065** | *Warning, category `sandbox`* — a sandbox-renamed sink table is also produced by an out-of-scope pipeline (mixed producer); the rename still proceeds | Bring the other producing pipeline into the profile scope, or accept the split; `--strict` promotes this warning to a failure |
+| **VAL-066** | *Warning, category `sandbox`* — an in-scope Python table read whose argument statically resolves to an in-scope table but is not a plain string literal (bound variable, f-string, concatenation, `.format`, or constant-key container subscript) could not be rewritten; the source is left untouched. Generate-only in v1 — `lhp validate --sandbox` does not emit it | Make the table argument a plain string literal in the copied module, or accept that it reads the shared table; `--strict` promotes this warning to a failure |
+| **VAL-067** | *Warning, category `sandbox`* — opaque dynamic SQL: a `spark.sql(...)` body whose table refs are runtime-determined (a variable/call result, or an f-string with ≥2 interpolated name parts) can be neither verified nor rewritten. Generate-only in v1. NOTE: an opaque *table read* (`spark.read.table(runtime_name)`) is instead wrapped in a generated `__lhp_sandbox_table(...)` shim — no warning | Reference in-scope tables with a literal/statically-resolvable name in the SQL body, or accept that the statement reads the shared tables; `--strict` promotes this warning to a failure |
 | **VAL-902** | All-or-nothing aggregator — one or more flowgroups failed anywhere in a parallel `lhp generate` run (per-flowgroup validation, codegen, generated-source parse failure `LHP-CFG-031`, cross-flowgroup conflict, or copy conflict `LHP-VAL-019`); raised by the coordinator gate after all worker results are joined, before any files are written | Re-run with `--verbose` for full stack; re-run with `--log-file` to capture a debug log at `<project>/.lhp/logs/lhp.log` and attach it to the bug report; every listed failure must be fixed — the run wrote zero files |
 
 ## I/O Errors (LHP-IO)
@@ -65,6 +82,12 @@ Terminal output includes: error code, description, context, fix suggestions, and
 |------|---------|-----|
 | **IO-001** | Referenced file not found | Check path spelling; paths are relative to YAML file location |
 | **IO-003** | Wrong document count (empty file or unexpected `---`) | Schema/expectations files must have exactly 1 document; `---` separators only for flowgroup files |
+| **IO-022** | `lhp inspect-wheel` given a wheel *path* that does not exist (path-mode only; a pipeline-name selector reports a missing build as `GEN-001`) | Check the `.whl` path; run `lhp generate` to build it first; or inspect by pipeline name with `-e <env>` |
+| **IO-023** | `lhp inspect-wheel` path is not a usable `.whl` file — a directory, or a file without the `.whl` suffix | Name the built `.whl` under `generated/<env>/_wheels/<pipeline>/dist/`, not a directory or other file; or inspect by pipeline name |
+| **IO-024** | `lhp inspect-wheel` target ends in `.whl` but is not a valid zip archive (truncated/corrupt) | Rebuild with `lhp generate`; LHP wheels are deterministic, so a clean rebuild reproduces it |
+| **IO-025** | `--sandbox` run but the personal profile `.lhp/profile.yaml` does not exist at the project root | Create gitignored `.lhp/profile.yaml` with a top-level `sandbox:` key declaring `namespace` and `pipelines` (globs allowed); see [sandbox.md](sandbox.md) |
+| **IO-026** | `lhp web` run without the optional webapp dependencies (`fastapi` + `uvicorn`) installed | Install the webapp extra: `pip install "lakehouse-plumber[webapp]"`, then re-run `lhp web` |
+| **IO-027** | `lhp web` port preflight found another process already listening on `127.0.0.1:<port>` (default `8000`) | Pick another port: `lhp web --port <port>`; or stop the process currently listening on it |
 
 ## Action Errors (LHP-ACT)
 
@@ -77,6 +100,12 @@ Terminal output includes: error code, description, context, fix suggestions, and
 | Code | Trigger | Fix |
 |------|---------|-----|
 | **DEP-001** | Circular dependency (A → B → C → A) | Break the cycle; error shows full path. Use `lhp dag --format dot` to visualize |
+| **DEP-002** | *Advisory warning, never fails a run* — recognized Python table-read (e.g. `spark.read.table(...)`, `spark.sql(...)`) whose table argument is not statically resolvable *even after* inter-procedural resolution (params/returns/`or`+`and`/collection builtins/loops); i.e. genuinely dynamic — `os.environ`/runtime I/O, a param fed a dynamic value at a call site, a class attribute. Message names the unresolved expr: ``... — the value of `os.environ['TBL']` is only known at runtime.`` | Declare the upstream with `depends_on` on the action (additive) |
+| **DEP-003** | *Advisory warning, never fails a run* — a SQL body could not be parsed for table extraction (one warning per unparseable body; it contributes zero edges) | Fix the SQL (Databricks dialect), or declare upstreams with `depends_on` |
+
+A **non-empty `depends_on` suppresses that action's DEP-002/003** advisories (per action, not per read) in addition to unioning its edges; entries validated by `VAL-063`.
+
+DEP-002/003 surface on `lhp dag` (default-on), **aggregated per read site** (grouped by `(code, file, line, message)` — one record per unresolved read, listing every affected action): stderr grouped `Extraction warnings` table (`Code` | `Unresolved read` file:line | `Reason` | `Affected` [count + first 3 `fg.action`, `+N more`] | `Add depends_on in` [distinct YAML paths]), cap 50 sites, header `N unresolved read site(s) affecting M action(s):`, one `depends_on` hint; JSON output (top-level `warnings` array always present; entries add `edit_yaml_path`/`affected_actions`/`affected_count`; `metadata.total_warnings`=distinct sites, `metadata.total_warning_occurrences`=site×action pairs); text report (one block per site: `Affected (N): ...` cap 5, `Add depends_on in: ...`) — NOT in DOT output or job YAML. Public API: `lhp.api.DependencyWarningView` (+`edit_yaml_path`/`affected_actions`/`affected_count`) and new `AffectedActionView` (both provisional) on `DependencyAnalysisResult.warnings`.
 
 ## Deprecation Warnings (LHP-DEPR)
 
@@ -316,7 +345,7 @@ Read the error code prefix:
 - `LHP-VAL-*` — fix missing/invalid fields in actions
 - `LHP-IO-*` — fix file path (paths are relative to FlowGroup YAML)
 - `LHP-ACT-*` — fix typo in action type/sub_type/preset name
-- `LHP-DEP-*` — break the dependency cycle shown in the message
+- `LHP-DEP-*` — break the dependency cycle shown in the message (`DEP-002`/`DEP-003` are `lhp dag` advisories, never generate failures)
 - `LHP-GEN-*` — worker / unexpected exception (re-run with `--verbose`; re-run with `--log-file` to capture `<project>/.lhp/logs/lhp.log`)
 
 Apply the numbered fix suggestions in the terminal output, then re-run.
