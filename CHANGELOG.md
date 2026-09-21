@@ -129,6 +129,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Web IDE writes block-style YAML when filling an empty collection.** Adding the
+  first action to a flowgroup created from the Create dialog, the first parameter
+  to a template draft, or the first item to any hand-written `[]` / `{}` field no
+  longer serializes that subtree as a single-line flow collection. Non-empty
+  inline collections keep their style.
 - **Web IDE saves preserve in-flight edits and existing files.** Save responses no
   longer overwrite newer edits, and New/Duplicate use create-only writes. Form,
   Graph, and Code share file buffers and save controls; saving captures pending
