@@ -217,6 +217,7 @@ def _project_config_to_view(
     return ProjectConfigView(
         name=project_config.name,
         version=project_config.version,
+        project_id=project_config.project_id,
         description=project_config.description,
         author=project_config.author,
         created_date=project_config.created_date,
@@ -228,6 +229,10 @@ def _project_config_to_view(
         has_event_log=project_config.event_log is not None,
         has_monitoring=project_config.monitoring is not None,
         has_test_reporting=project_config.test_reporting is not None,
+        has_uc_tagging=project_config.uc_tagging is not None,
+        has_wheel=project_config.wheel is not None,
+        has_sandbox=project_config.sandbox is not None,
+        apply_formatting=project_config.apply_formatting,
     )
 
 

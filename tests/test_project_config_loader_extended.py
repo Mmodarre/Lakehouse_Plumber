@@ -65,6 +65,19 @@ class TestLoadProjectConfig:
         assert result is not None
         assert result.name == "my_project"
         assert result.version == "1.0"
+        # Projects scaffolded before project_id existed simply have none.
+        assert result.project_id is None
+
+    def test_project_id_is_parsed_verbatim(self, tmp_path):
+        """``project_id`` is carried through untouched — it is an opaque token."""
+        config_file = tmp_path / "lhp.yaml"
+        config_file.write_text(
+            "name: my_project\nproject_id: 9f8c1d2e-3a4b-4c5d-8e6f-0a1b2c3d4e5f\n"
+        )
+        loader = ProjectConfigLoader(tmp_path)
+        result = loader.load_project_config()
+        assert result is not None
+        assert result.project_id == "9f8c1d2e-3a4b-4c5d-8e6f-0a1b2c3d4e5f"
 
     def test_general_exception_raises_cfg_002(self, tmp_path):
         """General non-ValueError exception raises LHPError with code CFG-002."""

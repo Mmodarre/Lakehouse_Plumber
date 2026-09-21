@@ -33,18 +33,31 @@ def test_template_renderer_from_package_resolves_bundle_template() -> None:
     assert template is not None
 
 
-def test_init_template_loader_renders_lhp_yaml() -> None:
-    """InitTemplateLoader renders the lhp.yaml.j2 template with a context."""
-    loader = InitTemplateLoader()
-    context = InitTemplateContext(
+def _lhp_yaml_context() -> InitTemplateContext:
+    return InitTemplateContext(
         project_name="demo_project",
         current_date=date(2026, 4, 22).isoformat(),
         author="Test User",
         bundle_enabled=False,
         bundle_uuid="",
+        project_id="9f8c1d2e-3a4b-4c5d-8e6f-0a1b2c3d4e5f",
     )
-    rendered = loader.render_template("lhp.yaml.j2", context)
+
+
+def test_init_template_loader_renders_lhp_yaml() -> None:
+    """InitTemplateLoader renders the lhp.yaml.j2 template with a context."""
+    loader = InitTemplateLoader()
+    rendered = loader.render_template("lhp.yaml.j2", _lhp_yaml_context())
     assert "demo_project" in rendered
+    assert "project_id: 9f8c1d2e-3a4b-4c5d-8e6f-0a1b2c3d4e5f" in rendered
+
+
+def test_init_sample_template_loader_renders_lhp_yaml() -> None:
+    """The sample tree carries the same project identity as the plain tree."""
+    loader = InitTemplateLoader("templates/init_sample")
+    rendered = loader.render_template("lhp.yaml.j2", _lhp_yaml_context())
+    assert "demo_project" in rendered
+    assert "project_id: 9f8c1d2e-3a4b-4c5d-8e6f-0a1b2c3d4e5f" in rendered
 
 
 def test_base_generator_subclass_can_render() -> None:

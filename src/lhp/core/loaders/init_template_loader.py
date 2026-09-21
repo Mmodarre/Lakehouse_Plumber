@@ -40,6 +40,7 @@ class InitTemplateLoader:
                 "author": context.author,
                 "bundle_enabled": context.bundle_enabled,
                 "bundle_uuid": context.bundle_uuid,
+                "project_id": context.project_id,
             }
 
             return template.render(**context_dict)

@@ -21,6 +21,7 @@ class ProjectConfig(BaseModel):
     """Project-level configuration loaded from lhp.yaml."""
 
     name: str
+    project_id: Optional[str] = None
     version: str = "1.0"
     description: Optional[str] = None
     author: Optional[str] = None

@@ -412,7 +412,16 @@ _INSTANCES = [
         id="GeneratedCodeView",
     ),
     pytest.param(
-        ProjectConfigView(name="proj", version="1.0.0", include=("pipelines/**",)),
+        ProjectConfigView(
+            name="proj",
+            version="1.0.0",
+            project_id="9f8c1d2e-3a4b-4c5d-8e6f-0a1b2c3d4e5f",
+            include=("pipelines/**",),
+            has_uc_tagging=True,
+            has_wheel=True,
+            has_sandbox=True,
+            apply_formatting=False,
+        ),
         id="ProjectConfigView",
     ),
     pytest.param(

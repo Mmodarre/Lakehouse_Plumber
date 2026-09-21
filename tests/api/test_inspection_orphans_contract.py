@@ -66,6 +66,7 @@ def populated_project_config_view() -> ProjectConfigView:
     return ProjectConfigView(
         name="acme_edw",
         version="1.0",
+        project_id="9f8c1d2e-3a4b-4c5d-8e6f-0a1b2c3d4e5f",
         description="A test project",
         author="Test Author",
         created_date="2025-01-01",
@@ -77,6 +78,10 @@ def populated_project_config_view() -> ProjectConfigView:
         has_event_log=False,
         has_monitoring=True,
         has_test_reporting=False,
+        has_uc_tagging=True,
+        has_wheel=False,
+        has_sandbox=True,
+        apply_formatting=False,
     )
 
 
@@ -153,6 +158,7 @@ def _project_config_to_json_safe_dict(view: ProjectConfigView) -> dict[str, obje
     return {
         "name": view.name,
         "version": view.version,
+        "project_id": view.project_id,
         "description": view.description,
         "author": view.author,
         "created_date": view.created_date,
@@ -164,6 +170,10 @@ def _project_config_to_json_safe_dict(view: ProjectConfigView) -> dict[str, obje
         "has_event_log": view.has_event_log,
         "has_monitoring": view.has_monitoring,
         "has_test_reporting": view.has_test_reporting,
+        "has_uc_tagging": view.has_uc_tagging,
+        "has_wheel": view.has_wheel,
+        "has_sandbox": view.has_sandbox,
+        "apply_formatting": view.apply_formatting,
     }
 
 
@@ -173,6 +183,7 @@ def _project_config_from_json_safe_dict(
     return ProjectConfigView(
         name=payload["name"],  # type: ignore[arg-type]
         version=payload["version"],  # type: ignore[arg-type]
+        project_id=payload["project_id"],  # type: ignore[arg-type]
         description=payload["description"],  # type: ignore[arg-type]
         author=payload["author"],  # type: ignore[arg-type]
         created_date=payload["created_date"],  # type: ignore[arg-type]
@@ -184,6 +195,10 @@ def _project_config_from_json_safe_dict(
         has_event_log=payload["has_event_log"],  # type: ignore[arg-type]
         has_monitoring=payload["has_monitoring"],  # type: ignore[arg-type]
         has_test_reporting=payload["has_test_reporting"],  # type: ignore[arg-type]
+        has_uc_tagging=payload["has_uc_tagging"],  # type: ignore[arg-type]
+        has_wheel=payload["has_wheel"],  # type: ignore[arg-type]
+        has_sandbox=payload["has_sandbox"],  # type: ignore[arg-type]
+        apply_formatting=payload["apply_formatting"],  # type: ignore[arg-type]
     )
 
 
