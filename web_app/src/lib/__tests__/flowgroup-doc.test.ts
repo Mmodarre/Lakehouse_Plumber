@@ -1001,6 +1001,17 @@ describe('structural mutators (document rewrite path)', () => {
       'pipeline: p\nflowgroup: f\nactions:\n  - name: a\n    type: load\n    target: v_a\n    operational_metadata:\n      - _source_file_path\n',
     )
   })
+
+  it('setActionField writes a multi-line body as a literal block scalar', () => {
+    const { handle, doc } = mustSelect(
+      'pipeline: p\nflowgroup: f\nactions:\n  - name: a\n    type: transform\n    sql: SELECT 1\n',
+      'f',
+    )
+    setActionField(doc, 'a', ['sql'], 'SELECT 1\nFROM t')
+    expect(serializeFlowgroupFile(handle)).toBe(
+      'pipeline: p\nflowgroup: f\nactions:\n  - name: a\n    type: transform\n    sql: |-\n      SELECT 1\n      FROM t\n',
+    )
+  })
 })
 
 // ---------------------------------------------------------------------------
