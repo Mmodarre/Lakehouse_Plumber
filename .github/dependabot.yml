@@ -47,3 +47,25 @@ updates:
     groups:
       github-actions:
         patterns: ["*"]
+
+  # Web IDE frontend (`lhp web`). Until this entry existed, /web_app received
+  # Dependabot *security* updates only — routine version bumps never happened,
+  # so those dependencies moved solely when an advisory fired.
+  - package-ecosystem: "npm"
+    directory: "/web_app"
+    target-branch: "release/V0.9.2"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    groups:
+      npm-dev-dependencies:
+        dependency-type: "development"
+        update-types: ["minor", "patch"]
+      npm-production-minor-patch:
+        dependency-type: "production"
+        update-types: ["minor", "patch"]
+    open-pull-requests-limit: 10
+    ignore:
+      # Major version bumps require manual review
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
