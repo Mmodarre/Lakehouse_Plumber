@@ -71,19 +71,27 @@ export function AppShell() {
     if (projectRoot) ensureProjectScope(projectRoot)
   }, [projectRoot, ensureProjectScope])
 
+  // A telemetry chunk that fails to load (offline, a redeployed bundle) is
+  // swallowed: the workspace never depends on it.
   const telemetryEnabled = health?.telemetry_enabled === true
   useEffect(() => {
     if (!telemetryEnabled) return
     let cancelled = false
-    void loadTelemetry().then(([client, bindings]) => {
-      if (cancelled) return
-      client.setTelemetryEnabled(true)
-      client.installTelemetry()
-      bindings.installTelemetryBindings()
-    })
+    let unbind: (() => void) | undefined
+    void loadTelemetry()
+      .then(([client, bindings]) => {
+        if (cancelled) return
+        client.setTelemetryEnabled(true)
+        client.installTelemetry()
+        unbind = bindings.installTelemetryBindings()
+      })
+      .catch(() => {})
     return () => {
       cancelled = true
-      void loadTelemetry().then(([client]) => client.setTelemetryEnabled(false))
+      unbind?.()
+      void loadTelemetry()
+        .then(([client]) => client.setTelemetryEnabled(false))
+        .catch(() => {})
     }
   }, [telemetryEnabled])
 

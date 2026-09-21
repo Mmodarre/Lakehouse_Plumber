@@ -16,13 +16,17 @@ const mocks = vi.hoisted(() => ({
   useHealth: vi.fn(),
 }))
 
-vi.mock('../../../lib/telemetry', () => {
+// Named so a test can swap in a failing factory and put this one back: the
+// mock registry keeps a factory's module across vi.resetModules().
+const telemetryClientModule = vi.hoisted(() => () => {
   mocks.clientLoads += 1
   return {
     setTelemetryEnabled: mocks.setTelemetryEnabled,
     installTelemetry: mocks.installTelemetry,
   }
 })
+
+vi.mock('../../../lib/telemetry', telemetryClientModule)
 vi.mock('../../../lib/telemetry-bindings', () => {
   mocks.bindingsLoads += 1
   return { installTelemetryBindings: mocks.installTelemetryBindings }
@@ -130,5 +134,45 @@ describe('AppShell telemetry wiring', () => {
 
     unmount()
     await waitFor(() => expect(mocks.setTelemetryEnabled).toHaveBeenLastCalledWith(false))
+  })
+
+  it('unsubscribes the store bindings when the effect is cleaned up', async () => {
+    const unsubscribe = vi.fn()
+    mocks.installTelemetryBindings.mockReturnValue(unsubscribe)
+    mocks.useHealth.mockReturnValue(health(true))
+    const { rerender, unmount, AppShell } = await renderShell()
+    await waitFor(() => expect(mocks.installTelemetryBindings).toHaveBeenCalledTimes(1))
+    expect(unsubscribe).not.toHaveBeenCalled()
+
+    mocks.useHealth.mockReturnValue(health(false))
+    rerender(<AppShell />)
+    expect(unsubscribe).toHaveBeenCalledTimes(1)
+
+    unmount()
+    expect(unsubscribe).toHaveBeenCalledTimes(1)
+  })
+
+  it('swallows a telemetry chunk that fails to load', async () => {
+    let failedLoads = 0
+    vi.doMock('../../../lib/telemetry', () => {
+      failedLoads += 1
+      throw new Error('telemetry chunk failed to load')
+    })
+    const unhandled = vi.fn()
+    process.on('unhandledRejection', unhandled)
+    try {
+      mocks.useHealth.mockReturnValue(health(true))
+      const { unmount } = await renderShell()
+      await waitFor(() => expect(failedLoads).toBe(1))
+      unmount()
+      await waitFor(() => expect(failedLoads).toBe(2))
+      await settle()
+      await settle()
+      expect(mocks.setTelemetryEnabled).not.toHaveBeenCalled()
+      expect(unhandled).not.toHaveBeenCalled()
+    } finally {
+      process.off('unhandledRejection', unhandled)
+      vi.doMock('../../../lib/telemetry', telemetryClientModule)
+    }
   })
 })
