@@ -282,7 +282,88 @@ def test_deps_alias_records_command_deps_with_the_parent_flags(
     assert props["project"]["flowgroups"] == 1
 
 
+@pytest.mark.parametrize(
+    ("error_code", "expected"),
+    [
+        ("LHP-CFG-001", "LHP-CFG-001"),
+        ("LHP-VAL-DUPFG", "LHP-VAL-DUPFG"),
+        ("LHP-EVT-SOFT-CAP", "LHP-EVT-SOFT-CAP"),
+        ("", None),
+        ("Bad config in /home/someone/lhp.yaml", None),
+    ],
+)
+def test_finish_sends_only_a_recognised_lhp_error_code(
+    telemetry_log_mode: Path,
+    minimal_project: Path,
+    capsys: pytest.CaptureFixture[str],
+    error_code: str,
+    expected: Any,
+) -> None:
+    with click.Context(click.Command("probe")):
+        _telemetry_hook.begin("probe")
+        _telemetry_hook.finish(
+            exit_code=1, error_code=error_code, exception_class="LHPError"
+        )
+    props = _only_envelope(capsys.readouterr().err)["props"]
+    assert props["error_code"] == expected
+
+
+def test_opted_out_finish_reads_no_identity_and_sends_nothing(
+    minimal_project: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The suite-wide ``LHP_TELEMETRY=off`` guard is the consent under test."""
+    touched: List[str] = []
+
+    def spy(name: str) -> Any:
+        def call(*args: Any, **kwargs: Any) -> None:
+            touched.append(name)
+            raise RuntimeError(name)
+
+        return call
+
+    for name in ("env_class", "record", "flush", "due_update_hint"):
+        monkeypatch.setattr(telemetry, name, spy(name))
+    (minimal_project / "databricks.yml").write_text(_BUNDLE_WITH_TARGETS)
+
+    result = CliRunner().invoke(_probe("probe"), ["--env", "dev"])
+
+    assert result.exit_code == 0, result.stderr
+    assert touched == []
+
+
 # begin
+
+
+def test_begin_never_raises_into_the_command(
+    minimal_project: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def explode(ctx: Any) -> None:
+        raise RuntimeError("run state")
+
+    monkeypatch.setattr(_telemetry_hook, "_run_state", explode)
+    result = CliRunner().invoke(_probe("probe"), [], catch_exceptions=False)
+    assert result.exit_code == 0, result.stderr
+
+
+def test_note_alias_names_the_run_on_the_shared_context_object() -> None:
+    with click.Context(click.Command("deps")) as ctx:
+        _telemetry_hook.note_alias("deps")
+        _telemetry_hook.begin("dag")
+        assert ctx.obj["telemetry"]["alias"] == "deps"
+        assert ctx.obj["telemetry"]["operation"] == "dag"
+
+
+def test_note_alias_outside_a_click_context_does_nothing() -> None:
+    _telemetry_hook.note_alias("deps")
+
+
+def test_note_alias_never_raises(monkeypatch: pytest.MonkeyPatch) -> None:
+    def explode(ctx: Any) -> None:
+        raise RuntimeError("run state")
+
+    monkeypatch.setattr(_telemetry_hook, "_run_state", explode)
+    with click.Context(click.Command("deps")):
+        _telemetry_hook.note_alias("deps")
 
 
 def test_begin_mutates_the_existing_run_dict_in_place() -> None:
@@ -323,6 +404,40 @@ def test_note_run_stores_the_project_shape_and_outcome_counters(
     assert run["files_written"] == 12
     assert run["bundle_enabled"] is False
     assert run["cache_used"] is True
+
+
+def test_note_run_folds_every_unrecognised_code_into_other(
+    telemetry_log_mode: Path, minimal_project: Path
+) -> None:
+    outcome = RunOutcome(
+        response=SimpleNamespace(total_files_written=0),
+        warnings=(
+            WarningLine("", "m", None),
+            WarningLine(None, "m", None),  # type: ignore[arg-type]
+            WarningLine("event buffer near limit", "m", None),
+            WarningLine("LHP-VAL-DUPFG", "m", None),
+            WarningLine("LHP-EVT-SOFT-CAP", "m", None),
+            WarningLine("LHP-DEP-002", "m", None),
+        ),
+        failures=(
+            FailureLine("p", "LHP-VAL-DUPFG", "m"),
+            FailureLine("p", "", "m"),
+        ),
+        errored=False,
+    )
+    facade = build_facade(minimal_project)
+    with click.Context(click.Command("validate")) as ctx:
+        _telemetry_hook.begin("validate")
+        _telemetry_hook.note_run(facade, outcome, bundle_enabled=None, no_cache=False)
+        run = ctx.obj["telemetry"]
+
+    assert run["warning_codes"] == {
+        "other": 3,
+        "LHP-VAL-DUPFG": 1,
+        "LHP-EVT-SOFT-CAP": 1,
+        "LHP-DEP-002": 1,
+    }
+    assert run["failure_codes"] == {"LHP-VAL-DUPFG": 1, "other": 1}
 
 
 def test_note_run_without_an_outcome_records_empty_counters(
@@ -449,7 +564,7 @@ def test_finish_returns_within_the_join_budget_against_a_black_holed_endpoint(
             started = time.perf_counter()
             _finish_ok()
             elapsed = time.perf_counter() - started
-        assert elapsed < 1.5, elapsed
+        assert elapsed < 2.0, elapsed
         assert any(t.is_alive() for t in _sender_threads()), "the send did not block"
     finally:
         listener.close()

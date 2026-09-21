@@ -79,7 +79,7 @@ def show(last: int) -> None:
     spooled = client.spooled_events(last, os.environ)
     telemetry_presenter.render_events(
         None if envelope is None else client.to_json_dict(envelope),
-        [event for event in reversed(spooled) if isinstance(event, dict)],
+        list(reversed(spooled)),
     )
 
 

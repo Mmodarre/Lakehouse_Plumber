@@ -214,18 +214,20 @@ def test_show_prints_the_preview_envelope_then_the_spool(
 def test_show_without_consent_still_lists_the_spool(
     runner: CliRunner, neutral_env: None, config_dir: Path
 ) -> None:
-    """Off means no preview to show, but what is already spooled is still listed."""
+    """Off means no preview to show, but what is already spooled is still listed.
+
+    The off-notice is commentary, so stdout stays pure JSON lines for ``jq``.
+    """
     _seed(config_dir, _compact(_event("a")), _compact(_event("b")))
 
     result = runner.invoke(telemetry, ["show"])
 
     assert result.exit_code == 0, result.output
-    assert _lines(result.stdout) == [
-        "Telemetry is off; nothing would be sent.",
-        _compact(_event("b")),
-        _compact(_event("a")),
-    ]
+    assert _lines(result.stdout) == [_compact(_event("b")), _compact(_event("a"))]
+    assert "Telemetry is off; nothing would be sent." in result.stderr
     assert "2 spooled event(s) shown." in result.stderr
+    for line in _lines(result.stdout):
+        json.loads(line)
 
 
 def test_show_lists_the_newest_events_first_up_to_last(
@@ -241,7 +243,7 @@ def test_show_lists_the_newest_events_first_up_to_last(
     result = runner.invoke(telemetry, ["show", "--last", "2"])
 
     assert result.exit_code == 0, result.output
-    assert _lines(result.stdout)[1:] == [
+    assert _lines(result.stdout) == [
         _compact(_event("newest")),
         _compact(_event("middle")),
     ]
@@ -257,7 +259,7 @@ def test_show_skips_a_corrupt_spool_line(
     result = runner.invoke(telemetry, ["show"])
 
     assert result.exit_code == 0, result.output
-    assert _lines(result.stdout)[1:] == [_compact(_event("a"))]
+    assert _lines(result.stdout) == [_compact(_event("a"))]
     assert "1 spooled event(s) shown." in result.stderr
 
 
@@ -267,6 +269,7 @@ def test_show_reports_an_empty_spool(
     result = runner.invoke(telemetry, ["show"])
 
     assert result.exit_code == 0, result.output
+    assert result.stdout == ""
     assert "No spooled events." in result.stderr
 
 

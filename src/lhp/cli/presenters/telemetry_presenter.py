@@ -75,16 +75,15 @@ def render_events(
 ) -> None:
     """Print the preview envelope and ``spooled``, one compact JSON line each.
 
-    The events go to stdout so the listing pipes into a JSON reader unchanged;
-    the count closing it is commentary, so it goes to stderr.
+    Only events go to stdout, so the listing pipes into a JSON reader unchanged;
+    the off-notice and the closing count are commentary, so they go to stderr.
     """
-    click.echo(_OFF_NOTICE if preview is None else _compact(preview))
-    for event in spooled:
+    if preview is None:
+        click.echo(_OFF_NOTICE, err=True)
+    for event in spooled if preview is None else [preview, *spooled]:
         click.echo(_compact(event))
-    shown = len(spooled)
-    click.echo(
-        f"{shown} spooled event(s) shown." if shown else "No spooled events.", err=True
-    )
+    shown = f"{len(spooled)} spooled event(s) shown."
+    click.echo(shown if spooled else "No spooled events.", err=True)
 
 
 def render_on(state_path: str, still_off_because: Optional[str]) -> None:

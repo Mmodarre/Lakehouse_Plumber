@@ -3,6 +3,7 @@
 Free functions only and no module state, on the ``_app_context.py``
 standard: everything a run accumulates lives in ``ctx.obj["telemetry"]``,
 the plain dict every command context shares. ``begin`` opens the run,
+``note_alias`` renames it for a deprecated alias that forwards to a command,
 ``note_run`` lets a command add what only it knows, ``finish`` records and
 flushes, and ``classify_exit`` maps how a command ended to the recorded exit
 facts. The Click context is the only state carrier, so a call made outside
@@ -12,8 +13,10 @@ one has nothing to record and does nothing.
 functions that need them: ``error_boundary`` imports this module for every
 command, and the startup floor (``lhp --version``) must not pay for them.
 
-Nothing here raises into a command: ``note_run`` and ``finish`` turn every
-failure into a DEBUG record, and the exit code is decided before either runs.
+Nothing here raises into a command: every hook turns its failures into a
+DEBUG record, and the exit code is decided before ``finish`` runs. A code
+that is not an LHP error code never reaches the wire: as ``error_code`` it is
+sent as null, and as a counter key it is counted under ``other``.
 """
 
 from __future__ import annotations
@@ -46,6 +49,7 @@ RunState = Dict[str, Any]
 ExitFacts = Tuple[int, Optional[str], Optional[str]]
 
 _KEYBOARD_INTERRUPT_EXIT = 130
+_OTHER_CODE = "other"
 # The bound on exit latency: how long a command waits for an in-flight send.
 _FLUSH_JOIN_S = 1.0
 _PROJECT_MARKER = "lhp.yaml"
@@ -98,7 +102,13 @@ def _flags(ctx: click.Context) -> Tuple[str, ...]:
 
 
 def _code_counts(lines: Iterable[Any]) -> Dict[str, int]:
-    return dict(Counter(line.code for line in lines))
+    """Count ``lines`` by code; the keys become wire keys, so a blank, missing
+    or free-form code is counted under ``other`` instead."""
+    from lhp.telemetry import is_lhp_code
+
+    return dict(
+        Counter(line.code if is_lhp_code(line.code) else _OTHER_CODE for line in lines)
+    )
 
 
 def _show_update_hint() -> None:
@@ -115,11 +125,28 @@ def _show_update_hint() -> None:
 
 def begin(operation: str) -> None:
     """Open the run: remember the boundary's operation and start the clock."""
-    run = _run_state(click.get_current_context(silent=True))
-    if run is not None:
-        run["operation"] = operation
-        run["started"] = perf_counter()
-        run["recorded"] = False
+    try:
+        run = _run_state(click.get_current_context(silent=True))
+        if run is not None:
+            run["operation"] = operation
+            run["started"] = perf_counter()
+            run["recorded"] = False
+    except Exception:  # telemetry must never affect the command
+        logger.debug("Could not open the run for telemetry", exc_info=True)
+
+
+def note_alias(alias: str) -> None:
+    """Record the run under ``alias``, the deprecated name the user typed.
+
+    Call it before ``ctx.forward``: the forwarded command's context shares the
+    same ``obj``, so its ``finish`` finds the alias. Never raises.
+    """
+    try:
+        run = _run_state(click.get_current_context(silent=True))
+        if run is not None:
+            run["alias"] = alias
+    except Exception:  # telemetry must never affect the command
+        logger.debug("Could not note the alias for telemetry", exc_info=True)
 
 
 def note_run(
@@ -167,7 +194,8 @@ def finish(
 
     Idempotent per run — the boundary reaches it on exactly one path, but a
     second call records nothing — and never raises: the exit code is already
-    decided and nothing here may change it. The flush joins the sender for at
+    decided and nothing here may change it. An opted-out run returns after one
+    consent check, reading no identity. The flush joins the sender for at
     most ``_FLUSH_JOIN_S``, which is the whole latency telemetry may add.
     """
     try:
@@ -178,6 +206,8 @@ def finish(
         run["recorded"] = True
         from lhp import telemetry
 
+        if not telemetry.effective_state().enabled:
+            return
         root = _project_root(ctx)
         shape = run.get("project")
         props = telemetry.CliCommandProps(
@@ -190,7 +220,7 @@ def finish(
             ),
             duration_ms=int((perf_counter() - run["started"]) * 1000),
             exit_code=int(exit_code),
-            error_code=error_code,
+            error_code=error_code if telemetry.is_lhp_code(error_code) else None,
             exception_class=exception_class,
             warning_codes=run.get("warning_codes", {}),
             failure_codes=run.get("failure_codes", {}),

@@ -18,7 +18,7 @@ from rich_click import RichCommand
 
 from lhp.cli import console as _console_module
 from lhp.cli._app_context import build_facade, resolve_project_root
-from lhp.cli._telemetry_hook import note_run
+from lhp.cli._telemetry_hook import note_alias, note_run
 from lhp.cli.commands._dag_options import dag_options
 from lhp.cli.error_boundary import cli_error_boundary
 from lhp.cli.presenters import dag_files_presenter, dag_presenter
@@ -92,8 +92,5 @@ def deps(ctx: click.Context, **kwargs: object) -> None:
         DeprecationWarning,
         stacklevel=2,
     )
-    # The forwarded run records its telemetry under the alias's name: the
-    # marker rides on the context object both commands share.
-    ctx.ensure_object(dict)
-    ctx.obj.setdefault("telemetry", {})["alias"] = "deps"
+    note_alias("deps")
     ctx.forward(dag)
