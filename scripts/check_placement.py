@@ -9,7 +9,8 @@ Rules checked, with their finding codes:
   LHP-9.2   §2.2 / §9.2   Domain types in utils/
   LHP-9.7   §5.3 / §9.7   CLI imports from internal domain modules
   LHP-9.7   §1.1 / §5.3   webapp imports from internal domain modules
-                          (lhp.webapp may reach only lhp.api / lhp.errors)
+                          (lhp.webapp may reach only lhp.api / lhp.errors /
+                          lhp.telemetry)
   LHP-9.4   §4.1 / §9.4   `_by_field` / `_by_fields` / `_v<N>` method variants
   LHP-9.13  §1.10 / §9.13 `ActionOrchestrator` name in lhp/api/
   LHP-9.13-docs §1.10 / §9.13 `ActionOrchestrator` / dead

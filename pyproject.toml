@@ -311,7 +311,7 @@ root_packages = ["lhp"]
 [[tool.importlinter.contracts]]
 name = "Public API and internal modules must not import from CLI"
 type = "forbidden"
-source_modules = ["lhp.api", "lhp.core", "lhp.parsers", "lhp.generators", "lhp.bundle", "lhp.utils", "lhp.models", "lhp.webapp"]
+source_modules = ["lhp.api", "lhp.core", "lhp.parsers", "lhp.generators", "lhp.bundle", "lhp.utils", "lhp.models", "lhp.webapp", "lhp.telemetry"]
 forbidden_modules = ["lhp.cli"]
 
 [[tool.importlinter.contracts]]
@@ -368,9 +368,18 @@ layers = [
     "lhp.presets",
     "lhp.parsers",
     "lhp.models",
+    "lhp.telemetry",
     "lhp.errors",
     "lhp.utils",
 ]
+
+# §13.5 — subprocess workers never emit telemetry, so no domain package may
+# reach the client; instrumentation is composed at the edges (CLI, webapp, api).
+[[tool.importlinter.contracts]]
+name = "Only CLI, webapp and api may import telemetry"
+type = "forbidden"
+source_modules = ["lhp.core", "lhp.models", "lhp.parsers", "lhp.presets", "lhp.generators", "lhp.bundle", "lhp.utils", "lhp.errors"]
+forbidden_modules = ["lhp.telemetry"]
 
 [[tool.importlinter.contracts]]
 name = "Models must not depend on higher layers"
