@@ -1,6 +1,0 @@
-PASS test_wheel_contains_every_template_file
-PASS test_wheel_contains_webapp_static_assets
-PASS test_wheel_contains_field_help_and_template_authoring_assets
-PASS test_py_typed_marker_ships_with_package
-Wheel extracted for packaged-resource check: /private/tmp/lhp-guidance-wheel-install
-PASS extracted wheel serves 363 help entries and production SPA assets without repository resources

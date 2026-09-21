@@ -1,6 +1,0 @@
-> web_app@0.0.0 gen:api
-> node scripts/gen-api.mjs
-
-2026-09-09 19:40:23,320 WARNING lhp.webapp.static_app: SPA static assets not found — serving API only. Run scripts/build_webapp.sh to build the frontend.
-2026-09-09 19:40:23,322 INFO lhp.webapp.app: LHP web IDE initialized: project_root=/private/tmp/lhp-frontend-guidance-templates-092/web_app
-gen-api: wrote openapi.json and src/types/api.generated.ts

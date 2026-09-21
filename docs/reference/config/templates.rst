@@ -163,7 +163,7 @@ A flowgroup expands a template through these two fields.
      file_format: csv
 
 Rendering and authoring behavior
--------------------------------
+--------------------------------
 
 The runtime opens ``templates/<use_template>.yaml``. Nested paths work; ``.yml``
 files may be viewed and edited, but are not invocable by the current runtime.
