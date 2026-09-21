@@ -7,17 +7,19 @@ Telemetry
 
 Lakehouse Plumber (LHP) reports anonymous usage telemetry so the project can
 see which commands and features are actually used. It is on by default and
-opt-out. One event is recorded per CLI command, and the web IDE adds one event
-per browser tab and per run. Every field is a bounded enum, a boolean or a
-counter — never a name, a path, file content or an error message.
+opt-out. LHP records one event per CLI command; the web integrated development
+environment (IDE) adds one per browser tab and per run. Every field is a
+bounded enum, a boolean, a counter, a version string or an opaque identifier —
+never a name, a path, file content or an error message.
 
-An event is appended to a local spool file and posted in the background, so
+LHP appends the event to a local spool file and posts it in the background, so
 telemetry never blocks a command, never changes an exit code and never raises.
-When the endpoint is unreachable — a proxy, a firewall, an air-gapped machine
-— the upload fails silently and the events stay on disk.
+When the endpoint is unreachable the upload fails silently and the events stay
+on disk.
 
-Run ``lhp telemetry show`` to print the exact event this machine would send,
-and ``lhp telemetry off`` to turn telemetry off.
+Run ``lhp telemetry show`` to print the shape of the event this machine would
+send — the preview's ``duration_ms`` and ``exit_code`` are zero and ``flags``
+is empty — and ``lhp telemetry off`` to turn telemetry off.
 
 .. versionadded:: 0.9.2
 
@@ -50,10 +52,10 @@ Every event carries the same envelope.
      - UTC timestamp with millisecond precision, ``YYYY-MM-DDTHH:MM:SS.mmmZ``.
    * - ``install_id``
      - string or null
-     - The installation's UUID v4 (see `Identifiers`_). Always null in CI.
+     - The installation's UUID v4 (see :ref:`Identifiers <telemetry-identifiers>`). Always null under continuous integration (CI).
    * - ``project_id``
      - string or null
-     - 32 lowercase hex characters, a salted hash (see `Identifiers`_). Null outside a project.
+     - 32 lowercase hex characters, a salted hash (see :ref:`Identifiers <telemetry-identifiers>`). Null outside a project.
    * - ``project_id_source``
      - string
      - ``lhp_yaml``, ``bundle_uuid``, ``name_hash`` or ``none``.
@@ -71,7 +73,7 @@ Every event carries the same envelope.
      - ``x86_64``, ``arm64`` or ``other``.
    * - ``install_kind``
      - string
-     - ``wheel``, ``editable`` or ``unknown``. See `How install_kind is decided`_.
+     - ``wheel``, ``editable`` or ``unknown``. See :ref:`How install_kind is decided <telemetry-install-kind>`.
    * - ``ci_vendor``
      - string
      - ``github_actions``, ``gitlab_ci``, ``azure_devops``, ``jenkins``, ``circleci``, ``buildkite``, ``teamcity``, ``bitbucket``, ``codebuild``, ``travis``, ``drone``, ``other_ci`` or ``none``. Detected from the vendor's own marker variable; ``other_ci`` means only a generic ``CI`` variable was set.
@@ -88,10 +90,12 @@ Every event carries the same envelope.
      - object
      - The per-event fields below.
 
+.. _telemetry-install-kind:
+
 How install_kind is decided
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-``install_kind`` is read from the distribution's PEP 610 ``direct_url.json``
+LHP reads ``install_kind`` from the distribution's PEP 610 ``direct_url.json``
 metadata, and only its ``dir_info.editable`` field. The record's ``url`` field
 is a local filesystem path and is never read.
 
@@ -102,11 +106,11 @@ is a local filesystem path and is never read.
    * - Value
      - Meaning
    * - ``wheel``
-     - Installed from a built wheel — from an index, or from a local directory or archive that was not installed as editable.
+     - Installed from a built wheel: either no ``direct_url.json`` at all, which is what an install from an index leaves behind, or one whose ``dir_info`` is present and not editable, which is what a local directory leaves behind.
    * - ``editable``
      - An editable (PEP 610 ``dir_info.editable``) install.
    * - ``unknown``
-     - The metadata is missing or unreadable, so nothing trustworthy can be said. A source tree or a zipapp reports this.
+     - The metadata is missing, unreadable, or describes a direct URL with no ``dir_info`` — an archive, a URL or a version-control install. Nothing trustworthy can be said, so nothing is claimed. A source tree or a zipapp reports this too.
 
 ``cli.command``
 ~~~~~~~~~~~~~~~
@@ -125,7 +129,7 @@ One event per command run, including failed runs.
      - The command that ran, with spaces replaced by dots: ``generate``, ``validate``, ``dag``, ``deps``, ``diff``, ``init``, ``inspect-wheel``, ``substitutions``, ``web``, ``list.presets``, ``list.templates``, ``list.blueprints``, ``skill.install``, ``skill.update``, ``skill.status``, ``skill.uninstall``, ``telemetry.status``, ``telemetry.show``, ``telemetry.on``, ``telemetry.off``.
    * - ``flags``
      - list of strings
-     - The sorted NAMES of the parameters you passed on the command line. Values are never read, so ``--env prod`` contributes ``env`` and nothing else.
+     - The sorted *names* of the parameters you passed on the command line. Values are never read, so ``--env prod`` contributes ``env`` and nothing else.
    * - ``env_class``
      - string or null
      - ``development`` or ``production`` when the ``--env`` target names a mode in ``databricks.yml``; ``unspecified`` when a bundle exists but the target or its mode does not; ``none`` when there is no ``databricks.yml``. Null for commands with no ``--env`` option. The environment name itself is never sent.
@@ -158,14 +162,14 @@ One event per command run, including failed runs.
      - Whether the run used the discovery cache.
    * - ``project``
      - object or null
-     - The project shape below. Present for ``generate``, ``validate`` and ``dag`` only, and only when reading it stays inside a 250 ms budget.
+     - The project shape below. Present for ``generate``, ``validate`` and ``dag`` (including its ``deps`` alias) only, and only when reading it stays inside a 250 ms budget.
 
 Project shape
 ~~~~~~~~~~~~~
 
 ``project`` is a fixed allowlist of 51 keys — counters and booleans that
 describe a project's size and which features it configures. A value LHP does
-not recognise folds into its family's ``*_other`` key, so the number of keys
+not recognize folds into its family's ``*_other`` key, so the number of keys
 that reach the wire is a property of LHP, not of your project.
 
 .. list-table::
@@ -196,9 +200,10 @@ that reach the wire is a property of LHP, not of your project.
 ``web.session``
 ~~~~~~~~~~~~~~~
 
-One event per browser tab of ``lhp web``, emitted when the tab's event stream
-disconnects, when the tab goes idle, or when the server shuts down. A session
-shorter than five seconds with no counter moved is dropped rather than sent.
+LHP emits one event per browser tab of ``lhp web``, when the tab's event
+stream disconnects, when the tab goes idle, or when the server shuts down. It
+drops a session shorter than five seconds that moved no counter rather than
+sending it.
 
 .. list-table::
    :header-rows: 1
@@ -221,7 +226,7 @@ shorter than five seconds with no counter moved is dropped rather than sent.
      - Whether the tab ever opened the event stream.
    * - ``requests_by_family``
      - object
-     - API calls counted by route FAMILY, for example ``{"files.write": 12, "runs.validate": 3}``. Concrete URLs and paths are never read.
+     - API calls counted by route *family*, for example ``{"files.write": 12, "runs.validate": 3}``. Concrete URLs and paths are never read.
    * - ``files_created``, ``files_updated``, ``files_deleted``
      - object
      - File mutations counted by kind: ``flowgroup``, ``preset``, ``template``, ``substitution``, ``project_config``, ``pipeline_config``, ``job_config``, ``blueprint``, ``schema``, ``sandbox_profile``, ``sql``, ``python``, ``other``. File names are never collected.
@@ -242,7 +247,7 @@ shorter than five seconds with no counter moved is dropped rather than sent.
      - ``claude_subscription``, ``databricks``, ``omnigent_defaults``, ``api_key_env`` or ``other``.
    * - ``ui``
      - object
-     - Counts keyed ``<surface>.<action>`` (plus ``.<via>`` for a creation), for example ``{"pipeline_dag.opened": 4}``. ``surface`` names a part of the IDE such as ``file_editor`` or ``problems``, and ``action`` is ``opened``, ``toggled`` or ``created``. A value the server does not recognise is dropped.
+     - Counts keyed ``<surface>.<action>`` (plus ``.<via>`` for a creation), for example ``{"pipeline_dag.opened": 4}``. ``surface`` names a part of the IDE such as ``file_editor`` or ``problems``, and ``action`` is ``opened``, ``toggled`` or ``created``. A value the server does not recognize is dropped.
 
 ``web.run``
 ~~~~~~~~~~~
@@ -299,42 +304,55 @@ One event per validate or generate run started from the web IDE.
 Install events
 ~~~~~~~~~~~~~~
 
-``install.first_seen`` carries no fields and is recorded once, when the state
-file is created. ``install.upgraded`` carries ``previous_version`` and is
-recorded on the first run after the installed version changes. Neither is ever
-recorded in CI, because CI runs write no state file.
+LHP records ``install.first_seen`` once, when it creates the state file; the
+event carries no fields. It records ``install.upgraded``, which carries
+``previous_version``, on the first run after the installed version changes. It
+records neither in CI, because a CI run writes no state file.
 
 Never collected
 ---------------
 
-LHP never collects any name (project, pipeline, flowgroup, action, table,
-catalog, schema, environment), paths, YAML, SQL or Python content, generated
-code, error or warning messages, environment-variable values, secrets,
-usernames, hostnames, email addresses, git remotes, machine identifiers, IP
-addresses (discarded at ingest), assistant prompts, responses or tool
-arguments, or token counts.
+LHP never collects any of the following.
 
-Failures are reported as the ``LHP-<CATEGORY>-<NUMBER>`` code plus the
+- **Identity** — usernames, hostnames, email addresses, machine identifiers, IP
+  addresses. The receiver discards IP addresses at ingest.
+- **Project content** — the names of projects, pipelines, flowgroups, actions,
+  tables, catalogs, schemas and environments; paths; YAML, SQL or Python
+  content; generated code.
+- **Diagnostics** — error and warning messages, environment-variable values,
+  secrets, git remotes.
+- **Assistant** — prompts, responses, tool arguments, token counts.
+
+LHP reports a failure as the ``LHP-<CATEGORY>-<NUMBER>`` code plus the
 exception's class name, and nothing else.
 
-The project name itself is never sent either. When a project declares neither
-``project_id`` nor ``bundle.uuid``, LHP sends a salted hash of the name
+LHP never sends the project name itself either. When a project declares
+neither ``project_id`` nor ``bundle.uuid``, LHP sends a salted hash of the name
 instead, and that identifier is pseudonymous rather than anonymous: the salt
 is a public constant, so anyone who guesses the name can reproduce the hash.
-`Identifiers`_ explains how to replace it with an opaque value.
+:ref:`Identifiers <telemetry-identifiers>` explains how to replace it with an
+opaque value.
+
+.. _telemetry-identifiers:
 
 Identifiers
 -----------
 
 Two identifiers travel with an event, and neither identifies a person.
 
-**Install id.** A UUID v4 stored in the state file, created on the first run
-that records an event. It distinguishes one installation from another so that
-twenty commands from one machine are not read as twenty users. It is never
-created and never sent in CI, where a fresh runner would otherwise look like a
-new developer on every build.
+Install id
+~~~~~~~~~~
 
-**Project id.** The first 32 characters of the lowercase hex digest of
+A UUID v4 stored in the state file, created on the first run that records an
+event. It distinguishes one installation from another so that twenty commands
+from one machine are not read as twenty users. LHP never creates it and never
+sends it in CI, where a fresh runner would otherwise look like a new developer
+on every build.
+
+Project id
+~~~~~~~~~~
+
+The first 32 characters of the lowercase hex digest of
 ``sha256("lhp-project:" + <raw identifier, trimmed and lowercased>)``.
 ``project_id_source`` says which raw identifier was hashed.
 
@@ -384,15 +402,15 @@ Project identity — ``project_id`` in ``lhp.yaml``
    * - ``project_id``
      - string
      - — (absent)
-     - Opaque per-project identifier, a UUID v4. Used only in hashed form, and only by telemetry: nothing in code generation reads it. Safe to commit — that is the point, because it makes every developer's and every CI run's events roll up to one project.
+     - Opaque per-project identifier, a UUID v4 by convention (any non-empty string is accepted). Used only in hashed form, and only by telemetry: nothing in code generation reads it. Safe to commit — that is the point, because it makes every developer's and every CI run's events roll up to one project.
 
 ``lhp init`` writes a fresh ``project_id`` into the scaffolded ``lhp.yaml``,
 and writes the same value as ``bundle.uuid`` in ``databricks.yml`` when the
 project is scaffolded with bundle support.
 
 .. code-block:: yaml
+   :caption: lhp.yaml
 
-   # lhp.yaml
    name: my_project
    project_id: 3f1c9e4a-6b2d-4e8f-9a70-5c1d2e3f4a5b
    version: "1.0"
@@ -405,12 +423,14 @@ stable.
 Endpoint, transport and retention
 ---------------------------------
 
-Events are posted as one ``POST`` request with a JSON body to an LHP-owned
-HTTPS endpoint. ``lhp telemetry status`` prints the endpoint this build uses.
-The request carries ``Content-Type: application/json`` and a
-``User-Agent: lhp/<version>`` header, and nothing else — no authentication, no
-cookies. The default ``urllib`` opener is used, so ``HTTPS_PROXY`` and
-``NO_PROXY`` are honoured like every other Python HTTP client.
+LHP posts events as one ``POST`` request with a JSON body to the HTTPS
+endpoint fixed at release time; ``lhp telemetry status`` prints the endpoint
+this build uses. A build whose endpoint is unreachable keeps events in the
+local spool until the caps drop them. The request carries
+``Content-Type: application/json`` and a ``User-Agent: lhp/<version>`` header,
+and nothing else — no authentication, no cookies. LHP uses the default
+``urllib`` opener, so ``HTTPS_PROXY`` and ``NO_PROXY`` are honored like every
+other Python HTTP client.
 
 .. list-table::
    :header-rows: 1
@@ -419,7 +439,7 @@ cookies. The default ``urllib`` opener is used, so ``HTTPS_PROXY`` and
    * - Property
      - Value
    * - Attempts
-     - One per command. There is no retry loop inside a run; a batch that was not accepted waits for the next command.
+     - One per command (the web IDE attempts once per event it emits). There is no retry loop inside a run; a batch that was not accepted waits for the next command.
    * - Timeout
      - 3 seconds.
    * - Added exit latency
@@ -428,18 +448,20 @@ cookies. The default ``urllib`` opener is used, so ``HTTPS_PROXY`` and
      - At most 500 events and 512 KB per request.
    * - Spool caps
      - At most 500 events and 512 KB (524,288 bytes) on disk. When either cap is exceeded, the oldest events are dropped.
+   * - Per-event cap
+     - 8 KB; an event larger than that is dropped rather than spooled.
    * - 2xx response
      - The batch is accepted and removed from the spool. An empty body is a plain success; a non-empty body that is not JSON came from a proxy or a captive portal rather than the receiver, so the batch is kept.
    * - 400, 413 and any other 4xx except 429
-     - The batch is discarded. The receiver will not accept it however often it is offered.
+     - The batch is discarded. The receiver does not accept it however often it is offered.
    * - 429, 5xx, timeout, connection error
      - The batch is kept and offered again on the next command.
    * - Remote pause
-     - A 2xx response may carry ``{"disabled": true}``, which silences this installation for 24 hours.
+     - A 2xx response may carry ``{"disabled": true}``, which silences this installation for 24 hours (where a state file exists — never in CI).
    * - IP addresses
-     - Discarded at ingest. They are never logged or stored, and no region or other location is derived from them.
+     - The receiver discards them at ingest. It never logs or stores them, and derives no region or other location from them.
    * - Retention
-     - Raw events are deleted after 12 months. A monthly aggregate that carries no identifiers is kept indefinitely, and those aggregates are published in the release notes.
+     - The receiver deletes raw events after 12 months. It keeps a monthly aggregate that carries no identifiers indefinitely, and the project publishes those aggregates in the release notes.
 
 .. note::
 
@@ -448,8 +470,8 @@ cookies. The default ``urllib`` opener is used, so ``HTTPS_PROXY`` and
    provider you configure for it, which is a separate feature with its own
    settings.)
 
-Turning telemetry off
----------------------
+Off switches
+------------
 
 .. list-table::
    :header-rows: 1
@@ -531,18 +553,19 @@ version. LHP stores it and, on a later run, prints one line:
 
    lhp 0.9.3 is available (installed 0.9.2): pip install -U lakehouse-plumber  [LHP_UPDATE_CHECK=off to silence]
 
-The line is printed only when the command succeeded, the run is interactive
+LHP prints the line only when the command succeeded, the run is interactive
 and outside CI, ``LHP_UPDATE_CHECK`` does not opt out, the stored version is
-newer than the installed one, and no hint has been shown in the past 24 hours.
+newer than the installed one, and it has shown no hint in the past 24 hours.
 The check never makes a request of its own, so it works only while telemetry
 is on.
 
 Local files
 -----------
 
-The config directory is resolved in this order: ``LHP_CONFIG_DIR`` verbatim;
-then ``%APPDATA%\lhp`` on Windows; then ``$XDG_CONFIG_HOME/lhp`` when that
-variable holds an absolute path; otherwise ``~/.config/lhp``.
+LHP resolves the config directory in this order: ``LHP_CONFIG_DIR`` verbatim;
+then, on Windows, ``%APPDATA%\lhp`` (or ``~\AppData\Roaming\lhp`` when that
+variable is unset); elsewhere ``$XDG_CONFIG_HOME/lhp`` when it holds an
+absolute path, otherwise ``~/.config/lhp``.
 
 .. list-table::
    :header-rows: 1
@@ -551,15 +574,15 @@ variable holds an absolute path; otherwise ``~/.config/lhp``.
    * - Path
      - Contents
    * - ``<config dir>/telemetry.json``
-     - The install id, your on/off preference, the version last seen, and the latest version and hint timestamps behind the update hint.
+     - Its own ``schema_version``, the install id, your on/off preference, when the file was created, the version last seen, the latest version and hint timestamps behind the update hint, and the expiry of a remote pause (``server_disabled_until``).
    * - ``<config dir>/telemetry/spool.jsonl``
      - Events waiting to be sent, one JSON object per line.
 
-Both files, and the directories holding them, are created with owner-only
-permissions on the first write. Neither is created in ``LHP_TELEMETRY=log``
-mode or on a run where telemetry is off. The state file is additionally never
-created in CI, which is why ``install_id`` is always null there; the spool is
-still used, because that is how a CI run's events reach the endpoint.
+LHP creates both files, and the directories holding them, with owner-only
+permissions on the first write. It creates neither in ``LHP_TELEMETRY=log``
+mode or on a run where telemetry is off, and it never creates the state file
+in CI, which is why ``install_id`` is always null there. The spool is still
+used in CI, because that is how a CI run's events reach the endpoint.
 
 Deleting either file is safe: the install id is minted again on the next
 recorded event, and a deleted spool discards the events it was holding.

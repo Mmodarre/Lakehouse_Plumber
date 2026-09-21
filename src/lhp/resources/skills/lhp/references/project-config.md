@@ -400,9 +400,14 @@ lhp telemetry off                             # Turn telemetry off for this user
 
 Anonymous usage telemetry, **on by default, opt-out**. One `cli.command` event per CLI
 run (including failures); `lhp web` adds `web.session` per browser tab and `web.run` per
-validate/generate. Never blocks a command, never changes an exit code, never raises.
-Events spool to a local JSONL file and are posted on a daemon thread; ≤1 s is the whole
-exit latency it may add. Full field tables: `docs/reference/telemetry.rst`.
+validate/generate. The recording path never blocks a command, never changes an exit
+code and never raises; `lhp telemetry on|off` are the exception and fail with
+`LHP-IO-028` when the state file cannot be written. Events spool to a local JSONL file
+and are posted on a daemon thread to the HTTPS endpoint fixed at release time (`lhp
+telemetry status` prints the one this build uses; a build whose endpoint is unreachable
+keeps events in the spool until the caps drop them); ≤1 s is the whole exit latency it
+may add. Full field tables:
+<https://lakehouse-plumber.readthedocs.io/en/latest/reference/telemetry.html>.
 
 ### Off switches (any off wins, checked in this order)
 
@@ -428,8 +433,9 @@ environment never touches the config dir.
 | `LHP_TELEMETRY_ENDPOINT` | override the endpoint; accepted only for `https://` or loopback `http://` (`127.0.0.1`, `localhost`, `::1`), else ignored |
 | `LHP_UPDATE_CHECK` | `off`/`0`/`false` silences the "newer version available" hint |
 
-Config dir order: `LHP_CONFIG_DIR` → `%APPDATA%\lhp` (Windows) → `$XDG_CONFIG_HOME/lhp`
-(absolute only) → `~/.config/lhp`. Files: `telemetry.json` (install id, on/off flag,
+Config dir order: `LHP_CONFIG_DIR` verbatim → on Windows `%APPDATA%\lhp` (or
+`~\AppData\Roaming\lhp` when that variable is unset) → elsewhere `$XDG_CONFIG_HOME/lhp`
+when it holds an absolute path, otherwise `~/.config/lhp`. Files: `telemetry.json` (install id, on/off flag,
 version stamps) and `telemetry/spool.jsonl` (cap 500 events / 512 KB, oldest dropped),
 both owner-only and created on first write. Nothing is written in `log` mode or when
 off; `telemetry.json` is additionally never written in CI, so `install_id` is null
