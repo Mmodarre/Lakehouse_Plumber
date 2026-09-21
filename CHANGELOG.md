@@ -80,6 +80,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Anonymous usage telemetry, on by default and opt-out.** LHP records one event per
+  CLI command — which command ran, which option NAMES were passed, the exit code, the
+  duration, any `LHP-XXX-NNN` codes, and coarse counters describing the project's size
+  and which features it configures. `lhp web` adds one event per browser tab and per
+  validate/generate run. Names (project, pipeline, flowgroup, action, table, catalog,
+  schema, environment), paths, YAML/SQL/Python content, generated code, error and
+  warning messages, environment-variable values, secrets, usernames, hostnames, emails,
+  git remotes, machine identifiers, IP addresses, assistant prompts and responses, and
+  token counts are never collected. Events spool to a local JSONL file and are posted on
+  a daemon thread with a 3 s timeout, so telemetry never blocks a command, never changes
+  an exit code and adds at most 1 s to exit; when the endpoint is unreachable nothing
+  leaves the machine. Turn it off with `LHP_TELEMETRY=off`, `DO_NOT_TRACK=1`,
+  `LHP_DISABLE_ANALYTICS=1` or `lhp telemetry off` — any one of them wins.
+  `LHP_TELEMETRY=log` prints the event to stderr instead of sending it. Everything that
+  is sent is listed in the telemetry reference.
+- **`lhp telemetry status|show|on|off`.** Inspect the resolved state (on/off, the layer
+  that decided it, the config directory, the install id, the endpoint and the spooled
+  count), print the event this run would send plus the newest spooled events, or change
+  the preference for this user on this machine. A preference that cannot be written
+  fails with the new `LHP-IO-028`.
+- **`project_id` in `lhp.yaml`.** `lhp init` now writes a top-level `project_id` UUID
+  v4 — the same value it writes as `bundle.uuid` in `databricks.yml` when bundle
+  support is on. Telemetry sends only a salted hash of it, so events from every
+  developer and every CI run roll up to one project. Existing projects are never
+  edited: they fall back to `bundle.uuid`, then to a salted hash of the project name.
+  `ProjectConfigView.project_id` (provisional) exposes it to API and web-IDE consumers.
+- **Update hint.** When the telemetry response names a newer release, the next
+  successful interactive run prints one line suggesting
+  `pip install -U lakehouse-plumber`, at most once every 24 hours. Silence it with
+  `LHP_UPDATE_CHECK=off`. The check never makes a request of its own, so it works only
+  while telemetry is on.
 - **`uc_tagging.max_allowable_consecutive_failures` in `lhp.yaml`.** The UC tagging
   hook's `@dp.on_event_hook` failure budget is now configurable instead of hardcoded.
   Accepts an integer >= 0 or `null`; anything else (including `true`, which YAML would
@@ -89,6 +120,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **`StatsResult.action_counts_by_type` gains `write_*`, `write_mode_*`, `test_*` and
+  `tables` keys.** Purely additive: write actions are now counted by target type
+  (`write_streaming_table`, `write_materialized_view`, `write_sink`, `write_other`) and,
+  for table targets, by mode (`write_mode_standard`, `write_mode_cdc`,
+  `write_mode_snapshot_cdc`, `write_mode_other`); test actions by test type
+  (`test_uniqueness`, …); and `tables` is the number of distinct non-sink write targets.
+  Existing keys are unchanged, and no key is ever emitted with a zero value.
+- **`ProjectConfigView` gains `project_id`, `has_uc_tagging`, `has_wheel`, `has_sandbox`
+  and `apply_formatting`** (provisional, additive).
 - **The UC tagging hook's default failure budget is now unlimited (`None`) instead of
   `3`.** This matches the SDP default: `None` means there is no limit to the
   consecutive failures allowed and the hook is never disabled. Projects that

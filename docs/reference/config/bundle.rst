@@ -6,8 +6,11 @@ Bundle configuration
 
 Bundle support turns on whenever a ``databricks.yml`` file is present in the
 project root. Pass ``--no-bundle`` to ``lhp generate`` or ``lhp validate`` to
-disable it. LHP never reads or modifies ``databricks.yml``; it only detects the
-file's presence and writes pipeline resource YAML under ``resources/lhp/``.
+disable it. Bundle support never reads or modifies ``databricks.yml``; it only
+detects the file's presence and writes pipeline resource YAML under
+``resources/lhp/``. LHP reads ``bundle.uuid`` and ``targets.<env>.mode`` from
+``databricks.yml`` only for :doc:`anonymous usage telemetry
+</reference/telemetry>`; it never modifies the file.
 
 .. seealso::
 
