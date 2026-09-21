@@ -344,6 +344,19 @@ jobs:
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
 
+    # A lockfile regenerated behind the corporate PyPI proxy bakes proxy-host
+    # URLs into uv.lock. Nothing outside the Databricks network can resolve
+    # them, and because no CI job installs from uv.lock the breakage surfaces
+    # far from its cause — `main` silently accumulated 1119 such URLs. This is
+    # the Python counterpart of the package-lock.json guard in webapp-frontend.
+    - name: Verify uv.lock resolves against the public PyPI index
+      run: |
+        if grep -q 'pypi-proxy\.dev\.databricks\.com' uv.lock; then
+          echo "::error file=uv.lock::uv.lock contains pypi-proxy.dev.databricks.com URLs (lockfile was regenerated behind the corporate proxy). Rewrite them to https://pypi.org/, or transplant only the changed [[package]] block instead of re-running \`uv lock\`."
+          exit 1
+        fi
+      shell: bash
+
     - name: Set up Python 3.12
       uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
       with:
