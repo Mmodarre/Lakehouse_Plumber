@@ -36,6 +36,11 @@ def is_newer(candidate: str, current: str) -> bool:
         return False
 
 
+def update_check_disabled(environ: Mapping[str, str]) -> bool:
+    """Whether ``LHP_UPDATE_CHECK`` opts this environment out of the hint."""
+    return env_value_in(environ, "LHP_UPDATE_CHECK", _UPDATE_CHECK_OFF)
+
+
 def _hint_is_due_again(shown_at: Any, now_iso: str) -> bool:
     """Report whether enough time has passed since the last hint.
 
@@ -71,7 +76,7 @@ def pending_update_hint(
     """
     if not interactive or in_ci:
         return None
-    if env_value_in(environ, "LHP_UPDATE_CHECK", _UPDATE_CHECK_OFF):
+    if update_check_disabled(environ):
         return None
 
     latest = state.get("latest_known_version")

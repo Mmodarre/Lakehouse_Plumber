@@ -22,6 +22,8 @@ from lhp.utils.version import get_version
 
 logger = logging.getLogger(__name__)
 
+Environ = Optional[Mapping[str, str]]
+
 # Ordered so a specific vendor always wins over the generic ``CI`` marker that
 # most of them also export. Azure DevOps (``TF_BUILD``) and CodeBuild do NOT
 # export ``CI``, which is why the table is keyed on vendor variables rather
@@ -174,9 +176,14 @@ def install_kind(
     return "editable" if dir_info.get("editable") is True else "wheel"
 
 
-def capture(environ: Optional[Mapping[str, str]] = None) -> EnvironmentFacts:
+def resolve_environ(environ: Environ) -> Mapping[str, str]:
+    """The process environment unless a caller injected one."""
+    return os.environ if environ is None else environ
+
+
+def capture(environ: Environ = None) -> EnvironmentFacts:
     """Capture every environment fact the envelope carries."""
-    resolved = os.environ if environ is None else environ
+    resolved = resolve_environ(environ)
     return EnvironmentFacts(
         lhp_version=lhp_version(),
         python=python_version(),
