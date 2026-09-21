@@ -42,7 +42,10 @@
  * These files are read back by PyYAML's SafeLoader (YAML 1.1), so strings
  * that YAML 1.1 resolves as non-strings (`yes`/`on`/`off`, `1:30`,
  * `1_000`, `0b101`, ISO dates, ...) are double-quoted when written, in
- * addition to the YAML 1.2 ambiguities (`true`, `42`, ...).
+ * addition to the YAML 1.2 ambiguities (`true`, `42`, ...). Multi-line
+ * strings are written as `|` literal block scalars (a slot that is already
+ * a `|` or `>` block scalar keeps its style); the emitter falls back to
+ * double quotes when a block scalar cannot represent the value.
  *
  * Pinned caveats (asserted in yaml-doc.test.ts):
  * - Deleting a node deletes the comment block above it and its inline
@@ -52,7 +55,10 @@
  *   normalized in that one document, and flow-collection spacing is
  *   normalized (`[a, b]` becomes `[ a, b ]`).
  * - Rewritten and added documents always end with a newline; an unmutated
- *   file without a trailing newline round-trips without gaining one.
+ *   file without a trailing newline round-trips without gaining one. A
+ *   patch or splice that puts a block scalar at an unterminated last line
+ *   adds the file's final newline, because a block scalar's body always
+ *   ends with a line break.
  * - Files whose dominant line ending is CRLF get CRLF in all emitted text.
  * - Mutations throw on a handle with parse errors; callers must block
  *   form editing on broken files.
@@ -62,6 +68,7 @@ import {
   Document,
   isCollection,
   isMap,
+  isPair,
   isScalar,
   isSeq,
   parse,
@@ -196,10 +203,12 @@ export function getPath(handle: ConfigFileHandle, docIndex: number, path: YamlPa
  *
  * Replacing an existing scalar with a primitive is patched at the CST
  * level: only that scalar's bytes change and its original quoting style is
- * kept. Adding a key under an existing block map (any value; intermediate
- * maps are created) splices the new entry at the end of that map's text.
- * Strings that would re-parse as another type under YAML 1.1 or 1.2 are
- * double-quoted. Everything else (numeric segments creating sequences,
+ * kept, except that multi-line text is written as a `|` literal block (a
+ * `|` or `>` slot keeps its style). Adding a key under an existing block
+ * map (any value; intermediate maps are created) splices the new entry at
+ * the end of that map's text. Single-line strings that would re-parse as
+ * another type under YAML 1.1 or 1.2 are double-quoted. Everything else
+ * (numeric segments creating sequences,
  * flow-collection inserts, populating empty documents) rewrites the
  * containing document only. `undefined` is treated as `null`. Throws if
  * the handle has parse errors.
@@ -447,15 +456,51 @@ function stringNeedsQuote(value: string): boolean {
   }
 }
 
-/** Quote a scalar node's string value if plain style would misparse it. */
-function applyScalarStyle(node: Scalar, value: Primitive): void {
-  if (typeof value === 'string') {
-    if ((node.type === undefined || node.type === 'PLAIN') && stringNeedsQuote(value)) {
-      node.type = 'QUOTE_DOUBLE'
-    }
-  } else {
-    node.type = 'PLAIN'
+/**
+ * The style a string should be written in, given the current style of the
+ * scalar it replaces: multi-line text becomes a `|` literal block unless the
+ * scalar is already a block scalar; single-line text is double-quoted only
+ * when plain style would misparse it. `undefined` keeps the current style.
+ */
+function stringStyle(
+  value: string,
+  current: Scalar.Type | undefined,
+): 'BLOCK_LITERAL' | 'QUOTE_DOUBLE' | undefined {
+  if (value.includes('\n')) {
+    return current === 'BLOCK_LITERAL' || current === 'BLOCK_FOLDED' ? undefined : 'BLOCK_LITERAL'
   }
+  if ((current === undefined || current === 'PLAIN') && stringNeedsQuote(value)) {
+    return 'QUOTE_DOUBLE'
+  }
+  return undefined
+}
+
+/** The style a CST scalar token was parsed in. */
+function tokenStyle(token: ScalarToken): Scalar.Type {
+  switch (token.type) {
+    case 'single-quoted-scalar':
+      return 'QUOTE_SINGLE'
+    case 'double-quoted-scalar':
+      return 'QUOTE_DOUBLE'
+    case 'block-scalar': {
+      const header = token.props[0]
+      return header?.type === 'block-scalar-header' && header.source.startsWith('>')
+        ? 'BLOCK_FOLDED'
+        : 'BLOCK_LITERAL'
+    }
+    default:
+      return 'PLAIN'
+  }
+}
+
+/** Set a scalar node's style for the value it now holds; non-strings are always plain. */
+function applyScalarStyle(node: Scalar, value: Primitive): void {
+  if (typeof value !== 'string') {
+    node.type = 'PLAIN'
+    return
+  }
+  const style = stringStyle(value, node.type)
+  if (style !== undefined) node.type = style
 }
 
 /** Wrap a JS value as AST nodes with YAML-1.1-safe string quoting. */
@@ -562,9 +607,9 @@ function tryPatchScalar(
 
   const parentPath = path.slice(0, -1)
   const parent = parentPath.length > 0 ? doc.getIn(parentPath, true) : doc.contents
-  let type: 'PLAIN' | 'QUOTE_DOUBLE' | undefined
+  let type: Scalar.Type | undefined
   if (typeof value === 'string') {
-    if (token.type === 'scalar' && stringNeedsQuote(value)) type = 'QUOTE_DOUBLE'
+    type = stringStyle(value, tokenStyle(token))
   } else {
     // Numbers, booleans, and null must not inherit a quoted style, which
     // would turn them into strings on the next parse.
@@ -683,9 +728,24 @@ function renderSplice(h: HandleState, splice: Splice): string | null {
   if (splice.indent > 0) text = text.replace(/^(?!$)/gm, ' '.repeat(splice.indent))
   text = toFileNewlines(text, h._newline)
   const afterNewline = splice.start === 0 || h._source[splice.start - 1] === '\n'
+  if (afterNewline) return text
   // At an unterminated last line, lead with the newline instead of
-  // trailing one so a file without a final newline stays that way.
-  return afterNewline ? text : h._newline + text.slice(0, -h._newline.length)
+  // trailing one so a file without a final newline stays that way. When the
+  // entry ends in a block scalar that final newline is content under the
+  // chomping indicator, so it stays and the file gains its terminator.
+  return endsInBlockScalar(splice.pair.value)
+    ? h._newline + text
+    : h._newline + text.slice(0, -h._newline.length)
+}
+
+/** Is the last scalar emitted for `node` a block scalar? */
+function endsInBlockScalar(node: unknown): boolean {
+  let leaf = node
+  while (isCollection(leaf) && leaf.items.length > 0) {
+    const last = leaf.items[leaf.items.length - 1]
+    leaf = isPair(last) ? last.value : last
+  }
+  return isScalar(leaf) && (leaf.type === 'BLOCK_LITERAL' || leaf.type === 'BLOCK_FOLDED')
 }
 
 /** Emit a rewritten or added document, managing its `---` marker. */

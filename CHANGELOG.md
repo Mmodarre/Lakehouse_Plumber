@@ -134,6 +134,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   to a template draft, or the first item to any hand-written `[]` / `{}` field no
   longer serializes that subtree as a single-line flow collection. Non-empty
   inline collections keep their style.
+- **Web IDE writes multi-line SQL and Python bodies as `|` block scalars.** Text
+  entered through a designer textarea or the inline code editor no longer lands in
+  the YAML as an escaped or blank-line-folded double-quoted string. A field that
+  already uses a `|` or `>` block scalar keeps its style, and single-line values
+  keep the existing quoting rules.
 - **Web IDE saves preserve in-flight edits and existing files.** Save responses no
   longer overwrite newer edits, and New/Duplicate use create-only writes. Form,
   Graph, and Code share file buffers and save controls; saving captures pending
