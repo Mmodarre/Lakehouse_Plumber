@@ -209,6 +209,21 @@ class StatsResult:
     a per-action-type breakdown and a sequence of per-pipeline rows.
     All fields are immutable, JSON-shape-compatible (§4.8).
 
+    ``action_counts_by_type`` keys, all drawn from a bounded allow-list
+    so a project cannot introduce a key of its own:
+
+    * ``load`` / ``transform`` / ``write`` / ``test`` — one per action;
+    * ``load_<source type>`` and ``transform_<transform type>``;
+    * ``write_<streaming_table|materialized_view|sink>``, or
+      ``write_other`` for an unreadable write target;
+    * ``write_mode_<standard|cdc|snapshot_cdc>`` (``write_mode_other``
+      otherwise) for non-sink writes only;
+    * ``test_<test type>``, or ``test_other`` for an unknown one;
+    * ``tables`` — the number of DISTINCT non-sink targets written, so a
+      table written by two actions counts once.
+
+    A key is absent rather than zero when nothing matched it.
+
     :stability: provisional
     """
 
