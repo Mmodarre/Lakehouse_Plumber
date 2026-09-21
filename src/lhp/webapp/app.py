@@ -22,10 +22,12 @@ import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager, suppress
 from importlib.metadata import PackageNotFoundError, version
+from pathlib import Path
 
 from fastapi import FastAPI
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
+from lhp import telemetry
 from lhp.errors import LHPError
 from lhp.webapp import static_app
 from lhp.webapp.middleware.error_handler import (
@@ -34,9 +36,11 @@ from lhp.webapp.middleware.error_handler import (
 )
 from lhp.webapp.middleware.origin_guard import OriginGuardMiddleware
 from lhp.webapp.middleware.request_logging import RequestLoggingMiddleware
+from lhp.webapp.middleware.telemetry_session import TelemetrySessionMiddleware
 from lhp.webapp.middleware.token_guard import TokenGuardMiddleware
 from lhp.webapp.services import dataset_index, file_watcher, sqlite_store
 from lhp.webapp.services.event_bus import EventBus
+from lhp.webapp.services.telemetry_sessions import WebSessionRegistry
 from lhp.webapp.settings import get_settings
 from lhp.webapp.static_app import _API_PREFIX
 
@@ -87,12 +91,14 @@ def _get_version() -> str:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-    """Lifespan handler: log startup and resolve the project state.
+    """Lifespan handler: log startup, resolve the project state, drain on exit.
 
     Fail-closed project root: when ``project_root`` holds no ``lhp.yaml`` the
     server keeps running (a later init wizard needs it up) but
     ``app.state.project_state`` is set to ``"no_project"`` so ``/api/health``
-    can tell the SPA to render guidance instead of a broken IDE.
+    can tell the SPA to render guidance instead of a broken IDE. Shutdown
+    stops the watcher, emits every open telemetry session and closes the
+    assistant client, in that order.
     """
     settings = app.state.settings
     logger.info(
@@ -100,7 +106,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         f"project_root={settings.project_root}"
     )
     watcher_task: asyncio.Task[None] | None = None
-    if (settings.project_root / "lhp.yaml").is_file():
+    if _holds_project(settings.project_root):
         app.state.project_state = "ok"
         # Run-history DB init only for a REAL project: migrations bring
         # .lhp/webapp.db to the current schema, then crash recovery closes out
@@ -128,12 +134,42 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         watcher_task.cancel()
         with suppress(asyncio.CancelledError):
             await watcher_task
+    await _shutdown_telemetry(app)
     # The lazily-cached omnigent client (see get_omnigent_client) owns a
     # connection pool; close it if this process ever built one.
     omnigent_client = getattr(app.state, "omnigent_client", None)
     if omnigent_client is not None:
         await omnigent_client.aclose()
     logger.info("LHP web IDE shut down")
+
+
+def _holds_project(project_root: Path) -> bool:
+    """Whether ``project_root`` is a real LHP project rather than a bare directory."""
+    return (project_root / "lhp.yaml").is_file()
+
+
+async def _shutdown_telemetry(app: FastAPI) -> None:
+    """End every live web session as ``shutdown`` and let the batch leave.
+
+    Pending SSE grace tasks are cancelled and awaited first so none can race
+    ``emit_all`` with a ``disconnect`` of its own; the flush then waits at
+    most one second for the sender thread. Telemetry must never keep the
+    server from shutting down, so every failure is logged and dropped.
+    """
+    if not getattr(app.state, "telemetry_enabled", False):
+        return
+    registry: WebSessionRegistry | None = getattr(app.state, "web_sessions", None)
+    if registry is None:
+        return
+    try:
+        pending = registry.pending_grace_tasks()
+        for task in pending:
+            task.cancel()
+        await asyncio.gather(*pending, return_exceptions=True)
+        await asyncio.to_thread(registry.emit_all, "shutdown")
+        await asyncio.to_thread(telemetry.flush, 1.0)
+    except Exception:  # shutdown must never fail because of telemetry
+        logger.debug("telemetry: web session shutdown emission failed", exc_info=True)
 
 
 def _register_routers(app: FastAPI) -> None:
@@ -186,10 +222,25 @@ def create_app() -> FastAPI:
     # file watcher on a graph-relevant edit and by POST /api/dependencies/refresh,
     # mirroring the dependency graph's serve-stale invalidation.
     app.state.dataset_index_cache = dataset_index.DatasetIndexCache()
+    # Consent is evaluated once per process: the uvicorn worker inherits the
+    # shell environment, so every off switch applies, and --reload re-evaluates
+    # it in each respawned worker. Every telemetry hook gates on this flag.
+    app.state.telemetry_enabled = telemetry.effective_state().enabled
+    # The registry always exists so hooks can read it unconditionally; its
+    # project_root feeds every web.session's project id and is therefore the
+    # served directory only when it really holds a project, None otherwise.
+    app.state.web_sessions = WebSessionRegistry(
+        project_root=(
+            settings.project_root if _holds_project(settings.project_root) else None
+        )
+    )
 
     # Middleware (Starlette: last added = outermost). Effective request order:
-    # TrustedHost -> OriginGuard -> TokenGuard -> RequestLogging -> routes.
+    # TrustedHost -> OriginGuard -> TokenGuard -> RequestLogging ->
+    # TelemetrySession -> routes. Telemetry is innermost so a guard rejection
+    # is never counted and the matched route is already in the scope.
     # Same-origin only: no CORS.
+    app.add_middleware(TelemetrySessionMiddleware)
     app.add_middleware(RequestLoggingMiddleware)
     app.add_middleware(TokenGuardMiddleware)
     app.add_middleware(OriginGuardMiddleware)

@@ -30,6 +30,8 @@ from fastapi.testclient import TestClient
 
 from lhp.webapp.app import create_app
 from lhp.webapp.routers import events as events_module
+from lhp.webapp.services import telemetry_sessions
+from lhp.webapp.services.telemetry_sessions import WebSessionRegistry
 
 from .conftest import LOOPBACK_BASE_URL
 
@@ -254,3 +256,132 @@ def test_events_accepts_query_token(
             assert await conn.next_chunk() == b": ping\n\n"
 
     _run(scenario)
+
+
+# -- telemetry session lifecycle -----------------------------------------------
+#
+# The SSE connection bounds a tab's ``web.session``: connect starts (or
+# continues) the record, the last disconnect starts a grace timer, and only a
+# grace period that expires without a reconnect ends the session. These tests
+# arm the app with a registry over a list sink and drive the raw ASGI stream.
+
+_SID = "0f4a2c6e-1b3d-4e5f-8a9b-0c1d2e3f4a5b"
+
+
+def _arm_telemetry(
+    app: FastAPI, *, enabled: bool = True
+) -> tuple[WebSessionRegistry, list[dict[str, Any]]]:
+    """Replace the app's registry with one that records into a list."""
+    events: list[dict[str, Any]] = []
+
+    def sink(name: str, *, project_root: Path | None, props: Any) -> None:
+        events.append({"name": name, **props})
+
+    registry = WebSessionRegistry(sink=sink, flush=lambda: None)
+    app.state.telemetry_enabled = enabled
+    app.state.web_sessions = registry
+    return registry, events
+
+
+def test_disconnect_emits_one_web_session_after_grace(
+    e2e_project_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(events_module, "HEARTBEAT_SECONDS", _FAST_HEARTBEAT)
+    monkeypatch.setattr(telemetry_sessions, "SSE_GRACE_SECONDS", 0.05)
+    app = _build_app(monkeypatch, e2e_project_path)
+    registry, events = _arm_telemetry(app)
+
+    async def scenario() -> None:
+        async with _SSEConnection(app, query=f"session={_SID}") as conn:
+            await conn.start()
+            assert await conn.next_chunk() == b": ping\n\n"
+            # An SSE-only record shorter than the empty-session floor would be
+            # dropped; one counted request makes the session real.
+            registry.count_request(_SID, "pipelines.read")
+        assert events == []
+        await asyncio.sleep(0.3)
+
+    _run(scenario)
+    assert len(events) == 1
+    assert events[0]["name"] == "web.session"
+    assert events[0]["session_id"] == _SID
+    assert events[0]["end_reason"] == "disconnect"
+    assert events[0]["sse_seen"] is True
+    assert events[0]["requests_by_family"] == {"pipelines.read": 1}
+
+
+def test_reconnect_within_grace_keeps_the_session(
+    e2e_project_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A reload or EventSource reconnect must not split the tab's session."""
+    monkeypatch.setattr(events_module, "HEARTBEAT_SECONDS", _FAST_HEARTBEAT)
+    # Long enough for the reconnect handshake to land inside it.
+    monkeypatch.setattr(telemetry_sessions, "SSE_GRACE_SECONDS", 0.5)
+    app = _build_app(monkeypatch, e2e_project_path)
+    registry, events = _arm_telemetry(app)
+
+    async def scenario() -> None:
+        async with _SSEConnection(app, query=f"session={_SID}") as conn:
+            await conn.start()
+            assert await conn.next_chunk() == b": ping\n\n"
+            registry.count_request(_SID, "pipelines.read")
+        assert len(registry.pending_grace_tasks()) == 1
+
+        async with _SSEConnection(app, query=f"session={_SID}") as conn:
+            await conn.start()
+            # The heartbeat proves the generator ran, so sse_connected has
+            # cancelled the grace task by now.
+            assert await conn.next_chunk() == b": ping\n\n"
+            await asyncio.sleep(0)
+            assert registry.pending_grace_tasks() == ()
+            await asyncio.sleep(0.7)
+            assert events == []
+            registry.count_request(_SID, "tables.read")
+        await asyncio.sleep(0.8)
+
+    _run(scenario)
+    assert len(events) == 1
+    assert events[0]["end_reason"] == "disconnect"
+    assert events[0]["requests_by_family"] == {"pipelines.read": 1, "tables.read": 1}
+
+
+@pytest.mark.parametrize("query", ["", "session=not-a-uuid", f"session={_SID.upper()}"])
+def test_missing_or_malformed_session_id_is_ignored(
+    e2e_project_path: Path, monkeypatch: pytest.MonkeyPatch, query: str
+) -> None:
+    monkeypatch.setattr(events_module, "HEARTBEAT_SECONDS", _FAST_HEARTBEAT)
+    monkeypatch.setattr(telemetry_sessions, "SSE_GRACE_SECONDS", 0.05)
+    app = _build_app(monkeypatch, e2e_project_path)
+    registry, events = _arm_telemetry(app)
+
+    async def scenario() -> None:
+        async with _SSEConnection(app, query=query) as conn:
+            status, _headers = await conn.start()
+            assert status == 200
+            assert await conn.next_chunk() == b": ping\n\n"
+        assert registry.pending_grace_tasks() == ()
+        await asyncio.sleep(0.2)
+
+    _run(scenario)
+    assert events == []
+    assert registry.emit_all("shutdown") == 0
+
+
+def test_sse_hooks_are_inert_when_telemetry_is_off(
+    e2e_project_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(events_module, "HEARTBEAT_SECONDS", _FAST_HEARTBEAT)
+    monkeypatch.setattr(telemetry_sessions, "SSE_GRACE_SECONDS", 0.05)
+    app = _build_app(monkeypatch, e2e_project_path)
+    registry, events = _arm_telemetry(app, enabled=False)
+
+    async def scenario() -> None:
+        async with _SSEConnection(app, query=f"session={_SID}") as conn:
+            await conn.start()
+            assert await conn.next_chunk() == b": ping\n\n"
+        assert registry.pending_grace_tasks() == ()
+        await asyncio.sleep(0.2)
+
+    _run(scenario)
+    assert events == []
+    assert registry.emit_all("shutdown") == 0
