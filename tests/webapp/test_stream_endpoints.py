@@ -249,10 +249,20 @@ def _arm_telemetry(client: TestClient) -> list[dict[str, Any]]:
     return events
 
 
-@pytest.mark.parametrize("path", ["/api/validate/stream", "/api/generate/stream"])
-def test_stream_unknown_trigger_is_422(client: TestClient, path: str) -> None:
-    """Only the two known triggers are accepted; the run never starts."""
-    resp = client.post(path, json={"env": ENV, "trigger": "scheduled"})
+@pytest.mark.parametrize(
+    ("path", "client_fixture"),
+    [("/api/validate/stream", "client"), ("/api/generate/stream", "mutable_client")],
+)
+def test_stream_unknown_trigger_is_422(
+    request: pytest.FixtureRequest, path: str, client_fixture: str
+) -> None:
+    """Only the two known triggers are accepted; the run never starts.
+
+    Generate posts against the mutable copy: were validation ever to let the
+    body through, the run must not be able to write into the shared fixture.
+    """
+    test_client: TestClient = request.getfixturevalue(client_fixture)
+    resp = test_client.post(path, json={"env": ENV, "trigger": "scheduled"})
     assert resp.status_code == 422
 
 

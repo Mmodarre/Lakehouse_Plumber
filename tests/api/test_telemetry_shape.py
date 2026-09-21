@@ -53,6 +53,12 @@ _NAME_KEYS = frozenset(
 # excluded from the leak check rather than asserted on.
 _ALLOWLIST_VOCABULARY = " ".join(PROJECT_SHAPE_KEYS)
 
+# The production budget is a wall-clock bound on a real CLI run. Against the
+# real facade these tests assert the shape's content, not its speed, so they
+# grant a budget a loaded CI runner cannot exceed; the budget itself is pinned
+# by the injected-clock tests below.
+_REAL_READ_BUDGET_S = 30.0
+
 
 @pytest.fixture
 def fixture_project(tmp_path: Path) -> Iterator[Path]:
@@ -82,7 +88,9 @@ def facade(fixture_project: Path) -> LakehousePlumberApplicationFacade:
 def shape(
     facade: LakehousePlumberApplicationFacade, fixture_project: Path
 ) -> Dict[str, Any]:
-    composed = build_project_shape(facade, fixture_project)
+    composed = build_project_shape(
+        facade, fixture_project, budget_s=_REAL_READ_BUDGET_S
+    )
     assert composed is not None, "the fixture project must compose within budget"
     return composed
 

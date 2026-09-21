@@ -50,7 +50,11 @@ def test_connecting_to_a_non_loopback_host_is_blocked():
     The address is TEST-NET-1 (RFC 5737), which is reserved for documentation
     and never routed, so the assertion needs no DNS lookup and no packet ever
     leaves the machine — the guard rejects the connection before the socket
-    is used.
+    is used. pytest-socket warns as it refuses; that warning is part of the
+    guard's behaviour, so it is asserted rather than left in the run summary.
     """
-    with pytest.raises(SocketConnectBlockedError):
+    with (
+        pytest.warns(UserWarning, match="socket.socket.connect"),
+        pytest.raises(SocketConnectBlockedError),
+    ):
         socket.create_connection(("192.0.2.1", 443), timeout=0.5)
