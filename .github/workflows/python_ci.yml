@@ -243,8 +243,18 @@ jobs:
       shell: bash
 
     - name: Run webapp test suite
-      run: pytest tests/webapp -q
+      run: pytest tests/webapp -q --cov --cov-branch --cov-report=xml:coverage-webapp.xml
       shell: bash
+
+    # The main unit job excludes webapp tests. Upload this suite's coverage so
+    # Codecov merges it with unit/e2e coverage instead of marking tested routes
+    # and request/response schemas as uncovered.
+    - name: Upload webapp coverage to Codecov
+      uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f  # v7.0.0
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}
+        slug: Mmodarre/Lakehouse_Plumber
+        files: coverage-webapp.xml
 
   # Web IDE frontend (React SPA) gate: lint, typecheck, unit tests (vitest),
   # generated-API-type drift, and a production build. Python is set up in this
