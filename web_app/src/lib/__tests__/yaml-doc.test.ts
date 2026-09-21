@@ -22,6 +22,7 @@ import {
   deletePath,
   documentCount,
   getPath,
+  insertListItem,
   parseConfigFile,
   removeDocument,
   serializeConfigFile,
@@ -869,5 +870,82 @@ describe('API basics', () => {
     const index = addDocument(handle, { pipeline: 'p' })
     setPath(handle, index, ['serverless'], true)
     expect(serializeConfigFile(handle)).toBe('a: 1\n---\npipeline: p\nserverless: true\n')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// 11. Empty flow collections
+// ---------------------------------------------------------------------------
+
+describe('empty flow collections', () => {
+  // `[]` and `{}` are the only spellings of an empty collection, so they carry
+  // no style intent; a non-empty flow collection is a deliberate choice.
+  it('insertListItem into `[]` emits a block sequence, nested collections included', () => {
+    const handle = parseConfigFile('pipeline: p\nactions: []\n')
+    insertListItem(handle, 0, ['actions'], 0, {
+      name: 'a',
+      type: 'load',
+      source: { type: 'sql', sql: 'SELECT 1' },
+      tags: ['x', 'z'],
+    })
+    expect(serializeConfigFile(handle)).toBe(
+      'pipeline: p\nactions:\n  - name: a\n    type: load\n    source:\n      type: sql\n      sql: SELECT 1\n    tags:\n      - x\n      - z\n',
+    )
+  })
+
+  it('insertListItem into a nested `[]` keeps the parent indentation', () => {
+    const handle = parseConfigFile('a:\n  list: []\n  keep: 1\n')
+    insertListItem(handle, 0, ['a', 'list'], 0, 'x')
+    expect(serializeConfigFile(handle)).toBe('a:\n  list:\n    - x\n  keep: 1\n')
+  })
+
+  it('setPath adding a key under `{}` emits a block map', () => {
+    const handle = parseConfigFile('use_template: t\ntemplate_parameters: {}\n')
+    setPath(handle, 0, ['template_parameters', 'schedule'], { cron: '0 1 * * *', tz: 'UTC' })
+    expect(serializeConfigFile(handle)).toBe(
+      'use_template: t\ntemplate_parameters:\n  schedule:\n    cron: 0 1 * * *\n    tz: UTC\n',
+    )
+  })
+
+  it('setPath with a numeric segment into `[]` emits a block sequence', () => {
+    const handle = parseConfigFile('items: []\n')
+    setPath(handle, 0, ['items', 0], 'first')
+    expect(serializeConfigFile(handle)).toBe('items:\n  - first\n')
+  })
+
+  it('non-empty flow collections keep their inline style when extended', () => {
+    const seq = parseConfigFile('tags: [a, b]\n')
+    insertListItem(seq, 0, ['tags'], 2, 'c')
+    expect(serializeConfigFile(seq)).toBe('tags: [ a, b, c ]\n')
+
+    const map = parseConfigFile('opts: { a: 1 }\n')
+    setPath(map, 0, ['opts', 'b'], 2)
+    expect(serializeConfigFile(map)).toBe('opts: { a: 1, b: 2 }\n')
+  })
+
+  it('a rejected setPath leaves an empty flow collection in its flow style', () => {
+    const handle = parseConfigFile('items: []\nother: 1\n')
+    expect(() => setPath(handle, 0, ['items', 'x'], 1)).toThrow()
+    deletePath(handle, 0, ['other'])
+    expect(serializeConfigFile(handle)).toBe('items: []\n')
+  })
+
+  it('a root-level `[]` document becomes a block sequence', () => {
+    const handle = parseConfigFile('[]\n')
+    insertListItem(handle, 0, [], 0, 'x')
+    expect(serializeConfigFile(handle)).toBe('- x\n')
+  })
+
+  it('an empty collection inside a non-empty flow parent stays flow', () => {
+    const handle = parseConfigFile('a: { b: [] }\n')
+    insertListItem(handle, 0, ['a', 'b'], 0, 'x')
+    expect(serializeConfigFile(handle)).toBe('a: { b: [ x ] }\n')
+  })
+
+  it('a flow list emptied by a delete and refilled becomes block', () => {
+    const handle = parseConfigFile('tags: [a]\n')
+    deletePath(handle, 0, ['tags', 0])
+    insertListItem(handle, 0, ['tags'], 0, 'b')
+    expect(serializeConfigFile(handle)).toBe('tags:\n  - b\n')
   })
 })

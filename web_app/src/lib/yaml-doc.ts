@@ -30,6 +30,10 @@
  *   ONLY the containing document via `Document.toString()`; sibling
  *   documents keep their exact bytes. Rewriting normalizes that
  *   document's comment whitespace (pinned by tests).
+ * - An empty flow collection (`[]` / `{}`) receiving its first item is
+ *   emitted in block style unless it sits inside a non-empty flow
+ *   collection; a flow collection that still holds items keeps its flow
+ *   style.
  *
  * `toString` fidelity options: `lineWidth: 0` disables re-wrapping of long
  * plain scalars and flow collections, which would otherwise reflow lines
@@ -45,7 +49,8 @@
  *   comment (they are owned by the deleted pair).
  * - A rewrite re-emits the containing document from its AST: trailing
  *   whitespace inside comments and the column of out-dented comments are
- *   normalized in that one document.
+ *   normalized in that one document, and flow-collection spacing is
+ *   normalized (`[a, b]` becomes `[ a, b ]`).
  * - Rewritten and added documents always end with a newline; an unmutated
  *   file without a trailing newline round-trips without gaining one.
  * - Files whose dominant line ending is CRLF get CRLF in all emitted text.
@@ -63,7 +68,7 @@ import {
   parseAllDocuments,
   visit,
 } from 'yaml'
-import type { Node, Pair, Scalar, YAMLError, YAMLMap } from 'yaml'
+import type { Node, Pair, Scalar, YAMLError, YAMLMap, YAMLSeq } from 'yaml'
 
 /** Path into a document, as accepted by `Document.getIn`/`setIn`. */
 export type YamlPath = readonly (string | number)[]
@@ -235,7 +240,9 @@ export function setPath(
       if (inherited) contents.commentBefore = inherited
     }
   } else {
+    const emptied = emptyFlowAncestor(doc, path)
     setViaAst(doc, path, normalized)
+    if (emptied !== null) emptied.flow = false
   }
   entry.rewritten = true
 }
@@ -296,7 +303,9 @@ export function insertListItem(
       `Insert index ${index} out of range (sequence has ${node.items.length} item(s))`,
     )
   }
-  node.items.splice(index, 0, buildValueNode(doc, value === undefined ? null : value))
+  const item = buildValueNode(doc, value === undefined ? null : value)
+  if (isEmptyFlow(node)) node.flow = false
+  node.items.splice(index, 0, item)
   entry.rewritten = true
 }
 
@@ -482,6 +491,31 @@ function pathInFlow(doc: Document, path: YamlPath): boolean {
     if (isCollection(node) && node.flow) return true
   }
   return false
+}
+
+/**
+ * `[]` and `{}` are the only spellings of an empty collection, so an empty
+ * flow collection carries no style intent and its first item should
+ * serialize in block style. The check is on the current item count: a flow
+ * collection that still holds items keeps its style. Callers clear `flow`
+ * only after the insertion has succeeded, so a rejected edit leaves the
+ * handle untouched.
+ */
+function isEmptyFlow(node: unknown): node is YAMLMap | YAMLSeq {
+  return isCollection(node) && node.flow === true && node.items.length === 0
+}
+
+/**
+ * The deepest existing ancestor node of `path` when it is an empty flow
+ * collection, else null. A scalar or non-empty ancestor ends the search:
+ * every node above it already holds an item, so none of them can be empty.
+ */
+function emptyFlowAncestor(doc: Document, path: YamlPath): YAMLMap | YAMLSeq | null {
+  for (let i = path.length - 1; i >= 0; i--) {
+    const node = i === 0 ? doc.contents : doc.getIn(path.slice(0, i), true)
+    if (node !== undefined && node !== null) return isEmptyFlow(node) ? node : null
+  }
+  return null
 }
 
 /** Does `path` lead into a subtree created by an earlier splice? */

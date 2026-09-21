@@ -21,6 +21,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   addAction,
+  appendActionListItem,
   deleteAction,
   deleteActionField,
   deleteFlowgroupField,
@@ -948,6 +949,57 @@ describe('structural mutators (document rewrite path)', () => {
     expect(
       listActions(mustSelect(out, 'shipment_ingestion').doc).map((a) => a.name),
     ).toEqual(['tst_shipment_completeness'])
+  })
+
+  it('addAction on a blank flowgroup with `actions: []` writes block-style actions', () => {
+    const { handle, doc } = mustSelect(
+      'pipeline: test_yaml\nflowgroup: test_yaml_fg\nactions: []\n',
+      'test_yaml_fg',
+    )
+    addAction(doc, {
+      name: 'cloudfiles_1',
+      type: 'load',
+      source: {
+        type: 'cloudfiles',
+        path: '${landing_volume}/abcd',
+        format: 'parquet',
+        schema_evolution_mode: 'addNewColumns',
+      },
+      target: 'v_cloudfiles_1',
+      description: 'abc',
+      operational_metadata: ['_source_file_path', '_processing_timestamp'],
+    })
+    expect(serializeFlowgroupFile(handle)).toBe(
+      [
+        'pipeline: test_yaml',
+        'flowgroup: test_yaml_fg',
+        'actions:',
+        '  - name: cloudfiles_1',
+        '    type: load',
+        '    source:',
+        '      type: cloudfiles',
+        '      path: ${landing_volume}/abcd',
+        '      format: parquet',
+        '      schema_evolution_mode: addNewColumns',
+        '    target: v_cloudfiles_1',
+        '    description: abc',
+        '    operational_metadata:',
+        '      - _source_file_path',
+        '      - _processing_timestamp',
+        '',
+      ].join('\n'),
+    )
+  })
+
+  it('appendActionListItem onto an empty list field writes a block list', () => {
+    const { handle, doc } = mustSelect(
+      'pipeline: p\nflowgroup: f\nactions:\n  - name: a\n    type: load\n    target: v_a\n    operational_metadata: []\n',
+      'f',
+    )
+    appendActionListItem(doc, 'a', ['operational_metadata'], '_source_file_path')
+    expect(serializeFlowgroupFile(handle)).toBe(
+      'pipeline: p\nflowgroup: f\nactions:\n  - name: a\n    type: load\n    target: v_a\n    operational_metadata:\n      - _source_file_path\n',
+    )
   })
 })
 
