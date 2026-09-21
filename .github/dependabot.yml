@@ -1,8 +1,27 @@
 version: 2
+
+# target-branch: every entry below targets the ACTIVE RELEASE BRANCH, not the
+# default branch. `main` is the published release — a green Tests run on main
+# triggers the PyPI publish — so a dependency bump merged there is one the
+# in-flight release does not contain, and someone has to reconcile it by hand
+# later. Dependabot reads both this config and the manifests it bumps from the
+# branch named here, so bumps are also computed against that branch's lockfiles
+# instead of main's.
+#
+# WHEN CUTTING THE NEXT RELEASE BRANCH: create it off main FIRST, then update
+# every target-branch line below. A target-branch naming a branch that does not
+# exist makes Dependabot stop opening pull requests, and it fails quietly —
+# nothing surfaces except an error on the repository's Dependabot page.
+#
+# Security updates are NOT governed by this file. Dependabot alerts raise those
+# against the default branch whatever is configured here, which is why /web_app
+# pull requests appeared for months before this file had an npm entry at all.
+
 updates:
   # Python dependencies
   - package-ecosystem: "pip"
     directory: "/"
+    target-branch: "release/V0.9.2"
     schedule:
       interval: "weekly"
       day: "monday"
@@ -22,6 +41,7 @@ updates:
   # GitHub Actions (maintains SHA pins)
   - package-ecosystem: "github-actions"
     directory: "/"
+    target-branch: "release/V0.9.2"
     schedule:
       interval: "weekly"
     groups:
