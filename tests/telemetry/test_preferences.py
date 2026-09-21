@@ -93,6 +93,21 @@ def test_set_user_enabled_works_even_when_an_env_switch_is_on(
 
 
 @pytest.mark.unit
+def test_install_id_reads_the_stored_identity(
+    cfg: Path, send_env: Dict[str, str]
+) -> None:
+    write_state(cfg, StateFile(install_id="stored-id"))
+    assert telemetry.install_id(environ=send_env) == "stored-id"
+
+
+@pytest.mark.unit
+def test_install_id_never_creates_state(cfg: Path, send_env: Dict[str, str]) -> None:
+    """Asking who this machine is must not be what gives it a name."""
+    assert telemetry.install_id(environ=send_env) is None
+    assert not cfg.exists()
+
+
+@pytest.mark.unit
 def test_mark_update_hint_shown_stamps_an_existing_state(
     cfg: Path, send_env: Dict[str, str]
 ) -> None:

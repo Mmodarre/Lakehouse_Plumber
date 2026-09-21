@@ -48,6 +48,7 @@ def test_help_lists_active_commands(runner: CliRunner) -> None:
         "diff",
         "init",
         "skill",
+        "telemetry",
     ):
         assert command in result.output, f"{command!r} missing from help"
 

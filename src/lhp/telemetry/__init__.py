@@ -33,6 +33,7 @@ goes inert.
 
 from lhp.telemetry._client import effective_state, flush, new_event, record
 from lhp.telemetry._consent import TelemetryState
+from lhp.telemetry._environment import ci_vendor
 from lhp.telemetry._events import (
     PROJECT_SHAPE_KEYS,
     CliCommandProps,
@@ -45,9 +46,15 @@ from lhp.telemetry._events import (
     to_json_dict,
 )
 from lhp.telemetry._identity import ProjectIdentity, env_class, read_project_identity
-from lhp.telemetry._paths import DEFAULT_ENDPOINT
+from lhp.telemetry._paths import (
+    DEFAULT_ENDPOINT,
+    config_dir,
+    resolve_endpoint,
+    state_path,
+)
 from lhp.telemetry._preferences import (
     due_update_hint,
+    install_id,
     mark_update_hint_shown,
     newer_version_available,
     set_user_enabled,
@@ -67,18 +74,23 @@ __all__ = [
     "TelemetryState",
     "WebRunProps",
     "WebSessionProps",
+    "ci_vendor",
+    "config_dir",
     "effective_state",
     "env_class",
     "flush",
     "fold_project_shape",
+    "install_id",
     "mark_update_hint_shown",
     "new_event",
     "newer_version_available",
     "pending_update_hint",
     "read_project_identity",
     "record",
+    "resolve_endpoint",
     "set_user_enabled",
     "spool_count",
     "spooled_events",
+    "state_path",
     "to_json_dict",
 ]

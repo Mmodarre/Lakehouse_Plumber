@@ -126,6 +126,10 @@ IO_026 = ErrorCode(ErrorCategory.IO, "026")
 # web`` launch preflight when binding 127.0.0.1:<port> fails with EADDRINUSE;
 # suggests picking another port via ``--port``.
 IO_027 = ErrorCode(ErrorCategory.IO, "027")
+# IO_028: the telemetry preference could not be saved — raised by ``lhp
+# telemetry on|off`` when writing ``telemetry.json`` in the config directory
+# fails; suggests pointing ``LHP_CONFIG_DIR`` at a writable directory.
+IO_028 = ErrorCode(ErrorCategory.IO, "028")
 
 CFG_001 = ErrorCode(ErrorCategory.CONFIG, "001")
 CFG_002 = ErrorCode(ErrorCategory.CONFIG, "002")
@@ -315,6 +319,7 @@ ALL_CODES: tuple[ErrorCode, ...] = (
     IO_025,
     IO_026,
     IO_027,
+    IO_028,
     CFG_001,
     CFG_002,
     CFG_003,
@@ -465,6 +470,7 @@ __all__ = [
     "IO_025",
     "IO_026",
     "IO_027",
+    "IO_028",
     "VAL_001",
     "VAL_002",
     "VAL_003",

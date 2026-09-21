@@ -529,6 +529,15 @@ def test_package_exports_the_consumer_surface() -> None:
         "PROJECT_SHAPE_KEYS",
         "DEFAULT_ENDPOINT",
         "to_json_dict",
+        # What ``lhp telemetry status`` reports: where the state lives, which
+        # machine it identifies, where events would go, and whether CI means
+        # no identity at all. Exported so the command never has to reach into
+        # a private module for them.
+        "config_dir",
+        "state_path",
+        "install_id",
+        "resolve_endpoint",
+        "ci_vendor",
     }
     assert set(telemetry.__all__) == expected
     for name in expected:

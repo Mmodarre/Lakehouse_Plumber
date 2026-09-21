@@ -52,6 +52,18 @@ def set_user_enabled(enabled: bool, environ: Environ = None) -> Path:
 
 
 @_inert()
+def install_id(environ: Environ = None) -> Optional[str]:
+    """The install id the state file already holds, or ``None``.
+
+    A pure read: the state file is never created and no id is minted, so
+    ``lhp telemetry status`` can report the identity of a machine that has
+    opted out without giving it one.
+    """
+    state = _store.read_state(config_dir(resolve_environ(environ)))
+    return None if state is None else state.install_id
+
+
+@_inert()
 def mark_update_hint_shown(environ: Environ = None) -> None:
     """Stamp the state file so the hint waits another day; never creates it."""
     resolved = resolve_environ(environ)

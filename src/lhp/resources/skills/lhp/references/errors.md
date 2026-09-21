@@ -88,6 +88,7 @@ Terminal output includes: error code, description, context, fix suggestions, and
 | **IO-025** | `--sandbox` run but the personal profile `.lhp/profile.yaml` does not exist at the project root | Create gitignored `.lhp/profile.yaml` with a top-level `sandbox:` key declaring `namespace` and `pipelines` (globs allowed); see [sandbox.md](sandbox.md) |
 | **IO-026** | `lhp web` run without the optional webapp dependencies (`fastapi` + `uvicorn`) installed | Install the webapp extra: `pip install "lakehouse-plumber[webapp]"`, then re-run `lhp web` |
 | **IO-027** | `lhp web` port preflight found another process already listening on `127.0.0.1:<port>` (default `8000`) | Pick another port: `lhp web --port <port>`; or stop the process currently listening on it |
+| **IO-028** | `lhp telemetry on` / `lhp telemetry off` could not write `telemetry.json` in the config directory (unwritable directory, full disk) | Point `LHP_CONFIG_DIR` at a directory you can write to and re-run; or fix the permissions on the existing config directory |
 
 ## Action Errors (LHP-ACT)
 
