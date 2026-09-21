@@ -283,6 +283,20 @@ def _arm_telemetry(
     return registry, events
 
 
+async def _await_events(events: list[dict[str, Any]], count: int) -> None:
+    """Poll until ``count`` events have landed, or a generous deadline passes.
+
+    A positive "the grace task emitted" wait spans the grace timer PLUS the
+    ``to_thread`` emit hop, so a fixed sleep sized to the timer would fail on
+    a stalled runner; polling makes the wait as long as it needs to be and no
+    longer. Negative waits (asserting NO event) keep their fixed sleeps.
+    """
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + 5.0
+    while len(events) < count and loop.time() < deadline:
+        await asyncio.sleep(0.01)
+
+
 def test_disconnect_emits_one_web_session_after_grace(
     e2e_project_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -299,7 +313,7 @@ def test_disconnect_emits_one_web_session_after_grace(
             # dropped; one counted request makes the session real.
             registry.count_request(_SID, "pipelines.read")
         assert events == []
-        await asyncio.sleep(0.3)
+        await _await_events(events, 1)
 
     _run(scenario)
     assert len(events) == 1
@@ -337,7 +351,7 @@ def test_reconnect_within_grace_keeps_the_session(
             await asyncio.sleep(0.7)
             assert events == []
             registry.count_request(_SID, "tables.read")
-        await asyncio.sleep(0.8)
+        await _await_events(events, 1)
 
     _run(scenario)
     assert len(events) == 1
