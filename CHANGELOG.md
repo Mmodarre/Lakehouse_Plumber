@@ -80,6 +80,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Template authoring in `lhp web`.** Templates open in a shared Builder / Code /
+  Preview workspace with new/duplicate actions, parameter declarations, nested
+  list/object inputs, action editing, and parameter-expression insertion. Preview
+  checks the current unsaved draft, expands actions, or resolves a sample flowgroup
+  through the LHP template engine using saved project dependencies. Results include
+  YAML, an optional action graph, diagnostics, cancellation, and stale-result
+  detection. Save and use opens flowgroup creation with the template selected.
+- **Contextual field guidance in forms and YAML.** 363 packaged help entries cover
+  project, pipeline, job, action, and template settings, including all 24 action
+  subtypes. Persistent help panels and YAML hovers explain examples, choices, and
+  omitted/inherited values; CI checks catalog bindings and documentation drift.
+- **Workspace navigation and tab management.** Quick open, workspace Back/Forward,
+  pipeline breadcrumbs, shareable active-view links, tab search, pinning,
+  reordering, reopening, and bulk close with a shared Save/Discard/Cancel review.
+  File search, active-file reveal, contextual creation, panel controls, focus mode,
+  and compact/comfortable density make larger projects easier to navigate.
+- **Configuration inspection and editing tools.** Project configuration stays
+  accessible from the workspace; settings support key search, section navigation,
+  configured-only filtering, and explicit add/remove controls. Pipeline and job
+  previews resolve saved effective settings through the production resolvers, and
+  a read-only diff compares saved YAML with the working draft.
+
 - **`uc_tagging.max_allowable_consecutive_failures` in `lhp.yaml`.** The UC tagging
   hook's `@dp.on_event_hook` failure budget is now configurable instead of hardcoded.
   Accepts an integer >= 0 or `null`; anything else (including `true`, which YAML would
@@ -88,6 +110,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the `lhp web` config form and the packaged JSON schema.
 
 ### Changed
+
+- **Web IDE diagnostics and run history expose more context.** Problems support
+  severity/file filters, source navigation, suggestions, and result staleness.
+  History adds filtering, export, and incremental loading within the existing
+  200-run API limit. Local error boundaries and retry controls preserve the rest
+  of the workspace when a panel fails; editor and graph code load on demand.
 
 - **The UC tagging hook's default failure budget is now unlimited (`None`) instead of
   `3`.** This matches the SDP default: `None` means there is no limit to the
@@ -98,6 +126,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   disabled and, per Databricks, did not process new events until the pipeline was
   restarted (#201). Set `uc_tagging.max_allowable_consecutive_failures: 3` to restore
   the previous behavior.
+
+### Fixed
+
+- **Web IDE saves preserve in-flight edits and existing files.** Save responses no
+  longer overwrite newer edits, and New/Duplicate use create-only writes. Form,
+  Graph, and Code share file buffers and save controls; saving captures pending
+  field edits, while failed or incomplete saves block save-before-run execution.
+  Viewer mode also guards raw YAML, graph, and configuration mutation paths.
+- **Workspace editing and navigation retain the correct document state.** Source
+  links and diagnostics open the owning file tab without losing its draft, graph
+  undo/redo preserves YAML comments and refuses to overwrite newer Code edits,
+  and multi-flowgroup files fall back to Code for safe editing. Returning to views
+  retains editor positions, graph viewports, configuration selection, and assistant
+  drafts; lineage arrows now follow actual recorded edges.
+- **Run state remains consistent across workspace navigation.** A shared run
+  coordinator keeps streams alive across tab changes, rejects stale callbacks,
+  queues save validation, and distinguishes stopped, incomplete, failed, and
+  successful runs. History hydration preserves live results; file/run events also
+  refresh configuration previews and generated artifacts.
 
 ## [0.9.1] — 2026-06-10
 
