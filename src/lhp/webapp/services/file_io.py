@@ -323,6 +323,19 @@ class FileIOService:
             return None
         return target.read_bytes()
 
+    def file_exists(self, relative_path: str) -> bool:
+        """Return ``True`` when the target is an existing *file*.
+
+        The cheap existence probe for callers that need only the create-vs-
+        update distinction and not the bytes. Same guard and same directory
+        contract as :meth:`read_bytes_if_exists`: traversal-guarded, and a
+        directory is not a file, so it yields ``False``.
+
+        Raises:
+            PathTraversalError: target resolves outside the project root.
+        """
+        return self._resolve_in_root(relative_path).is_file()
+
     def write_file(self, relative_path: str, content: str) -> WriteResult:
         """Write ``content`` to a file (PUT semantics: creates dirs / new files).
 
