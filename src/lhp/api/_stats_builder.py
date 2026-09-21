@@ -65,11 +65,12 @@ def _bump(counts: Dict[str, int], key: str) -> None:
 def _plain_value(value: object) -> str:
     """Render a field as its plain string, unwrapping a ``str``-mixin enum.
 
-    A write target reaches here either as raw YAML (plain strings) or as
-    a dumped :class:`WriteTarget` model (``WriteTargetType`` members).
-    Those enums do not inherit :class:`enum.ReprEnum`, so ``str()`` and
-    f-strings render them as ``"WriteTargetType.SINK"`` rather than
-    ``"sink"``; unwrapping keeps one spelling per value in the counts.
+    A counted field reaches here either as raw YAML (plain strings) or
+    as a validated model field holding an enum member
+    (``WriteTargetType``, ``TransformType``). Those enums do not inherit
+    :class:`enum.ReprEnum`, so ``str()`` and f-strings render them as
+    ``"WriteTargetType.SINK"`` rather than ``"sink"``; unwrapping keeps
+    one spelling per value in the counts.
     """
     return str(getattr(value, "value", value))
 
@@ -145,7 +146,8 @@ def _build_stats_result(flowgroups: Sequence["FlowGroup"]) -> StatsResult:
                 subtype = str(action.source.get("type", "unknown"))
                 _bump(action_counts, f"load_{subtype}")
             elif type_value == "transform" and action.transform_type:
-                _bump(action_counts, f"transform_{action.transform_type}")
+                transform_type = _plain_value(action.transform_type)
+                _bump(action_counts, f"transform_{transform_type}")
             elif type_value == "write":
                 _count_write_action(action, action_counts, write_targets)
             elif type_value == "test":

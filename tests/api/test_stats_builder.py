@@ -56,11 +56,11 @@ _EXPECTED_COUNTS = {
     "load_sql": 13,
     "test": 9,
     "transform": 30,
-    "transform_TransformType.DATA_QUALITY": 6,
-    "transform_TransformType.PYTHON": 6,
-    "transform_TransformType.SCHEMA": 5,
-    "transform_TransformType.SQL": 12,
-    "transform_TransformType.TEMP_TABLE": 1,
+    "transform_data_quality": 6,
+    "transform_python": 6,
+    "transform_schema": 5,
+    "transform_sql": 12,
+    "transform_temp_table": 1,
     "write": 71,
     "tables": 57,
     "test_all_lookups_found": 1,
@@ -222,6 +222,29 @@ class TestAllowListsTrackTheDomainEnums:
         ).action_counts_by_type
 
         assert counts["load_hologram"] == 1
+
+    def test_transform_sub_keys_carry_the_enum_value(self) -> None:
+        """``Action.transform_type`` is coerced to a ``TransformType`` member
+        whose ``str()`` is ``"TransformType.SQL"`` — the key must be the enum
+        VALUE, or one transform type would count under two spellings."""
+        counts = _build_stats_result(
+            [
+                _flowgroup(
+                    [
+                        _action(
+                            "t1",
+                            "transform",
+                            transform_type="sql",
+                            source="v_src",
+                            target="v_out",
+                        )
+                    ]
+                )
+            ]
+        ).action_counts_by_type
+
+        assert counts["transform_sql"] == 1
+        assert not [key for key in counts if "TransformType" in key]
 
 
 class TestWriteCounting:
