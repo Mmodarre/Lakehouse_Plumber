@@ -25,6 +25,12 @@ from click.testing import CliRunner
 from conftest import strip_ansi
 
 from lhp.cli.commands.generate_command import generate
+from tests.helpers import (
+    assert_no_names_in_values,
+    last_cli_command_line,
+    parse_last_cli_command,
+    project_names,
+)
 
 _FIXTURE = Path(__file__).resolve().parents[1] / "e2e" / "fixtures" / "testing_project"
 
@@ -173,3 +179,36 @@ def test_help_documents_sandbox_flag() -> None:
 
     assert result.exit_code == 0
     assert "--sandbox" in result.output
+
+
+def test_generate_records_one_cli_command_event_in_log_mode(
+    project_dir: Path, monkeypatch: pytest.MonkeyPatch, telemetry_log_mode: Path
+) -> None:
+    """A clean generate emits exactly one ``cli.command`` envelope and no names.
+
+    ``log`` mode prints the envelope the client would otherwise spool, so the
+    assertions cover the wire payload itself: the command, its flag NAMES, the
+    exit code, the bounded project shape, and — negatively — that no project,
+    pipeline or flowgroup name from the fixture appears anywhere in the line.
+    """
+    monkeypatch.chdir(project_dir)
+    result = CliRunner().invoke(
+        generate,
+        ["-e", "dev", "--no-bundle", "--no-progress"],
+        catch_exceptions=False,
+    )
+    assert result.exit_code == 0, result.stderr
+
+    envelope = parse_last_cli_command(result.stderr)
+    props = envelope["props"]
+    assert props["command"] == "generate"
+    assert props["exit_code"] == 0
+    assert props["flags"] == ["env", "no_bundle", "no_progress"]
+    assert props["env_class"] == "production"
+    assert props["bundle_enabled"] is False
+    assert props["cache_used"] is True
+    assert props["files_written"] > 0
+    assert props["project"]["flowgroups"] > 0
+
+    assert result.stderr.count(last_cli_command_line(result.stderr)) == 1
+    assert_no_names_in_values(envelope, project_names(project_dir))

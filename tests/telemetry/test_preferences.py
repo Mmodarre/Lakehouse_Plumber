@@ -5,7 +5,10 @@ suite-wide ``LHP_TELEMETRY=off`` guard never leaks in and no test reaches the
 developer's real config directory.
 """
 
+import io
 import re
+import sys
+from datetime import timedelta
 from pathlib import Path
 from typing import Any, Dict
 
@@ -15,7 +18,7 @@ from lhp import telemetry
 from lhp.telemetry._environment import lhp_version
 from lhp.telemetry._paths import spool_path, state_path
 from lhp.telemetry._spool import append_spool, read_lines
-from lhp.telemetry._store import StateFile, read_state, write_state
+from lhp.telemetry._store import StateFile, read_state, utc_now_iso, write_state
 
 TS = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$")
 PROPS = {"command": "generate", "exit_code": 0}
@@ -168,3 +171,97 @@ def test_spooled_events_skips_corrupt_lines(
     append_spool(cfg, "{not json")
     append_spool(cfg, '{"event":"cli.command"}')
     assert telemetry.spooled_events(10, environ=send_env) == [{"event": "cli.command"}]
+
+
+# due_update_hint
+
+
+class _Tty(io.StringIO):
+    """A stderr stand-in that claims to be a terminal."""
+
+    def isatty(self) -> bool:
+        return True
+
+
+def _pretend_terminal(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Make stderr claim to be a terminal for the rest of the test body.
+
+    Called from the body rather than from a fixture: pytest's capture re-binds
+    ``sys.stderr`` when the call phase resumes, which would undo a
+    replacement made during setup.
+    """
+    monkeypatch.setattr(sys, "stderr", _Tty())
+
+
+def _state_with_latest(cfg: Path, latest: str = "99.0.0", shown_at: Any = None) -> None:
+    write_state(
+        cfg,
+        StateFile(
+            install_id="00000000-0000-4000-8000-000000000000",
+            created_at="2026-01-01T00:00:00.000Z",
+            last_version_seen=lhp_version(),
+            latest_known_version=latest,
+            update_hint_shown_at=shown_at,
+        ),
+    )
+
+
+@pytest.mark.unit
+def test_due_update_hint_names_the_newer_release(
+    cfg: Path, send_env: Dict[str, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _pretend_terminal(monkeypatch)
+    _state_with_latest(cfg)
+    assert telemetry.due_update_hint(environ=send_env) == "99.0.0"
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "switch",
+    [
+        {"LHP_TELEMETRY": "log"},
+        {"LHP_TELEMETRY": "off"},
+        {"DO_NOT_TRACK": "1"},
+        {"CI": "1"},
+        {"LHP_UPDATE_CHECK": "off"},
+    ],
+)
+def test_due_update_hint_is_quiet_outside_an_interactive_send_mode_run(
+    cfg: Path,
+    send_env: Dict[str, str],
+    monkeypatch: pytest.MonkeyPatch,
+    switch: Dict[str, str],
+) -> None:
+    _pretend_terminal(monkeypatch)
+    _state_with_latest(cfg)
+    assert telemetry.due_update_hint(environ={**send_env, **switch}) is None
+
+
+@pytest.mark.unit
+def test_due_update_hint_is_quiet_without_a_terminal(
+    cfg: Path, send_env: Dict[str, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _state_with_latest(cfg)
+    monkeypatch.setattr(sys, "stderr", io.StringIO())
+    assert telemetry.due_update_hint(environ=send_env) is None
+
+
+@pytest.mark.unit
+def test_due_update_hint_waits_a_day_after_the_last_one(
+    cfg: Path, send_env: Dict[str, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _pretend_terminal(monkeypatch)
+    _state_with_latest(cfg, shown_at=utc_now_iso())
+    assert telemetry.due_update_hint(environ=send_env) is None
+    _state_with_latest(cfg, shown_at=utc_now_iso(-timedelta(hours=25)))
+    assert telemetry.due_update_hint(environ=send_env) == "99.0.0"
+
+
+@pytest.mark.unit
+def test_due_update_hint_without_state_or_a_newer_release_is_none(
+    cfg: Path, send_env: Dict[str, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _pretend_terminal(monkeypatch)
+    assert telemetry.due_update_hint(environ=send_env) is None
+    _state_with_latest(cfg, latest="0.0.1")
+    assert telemetry.due_update_hint(environ=send_env) is None

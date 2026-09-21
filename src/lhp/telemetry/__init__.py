@@ -47,6 +47,7 @@ from lhp.telemetry._events import (
 from lhp.telemetry._identity import ProjectIdentity, env_class, read_project_identity
 from lhp.telemetry._paths import DEFAULT_ENDPOINT
 from lhp.telemetry._preferences import (
+    due_update_hint,
     mark_update_hint_shown,
     newer_version_available,
     set_user_enabled,

@@ -22,6 +22,7 @@ from lhp.cli._app_context import (
     exit_for_outcome,
     resolve_project_root,
 )
+from lhp.cli._telemetry_hook import note_run
 from lhp.cli.error_boundary import cli_error_boundary
 from lhp.cli.presenters.event_stream._model import RenderOptions, RunHeader
 from lhp.cli.presenters.event_stream.renderer_factory import render
@@ -133,4 +134,5 @@ def generate(
         options=options,
         err_console=_console_module.err_console,
     )
+    note_run(facade, outcome, bundle_enabled=bundle_enabled, no_cache=no_cache)
     exit_for_outcome(outcome, strict=strict)

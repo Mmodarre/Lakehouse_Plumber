@@ -77,7 +77,8 @@ VALIDATORS_TOP_LEVEL_ALLOWLIST = frozenset(
 PLACEMENT_SHIM_ALLOWLIST: dict[str, str] = {}
 
 # §11 lists the seven domain-code packages.  CLI may only reach
-# `lhp.api`, `lhp.utils`, and `lhp.errors` directly (§5.3).
+# `lhp.api`, `lhp.utils`, `lhp.errors`, and `lhp.telemetry` directly
+# (§5.3 / §5.8).
 DOMAIN_PKGS_BANNED_FROM_CLI = (
     "lhp.core",
     "lhp.parsers",
@@ -96,7 +97,7 @@ RE_CLI_RELATIVE_DOMAIN_IMPORT = re.compile(
 
 # §1.1 / §5.3 — `lhp.webapp` (future WebUI integration, §1.1.b) is a
 # CONSUMER of the public API, like the CLI: it may reach only `lhp.api`,
-# `lhp.errors`, and `lhp.webapp` itself.  Every other domain-internal
+# `lhp.errors`, `lhp.telemetry`, and `lhp.webapp` itself.  Every other domain-internal
 # package is banned — including `lhp.schemas` as a MODULE import (webapp
 # loads schema JSON via `importlib.resources` on the package-name STRING,
 # which is not an import statement, so this never blocks legitimate use).
@@ -359,15 +360,15 @@ def check_webapp_imports(path: Path) -> list[str]:
             findings.append(
                 f"{rel(path)}:{line_no}: LHP-9.7 webapp imports from internal "
                 f"domain module `{absolute_hit}` (§5.3) — lhp.webapp may reach "
-                f"only lhp.api / lhp.errors; go through lhp.api"
+                f"only lhp.api / lhp.errors / lhp.telemetry; go through lhp.api"
             )
         elif relative_match is not None:
             short = relative_match.group(1)
             findings.append(
                 f"{rel(path)}:{line_no}: LHP-9.7 webapp imports from internal "
                 f"domain module `lhp.{short}` via relative import (§5.3) — "
-                f"lhp.webapp may reach only lhp.api / lhp.errors; go through "
-                f"lhp.api"
+                f"lhp.webapp may reach only lhp.api / lhp.errors / lhp.telemetry; "
+                f"go through lhp.api"
             )
     return findings
 

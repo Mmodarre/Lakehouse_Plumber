@@ -18,6 +18,7 @@ from rich_click import RichCommand
 
 from lhp.cli import console as _console_module
 from lhp.cli._app_context import build_facade, resolve_project_root
+from lhp.cli._telemetry_hook import note_run
 from lhp.cli.commands._dag_options import dag_options
 from lhp.cli.error_boundary import cli_error_boundary
 from lhp.cli.presenters import dag_files_presenter, dag_presenter
@@ -75,6 +76,7 @@ def dag(
         bundle_output=bundle_output,
     )
     dag_files_presenter.render_outputs(outputs, console=_console_module.console)
+    note_run(facade, None, bundle_enabled=None, no_cache=no_cache)
 
 
 @click.command(cls=RichCommand, name="deps", hidden=True)
@@ -90,4 +92,8 @@ def deps(ctx: click.Context, **kwargs: object) -> None:
         DeprecationWarning,
         stacklevel=2,
     )
+    # The forwarded run records its telemetry under the alias's name: the
+    # marker rides on the context object both commands share.
+    ctx.ensure_object(dict)
+    ctx.obj.setdefault("telemetry", {})["alias"] = "deps"
     ctx.forward(dag)

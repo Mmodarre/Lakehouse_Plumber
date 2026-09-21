@@ -16,6 +16,7 @@ Validate REPORTS findings — every validation issue is folded into the terminal
 from __future__ import annotations
 
 import re
+import shutil
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -24,6 +25,12 @@ from click.testing import CliRunner
 from conftest import strip_ansi
 
 from lhp.cli.commands.validate_command import validate_command
+from tests.helpers import (
+    assert_no_names_in_values,
+    last_cli_command_line,
+    parse_last_cli_command,
+    project_names,
+)
 
 pytestmark = pytest.mark.unit
 
@@ -235,3 +242,34 @@ def test_help_documents_sandbox_flag() -> None:
 
     assert result.exit_code == 0
     assert "--sandbox" in result.output
+
+
+def test_validate_records_one_cli_command_event_in_log_mode(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, telemetry_log_mode: Path
+) -> None:
+    """A clean validate emits exactly one ``cli.command`` envelope and no names.
+
+    Runs on a deep copy of the fixture so the parse cache never lands in the
+    tracked tree. Validate writes no files, so ``files_written`` is null.
+    """
+    project_dir = tmp_path / "testing_project"
+    shutil.copytree(FIXTURE_PROJECT, project_dir)
+    monkeypatch.chdir(project_dir)
+    result = CliRunner().invoke(
+        validate_command, ["--env", "dev", "--no-bundle"], catch_exceptions=False
+    )
+    assert result.exit_code == 0, result.stderr
+
+    envelope = parse_last_cli_command(result.stderr)
+    props = envelope["props"]
+    assert props["command"] == "validate"
+    assert props["exit_code"] == 0
+    assert props["flags"] == ["env", "no_bundle"]
+    assert props["env_class"] == "production"
+    assert props["bundle_enabled"] is False
+    assert props["cache_used"] is True
+    assert props["files_written"] is None
+    assert props["project"]["flowgroups"] > 0
+
+    assert result.stderr.count(last_cli_command_line(result.stderr)) == 1
+    assert_no_names_in_values(envelope, project_names(project_dir))
