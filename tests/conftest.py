@@ -3,6 +3,7 @@
 import contextlib
 import io
 import logging
+import os
 import re
 import shutil
 import sys
@@ -28,6 +29,19 @@ except ImportError:
     Console = None  # type: ignore[assignment,misc]
     _lhp_console_module = None  # type: ignore[assignment]
     _RICH_AVAILABLE = False
+
+# pytest-socket is imported defensively for the same reason, and the network
+# guard below is a fixture rather than ``--disable-socket`` in ``addopts``:
+# the ``packaging-check`` and Windows e2e CI jobs run pytest from venvs
+# without the dev extras, where an unknown command-line option aborts the run
+# before collection even starts.
+try:
+    import pytest_socket
+
+    _PYTEST_SOCKET_AVAILABLE = True
+except ImportError:
+    pytest_socket = None  # type: ignore[assignment]
+    _PYTEST_SOCKET_AVAILABLE = False
 
 
 _ANSI_RE = re.compile(r"\x1b\[[0-9;?]*[ -/]*[@-~]")
@@ -97,6 +111,94 @@ def _isolate_lhp_console(monkeypatch):
         "err_console",
         Console(stderr=True, force_terminal=False, no_color=True, width=999),
     )
+    yield
+
+
+# Environment variables that telemetry consent resolution treats as an
+# explicit "off", whatever the stored preference says.
+_TELEMETRY_OFF_SWITCHES = (
+    "DO_NOT_TRACK",
+    "LHP_DISABLE_ANALYTICS",
+    "CI",
+    "GITHUB_ACTIONS",
+    "TF_BUILD",
+)
+
+# The only hosts the suite may connect to. Everything else — including a
+# telemetry endpoint — is refused by the network guard below.
+_ALLOWED_HOSTS = ["127.0.0.1", "::1", "localhost"]
+
+
+@pytest.fixture(autouse=True)
+def _isolate_telemetry(monkeypatch, tmp_path):
+    """Run every test with telemetry off and a throwaway config directory.
+
+    Deliberately env-only: importing the telemetry package here would stop the
+    minimal-venv ``packaging-check`` CI job — which installs neither the
+    project nor its dependencies — from collecting ``tests/test_packaging.py``.
+    Pointing ``LHP_CONFIG_DIR`` at the per-test tmp tree keeps state, spool and
+    install id out of the developer's real config directory even if a test
+    turns telemetry back on.
+    """
+    monkeypatch.setenv("LHP_TELEMETRY", "off")
+    monkeypatch.setenv("LHP_CONFIG_DIR", str(tmp_path / "lhp-config"))
+    monkeypatch.delenv("LHP_TELEMETRY_ENDPOINT", raising=False)
+
+
+@pytest.fixture
+def telemetry_log_mode(monkeypatch, tmp_path):
+    """Opt one test into telemetry ``log`` mode and yield its config directory.
+
+    pytest exports ``PYTEST_CURRENT_TEST`` for each test phase and consent
+    resolution treats that variable as an off switch, so it is removed here
+    along with the CI and do-not-track switches — otherwise the code under
+    test would resolve to ``off`` and emit nothing. pytest re-exports the
+    variable when the call phase begins, which is why the removal is
+    completed by ``pytest_pyfunc_call`` below.
+    """
+    monkeypatch.setenv("LHP_TELEMETRY", "log")
+    monkeypatch.delenv("PYTEST_CURRENT_TEST", raising=False)
+    for name in _TELEMETRY_OFF_SWITCHES:
+        monkeypatch.delenv(name, raising=False)
+    config_dir = tmp_path / "lhp-config"
+    monkeypatch.setenv("LHP_CONFIG_DIR", str(config_dir))
+    yield config_dir
+
+
+@pytest.hookimpl(wrapper=True)
+def pytest_pyfunc_call(pyfuncitem):
+    """Hide ``PYTEST_CURRENT_TEST`` from the body of a ``telemetry_log_mode`` test.
+
+    ``_pytest.runner.pytest_runtest_call`` sets the variable again after
+    fixture setup has run, so a fixture on its own cannot keep it deleted for
+    the code under test. This hook runs inside the call phase, after that
+    assignment, and puts the value back once the test body returns so pytest's
+    own crash reporting keeps working.
+    """
+    if "telemetry_log_mode" not in pyfuncitem.fixturenames:
+        return (yield)
+    saved = os.environ.pop("PYTEST_CURRENT_TEST", None)
+    try:
+        return (yield)
+    finally:
+        if saved is not None:
+            os.environ["PYTEST_CURRENT_TEST"] = saved
+
+
+@pytest.fixture(autouse=True)
+def _guard_network_access():
+    """Refuse every connection to a host outside ``_ALLOWED_HOSTS``.
+
+    Only ``socket.socket.connect`` is patched, so tests remain free to create,
+    bind and listen on sockets — which the webapp TestClient, the local server
+    launch tests and the xdist workers all need. pytest-socket removes the
+    patch in its own teardown hook, so each test gets a fresh guard. No-ops
+    when pytest-socket is not installed.
+    """
+    if not _PYTEST_SOCKET_AVAILABLE:
+        yield
+        return
+    pytest_socket.socket_allow_hosts(_ALLOWED_HOSTS, allow_unix_socket=True)
     yield
 
 

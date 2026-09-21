@@ -79,6 +79,9 @@ dev = [
     "pytest>=9.0.0",
     "pytest-cov>=4.0.0",
     "pytest-mock>=3.10.0",
+    # Network guard for the test suite: no test may open a connection to a
+    # non-loopback host. Dev-only — the telemetry client adds no runtime dependency.
+    "pytest-socket>=0.7",
     "syrupy>=4.6.0",
     "ruff>=0.13.3",  # the repo's single linter + formatter + import-sorter
     "import-linter>=2.11",  # §5 boundary contracts (configured in [tool.importlinter])
