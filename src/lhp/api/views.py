@@ -175,13 +175,13 @@ class ProjectConfigView:
 
     ``project_id`` is the opaque UUID v4 ``lhp init`` writes into
     ``lhp.yaml``; projects scaffolded before it existed carry ``None``.
+    Fields are append-only, so positional construction keeps its meaning.
 
     :stability: provisional
     """
 
     name: str
     version: str
-    project_id: Optional[str] = None
     description: Optional[str] = None
     author: Optional[str] = None
     created_date: Optional[str] = None
@@ -193,6 +193,7 @@ class ProjectConfigView:
     has_event_log: bool = False
     has_monitoring: bool = False
     has_test_reporting: bool = False
+    project_id: Optional[str] = None
     has_uc_tagging: bool = False
     has_wheel: bool = False
     has_sandbox: bool = False

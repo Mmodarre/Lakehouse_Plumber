@@ -277,6 +277,38 @@ class TestFrozenContract:
         assert params.frozen is True, f"{cls.__name__} must be frozen"
 
 
+class TestFieldOrderIsAppendOnly:
+    def test_project_config_view_keeps_its_positional_prefix(self) -> None:
+        """A caller constructing the view positionally keeps working (§1).
+
+        Fields are appended after the original thirteen, so a positional
+        argument always lands in the same field.
+        """
+        names = [f.name for f in dataclasses.fields(ProjectConfigView)]
+        assert names[:13] == [
+            "name",
+            "version",
+            "description",
+            "author",
+            "created_date",
+            "required_lhp_version",
+            "include",
+            "blueprint_include",
+            "instance_include",
+            "has_operational_metadata",
+            "has_event_log",
+            "has_monitoring",
+            "has_test_reporting",
+        ]
+        assert names[13:] == [
+            "project_id",
+            "has_uc_tagging",
+            "has_wheel",
+            "has_sandbox",
+            "apply_formatting",
+        ]
+
+
 # --------------------------------------------------------------------------- #
 # 2. Mutation raises FrozenInstanceError.
 # --------------------------------------------------------------------------- #
