@@ -145,6 +145,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   queues save validation, and distinguishes stopped, incomplete, failed, and
   successful runs. History hydration preserves live results; file/run events also
   refresh configuration previews and generated artifacts.
+- **Public API startup stays lightweight with configuration previews enabled.**
+  Preview resolvers load when requested, so importing `lhp.api` does not eagerly
+  import the dependency-analysis or code-generation stack.
 
 ## [0.9.1] — 2026-06-10
 
