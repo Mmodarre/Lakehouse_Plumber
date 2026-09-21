@@ -1,9 +1,11 @@
 """Behavioural tests for :mod:`lhp.api._stats_builder`.
 
 ``action_counts_by_type`` is the shape consumers read to describe a
-project without naming anything in it, so every sub-key it can emit must
-be drawn from a bounded allow-list. These tests pin both halves of that
-contract:
+project without naming anything in it. Its ``write_*`` / ``write_mode_*``
+/ ``test_*`` sub-keys come from fixed allow-lists and are bounded; the
+``load_<source type>`` and ``transform_<transform type>`` sub-keys carry
+the raw string the project wrote and are NOT, so only the former are
+pinned as bounded below. These tests cover both halves of the shape:
 
 * the fixture-project anchor test asserts the COMPLETE mapping for
   ``tests/e2e/fixtures/testing_project`` — an isolated deep copy, never
@@ -198,14 +200,25 @@ class TestFixtureProjectCounts:
 
 
 class TestAllowListsTrackTheDomainEnums:
-    """The allow-lists bound telemetry key cardinality; a new enum value
-    must be admitted deliberately, not leak in as a fresh key."""
+    """The allow-lists bound the write / write-mode / test key cardinality;
+    a new enum value must be admitted deliberately, not leak in as a fresh
+    key. They say nothing about ``load_*`` / ``transform_*``, which are
+    unbounded by design."""
 
     def test_write_target_types_match_the_enum(self) -> None:
         assert _WRITE_TARGET_TYPES == {member.value for member in WriteTargetType}
 
     def test_test_types_match_the_enum(self) -> None:
         assert _TEST_TYPES == {member.value for member in TestActionType}
+
+    def test_load_sub_keys_carry_the_raw_source_type(self) -> None:
+        """``Action.source`` is an unvalidated mapping, so the load family is
+        open-ended: whatever ``source.type`` says becomes the key."""
+        counts = _build_stats_result(
+            [_flowgroup([_action("l1", "load", source={"type": "hologram"})])]
+        ).action_counts_by_type
+
+        assert counts["load_hologram"] == 1
 
 
 class TestWriteCounting:

@@ -24,16 +24,20 @@ if TYPE_CHECKING:
     from lhp.models import Action, FlowGroup
 
 
-# Allow-lists bounding the sub-keys this module can emit. Every value a
-# project supplies is matched against one of these and otherwise folded
-# into the matching ``*_other`` key, so the number of distinct keys in
-# ``action_counts_by_type`` is a property of LHP, not of the project
-# being described. They mirror ``WriteTargetType``, the write-target
-# ``mode`` enum in ``schemas/flowgroup.schema.json`` (plus the implicit
-# ``standard`` default), and ``TestActionType``; the enums are not
-# imported because ``lhp.api`` projects domain types rather than
-# depending on them at runtime, and ``tests/api/test_stats_builder.py``
-# asserts the two sets stay in step with their enums.
+# Allow-lists bounding the write / write-mode / test sub-keys. A value
+# outside one of these is folded into the matching ``*_other`` key, so
+# the number of distinct keys THOSE THREE families contribute is a
+# property of LHP, not of the project being described. The
+# ``load_<source type>`` and ``transform_<transform type>`` families are
+# NOT bounded this way: they carry the raw string the project wrote, so
+# an unrecognised source type becomes a key of its own.
+#
+# These mirror ``WriteTargetType``, the write-target ``mode`` enum in
+# ``schemas/flowgroup.schema.json`` (plus the implicit ``standard``
+# default), and ``TestActionType``; the enums are not imported because
+# ``lhp.api`` projects domain types rather than depending on them at
+# runtime, and ``tests/api/test_stats_builder.py`` asserts the two sets
+# stay in step with their enums.
 _WRITE_TARGET_TYPES = frozenset({"streaming_table", "materialized_view", "sink"})
 _WRITE_MODES = frozenset({"standard", "cdc", "snapshot_cdc"})
 _TEST_TYPES = frozenset(

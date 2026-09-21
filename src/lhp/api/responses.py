@@ -209,11 +209,13 @@ class StatsResult:
     a per-action-type breakdown and a sequence of per-pipeline rows.
     All fields are immutable, JSON-shape-compatible (§4.8).
 
-    ``action_counts_by_type`` keys, all drawn from a bounded allow-list
-    so a project cannot introduce a key of its own:
+    ``action_counts_by_type`` keys:
 
     * ``load`` / ``transform`` / ``write`` / ``test`` — one per action;
-    * ``load_<source type>`` and ``transform_<transform type>``;
+    * ``load_<source type>`` — the RAW ``source.type`` string the project
+      wrote, and ``transform_<transform type>`` the raw transform type,
+      so these two families are open-ended: a project can introduce a
+      key of its own here;
     * ``write_<streaming_table|materialized_view|sink>``, or
       ``write_other`` for an unreadable write target;
     * ``write_mode_<standard|cdc|snapshot_cdc>`` (``write_mode_other``
@@ -221,6 +223,11 @@ class StatsResult:
     * ``test_<test type>``, or ``test_other`` for an unknown one;
     * ``tables`` — the number of DISTINCT non-sink targets written, so a
       table written by two actions counts once.
+
+    The ``write_*``, ``write_mode_*`` and ``test_*`` families are the
+    bounded ones: each is drawn from a fixed allow-list, so the number
+    of distinct keys they contribute is a property of LHP rather than of
+    the project being described.
 
     A key is absent rather than zero when nothing matched it.
 
