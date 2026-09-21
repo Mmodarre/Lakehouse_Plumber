@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Optional
+
 from pydantic import BaseModel
 
 
@@ -13,6 +15,15 @@ class HealthResponse(BaseModel):
     project_state: str = "ok"
     # Project-root path as a string; shown by the SPA in the no-project notice.
     root: str = ""
+    # Whether this server process emits anonymous usage telemetry. Consent is
+    # resolved once per process, so the SPA can reflect the state without
+    # reading any telemetry file of its own.
+    telemetry_enabled: bool = False
+    # A release newer than the installed one, or None. None is the answer
+    # whenever telemetry is off, the update check is opted out, or the
+    # installed version is already current — the field is never the merely
+    # "last seen" release.
+    latest_version: Optional[str] = None
 
 
 class VersionResponse(BaseModel):
