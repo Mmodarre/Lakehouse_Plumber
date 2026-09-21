@@ -148,6 +148,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Public API startup stays lightweight with configuration previews enabled.**
   Preview resolvers load when requested, so importing `lhp.api` does not eagerly
   import the dependency-analysis or code-generation stack.
+- **CI coverage includes Web IDE backend tests.** The dedicated webapp suite
+  uploads its coverage alongside unit and end-to-end tests, so tested routes and
+  request/response schemas are included in patch-coverage checks.
 
 ## [0.9.1] — 2026-06-10
 
