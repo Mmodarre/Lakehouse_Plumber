@@ -118,6 +118,30 @@ describe('useRunController', () => {
     expect(transport.start.mock.calls[1]?.[0].pipeline_config).toBeUndefined()
   })
 
+  it('tags an editor-fired validate with trigger:auto', () => {
+    const { result } = renderHook(() => useRunController())
+    result.current.startValidate(undefined, 'bronze', 'auto')
+
+    expect(transport.start.mock.calls[0][0]).toEqual({
+      path: '/api/validate/stream',
+      env: 'dev',
+      pipeline: 'bronze',
+      trigger: 'auto',
+    })
+  })
+
+  it('omits trigger entirely for a user-initiated run (both kinds)', () => {
+    const { result } = renderHook(() => useRunController())
+    result.current.startValidate()
+    result.current.startGenerate()
+
+    // Absence, not `undefined`: the manual wire body must stay byte-identical
+    // to the pre-trigger shape (pinned at the wire in api/__tests__/stream.test.ts).
+    for (const call of transport.start.mock.calls) {
+      expect(Object.keys(call[0] as object)).not.toContain('trigger')
+    }
+  })
+
   it('ignores a start while the transport is already running', () => {
     transport.isRunning = true
     const { result } = renderHook(() => useRunController())

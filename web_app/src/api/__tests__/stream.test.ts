@@ -47,6 +47,12 @@ describe('startStream — wire body', () => {
     })
   })
 
+  it('sends `trigger` only when the run is tagged auto', async () => {
+    fetchMock.mockResolvedValue(new Response('', { status: 200 }))
+    await startStream('/api/validate/stream', { env: 'dev', trigger: 'auto' })
+    expect(sentBody()).toEqual({ env: 'dev', trigger: 'auto' })
+  })
+
   it("surfaces FastAPI's plain `detail` string when the open fails (404 guard)", async () => {
     // The backend's pipeline_config guards raise HTTPException, whose body
     // is `{detail: "..."}` with no structured error/code — the message must

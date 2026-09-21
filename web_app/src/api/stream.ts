@@ -22,6 +22,14 @@ export interface StreamBody {
    * Omitted (undefined) for a normal run, keeping the wire body unchanged.
    */
   sandbox?: boolean
+  /**
+   * Marks a run the editor started on its own (the scoped validate after a
+   * clean YAML save) rather than one the user asked for; it affects nothing
+   * but usage counting. Only the non-default value is representable, so a
+   * user-initiated run omits the key and the backend applies its `manual`
+   * default — keeping the manual wire body byte-identical.
+   */
+  trigger?: 'auto'
 }
 
 /**

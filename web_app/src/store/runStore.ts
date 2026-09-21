@@ -28,6 +28,8 @@ import type {
 //     (across all pipelines) to avoid double-counting.
 
 export type RunKind = 'validate' | 'generate'
+/** What started a run: a user action, or the editor acting on its own. */
+export type RunTrigger = 'manual' | 'auto'
 export type RunTerminal = 'success' | 'failed' | 'error'
 
 export interface RunProgress {
@@ -341,7 +343,7 @@ export const useRunStore = create<RunState>((set) => ({
 
 export interface RunController {
   isRunning: boolean
-  startValidate: (env?: string, pipeline?: string) => void
+  startValidate: (env?: string, pipeline?: string, trigger?: RunTrigger) => void
   startGenerate: (env?: string, pipeline?: string) => void
   abort: () => void
 }
@@ -360,6 +362,7 @@ export function useRunController(): RunController {
       env: string,
       pipeline?: string,
       sandbox = false,
+      trigger: RunTrigger = 'manual',
     ) => {
       if (stream.isRunning) return
       // The run-config binding (set by the pipeline tab's "Use for runs"
@@ -376,6 +379,10 @@ export function useRunController(): RunController {
           pipeline: sandbox ? undefined : pipeline,
           pipeline_config: selectedPipelineConfig ?? undefined,
           ...(sandbox ? { sandbox: true } : {}),
+          // Spread only for the non-default value: a user-initiated run
+          // carries no `trigger` key and the backend applies its `manual`
+          // default, so the manual wire body stays free of telemetry fields.
+          ...(trigger === 'auto' ? { trigger: 'auto' as const } : {}),
         },
         {
           onFrame: (frame) => applyFrame(frame),
@@ -388,7 +395,7 @@ export function useRunController(): RunController {
   )
 
   const startValidate = useCallback(
-    (env?: string, pipeline?: string) => {
+    (env?: string, pipeline?: string, trigger: RunTrigger = 'manual') => {
       const { selectedEnv, pipelineFilter, sandboxEnabled } = useUIStore.getState()
       // An explicit pipeline (e.g. the designer validating one flowgroup)
       // stays pipeline-scoped and ignores the global sandbox toggle.
@@ -399,6 +406,7 @@ export function useRunController(): RunController {
         env ?? selectedEnv,
         pipeline ?? pipelineFilter ?? undefined,
         sandbox,
+        trigger,
       )
     },
     [startRun],

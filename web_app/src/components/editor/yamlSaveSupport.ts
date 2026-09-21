@@ -15,13 +15,15 @@
 /** The subset of the run controller this module needs. */
 interface ValidateRunController {
   isRunning: boolean
-  startValidate: (env?: string, pipeline?: string) => void
+  startValidate: (env?: string, pipeline?: string, trigger?: 'manual' | 'auto') => void
   abort: () => void
 }
 
 /**
  * Trigger a validate run scoped to `pipeline` (or unscoped when undefined),
  * superseding any in-flight run on the same controller.
+ *
+ * The run is tagged `auto`: the editor starts it, not the user.
  *
  * The transport hook ignores a `start()` while a run is in flight and only
  * clears its running flag asynchronously after an `abort()`. So when a run is
@@ -34,9 +36,9 @@ export function startScopedValidate(
 ): void {
   if (controller.isRunning) {
     controller.abort()
-    setTimeout(() => controller.startValidate(undefined, pipeline), 0)
+    setTimeout(() => controller.startValidate(undefined, pipeline, 'auto'), 0)
   } else {
-    controller.startValidate(undefined, pipeline)
+    controller.startValidate(undefined, pipeline, 'auto')
   }
 }
 

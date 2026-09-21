@@ -94,13 +94,13 @@ describe('startScopedValidate', () => {
     const ctl = controller(false)
     startScopedValidate(ctl, 'raw')
     expect(ctl.abort).not.toHaveBeenCalled()
-    expect(ctl.startValidate).toHaveBeenCalledExactlyOnceWith(undefined, 'raw')
+    expect(ctl.startValidate).toHaveBeenCalledExactlyOnceWith(undefined, 'raw', 'auto')
   })
 
   it('passes an undefined pipeline through for an unscoped validate', () => {
     const ctl = controller(false)
     startScopedValidate(ctl, undefined)
-    expect(ctl.startValidate).toHaveBeenCalledExactlyOnceWith(undefined, undefined)
+    expect(ctl.startValidate).toHaveBeenCalledExactlyOnceWith(undefined, undefined, 'auto')
   })
 
   it('aborts an in-flight run and defers the start to the next macrotask', () => {
@@ -112,6 +112,6 @@ describe('startScopedValidate', () => {
     expect(ctl.startValidate).not.toHaveBeenCalled()
 
     vi.advanceTimersByTime(0)
-    expect(ctl.startValidate).toHaveBeenCalledExactlyOnceWith(undefined, 'raw')
+    expect(ctl.startValidate).toHaveBeenCalledExactlyOnceWith(undefined, 'raw', 'auto')
   })
 })

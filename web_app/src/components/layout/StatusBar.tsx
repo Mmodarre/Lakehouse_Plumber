@@ -121,6 +121,16 @@ export function StatusBar() {
         {health?.version && (
           <Segment>
             <span className="font-mono">LHP v{health.version}</span>
+            {/* Set by the server only when a strictly newer release exists,
+                so it is rendered on truthiness alone — never re-compared. */}
+            {health.latest_version && (
+              <span
+                className="font-mono"
+                title="A newer version is available: pip install -U lakehouse-plumber"
+              >
+                ↑ v{health.latest_version}
+              </span>
+            )}
           </Segment>
         )}
       </span>

@@ -140,9 +140,9 @@ describe('persistBufferToDisk — validation refresh (Fix #1)', () => {
 
     expect(ok).toBe(true)
     // Mirrors useWorkspaceSave: derivePipelineFromYaml(content) → 'bronze',
-    // startScopedValidate → startValidate(undefined, 'bronze').
+    // startScopedValidate → startValidate(undefined, 'bronze', 'auto').
     expect(startValidate).toHaveBeenCalledTimes(1)
-    expect(startValidate).toHaveBeenCalledWith(undefined, 'bronze')
+    expect(startValidate).toHaveBeenCalledWith(undefined, 'bronze', 'auto')
   })
 
   it('does NOT refresh validation on a 412 conflict (write never landed)', async () => {
