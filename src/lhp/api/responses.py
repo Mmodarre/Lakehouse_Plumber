@@ -212,10 +212,11 @@ class StatsResult:
     ``action_counts_by_type`` keys:
 
     * ``load`` / ``transform`` / ``write`` / ``test`` — one per action;
-    * ``load_<source type>`` — the RAW ``source.type`` string the project
-      wrote, and ``transform_<transform type>`` the raw transform type,
-      so these two families are open-ended: a project can introduce a
-      key of its own here;
+    * ``load_<source type>`` — the raw ``source.type`` string the project
+      wrote; ``Action.source`` is unvalidated, so this family is open-ended
+      and a project can introduce a key of its own here;
+    * ``transform_<transform type>`` — the ``TransformType`` value; bounded
+      by model validation rather than by this module's allow-lists;
     * ``write_<streaming_table|materialized_view|sink>``, or
       ``write_other`` for an unreadable write target;
     * ``write_mode_<standard|cdc|snapshot_cdc>`` (``write_mode_other``
@@ -225,9 +226,10 @@ class StatsResult:
       table written by two actions counts once.
 
     The ``write_*``, ``write_mode_*`` and ``test_*`` families are the
-    bounded ones: each is drawn from a fixed allow-list, so the number
-    of distinct keys they contribute is a property of LHP rather than of
-    the project being described.
+    ones bounded by this module: each is drawn from a fixed allow-list,
+    so the number of distinct keys they contribute is a property of LHP
+    rather than of the project being described. ``load_*`` is the only
+    family a project can extend.
 
     A key is absent rather than zero when nothing matched it.
 

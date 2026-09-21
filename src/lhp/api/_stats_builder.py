@@ -27,10 +27,12 @@ if TYPE_CHECKING:
 # Allow-lists bounding the write / write-mode / test sub-keys. A value
 # outside one of these is folded into the matching ``*_other`` key, so
 # the number of distinct keys THOSE THREE families contribute is a
-# property of LHP, not of the project being described. The
-# ``load_<source type>`` and ``transform_<transform type>`` families are
-# NOT bounded this way: they carry the raw string the project wrote, so
-# an unrecognised source type becomes a key of its own.
+# property of LHP, not of the project being described. Neither
+# ``load_<source type>`` nor ``transform_<transform type>`` is bounded by
+# these lists: ``load_*`` carries the raw ``source.type`` string, so an
+# unrecognised source type becomes a key of its own, while
+# ``transform_*`` is bounded instead by ``TransformType`` at model
+# validation.
 #
 # These mirror ``WriteTargetType``, the write-target ``mode`` enum in
 # ``schemas/flowgroup.schema.json`` (plus the implicit ``standard``

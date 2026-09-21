@@ -2,10 +2,12 @@
 
 ``action_counts_by_type`` is the shape consumers read to describe a
 project without naming anything in it. Its ``write_*`` / ``write_mode_*``
-/ ``test_*`` sub-keys come from fixed allow-lists and are bounded; the
-``load_<source type>`` and ``transform_<transform type>`` sub-keys carry
-the raw string the project wrote and are NOT, so only the former are
-pinned as bounded below. These tests cover both halves of the shape:
+/ ``test_*`` sub-keys come from fixed allow-lists in the module under
+test, and those lists are what the tests below pin. ``load_*`` is
+open-ended — it carries the raw ``source.type`` string — while
+``transform_*`` is bounded by the ``TransformType`` enum at model
+validation, not by an allow-list here. These tests cover both halves of
+the shape:
 
 * the fixture-project anchor test asserts the COMPLETE mapping for
   ``tests/e2e/fixtures/testing_project`` — an isolated deep copy, never
@@ -202,8 +204,9 @@ class TestFixtureProjectCounts:
 class TestAllowListsTrackTheDomainEnums:
     """The allow-lists bound the write / write-mode / test key cardinality;
     a new enum value must be admitted deliberately, not leak in as a fresh
-    key. They say nothing about ``load_*`` / ``transform_*``, which are
-    unbounded by design."""
+    key. They say nothing about ``load_*``, which is open-ended, or about
+    ``transform_*``, which the ``TransformType`` enum bounds at model
+    validation instead."""
 
     def test_write_target_types_match_the_enum(self) -> None:
         assert _WRITE_TARGET_TYPES == {member.value for member in WriteTargetType}
