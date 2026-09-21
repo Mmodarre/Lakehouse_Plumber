@@ -22,7 +22,7 @@
       ]
     },
     "docs/reference/actions/write.rst": {
-      "sha256": "506ce22d09cb7fa84eb382a64ae73f4b90b4e4f5fba887e699088761f8bd036d",
+      "sha256": "bf9ccae07031ecfb58547ddbb3f4157a1b24126ae345d95de5c8feffb926bf85",
       "entryIds": [
         "action.write.streaming_table.once"
       ]
