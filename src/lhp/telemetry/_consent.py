@@ -45,10 +45,6 @@ class TelemetryState:
     reason: str
 
 
-def _off(reason: str) -> TelemetryState:
-    return TelemetryState(enabled=False, mode="off", reason=reason)
-
-
 def _environment_off_reason(environ: Mapping[str, str]) -> Optional[str]:
     """The first environment layer that opts out, or ``None``."""
     if env_value_in(environ, "LHP_TELEMETRY", _OFF_VALUES):
@@ -88,14 +84,16 @@ def resolve_consent(
     has passed.
     """
     reason = _environment_off_reason(environ)
+    if reason is None:
+        stored = state()
+        if stored is not None and not stored.enabled:
+            reason = "user_state"
+        elif stored is not None and _server_disabled(
+            stored.server_disabled_until, now_iso
+        ):
+            reason = "server"
     if reason is not None:
-        return _off(reason)
-    stored = state()
-    if stored is not None:
-        if not stored.enabled:
-            return _off("user_state")
-        if _server_disabled(stored.server_disabled_until, now_iso):
-            return _off("server")
+        return TelemetryState(enabled=False, mode="off", reason=reason)
     if env_value_in(environ, "LHP_TELEMETRY", _LOG_VALUES):
         return TelemetryState(enabled=True, mode="log", reason="env:LHP_TELEMETRY")
     return TelemetryState(enabled=True, mode="send", reason="default")

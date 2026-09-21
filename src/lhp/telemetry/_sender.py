@@ -17,28 +17,22 @@ import ssl
 import threading
 import urllib.error
 import urllib.request
+from contextlib import AbstractContextManager, nullcontext
 from dataclasses import dataclass, replace
 from datetime import timedelta
 from pathlib import Path
-from typing import Any, Callable, List, Literal, Mapping, Optional, Sequence
-from urllib.parse import urlsplit
+from typing import Any, Callable, Dict, List, Literal, Optional, Sequence
 
 from lhp.telemetry import _spool, _store
 from lhp.telemetry._events import SCHEMA_VERSION
+from lhp.telemetry._paths import endpoint_allowed
 
 logger = logging.getLogger(__name__)
 
-# Placeholder until the LHP-owned hostname exists, tracked by the merge-blocker
-# issue "replace placeholder telemetry hostname". The ``.invalid`` TLD never
-# resolves, so a build that ships with it fails closed into the spool.
-DEFAULT_ENDPOINT = "https://telemetry.lakehouse-plumber.invalid/v1/events"
 MAX_BATCH_EVENTS = 500
 MAX_BATCH_BYTES = 512 * 1024
-DEFAULT_TIMEOUT_S = 3.0
-SENDER_THREAD_NAME = "lhp-telemetry-sender"
 # How long a Worker kill switch silences this install.
 _SERVER_DISABLE_PERIOD = timedelta(hours=24)
-_LOOPBACK_HOSTS = frozenset({"127.0.0.1", "localhost", "::1"})
 
 Opener = Callable[..., Any]
 StatusClass = Literal["ok", "drop", "retry"]
@@ -51,28 +45,6 @@ class SendResult:
     status_class: StatusClass
     latest: Optional[str]
     disabled: bool
-
-
-def _endpoint_allowed(endpoint: str) -> bool:
-    """``https://`` to any host, or ``http://`` to a loopback host only."""
-    try:
-        parts = urlsplit(endpoint)
-    except ValueError:  # not a URL at all
-        return False
-    if parts.scheme == "https":
-        return bool(parts.hostname)
-    return parts.scheme == "http" and parts.hostname in _LOOPBACK_HOSTS
-
-
-def resolve_endpoint(environ: Mapping[str, str]) -> str:
-    """The endpoint to post to: a guarded ``LHP_TELEMETRY_ENDPOINT`` or the default."""
-    override = environ.get("LHP_TELEMETRY_ENDPOINT")
-    if not override:
-        return DEFAULT_ENDPOINT
-    if _endpoint_allowed(override):
-        return override
-    logger.debug("Ignoring LHP_TELEMETRY_ENDPOINT: only https:// or loopback http://")
-    return DEFAULT_ENDPOINT
 
 
 def _fit(events_json: Sequence[str], budget: int) -> List[bytes]:
@@ -97,11 +69,16 @@ def _status_result(code: int) -> SendResult:
 
 
 def _accepted(payload: bytes) -> SendResult:
-    """Read ``latest`` and ``disabled`` from a 2xx body."""
+    """Read ``latest``/``disabled`` from a 2xx body. An empty body is a plain
+    success; a non-empty non-JSON one came from a proxy or portal page, not
+    the Worker, so the batch is kept rather than silently lost."""
+    if not payload.strip():
+        return SendResult("ok", None, False)
     try:
         document = json.loads(payload)
-    except ValueError:  # the events were accepted; only the extras are lost
-        document = {}
+    except ValueError:  # not the Worker's reply: keep the batch
+        logger.debug("Telemetry upload answered 2xx with a non-JSON body")
+        return SendResult("retry", None, False)
     extras = document if isinstance(document, dict) else {}
     latest = extras.get("latest")
     disabled = extras.get("disabled") is True
@@ -113,7 +90,7 @@ def send_batch(
     *,
     endpoint: str,
     version: str,
-    timeout_s: float = DEFAULT_TIMEOUT_S,
+    timeout_s: float = 3.0,
     opener: Optional[Opener] = None,
 ) -> SendResult:
     """Post one batch of envelope lines and classify the outcome; never raises.
@@ -122,7 +99,7 @@ def send_batch(
     """
     if not events_json:
         return SendResult("drop", None, False)
-    if not _endpoint_allowed(endpoint):
+    if not endpoint_allowed(endpoint):
         logger.debug("Refusing to post telemetry outside the endpoint scheme guard")
         return SendResult("retry", None, False)
     prefix = f'{{"schema_version":{SCHEMA_VERSION},"client":"lhp/{version}","events":['
@@ -139,7 +116,7 @@ def send_batch(
         ) as response:
             status = int(getattr(response, "status", 200))
             payload = response.read()
-    except urllib.error.HTTPError as error:
+    except urllib.error.HTTPError as error:  # a verdict from the Worker, not a fault
         logger.debug(f"Telemetry upload rejected with HTTP {error.code}")
         return _status_result(error.code)
     except Exception:  # network, TLS, timeout or a bug: the batch waits
@@ -161,26 +138,29 @@ def _settle(cfg: Path, inflight: Path, result: SendResult) -> None:
     state = _store.read_state(cfg)
     if result.status_class != "ok" or state is None:
         return
-    until = state.server_disabled_until
+    changes: Dict[str, Any] = {"latest_checked_at": _store.utc_now_iso()}
+    if result.latest:
+        changes["latest_known_version"] = result.latest
     if result.disabled:
-        until = _store.utc_now_iso(_SERVER_DISABLE_PERIOD)
-    updated = replace(
-        state,
-        latest_checked_at=_store.utc_now_iso(),
-        latest_known_version=result.latest or state.latest_known_version,
-        server_disabled_until=until,
-    )
-    _store.write_state(cfg, updated)
+        changes["server_disabled_until"] = _store.utc_now_iso(_SERVER_DISABLE_PERIOD)
+    _store.write_state(cfg, replace(state, **changes))
 
 
 def start_sender(
-    cfg: Path, *, endpoint: str, version: str, opener: Optional[Opener] = None
+    cfg: Path,
+    *,
+    endpoint: str,
+    version: str,
+    opener: Optional[Opener] = None,
+    lock: Optional[AbstractContextManager[Any]] = None,
 ) -> Optional[threading.Thread]:
-    """Claim the spool and send it on a daemon thread.
+    """Claim the spool and send it on a daemon thread; ``None`` when it is empty.
 
-    ``None`` when there is nothing to send. The claim happens on the caller's
-    thread so a batch is never taken twice; the thread is returned so the
-    caller can bound its exit latency with a join.
+    The claim happens on the caller's thread so a batch is never taken twice,
+    and the thread is returned so the caller can bound its exit latency with
+    a join. ``lock`` is held for the settle step only: the spool rewrite and
+    the state-file update race the recording lock's other writers, while the
+    network attempt races nothing.
     """
     inflight = _spool.take_inflight(cfg)
     if inflight is None:
@@ -190,10 +170,11 @@ def start_sender(
         try:
             lines = _spool.read_lines(inflight)
             sent = send_batch(lines, endpoint=endpoint, version=version, opener=opener)
-            _settle(cfg, inflight, sent)
+            with lock or nullcontext():
+                _settle(cfg, inflight, sent)
         except Exception:  # a daemon thread has no caller to report to
             logger.debug("Telemetry sender thread failed", exc_info=True)
 
-    thread = threading.Thread(target=_run, name=SENDER_THREAD_NAME, daemon=True)
+    thread = threading.Thread(target=_run, name="lhp-telemetry-sender", daemon=True)
     thread.start()
     return thread

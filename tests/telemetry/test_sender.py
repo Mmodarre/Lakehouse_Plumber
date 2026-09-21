@@ -20,11 +20,9 @@ import pytest
 
 from lhp.telemetry._paths import spool_path
 from lhp.telemetry._sender import (
-    DEFAULT_ENDPOINT,
     MAX_BATCH_BYTES,
     MAX_BATCH_EVENTS,
     SendResult,
-    resolve_endpoint,
     send_batch,
     start_sender,
 )
@@ -165,9 +163,18 @@ def test_200_with_disabled_flags_the_kill_switch() -> None:
 
 
 @pytest.mark.unit
-def test_200_with_a_non_json_body_is_still_ok() -> None:
+def test_200_with_a_non_json_body_keeps_the_batch() -> None:
     def opener(request: Any, **kwargs: Any) -> _Response:
-        return _Response(200, b"<html>gateway</html>")
+        return _Response(200, b"<html>captive portal</html>")
+
+    assert _send(opener) == SendResult("retry", None, False)
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("body", [b"", b"  \n"])
+def test_2xx_with_an_empty_body_is_ok(body: bytes) -> None:
+    def opener(request: Any, **kwargs: Any) -> _Response:
+        return _Response(204, body)
 
     assert _send(opener) == SendResult("ok", None, False)
 
@@ -266,56 +273,6 @@ def test_send_result_is_frozen() -> None:
         result.latest = "x"  # type: ignore[misc]
 
 
-# endpoint resolution
-
-
-@pytest.mark.unit
-def test_default_endpoint_is_the_placeholder_hostname() -> None:
-    assert DEFAULT_ENDPOINT == "https://telemetry.lakehouse-plumber.invalid/v1/events"
-
-
-@pytest.mark.unit
-@pytest.mark.parametrize(
-    "override",
-    [
-        "https://collector.example.org/v1/events",
-        "http://127.0.0.1:8787/v1/events",
-        "http://localhost/v1/events",
-        "http://localhost:9000/v1/events",
-    ],
-)
-def test_resolve_endpoint_accepts_https_and_loopback_http(override: str) -> None:
-    assert resolve_endpoint({"LHP_TELEMETRY_ENDPOINT": override}) == override
-
-
-@pytest.mark.unit
-@pytest.mark.parametrize(
-    "override",
-    [
-        "http://evil.example/v1/events",
-        "http://localhost.evil.example/v1/events",
-        "http://127.0.0.1.evil.example/",
-        "ftp://127.0.0.1/",
-        "file:///etc/passwd",
-        "not a url",
-        "",
-    ],
-)
-def test_resolve_endpoint_rejects_everything_else(
-    override: str, caplog: pytest.LogCaptureFixture
-) -> None:
-    with caplog.at_level(logging.DEBUG, logger="lhp.telemetry"):
-        assert (
-            resolve_endpoint({"LHP_TELEMETRY_ENDPOINT": override}) == DEFAULT_ENDPOINT
-        )
-    assert all(record.levelno == logging.DEBUG for record in caplog.records)
-
-
-@pytest.mark.unit
-def test_resolve_endpoint_defaults_when_unset() -> None:
-    assert resolve_endpoint({}) == DEFAULT_ENDPOINT
-
-
 # start_sender
 
 
@@ -354,6 +311,28 @@ def test_start_sender_runs_a_named_daemon_thread(cfg: Path) -> None:
     assert thread.name == "lhp-telemetry-sender"
     thread.join(5.0)
     assert not thread.is_alive()
+
+
+@pytest.mark.unit
+def test_start_sender_settles_only_under_the_given_lock(cfg: Path) -> None:
+    lock = threading.Lock()
+    lock.acquire()
+    _spool(cfg, EVENT_A)
+    thread = start_sender(
+        cfg,
+        endpoint=ENDPOINT,
+        version=VERSION,
+        opener=_opener_returning(200, {}),
+        lock=lock,
+    )
+    assert thread is not None
+    thread.join(0.3)
+    assert thread.is_alive()
+    assert len(list(spool_path(cfg).parent.glob("spool.inflight-*"))) == 1
+    lock.release()
+    thread.join(5.0)
+    assert not thread.is_alive()
+    assert list(spool_path(cfg).parent.glob("spool.inflight-*")) == []
 
 
 @pytest.mark.unit

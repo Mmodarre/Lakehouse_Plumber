@@ -3,16 +3,18 @@
 One data flow: resolve consent → return before any disk access when off →
 read the state → capture environment and identity → build the envelope →
 print it (``log``) or spool it (``send``). ``flush`` claims the spool and
-hands it to the sender thread. Every entry point resolves ``environ`` to
-``os.environ`` once and never raises: failures go to DEBUG.
+hands it to the sender thread. Every entry point resolves ``environ`` once
+and never raises: ``_inert`` turns any failure into a DEBUG record.
 
 Process state is confined to ``_SenderState``: the in-flight sender thread
-and the lock that serialises state-file writes and spool claims across the
-threads that record. ``_preferences`` shares the lock for its own writes.
+and the lock that serialises every state-file write and spool rewrite —
+recording, the preference writes and the sender's settle step. The network
+attempt itself never holds it.
 """
 
 from __future__ import annotations
 
+import functools
 import json
 import logging
 import sys
@@ -20,10 +22,10 @@ import threading
 import uuid
 from dataclasses import asdict
 from pathlib import Path
-from typing import Any, List, Mapping, Optional, Tuple
+from typing import Any, Callable, Mapping, Optional, ParamSpec, TypeVar, cast
 
 from lhp.telemetry import _events, _sender, _spool, _store
-from lhp.telemetry._consent import TelemetryState, resolve_consent
+from lhp.telemetry._consent import TelemetryState
 from lhp.telemetry._environment import (
     Environ,
     EnvironmentFacts,
@@ -32,10 +34,12 @@ from lhp.telemetry._environment import (
     resolve_environ,
 )
 from lhp.telemetry._identity import ProjectIdentity, read_project_identity
-from lhp.telemetry._paths import config_dir
+from lhp.telemetry._paths import config_dir, resolve_endpoint
 
 logger = logging.getLogger(__name__)
 
+P = ParamSpec("P")
+R = TypeVar("R")
 Props = Mapping[str, Any]
 _Env = Mapping[str, str]
 _COMPACT = (",", ":")
@@ -58,18 +62,24 @@ def _reset_for_tests() -> None:
         _STATE.thread = None
 
 
-def load_consent(
-    environ: _Env, cfg: Path, now: str
-) -> Tuple[TelemetryState, Optional[_store.StateFile]]:
-    """Resolve consent, reading the state file only if the environment allows."""
-    loaded: List[Optional[_store.StateFile]] = []
+def _inert(
+    fallback: Callable[[], Any] = lambda: None,
+) -> Callable[[Callable[P, R]], Callable[P, R]]:
+    """Swallow every failure of an entry point into a DEBUG record and ``fallback()``
+    — a factory rather than a value, so a mutable stand-in is never shared."""
 
-    def reader() -> Optional[_store.StateFile]:
-        loaded.append(_store.read_state(cfg))
-        return loaded[0]
+    def decorate(func: Callable[P, R]) -> Callable[P, R]:
+        @functools.wraps(func)
+        def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
+            try:
+                return func(*args, **kwargs)
+            except Exception:  # telemetry must never reach its caller
+                logger.debug(f"Telemetry {func.__name__} failed", exc_info=True)
+                return cast(R, fallback())
 
-    consent = resolve_consent(environ, state=reader, now_iso=now)
-    return consent, (loaded[0] if loaded else None)
+        return wrapper
+
+    return decorate
 
 
 def _envelope(
@@ -101,7 +111,7 @@ def _record(name: str, root: Optional[Path], props: Props, env: _Env) -> None:
     now = _store.utc_now_iso()
     cfg = config_dir(env)
     with _STATE.lock:
-        consent, state = load_consent(env, cfg, now)
+        consent, state = _store.load_consent(env, cfg, now)
         if not consent.enabled:
             return
         facts = capture(env)
@@ -114,10 +124,8 @@ def _record(name: str, root: Optional[Path], props: Props, env: _Env) -> None:
         install_id = None if in_ci or state is None else state.install_id
         identity = read_project_identity(root)
         pending.append((name, props))
-        built = [_envelope(n, p, facts, identity, install_id, now) for n, p in pending]
-        lines = [
-            json.dumps(_events.to_json_dict(e), separators=_COMPACT) for e in built
-        ]
+        made = [_envelope(n, p, facts, identity, install_id, now) for n, p in pending]
+        lines = [json.dumps(_events.to_json_dict(e), separators=_COMPACT) for e in made]
         if consent.mode == "log":
             sys.stderr.write(lines[-1] + "\n")
             return
@@ -125,6 +133,7 @@ def _record(name: str, root: Optional[Path], props: Props, env: _Env) -> None:
             _spool.append_spool(cfg, line)
 
 
+@_inert()
 def record(
     name: str, *, project_root: Optional[Path], props: Props, environ: Environ = None
 ) -> None:
@@ -133,12 +142,10 @@ def record(
     Safe to call from any thread; never raises; never touches the network —
     sending is ``flush``'s job.
     """
-    try:
-        _record(name, project_root, dict(props), resolve_environ(environ))
-    except Exception:  # telemetry must never reach the command or the request
-        logger.debug("Telemetry record failed", exc_info=True)
+    _record(name, project_root, dict(props), resolve_environ(environ))
 
 
+@_inert()
 def new_event(
     name: str, *, project_root: Optional[Path], props: Props, environ: Environ = None
 ) -> Optional[_events.TelemetryEnvelope]:
@@ -147,22 +154,19 @@ def new_event(
     ``None`` when consent is off. An install id is reported only if the
     state file already holds one; it is never minted here.
     """
-    try:
-        resolved = resolve_environ(environ)
-        now = _store.utc_now_iso()
-        consent, state = load_consent(resolved, config_dir(resolved), now)
-        if not consent.enabled:
-            return None
-        facts = capture(resolved)
-        in_ci = facts.ci_vendor != "none"
-        install_id = None if in_ci or state is None else state.install_id
-        identity = read_project_identity(project_root)
-        return _envelope(name, props, facts, identity, install_id, now)
-    except Exception:  # a preview that cannot be built is simply absent
-        logger.debug("Telemetry new_event failed", exc_info=True)
+    resolved = resolve_environ(environ)
+    now = _store.utc_now_iso()
+    consent, state = _store.load_consent(resolved, config_dir(resolved), now)
+    if not consent.enabled:
         return None
+    facts = capture(resolved)
+    in_ci = facts.ci_vendor != "none"
+    install_id = None if in_ci or state is None else state.install_id
+    identity = read_project_identity(project_root)
+    return _envelope(name, props, facts, identity, install_id, now)
 
 
+@_inert()
 def flush(join_s: float = 0.0, environ: Environ = None) -> Optional[threading.Thread]:
     """Send the spool on a daemon thread and return that thread.
 
@@ -170,31 +174,26 @@ def flush(join_s: float = 0.0, environ: Environ = None) -> Optional[threading.Th
     send is already in flight (idempotent). ``join_s > 0`` waits up to that
     long for whichever sender is running — the CLI's bound on exit latency.
     """
-    try:
-        resolved = resolve_environ(environ)
-        cfg = config_dir(resolved)
-        endpoint, version = _sender.resolve_endpoint(resolved), lhp_version()
-        started: Optional[threading.Thread] = None
-        with _STATE.lock:
-            if load_consent(resolved, cfg, _store.utc_now_iso())[0].mode != "send":
-                return None
-            running = _STATE.thread
-            if running is None or not running.is_alive():
-                started = _sender.start_sender(cfg, endpoint=endpoint, version=version)
-                _STATE.thread = running = started
-        if running is not None and join_s > 0:
-            running.join(join_s)
-        return started
-    except Exception:  # an unsent batch stays spooled for the next run
-        logger.debug("Telemetry flush failed", exc_info=True)
-        return None
+    resolved = resolve_environ(environ)
+    cfg = config_dir(resolved)
+    started: Optional[threading.Thread] = None
+    with _STATE.lock:
+        if _store.load_consent(resolved, cfg, _store.utc_now_iso())[0].mode != "send":
+            return None
+        running = _STATE.thread
+        if running is None or not running.is_alive():
+            endpoint = resolve_endpoint(resolved)
+            started = _sender.start_sender(
+                cfg, endpoint=endpoint, version=lhp_version(), lock=_STATE.lock
+            )
+            _STATE.thread = running = started
+    if running is not None and join_s > 0:
+        running.join(join_s)
+    return started
 
 
+@_inert(lambda: TelemetryState(enabled=False, mode="off", reason="error"))
 def effective_state(environ: Environ = None) -> TelemetryState:
-    """The consent ``record`` would apply right now."""
-    try:
-        resolved = resolve_environ(environ)
-        return load_consent(resolved, config_dir(resolved), _store.utc_now_iso())[0]
-    except Exception:  # undecidable consent is reported as off
-        logger.debug("Telemetry effective_state failed", exc_info=True)
-        return TelemetryState(enabled=False, mode="off", reason="error")
+    """The consent ``record`` would apply right now; ``off`` if undecidable."""
+    resolved = resolve_environ(environ)
+    return _store.load_consent(resolved, config_dir(resolved), _store.utc_now_iso())[0]

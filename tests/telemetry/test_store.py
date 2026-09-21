@@ -11,6 +11,7 @@ import logging
 import os
 import re
 import stat
+import threading
 from dataclasses import FrozenInstanceError, replace
 from pathlib import Path
 
@@ -20,9 +21,11 @@ from lhp.telemetry._environment import lhp_version
 from lhp.telemetry._paths import state_path
 from lhp.telemetry._store import (
     StateFile,
+    append_private,
     ensure_install,
     read_state,
     utc_now_iso,
+    write_private,
     write_state,
 )
 
@@ -168,6 +171,38 @@ def test_state_file_is_frozen() -> None:
 def test_utc_now_iso_is_millisecond_utc_with_z() -> None:
     stamp = utc_now_iso()
     assert re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z", stamp)
+
+
+@pytest.mark.unit
+def test_concurrent_private_writes_never_corrupt_the_target(cfg: Path) -> None:
+    payloads = [json.dumps({"n": n}).encode("utf-8") for n in range(40)]
+    failures: list = []
+
+    def write(payload: bytes) -> None:
+        try:
+            write_private(cfg, state_path(cfg), payload)
+        except Exception as exc:  # collected: a thread's failure must fail the test
+            failures.append(exc)
+
+    threads = [threading.Thread(target=write, args=(p,)) for p in payloads]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(10.0)
+    assert failures == []
+    assert json.loads(state_path(cfg).read_bytes()) in [{"n": n} for n in range(40)]
+    assert [p.name for p in cfg.iterdir()] == ["telemetry.json"]
+
+
+@pytest.mark.unit
+def test_append_private_appends_in_one_write_with_private_mode(cfg: Path) -> None:
+    target = cfg / "nested" / "lines.txt"
+    append_private(cfg, target, b"one\n")
+    append_private(cfg, target, b"two\n")
+    assert target.read_bytes() == b"one\ntwo\n"
+    if os.name != "nt":
+        assert stat.S_IMODE(target.stat().st_mode) == 0o600
+        assert stat.S_IMODE(target.parent.stat().st_mode) == 0o700
 
 
 # ensure_install

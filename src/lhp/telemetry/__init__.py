@@ -42,8 +42,10 @@ from lhp.telemetry._events import (
     WebRunProps,
     WebSessionProps,
     fold_project_shape,
+    to_json_dict,
 )
 from lhp.telemetry._identity import ProjectIdentity, env_class, read_project_identity
+from lhp.telemetry._paths import DEFAULT_ENDPOINT
 from lhp.telemetry._preferences import (
     mark_update_hint_shown,
     newer_version_available,
@@ -51,7 +53,6 @@ from lhp.telemetry._preferences import (
     spool_count,
     spooled_events,
 )
-from lhp.telemetry._sender import DEFAULT_ENDPOINT
 from lhp.telemetry._update_check import pending_update_hint
 
 __all__ = [
@@ -78,4 +79,5 @@ __all__ = [
     "set_user_enabled",
     "spool_count",
     "spooled_events",
+    "to_json_dict",
 ]

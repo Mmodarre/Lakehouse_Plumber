@@ -109,13 +109,8 @@ def _target_modes(bundle: Mapping[str, Any]) -> Dict[str, str]:
 def _environment_count(root: Path) -> int:
     folder = root / _SUBSTITUTIONS_DIR
     try:
-        if not folder.is_dir():
-            return 0
-        return sum(
-            1
-            for entry in folder.iterdir()
-            if entry.suffix in _SUBSTITUTION_SUFFIXES and entry.is_file()
-        )
+        found = (p for s in _SUBSTITUTION_SUFFIXES for p in folder.glob(f"*{s}"))
+        return sum(1 for path in found if path.is_file())
     except OSError:  # a folder that cannot be listed contributes nothing
         logger.debug("Could not list the substitutions folder", exc_info=True)
         return 0

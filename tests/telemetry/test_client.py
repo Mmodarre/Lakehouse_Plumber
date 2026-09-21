@@ -12,6 +12,7 @@ import json
 import re
 import threading
 import time
+import urllib.error
 import urllib.request
 from pathlib import Path
 from typing import Any, Dict, Iterator, List
@@ -78,17 +79,22 @@ def _spooled(cfg: Path) -> List[Dict[str, Any]]:
 
 
 class _Opener:
-    """A fake ``urlopen`` that answers 200 or blocks until released."""
+    """A fake ``urlopen``: answers 200, optionally after blocking until released,
+    or fails with a transport error once released so the batch takes the
+    retry path."""
 
-    def __init__(self, block: bool = False) -> None:
+    def __init__(self, block: bool = False, fail: bool = False) -> None:
         self.release = threading.Event()
         self.block = block
+        self.fail = fail
         self.calls = 0
 
     def __call__(self, request: Any, **kwargs: Any) -> "_Opener":
         self.calls += 1
         if self.block:
             self.release.wait(10.0)
+        if self.fail:
+            raise urllib.error.URLError("unreachable")
         return self
 
     @property
@@ -445,6 +451,54 @@ def test_flush_does_not_send_a_retained_spool_once_the_user_opts_out(
     assert telemetry.spool_count(environ=send_env) == 2
 
 
+@pytest.mark.unit
+def test_a_settling_sender_never_loses_a_concurrent_record(
+    cfg: Path, send_env: Dict[str, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    opener = _Opener(block=True, fail=True)
+    monkeypatch.setattr(urllib.request, "urlopen", opener)
+    for _ in range(20):
+        _record(send_env)
+    batch = telemetry.spool_count(environ=send_env)
+    thread = telemetry.flush(environ=send_env)
+    assert thread is not None and thread.is_alive()
+
+    def worker() -> None:
+        for _ in range(10):
+            _record(send_env)
+
+    workers = [threading.Thread(target=worker) for _ in range(6)]
+    for w in workers:
+        w.start()
+    opener.release.set()
+    for w in workers:
+        w.join(10.0)
+    thread.join(10.0)
+    assert not thread.is_alive()
+    events = _spooled(cfg)
+    assert len(events) == batch + 60
+    assert list(spool_path(cfg).parent.glob("spool.inflight-*")) == []
+    assert len({e["install_id"] for e in events}) == 1
+
+
+@pytest.mark.unit
+def test_a_settling_sender_never_overwrites_the_user_choice(
+    cfg: Path, send_env: Dict[str, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    opener = _Opener(block=True)
+    monkeypatch.setattr(urllib.request, "urlopen", opener)
+    _record(send_env)
+    thread = telemetry.flush(environ=send_env)
+    assert thread is not None
+    opener.release.set()
+    telemetry.set_user_enabled(False, environ=send_env)
+    thread.join(10.0)
+    state = read_state(cfg)
+    assert state is not None
+    assert state.enabled is False
+    assert state.latest_known_version == "0.9.3"
+
+
 # package surface
 
 
@@ -474,6 +528,7 @@ def test_package_exports_the_consumer_surface() -> None:
         "fold_project_shape",
         "PROJECT_SHAPE_KEYS",
         "DEFAULT_ENDPOINT",
+        "to_json_dict",
     }
     assert set(telemetry.__all__) == expected
     for name in expected:

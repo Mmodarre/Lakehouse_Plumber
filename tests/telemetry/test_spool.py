@@ -19,7 +19,6 @@ from lhp.telemetry._spool import (
     MAX_SPOOL_BYTES,
     MAX_SPOOL_LINES,
     append_spool,
-    clear_spool,
     discard_inflight,
     read_lines,
     restore_inflight,
@@ -127,17 +126,6 @@ def test_read_lines_skips_blank_lines(cfg: Path) -> None:
     spool_path(cfg).parent.mkdir(parents=True)
     spool_path(cfg).write_text('{"a":1}\n\n{"b":2}\n', "utf-8")
     assert read_lines(spool_path(cfg)) == ['{"a":1}', '{"b":2}']
-
-
-@pytest.mark.unit
-def test_clear_spool_removes_spool_and_inflight_files(cfg: Path) -> None:
-    append_spool(cfg, "{}")
-    inflight = take_inflight(cfg)
-    append_spool(cfg, "{}")
-    clear_spool(cfg)
-    assert inflight is not None and not inflight.exists()
-    assert spool_count(cfg) == 0
-    assert not spool_path(cfg).exists()
 
 
 # inflight hand-off
@@ -261,5 +249,4 @@ def test_no_handle_survives_any_store_call(cfg: Path, tmp_path: Path) -> None:
     taken = take_inflight(cfg)
     assert taken is not None
     discard_inflight(taken)
-    clear_spool(cfg)
     assert _next_fd(tmp_path) == baseline

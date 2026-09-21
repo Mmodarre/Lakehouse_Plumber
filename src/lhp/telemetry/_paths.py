@@ -1,20 +1,31 @@
-"""Config-directory and file-path resolution for the telemetry client.
+"""Where the client reads, writes and sends: config directory, files, endpoint.
 
-Pure path arithmetic: nothing here touches the filesystem, so importing or
-calling any of these functions never creates a directory. Creation happens
-lazily in the store, on the first write.
+Pure resolution over an injected environment mapping: nothing here touches
+the filesystem or the network, so importing or calling any of these
+functions never creates a directory or opens a connection. Directory
+creation happens lazily in the store, on the first write.
 """
 
 from __future__ import annotations
 
+import logging
 import os
 from pathlib import Path
 from typing import Callable, Mapping
+from urllib.parse import urlsplit
+
+logger = logging.getLogger(__name__)
+
+# Placeholder until the LHP-owned hostname exists, tracked by the merge-blocker
+# issue "replace placeholder telemetry hostname". The ``.invalid`` TLD never
+# resolves, so a build that ships with it fails closed into the spool.
+DEFAULT_ENDPOINT = "https://telemetry.lakehouse-plumber.invalid/v1/events"
 
 _DIR_NAME = "lhp"
 _STATE_FILE = "telemetry.json"
 _SPOOL_DIR = "telemetry"
 _SPOOL_FILE = "spool.jsonl"
+_LOOPBACK_HOSTS = frozenset({"127.0.0.1", "localhost", "::1"})
 
 
 def config_dir(
@@ -64,3 +75,25 @@ def spool_path(cfg: Path) -> Path:
     beside the state file the CLI reports to the user.
     """
     return cfg / _SPOOL_DIR / _SPOOL_FILE
+
+
+def endpoint_allowed(endpoint: str) -> bool:
+    """``https://`` to any host, or ``http://`` to a loopback host only."""
+    try:
+        parts = urlsplit(endpoint)
+    except ValueError:  # not a URL at all
+        return False
+    if parts.scheme == "https":
+        return bool(parts.hostname)
+    return parts.scheme == "http" and parts.hostname in _LOOPBACK_HOSTS
+
+
+def resolve_endpoint(environ: Mapping[str, str]) -> str:
+    """The endpoint to post to: a guarded ``LHP_TELEMETRY_ENDPOINT`` or the default."""
+    override = environ.get("LHP_TELEMETRY_ENDPOINT")
+    if not override:
+        return DEFAULT_ENDPOINT
+    if endpoint_allowed(override):
+        return override
+    logger.debug("Ignoring LHP_TELEMETRY_ENDPOINT: only https:// or loopback http://")
+    return DEFAULT_ENDPOINT

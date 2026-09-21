@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import List, Optional
 
 from lhp.telemetry._paths import spool_path
-from lhp.telemetry._store import write_private
+from lhp.telemetry._store import append_private, write_private
 
 logger = logging.getLogger(__name__)
 
@@ -28,15 +28,13 @@ MAX_SPOOL_BYTES = 512 * 1024
 STALE_INFLIGHT_S = 60.0
 
 _INFLIGHT_GLOB = "spool.inflight-*.jsonl"
-_DIR_MODE = 0o700
-_FILE_MODE = 0o600
 
 
 def read_lines(path: Path) -> List[str]:
     """The non-blank lines of a spool or inflight file; ``[]`` when missing."""
     try:
         text = path.read_text("utf-8")
-    except FileNotFoundError:
+    except FileNotFoundError:  # no spool yet is the common case, not a failure
         return []
     except (OSError, ValueError):  # an unreadable spool is treated as empty
         logger.debug("Could not read a telemetry spool file", exc_info=True)
@@ -63,13 +61,7 @@ def append_spool(cfg: Path, line: str) -> bool:
         return False
     path = spool_path(cfg)
     try:
-        cfg.mkdir(parents=True, exist_ok=True, mode=_DIR_MODE)
-        path.parent.mkdir(parents=True, exist_ok=True, mode=_DIR_MODE)
-        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_APPEND, _FILE_MODE)
-        try:
-            os.write(fd, data)
-        finally:
-            os.close(fd)
+        append_private(cfg, path, data)
         _trim(cfg, path)
     except OSError:  # the spool is best-effort; a lost event is acceptable
         logger.debug("Could not append to the telemetry spool", exc_info=True)
@@ -80,10 +72,6 @@ def append_spool(cfg: Path, line: str) -> bool:
 def spool_count(cfg: Path) -> int:
     """How many envelopes wait in the spool (inflight batches excluded)."""
     return len(read_lines(spool_path(cfg)))
-
-
-def _inflight_name(spool: Path, stamp: int) -> Path:
-    return spool.with_name(f"spool.inflight-{os.getpid()}-{stamp}.jsonl")
 
 
 def take_inflight(cfg: Path) -> Optional[Path]:
@@ -102,12 +90,12 @@ def take_inflight(cfg: Path) -> Optional[Path]:
                 restore_inflight(cfg, stale)
         if not read_lines(spool):
             return None
-        stamp = time.time_ns() // 1_000_000
-        inflight = _inflight_name(spool, stamp)
+        pid, stamp = os.getpid(), time.time_ns() // 1_000_000
         # Two claims in one millisecond must not clobber a batch still in flight.
-        while inflight.exists():
+        while (
+            inflight := spool.with_name(f"spool.inflight-{pid}-{stamp}.jsonl")
+        ).exists():
             stamp += 1
-            inflight = _inflight_name(spool, stamp)
         os.replace(spool, inflight)
     except OSError:  # nothing claimed; the spool waits for the next attempt
         logger.debug("Could not claim the telemetry spool", exc_info=True)
@@ -139,13 +127,3 @@ def discard_inflight(inflight: Path) -> None:
         inflight.unlink(missing_ok=True)
     except OSError:  # a leftover file is merged back later, never fatal
         logger.debug("Could not remove a telemetry inflight file", exc_info=True)
-
-
-def clear_spool(cfg: Path) -> None:
-    """Remove the spool and every inflight file."""
-    spool = spool_path(cfg)
-    try:
-        for path in [spool, *spool.parent.glob(_INFLIGHT_GLOB)]:
-            path.unlink(missing_ok=True)
-    except OSError:  # a spool that cannot be cleared is still bounded by its caps
-        logger.debug("Could not clear the telemetry spool", exc_info=True)
