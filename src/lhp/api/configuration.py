@@ -8,11 +8,6 @@ from typing import Any, Literal
 
 import yaml
 
-from lhp.bundle.manager import BundleManager
-from lhp.core.jobs.job_generator import JobGenerator
-from lhp.core.loaders.project_config_loader import ProjectConfigLoader
-from lhp.core.processing.substitution import EnhancedSubstitutionManager
-
 
 def _project_file(root: Path, path: str, *, required: bool = True) -> Path:
     candidate = (root / path).resolve()
@@ -42,6 +37,13 @@ def preview_configuration(
 
     :stability: provisional
     """
+    # This function is re-exported by lhp.api. Load its resolver/codegen stack
+    # only when a preview is requested, keeping public API imports lightweight.
+    from lhp.bundle.manager import BundleManager
+    from lhp.core.jobs.job_generator import JobGenerator
+    from lhp.core.loaders.project_config_loader import ProjectConfigLoader
+    from lhp.core.processing.substitution import EnhancedSubstitutionManager
+
     root = Path(project_root).resolve()
     if not re.fullmatch(r"[A-Za-z0-9_.-]+", env) or env in {".", ".."}:
         raise ValueError("Choose an environment name without path separators.")
