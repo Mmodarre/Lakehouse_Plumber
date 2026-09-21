@@ -75,9 +75,12 @@ def _label(event: UiEvent) -> Optional[str]:
     """``surface.action[.via]`` for a recognised event, else ``None``.
 
     Every component is checked against its closed set, so the label is
-    assembled only from values this module declares.
+    assembled only from values this module declares. ``via`` says how
+    something was created, so it qualifies a ``created`` action only.
     """
     if event.surface not in UI_SURFACES or event.action not in UI_ACTIONS:
+        return None
+    if event.via is not None and event.action != "created":
         return None
     if event.via is None:
         return f"{event.surface}.{event.action}"

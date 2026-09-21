@@ -253,6 +253,26 @@ class TestDroppedEvents:
         props = _one_session(registry, events)
         assert props["ui"] == {"project_map.opened": 1}
 
+    @pytest.mark.parametrize("action", ["opened", "toggled"])
+    def test_via_on_an_action_other_than_created_drops_the_event(
+        self, client: TestClient, action: str
+    ) -> None:
+        """``via`` says how something was created, so it qualifies ``created`` only."""
+        registry, events = _arm_telemetry(client)
+
+        resp = client.post(
+            _URL,
+            json=_body(
+                {"surface": "project_map", "action": action, "via": "blueprint"},
+                {"surface": "project_map", "action": "opened"},
+            ),
+            headers={SESSION_HEADER: _SID},
+        )
+
+        assert resp.status_code == 204
+        props = _one_session(registry, events)
+        assert props["ui"] == {"project_map.opened": 1}
+
     def test_no_accepted_event_leaves_the_registry_untouched(
         self, client: TestClient
     ) -> None:

@@ -416,6 +416,53 @@ def test_chat_collapses_an_unknown_provider_and_mode_to_other(
     assert props["assistant_mode"] == "other"
 
 
+def test_chat_collapses_a_non_string_mode_to_other(
+    mutable_client: TestClient,
+    mutable_project: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _which_missing(monkeypatch)
+    monkeypatch.setattr(assistant_router, "claude_chat_turn", _fake_turn({}))
+    # Bypass PUT validation: only the store can hold a mode that is not a string.
+    assistant_store.put_config(
+        mutable_project, "executor", {"provider": "claude_sdk", "mode": ["x", "y"]}
+    )
+    _write_marker(mutable_project)
+    registry, events = _arm_telemetry(mutable_client)
+
+    response = mutable_client.post(
+        _CHAT_URL, json={"message": "hello"}, headers={SESSION_HEADER: _SID}
+    )
+    assert response.status_code == 200
+
+    props = _one_session(registry, events)
+    assert props["assistant_provider"] == "claude_sdk"
+    assert props["assistant_mode"] == "other"
+
+
+def test_a_failing_telemetry_hook_never_reaches_the_chat_request(
+    mutable_client: TestClient,
+    mutable_project: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def explode(*args: Any, **kwargs: Any) -> None:
+        raise RuntimeError("telemetry")
+
+    _which_missing(monkeypatch)
+    monkeypatch.setattr(assistant_router, "claude_chat_turn", _fake_turn({}))
+    monkeypatch.setattr(assistant_router, "mark_assistant", explode)
+    _put_config(mutable_client, _CLAUDE_CFG)
+    _write_marker(mutable_project)
+    _arm_telemetry(mutable_client)
+
+    response = mutable_client.post(
+        _CHAT_URL, json={"message": "hello"}, headers={SESSION_HEADER: _SID}
+    )
+
+    assert response.status_code == 200
+    assert _ndjson(response.text)[-1] == {"type": "turn.completed"}
+
+
 def test_chat_without_a_session_header_marks_nothing(
     mutable_client: TestClient,
     mutable_project: Path,

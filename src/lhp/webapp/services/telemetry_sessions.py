@@ -193,10 +193,24 @@ def deliver_event(
     raise, but the hook sites' contract — telemetry never reaches the request
     that triggered it — is enforced here rather than trusted.
     """
+    _sink_quietly(sink, name, project_root=project_root, props=props)
+    _flush_quietly(flush, name)
+
+
+def _sink_quietly(
+    sink: SessionSink,
+    name: str,
+    *,
+    project_root: Optional[Path],
+    props: dict[str, Any],
+) -> None:
     try:
         sink(name, project_root=project_root, props=props)
     except Exception:  # telemetry must never surface in the request that caused it
         logger.debug(f"telemetry: {name} sink failed", exc_info=True)
+
+
+def _flush_quietly(flush: FlushFn, name: str) -> None:
     try:
         flush()
     except Exception:  # same contract as the sink
@@ -435,9 +449,21 @@ class WebSessionRegistry:
         )
 
     def _deliver_all(self, rendered: list[Optional[dict[str, Any]]]) -> int:
+        """Sink every rendered session, then flush once (lock released).
+
+        One flush hands the whole batch to a single sender thread, where a
+        flush per session would find the first send in flight and skip.
+        """
         delivered = 0
         for props in rendered:
             if props is not None:
-                self._deliver(props)
+                _sink_quietly(
+                    self.sink,
+                    "web.session",
+                    project_root=self.project_root,
+                    props=props,
+                )
                 delivered += 1
+        if delivered:
+            _flush_quietly(self.flush, "web.session")
         return delivered

@@ -14,8 +14,8 @@ headers. A value that is not a lowercase uuid is treated as absent and is
 never logged, so a malformed or hostile header cannot reach the logs.
 
 ``web.run`` props are the frozen ``lhp.telemetry.WebRunProps`` built from the
-recorder's terminal outcome; ``error_code`` is forwarded only when it is an
-``LHP-XXX-NNN`` code, never a message.
+recorder's terminal outcome; ``error_code`` is forwarded only when
+``lhp.telemetry.is_lhp_code`` recognises it, never a message.
 """
 
 from __future__ import annotations
@@ -23,7 +23,6 @@ from __future__ import annotations
 import asyncio
 import dataclasses
 import logging
-import re
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -74,7 +73,6 @@ _ASSISTANT_MODES = frozenset(
     mode for modes in _PROVIDER_MODES.values() for mode in modes
 )
 _OTHER = "other"
-_LHP_ERROR_CODE_RE = re.compile(r"^LHP-[A-Z]{2,5}-\d{3}$")
 
 
 @dataclass(frozen=True)
@@ -128,9 +126,7 @@ def build_web_run_props(
 
 
 def _lhp_error_code(value: object) -> Optional[str]:
-    if isinstance(value, str) and _LHP_ERROR_CODE_RE.fullmatch(value):
-        return value
-    return None
+    return value if telemetry.is_lhp_code(value) else None
 
 
 def _optional_count(value: object) -> Optional[int]:
@@ -242,19 +238,23 @@ def record_run(
     )
 
 
-def mark_assistant(
-    request: Request, provider: Optional[str], mode: Optional[str]
-) -> None:
-    """Mark the session as having used the assistant, with bounded provider/mode."""
+def mark_assistant(request: Request, provider: object, mode: object) -> None:
+    """Mark the session as having used the assistant, with bounded provider/mode.
+
+    The values come from a stored config that may hold any JSON value, so a
+    non-string is ``other`` before any membership test can hash it.
+    """
     attributed = session_for(request)
     if attributed is None:
         return
     registry, sid = attributed
     registry.mark_assistant(
-        sid,
-        provider if provider in _ASSISTANT_PROVIDERS else _OTHER,
-        mode if mode in _ASSISTANT_MODES else _OTHER,
+        sid, _bounded(provider, _ASSISTANT_PROVIDERS), _bounded(mode, _ASSISTANT_MODES)
     )
+
+
+def _bounded(value: object, vocabulary: frozenset[str]) -> str:
+    return value if isinstance(value, str) and value in vocabulary else _OTHER
 
 
 async def on_sse_disconnect(app: FastAPI, sid: str) -> None:

@@ -321,8 +321,31 @@ def test_emit_all_ends_every_session_with_the_given_reason() -> None:
         ("web.session", SID, "shutdown"),
         ("web.session", SID_2, "shutdown"),
     ]
-    assert sink.flushes == 2
+    assert sink.flushes == 1
     assert registry.emit_all("shutdown") == 0
+
+
+def test_emit_all_sinks_every_session_then_flushes_once() -> None:
+    registry, sink, _ = _registry()
+    for sid in (SID, SID_2, SID_3):
+        registry.touch(sid)
+        registry.count_request(sid, "project.read")
+
+    assert registry.emit_all("shutdown") == 3
+
+    assert len(sink.events) == 3
+    assert sink.flushes == 1
+
+
+def test_a_single_emission_still_flushes_its_own_event() -> None:
+    registry, sink, _ = _registry()
+    registry.touch(SID)
+    registry.count_request(SID, "project.read")
+
+    assert registry.emit(SID, "idle") is True
+
+    assert len(sink.events) == 1
+    assert sink.flushes == 1
 
 
 def test_sweep_idle_emits_only_idle_sessions_without_live_sse() -> None:
@@ -626,6 +649,8 @@ def test_record_run_without_an_outcome_is_aborted(
     [
         ("LHP-ACT-001", "LHP-ACT-001"),
         ("LHP-IO-028", "LHP-IO-028"),
+        ("LHP-VAL-DUPFG", "LHP-VAL-DUPFG"),
+        ("LHP-EVT-SOFT-CAP", "LHP-EVT-SOFT-CAP"),
         ("Unknown action type 'nope'", None),
         ("", None),
         (None, None),
@@ -768,10 +793,13 @@ def test_count_file_mutation_counts_by_kind_never_by_path() -> None:
         ("acme-llm", "turbo", ("other", "other")),
         ("claude_sdk", "my-secret-mode", ("claude_sdk", "other")),
         (None, None, ("other", "other")),
+        ("claude_sdk", ["databricks"], ("claude_sdk", "other")),
+        ("claude_sdk", {"mode": "databricks"}, ("claude_sdk", "other")),
+        (["claude_sdk"], "databricks", ("other", "databricks")),
     ],
 )
 def test_mark_assistant_normalises_provider_and_mode(
-    provider: str | None, mode: str | None, expected: tuple[str, str]
+    provider: Any, mode: Any, expected: tuple[str, str]
 ) -> None:
     registry, sink, _ = _registry()
     request = _request(_app(registry), header=SID)

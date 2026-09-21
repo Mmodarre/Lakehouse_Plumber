@@ -275,7 +275,10 @@ async def chat(
             "Chat requires the packaged LHP skill in .claude/skills/lhp/.",
             ["Install the skill from the assistant panel (POST /api/assistant/skill)"],
         )
-    mark_assistant(request, _provider_of(executor_cfg), executor_cfg.get("mode"))
+    try:
+        mark_assistant(request, _provider_of(executor_cfg), executor_cfg.get("mode"))
+    except Exception:  # telemetry never reaches the chat request
+        logger.debug("Could not mark the assistant session", exc_info=True)
     if _provider_of(executor_cfg) == "claude_sdk":
         claude_frames = claude_chat_turn(
             project_root,
