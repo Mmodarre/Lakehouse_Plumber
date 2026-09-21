@@ -29,15 +29,20 @@ vi.mock('../../../api/blueprints', () => ({
   fetchBlueprints: vi.fn().mockResolvedValue({ blueprints: [], total: 0 }),
 }))
 vi.mock('sonner', () => ({ toast: { error: vi.fn(), success: vi.fn(), dismiss: vi.fn() } }))
+// Usage telemetry reports only that a flowgroup was created and how — never
+// its name, pipeline or path.
+vi.mock('../../../lib/telemetry-shim', () => ({ track: vi.fn() }))
 
 import { CreateFlowgroupDialog } from '../CreateFlowgroupDialog'
 import { IF_MATCH_CREATE_ONLY, writeFile } from '../../../api/files'
 import { ApiError } from '../../../api/client'
+import { track } from '../../../lib/telemetry-shim'
 import { useUIStore } from '../../../store/uiStore'
 import { useWorkspaceStore } from '../../../store/workspaceStore'
 import type { FileNode } from '../../../types/api'
 
 const mockWriteFile = vi.mocked(writeFile)
+const trackMock = vi.mocked(track)
 
 const tree: FileNode = {
   name: '',
@@ -153,6 +158,10 @@ describe('CreateFlowgroupDialog', () => {
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['files'] })
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['pipelines'] })
     expect(useUIStore.getState().createFlowgroupDialog).toBe(false)
+
+    // Telemetry: one creation, attributed to the mode, carrying no name or path.
+    expect(trackMock.mock.calls).toEqual([['create_flowgroup_dialog', 'created', 'blank']])
+    expect(JSON.stringify(trackMock.mock.calls)).not.toContain('new_fg')
   })
 
   it('turns a 412 into an overwrite confirmation, then writes unconditionally', async () => {
@@ -173,6 +182,8 @@ describe('CreateFlowgroupDialog', () => {
     await user.click(createButton())
 
     expect(await screen.findByText(/already exists at/i)).toBeInTheDocument()
+    // A refused write is not a creation.
+    expect(trackMock).not.toHaveBeenCalled()
     const overwrite = screen.getByRole('button', { name: /overwrite/i })
     await user.click(overwrite)
 
@@ -180,6 +191,7 @@ describe('CreateFlowgroupDialog', () => {
     // The overwrite PUT is unconditional (no create-only etag).
     expect(mockWriteFile.mock.calls[1]![2]).toBeUndefined()
     await waitFor(() => expect(openEntityTab).toHaveBeenCalled())
+    expect(trackMock.mock.calls).toEqual([['create_flowgroup_dialog', 'created', 'blank']])
   })
 
   it('after a 412, editing the name returns a Create targeting the new path (I-1)', async () => {

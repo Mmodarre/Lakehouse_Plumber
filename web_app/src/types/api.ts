@@ -48,6 +48,11 @@ export interface HealthResponse
   project_state?: 'ok' | 'no_project' | (string & {})
 }
 
+// ── Telemetry ────────────────────────────────────────────
+
+export type UiEvent = Schemas['UiEvent']
+export type UiEventsRequest = Schemas['UiEventsRequest']
+
 // ── Project ──────────────────────────────────────────────
 
 export type ResourceCounts = Schemas['ResourceCounts']

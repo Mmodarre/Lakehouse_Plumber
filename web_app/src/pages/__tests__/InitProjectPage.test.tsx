@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { InitProjectPage } from '../InitProjectPage'
 import { initProject } from '../../api/project'
+import { track } from '../../lib/telemetry-shim'
 
 vi.mock('../../api/project', () => ({
   initProject: vi.fn(),
@@ -11,8 +12,12 @@ vi.mock('../../api/project', () => ({
 vi.mock('sonner', () => ({
   toast: { success: vi.fn(), error: vi.fn() },
 }))
+// Usage telemetry reports only that the wizard was shown — never the
+// project name entered into it.
+vi.mock('../../lib/telemetry-shim', () => ({ track: vi.fn() }))
 
 const initProjectMock = vi.mocked(initProject)
+const trackMock = vi.mocked(track)
 
 function renderPage() {
   const queryClient = new QueryClient({
@@ -32,6 +37,26 @@ beforeEach(() => {
 })
 
 describe('InitProjectPage', () => {
+  it('reports the wizard as opened once on mount and nothing on submit', async () => {
+    const user = userEvent.setup()
+    initProjectMock.mockResolvedValue({
+      success: true,
+      created_files: ['lhp.yaml'],
+      created_dirs: [],
+      bundle_enabled: true,
+      error_message: null,
+      error_code: null,
+    })
+    renderPage()
+    expect(trackMock.mock.calls).toEqual([['init_wizard', 'opened']])
+
+    await user.type(screen.getByLabelText('Project name'), 'demo_project')
+    await user.click(screen.getByRole('button', { name: /create project/i }))
+    await waitFor(() => expect(initProjectMock).toHaveBeenCalled())
+    expect(trackMock).toHaveBeenCalledTimes(1)
+    expect(JSON.stringify(trackMock.mock.calls)).not.toContain('demo_project')
+  })
+
   it('submits the form and shows the created files on success', async () => {
     const user = userEvent.setup()
     initProjectMock.mockResolvedValue({

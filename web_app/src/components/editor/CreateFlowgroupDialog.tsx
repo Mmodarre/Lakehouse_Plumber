@@ -4,6 +4,7 @@ import { FilePlus2, FileText, LayoutTemplate, Loader2, Package, X } from 'lucide
 import { toast } from 'sonner'
 import { cn } from '../../lib/utils'
 import { errorMessage } from '../../lib/errors'
+import { track } from '../../lib/telemetry-shim'
 import { useUIStore } from '../../store/uiStore'
 import { useWorkspaceStore } from '../../store/workspaceStore'
 import { usePipelines } from '../../hooks/usePipelines'
@@ -255,6 +256,7 @@ function CreateFlowgroupForm({
     createOnly: boolean,
   ) => {
     await writeFile(req.path, req.yaml, createOnly ? IF_MATCH_CREATE_ONLY : undefined)
+    track('create_flowgroup_dialog', 'created', mode)
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ['files'] }),
       queryClient.invalidateQueries({ queryKey: ['pipelines'] }),
