@@ -141,16 +141,16 @@ One event per command run, including failed runs.
      - ``0`` success, ``1`` domain error, ``2`` usage error, ``3`` internal error, ``130`` interrupted.
    * - ``error_code``
      - string or null
-     - The ``LHP-<CATEGORY>-<NUMBER>`` code of the failure, or ``LHP-GEN-902`` for an unexpected one. See the :doc:`error code catalog </reference/errors>`.
+     - The ``LHP-<CATEGORY>-<NUMBER>`` code of the failure, or ``LHP-GEN-902`` for an unexpected one. A value that is not a recognized LHP error code is sent as null. See the :doc:`error code catalog </reference/errors>`.
    * - ``exception_class``
      - string or null
      - The exception's class name only. No message, no stack trace.
    * - ``warning_codes``
      - object
-     - Error codes counted, for example ``{"LHP-DEP-002": 3}``. Codes only, never messages.
+     - Error codes counted, for example ``{"LHP-DEP-002": 3}``. Codes only, never messages. A warning without a recognized LHP error code is counted as ``other``.
    * - ``failure_codes``
      - object
-     - The same shape for failures.
+     - The same shape for failures, with the same ``other`` count.
    * - ``files_written``
      - integer or null
      - How many files the run wrote.
@@ -293,7 +293,7 @@ One event per validate or generate run started from the web IDE.
      - True when the stream ended with no terminal result, for example because the browser disconnected.
    * - ``error_code``
      - string or null
-     - An ``LHP-<CATEGORY>-<NUMBER>`` code, and only such a code.
+     - An LHP error code such as ``LHP-ACT-001``, and only such a code. Any other value is sent as null.
    * - ``error_count``, ``warning_count``
      - integer
      - How many errors and warnings the run reported.
@@ -454,6 +454,8 @@ other Python HTTP client.
      - The batch is accepted and removed from the spool. An empty body is a plain success; a non-empty body that is not JSON came from a proxy or a captive portal rather than the receiver, so the batch is kept.
    * - 400, 413 and any other 4xx except 429
      - The batch is discarded. The receiver does not accept it however often it is offered.
+   * - 3xx redirect
+     - The batch is discarded. The endpoint must not redirect: the HTTP client re-sends a redirected upload as a request without its body, so the reply says nothing about the batch.
    * - 429, 5xx, timeout, connection error
      - The batch is kept and offered again on the next command.
    * - Remote pause
@@ -531,7 +533,7 @@ The ``lhp telemetry`` command
 -----------------------------
 
 - ``lhp telemetry status`` — print whether telemetry is on, which layer decided that, the mode, the config directory, the install id, the endpoint, how many events are spooled, and a link to this page.
-- ``lhp telemetry show`` — print the ``cli.command`` event this invocation would send, then the newest spooled events, one compact JSON object per line.
+- ``lhp telemetry show`` — print the ``cli.command`` event this invocation would send, then the newest spooled events, one compact JSON object per line. Standard output carries only those JSON lines, so it pipes into ``jq`` unchanged; the closing count, and the notice that nothing would be sent when telemetry is off, go to standard error.
 - ``lhp telemetry on`` — turn telemetry on for this user on this machine.
 - ``lhp telemetry off`` — turn telemetry off for this user on this machine. The install id and any spooled events are kept, and nothing is recorded or sent while it is off.
 
@@ -556,8 +558,9 @@ version. LHP stores it and, on a later run, prints one line:
 LHP prints the line only when the command succeeded, the run is interactive
 and outside CI, ``LHP_UPDATE_CHECK`` does not opt out, the stored version is
 newer than the installed one, and it has shown no hint in the past 24 hours.
-The check never makes a request of its own, so it works only while telemetry
-is on.
+Pre-releases are ignored unless the installed version is itself a
+pre-release. The check never makes a request of its own, so it works only
+while telemetry is on.
 
 Local files
 -----------

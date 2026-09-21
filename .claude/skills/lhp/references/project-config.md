@@ -391,7 +391,7 @@ lhp substitutions --env <env>                 # Show resolved substitution token
 
 # Anonymous usage telemetry (see the Telemetry section)
 lhp telemetry status                          # On/off, deciding layer, mode, config dir, install id, endpoint, spooled count
-lhp telemetry show                            # The event this run would send + the newest spooled events, one JSON line each
+lhp telemetry show                            # The event this run would send + the newest spooled events, one JSON line each (stdout is JSON only; off-notice + count on stderr)
 lhp telemetry on                              # Turn telemetry on for this user on this machine
 lhp telemetry off                             # Turn telemetry off for this user on this machine (install id + spool kept)
 ```
@@ -406,7 +406,10 @@ code and never raises; `lhp telemetry on|off` are the exception and fail with
 and are posted on a daemon thread to the HTTPS endpoint fixed at release time (`lhp
 telemetry status` prints the one this build uses; a build whose endpoint is unreachable
 keeps events in the spool until the caps drop them); ≤1 s is the whole exit latency it
-may add. Full field tables:
+may add. Response handling: 2xx accepts the batch (a non-JSON 2xx body, i.e. a proxy or
+portal page, keeps it); 429/5xx/timeout keeps it for the next command; any other 4xx and
+any 3xx redirect discard it (the endpoint must not redirect).
+Full field tables:
 <https://lakehouse-plumber.readthedocs.io/en/latest/reference/telemetry.html>.
 
 ### Off switches (any off wins, checked in this order)
@@ -431,7 +434,7 @@ environment never touches the config dir.
 | `LHP_DISABLE_ANALYTICS` | off (permanent alias of `LHP_TELEMETRY=off`) |
 | `LHP_CONFIG_DIR` | override the config dir (state file + spool) |
 | `LHP_TELEMETRY_ENDPOINT` | override the endpoint; accepted only for `https://` or loopback `http://` (`127.0.0.1`, `localhost`, `::1`), else ignored |
-| `LHP_UPDATE_CHECK` | `off`/`0`/`false` silences the "newer version available" hint |
+| `LHP_UPDATE_CHECK` | `off`/`0`/`false` silences the "newer version available" hint (pre-releases are never hinted unless a pre-release is installed) |
 
 Config dir order: `LHP_CONFIG_DIR` verbatim → on Windows `%APPDATA%\lhp` (or
 `~\AppData\Roaming\lhp` when that variable is unset) → elsewhere `$XDG_CONFIG_HOME/lhp`
@@ -447,7 +450,9 @@ Any name (project, pipeline, flowgroup, action, table, catalog, schema, env), pa
 YAML/SQL/Python content, generated code, error/warning **messages**, env-var values,
 secrets, usernames, hostnames, emails, git remotes, machine identifiers, IPs (discarded
 at ingest), assistant prompts/responses/tool arguments, token counts. Failures are the
-`LHP-XXX-NNN` code + exception class name only.
+`LHP-XXX-NNN` code + exception class name only; a value that is not a recognised LHP
+error code is counted as `other` in `warning_codes`/`failure_codes` and sent as null in
+`error_code`.
 
 The project **name** is never sent either: with no `project_id`/`bundle.uuid`, a salted
 hash of the name is sent and is **pseudonymous, not anonymous** (the salt is a public
