@@ -16,8 +16,15 @@ unchanged while:
     ``error`` view / ``error_message`` for generation),
   - no terminal seen (client disconnect, upstream crash) → ``failed``,
 
-* publishing ``run-updated`` bus events at start and at terminal, and
-* pruning old history after each run.
+* publishing ``run-updated`` bus events at start and at terminal,
+* pruning old history after each run, and
+* delivering one ``web.run`` telemetry event when the router supplied a
+  :class:`~lhp.webapp.services._telemetry_events.RunTelemetryContext`.
+
+The terminal ``finally`` is the only place that knows how a run ended, which
+is why the telemetry hook lives here rather than in the router. It runs after
+the ``run-updated`` publish, so the UI is notified first, and every failure it
+can raise is swallowed: telemetry must never alter what the client sees.
 
 All DB work is the synchronous :mod:`run_history` layer bridged through
 ``asyncio.to_thread`` so the event loop never blocks on SQLite.
@@ -33,12 +40,14 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import time
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, AsyncIterator, Optional
 
 from lhp.webapp.services import run_history
+from lhp.webapp.services._telemetry_events import RunTelemetryContext, record_run
 from lhp.webapp.services.event_bus import EventBus
 from lhp.webapp.services.run_history import IssueRecord
 
@@ -201,6 +210,7 @@ async def record(
     kind: str,
     env: str,
     pipeline: Optional[str] = None,
+    telemetry: Optional[RunTelemetryContext] = None,
 ) -> AsyncIterator[dict[str, Any]]:
     """Forward ``frames`` unchanged while recording the run into SQLite.
 
@@ -208,6 +218,11 @@ async def record(
     (status ``running``) before the first frame is pulled; the terminal state
     is written in the ``finally`` block so a disconnect or upstream crash
     still closes the run out as ``failed``.
+
+    ``telemetry`` is the router's attribution context, or ``None`` when the
+    run is not counted — the ``None`` path does no telemetry work at all.
+    ``env`` reaches telemetry only to classify the bundle target; the name
+    itself is never emitted.
     """
     run_id = str(uuid.uuid4())
     await asyncio.to_thread(
@@ -218,6 +233,7 @@ async def record(
     buffer: list[tuple[int, str]] = []
     seq = 0
     outcome: Optional[_TerminalOutcome] = None
+    started = time.monotonic()
     try:
         async for frame in frames:
             seq += 1
@@ -247,6 +263,20 @@ async def record(
                 run_history.add_issues, project_root, run_id, outcome.issues
             )
         event_bus.publish(_run_updated(run_id, kind, status))
+        if telemetry is not None:
+            duration_ms = int((time.monotonic() - started) * 1000)
+            try:
+                await asyncio.to_thread(
+                    record_run,
+                    telemetry,
+                    project_root,
+                    kind,
+                    env,
+                    outcome,
+                    duration_ms,
+                )
+            except Exception:  # telemetry must never affect the run
+                logger.debug("telemetry: web.run hook failed", exc_info=True)
         await asyncio.to_thread(run_history.prune, project_root)
 
 
@@ -258,6 +288,7 @@ async def record_ndjson(
     kind: str,
     env: str,
     pipeline: Optional[str] = None,
+    telemetry: Optional[RunTelemetryContext] = None,
 ) -> AsyncIterator[bytes]:
     """Byte-level recorder around an already-encoded NDJSON line stream.
 
@@ -282,6 +313,7 @@ async def record_ndjson(
         kind=kind,
         env=env,
         pipeline=pipeline,
+        telemetry=telemetry,
     )
     try:
         async for frame in recorder:

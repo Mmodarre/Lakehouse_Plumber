@@ -25,10 +25,13 @@ Substitution environments available in the fixture project (from
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
+
+from lhp.webapp.services.telemetry_sessions import SESSION_HEADER, WebSessionRegistry
 
 pytestmark = pytest.mark.webapp
 
@@ -221,3 +224,63 @@ def test_validate_stream_is_consumable_incrementally(client: TestClient) -> None
     # OperationStarted marker (§5.7).
     assert first_type == "OperationStarted"
     assert line_count >= 2
+
+
+# --- 5. trigger + one web.run per run ---------------------------------------
+#
+# ``trigger`` distinguishes a run the user asked for from the scoped validate
+# the editor fires after a clean save. It is additive and defaults to
+# ``manual``, so a body that predates it stays valid and unchanged on the wire.
+
+_SID = "0f4a2c6e-1b3d-4e5f-8a9b-0c1d2e3f4a5b"
+
+
+def _arm_telemetry(client: TestClient) -> list[dict[str, Any]]:
+    """Point the app at a registry whose delivered events land in a list."""
+    events: list[dict[str, Any]] = []
+
+    def sink(name: str, *, project_root: Path | None, props: dict[str, Any]) -> None:
+        events.append({"name": name, **props})
+
+    client.app.state.telemetry_enabled = True  # type: ignore[attr-defined]
+    client.app.state.web_sessions = WebSessionRegistry(  # type: ignore[attr-defined]
+        sink=sink, flush=lambda: None
+    )
+    return events
+
+
+@pytest.mark.parametrize("path", ["/api/validate/stream", "/api/generate/stream"])
+def test_stream_unknown_trigger_is_422(client: TestClient, path: str) -> None:
+    """Only the two known triggers are accepted; the run never starts."""
+    resp = client.post(path, json={"env": ENV, "trigger": "scheduled"})
+    assert resp.status_code == 422
+
+
+@pytest.mark.parametrize(
+    ("body_trigger", "expected"),
+    [(None, "manual"), ("manual", "manual"), ("auto", "auto")],
+)
+def test_validate_stream_emits_one_web_run_with_its_trigger(
+    client: TestClient, body_trigger: str | None, expected: str
+) -> None:
+    """One ``web.run`` per run, attributed to the requesting tab's session."""
+    events = _arm_telemetry(client)
+    body: dict[str, Any] = {"env": ENV}
+    if body_trigger is not None:
+        body["trigger"] = body_trigger
+
+    resp = client.post(
+        "/api/validate/stream", json=body, headers={SESSION_HEADER: _SID}
+    )
+
+    assert resp.status_code == 200
+    assert _parse_ndjson(resp.content)[-1]["type"] == "ValidationCompleted"
+
+    runs = [event for event in events if event["name"] == "web.run"]
+    assert len(runs) == 1
+    assert runs[0]["session_id"] == _SID
+    assert runs[0]["kind"] == "validate"
+    assert runs[0]["trigger"] == expected
+    assert runs[0]["pipeline_filter"] is False
+    assert runs[0]["sandbox"] is False
+    assert runs[0]["aborted"] is False
