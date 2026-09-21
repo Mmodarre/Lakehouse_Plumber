@@ -1,5 +1,4 @@
-import { ApiError, fetchApi } from './client'
-import { getToken } from '../lib/session-token'
+import { ApiError, authHeaders, fetchApi } from './client'
 import type { ErrorDetail } from '../types/api'
 import type {
   ApprovalRequestBody,
@@ -21,8 +20,8 @@ import type {
 //
 // Typed client for the P5 assistant endpoints. All JSON endpoints go
 // through `fetchApi`; the one NDJSON endpoint (`POST /assistant/chat`)
-// mirrors `startStream` in ./stream — POST with body + X-LHP-Token,
-// returning the raw Response for the consuming hook to read.
+// mirrors `startStream` in ./stream — POST with body + the shared
+// `authHeaders()`, returning the raw Response for the consuming hook to read.
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '/api'
 
@@ -147,7 +146,7 @@ export function archiveAssistantSession(
 /**
  * Open one assistant chat turn as an NDJSON stream over POST.
  *
- * Mirrors `startStream` in ./stream (POST-with-body + X-LHP-Token): returns
+ * Mirrors `startStream` in ./stream (POST-with-body + `authHeaders()`): returns
  * the raw {@link Response} so the consuming hook reads `response.body` as a
  * `ReadableStream` of newline-delimited `AssistantFrame`s. Non-2xx opens
  * throw {@link ApiError} — including the chat-gate 409s (`LHP-WEB-001`
@@ -159,13 +158,12 @@ export async function startAssistantChat(
   signal?: AbortSignal,
 ): Promise<Response> {
   const url = `${BASE_URL}/assistant/chat`
-  const token = getToken()
   const response = await fetch(url, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       Accept: 'application/x-ndjson',
-      ...(token ? { 'X-LHP-Token': token } : {}),
+      ...authHeaders(),
     },
     body: JSON.stringify(body),
     signal,

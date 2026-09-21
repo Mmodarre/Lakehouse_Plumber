@@ -1,13 +1,15 @@
+import { getSessionId } from '../lib/session-id'
 import { getToken } from '../lib/session-token'
 
 // ── Push channel transport (GET /api/events) ─────────────
 //
 // Server-push SSE endpoint consumed with the browser-native EventSource
 // (the endpoint is a plain GET, unlike the POST-with-body run streams in
-// `stream.ts`). EventSource cannot set request headers, so the session
-// token travels as a `?token=` query parameter instead of X-LHP-Token;
-// when no token is present the parameter is omitted entirely, which is a
-// no-op against a tokenless backend.
+// `stream.ts`). EventSource cannot set request headers, so what the other
+// clients send via `authHeaders()` travels as query parameters instead:
+// the session token as `?token=` (omitted entirely when none is present,
+// a no-op against a tokenless backend) and the per-tab session id as
+// `session=` (always present; see lib/session-id).
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '/api'
 
@@ -32,9 +34,9 @@ export type { FileChangedPayload, RunUpdatedPayload } from '../types/push'
 export function createPushSource(): EventSource | null {
   if (typeof EventSource === 'undefined') return null
   const token = getToken()
-  const url =
+  const query =
     token !== null
-      ? `${BASE_URL}/events?token=${encodeURIComponent(token)}`
-      : `${BASE_URL}/events`
-  return new EventSource(url)
+      ? `token=${encodeURIComponent(token)}&session=${getSessionId()}`
+      : `session=${getSessionId()}`
+  return new EventSource(`${BASE_URL}/events?${query}`)
 }
