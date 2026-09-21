@@ -35,6 +35,7 @@ from lhp.telemetry._client import effective_state, flush, new_event, record
 from lhp.telemetry._consent import TelemetryState
 from lhp.telemetry._environment import ci_vendor
 from lhp.telemetry._events import (
+    LHP_CODE_PATTERN,
     PROJECT_SHAPE_KEYS,
     CliCommandProps,
     InstallProps,
@@ -43,6 +44,7 @@ from lhp.telemetry._events import (
     WebRunProps,
     WebSessionProps,
     fold_project_shape,
+    is_lhp_code,
     to_json_dict,
 )
 from lhp.telemetry._identity import ProjectIdentity, env_class, read_project_identity
@@ -65,6 +67,7 @@ from lhp.telemetry._update_check import pending_update_hint
 
 __all__ = [
     "DEFAULT_ENDPOINT",
+    "LHP_CODE_PATTERN",
     "PROJECT_SHAPE_KEYS",
     "CliCommandProps",
     "InstallProps",
@@ -76,11 +79,13 @@ __all__ = [
     "WebSessionProps",
     "ci_vendor",
     "config_dir",
+    "due_update_hint",
     "effective_state",
     "env_class",
     "flush",
     "fold_project_shape",
     "install_id",
+    "is_lhp_code",
     "mark_update_hint_shown",
     "new_event",
     "newer_version_available",

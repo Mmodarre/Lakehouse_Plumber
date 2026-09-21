@@ -6,6 +6,7 @@ be produced on demand. The opener records the request it was given so the
 headers and body can be asserted without any socket.
 """
 
+import http.server
 import io
 import json
 import logging
@@ -37,12 +38,18 @@ SECRET_MARKER = "marker-that-must-never-be-logged"
 
 
 class _Response:
-    def __init__(self, status: int, body: bytes) -> None:
+    def __init__(self, status: int, body: bytes, url: Optional[str] = None) -> None:
         self.status = status
         self._body = body
+        self._url = url
+        self.read_sizes: List[Optional[int]] = []
 
-    def read(self) -> bytes:
-        return self._body
+    def read(self, amt: Optional[int] = None) -> bytes:
+        self.read_sizes.append(amt)
+        return self._body if amt is None else self._body[:amt]
+
+    def geturl(self) -> str:
+        return ENDPOINT if self._url is None else self._url
 
     def __enter__(self) -> "_Response":
         return self
@@ -183,6 +190,78 @@ def test_2xx_with_an_empty_body_is_ok(body: bytes) -> None:
 def test_200_with_a_non_string_latest_is_ignored() -> None:
     result = _send(_opener_returning(200, {"latest": 93}))
     assert result == SendResult("ok", None, False)
+
+
+@pytest.mark.unit
+def test_a_latest_longer_than_a_version_string_is_ignored() -> None:
+    assert _send(_opener_returning(200, {"latest": "9" * 33})) == SendResult(
+        "ok", None, False
+    )
+    assert _send(_opener_returning(200, {"latest": "9" * 32})).latest == "9" * 32
+
+
+@pytest.mark.unit
+def test_the_reply_body_is_read_through_a_64_kib_cap() -> None:
+    response = _Response(200, b'{"latest":"0.9.3"}')
+
+    def opener(request: Any, **kwargs: Any) -> _Response:
+        return response
+
+    assert _send(opener) == SendResult("ok", "0.9.3", False)
+    assert response.read_sizes == [64 * 1024]
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("status", [301, 302, 303])
+def test_a_followed_redirect_drops_the_batch_after_one_request(status: int) -> None:
+    # urllib follows these statuses by re-issuing the POST as a bodiless GET,
+    # so the 2xx that comes back is the redirect target's, not the Worker's.
+    seen: List[Any] = []
+
+    def opener(request: Any, **kwargs: Any) -> _Response:
+        seen.append(request)
+        return _Response(200, b"", url=f"https://elsewhere.example.invalid/{status}")
+
+    assert _send(opener) == SendResult("drop", None, False)
+    assert len(seen) == 1
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("status", [301, 302, 303])
+def test_a_real_redirect_is_detected_through_urllib(status: int) -> None:
+    requests: List[str] = []
+
+    class _Handler(http.server.BaseHTTPRequestHandler):
+        def do_POST(self) -> None:
+            requests.append(f"POST {self.path}")
+            self.send_response(status)
+            self.send_header("Location", "/moved")
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+
+        def do_GET(self) -> None:
+            requests.append(f"GET {self.path}")
+            self.send_response(200)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+
+        def log_message(self, format: str, *args: Any) -> None:
+            return None
+
+    server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), _Handler)
+    serving = threading.Thread(target=server.serve_forever, daemon=True)
+    serving.start()
+    try:
+        result = send_batch(
+            [EVENT_A],
+            endpoint=f"http://127.0.0.1:{server.server_address[1]}/v1/events",
+            version=VERSION,
+        )
+    finally:
+        server.shutdown()
+        server.server_close()
+    assert result == SendResult("drop", None, False)
+    assert requests == ["POST /v1/events", "GET /moved"]
 
 
 @pytest.mark.unit

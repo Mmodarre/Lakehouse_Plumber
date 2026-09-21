@@ -5,8 +5,10 @@ request is built, which is what makes the ``urlopen`` call below safe. One
 attempt, a three-second timeout, and every failure — network, TLS, HTTP or
 a bug — is logged at DEBUG without the payload and classified as ``drop``
 (the Worker refused the batch for good) or ``retry`` (it may accept it
-later). The default opener honours ``HTTPS_PROXY`` and ``NO_PROXY`` like
-every other ``urllib`` client.
+later). A redirect is a ``drop``: ``urllib`` re-issues a redirected POST as a
+bodiless GET, so its 2xx is not the Worker's verdict, and a permanent
+redirect must not re-send every batch. The default opener honours
+``HTTPS_PROXY`` and ``NO_PROXY`` like every other ``urllib`` client.
 """
 
 from __future__ import annotations
@@ -31,6 +33,9 @@ logger = logging.getLogger(__name__)
 
 MAX_BATCH_EVENTS = 500
 MAX_BATCH_BYTES = 512 * 1024
+# The Worker's reply is a few dozen bytes; anything bigger is not worth reading.
+_MAX_REPLY_BYTES = 64 * 1024
+_MAX_LATEST_CHARS = 32
 # How long a Worker kill switch silences this install.
 _SERVER_DISABLE_PERIOD = timedelta(hours=24)
 
@@ -81,8 +86,9 @@ def _accepted(payload: bytes) -> SendResult:
         return SendResult("retry", None, False)
     extras = document if isinstance(document, dict) else {}
     latest = extras.get("latest")
-    disabled = extras.get("disabled") is True
-    return SendResult("ok", latest if isinstance(latest, str) else None, disabled)
+    if not isinstance(latest, str) or len(latest) > _MAX_LATEST_CHARS:
+        latest = None
+    return SendResult("ok", latest, extras.get("disabled") is True)
 
 
 def send_batch(
@@ -115,13 +121,18 @@ def send_batch(
             request, timeout=timeout_s, context=ssl.create_default_context()
         ) as response:
             status = int(getattr(response, "status", 200))
-            payload = response.read()
+            geturl = getattr(response, "geturl", None)
+            answered_by = request.full_url if geturl is None else geturl()
+            payload = response.read(_MAX_REPLY_BYTES)
     except urllib.error.HTTPError as error:  # a verdict from the Worker, not a fault
         logger.debug(f"Telemetry upload rejected with HTTP {error.code}")
         return _status_result(error.code)
     except Exception:  # network, TLS, timeout or a bug: the batch waits
         logger.debug("Telemetry upload failed", exc_info=True)
         return SendResult("retry", None, False)
+    if answered_by != request.full_url:
+        logger.debug("Telemetry upload was redirected; dropping the batch")
+        return SendResult("drop", None, False)
     return _accepted(payload) if 200 <= status < 300 else _status_result(status)
 
 

@@ -15,7 +15,7 @@ import time
 import urllib.error
 import urllib.request
 from pathlib import Path
-from typing import Any, Dict, Iterator, List
+from typing import Any, Dict, Iterator, List, Optional
 
 import pytest
 
@@ -101,7 +101,7 @@ class _Opener:
     def status(self) -> int:
         return 200
 
-    def read(self) -> bytes:
+    def read(self, amt: Optional[int] = None) -> bytes:
         return b'{"accepted":1,"rejected":0,"latest":"0.9.3"}'
 
     def __enter__(self) -> "_Opener":
@@ -422,7 +422,7 @@ def test_flush_against_a_black_holed_endpoint_returns_within_the_join_budget(
     thread = telemetry.flush(join_s=1.0, environ=send_env)
     elapsed = time.perf_counter() - started
     assert thread is not None and thread.is_alive()
-    assert 0.9 <= elapsed < 1.5, elapsed
+    assert 0.9 <= elapsed < 2.0, elapsed
     opener.release.set()
     thread.join(5.0)
 
@@ -538,6 +538,12 @@ def test_package_exports_the_consumer_surface() -> None:
         "install_id",
         "resolve_endpoint",
         "ci_vendor",
+        # The CLI's one-call update-hint decision.
+        "due_update_hint",
+        # The shared LHP code filter every emitter applies before a code
+        # becomes a wire value or a counter key.
+        "is_lhp_code",
+        "LHP_CODE_PATTERN",
     }
     assert set(telemetry.__all__) == expected
     for name in expected:

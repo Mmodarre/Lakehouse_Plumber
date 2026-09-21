@@ -188,6 +188,16 @@ def test_spooled_events_skips_corrupt_lines(
     assert telemetry.spooled_events(10, environ=send_env) == [{"event": "cli.command"}]
 
 
+@pytest.mark.unit
+@pytest.mark.parametrize("line", ["[1, 2]", '"text"', "42", "null", "true"])
+def test_spooled_events_skips_lines_that_are_not_json_objects(
+    cfg: Path, send_env: Dict[str, str], line: str
+) -> None:
+    append_spool(cfg, line)
+    append_spool(cfg, '{"event":"cli.command"}')
+    assert telemetry.spooled_events(10, environ=send_env) == [{"event": "cli.command"}]
+
+
 # due_update_hint
 
 

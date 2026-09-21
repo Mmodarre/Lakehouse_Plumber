@@ -16,6 +16,7 @@ import pytest
 
 from lhp.telemetry._events import (
     EVENT_NAMES,
+    LHP_CODE_PATTERN,
     PROJECT_SHAPE_KEYS,
     SCHEMA_VERSION,
     CliCommandProps,
@@ -25,6 +26,7 @@ from lhp.telemetry._events import (
     WebRunProps,
     WebSessionProps,
     fold_project_shape,
+    is_lhp_code,
     to_json_dict,
 )
 
@@ -481,3 +483,53 @@ def test_fold_never_produces_a_key_outside_the_allowlist() -> None:
     payload = asdict(fold_project_shape(raw))
     assert set(payload) == set(PROJECT_SHAPE_KEYS)
     assert payload["load_other"] == 50
+
+
+# LHP code filter: the only free-form strings that may become wire keys
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "code",
+    [
+        "LHP-DEP-002",
+        "LHP-IO-028",
+        "LHP-DEPR-001",
+        "LHP-VAL-DUPFG",
+        "LHP-EVT-SOFT-CAP",
+        "LHP-GEN-902",
+    ],
+)
+def test_is_lhp_code_accepts_every_registered_code_shape(code: str) -> None:
+    assert is_lhp_code(code) is True
+    assert LHP_CODE_PATTERN.fullmatch(code)
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "value",
+    [
+        "",
+        None,
+        42,
+        ["LHP-DEP-002"],
+        "lhp-dep-002",
+        "LHP-DEP-",
+        "LHP-D-002",
+        "LHP-TOOLONG-002",
+        "LHP-DEP-002 extra",
+        "LHP-DEP-002\n",
+        "Unknown action type 'nope'",
+        "LHP-DEP-" + "0" * 15,
+    ],
+)
+def test_is_lhp_code_rejects_anything_else(value: Any) -> None:
+    assert is_lhp_code(value) is False
+
+
+@pytest.mark.unit
+def test_an_accepted_code_never_exceeds_the_error_code_cap() -> None:
+    longest = "LHP-ABCDE-" + "A" * 14
+    assert is_lhp_code(longest) is True
+    assert len(longest) == 24
+    assert is_lhp_code(longest + "A") is False

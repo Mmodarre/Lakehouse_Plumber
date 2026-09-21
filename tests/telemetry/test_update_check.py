@@ -57,6 +57,31 @@ def test_is_newer_uses_pep440_ordering(
 
 
 @pytest.mark.unit
+@pytest.mark.parametrize(
+    ("candidate", "current", "expected"),
+    [
+        ("0.10.0rc1", "0.9.2", False),
+        ("1.0.0a1", "0.9.2", False),
+        ("0.9.3.dev1", "0.9.2", False),
+        ("0.10.0rc2", "0.10.0rc1", True),
+        ("0.11.0b1", "0.10.0rc1", True),
+        ("0.10.0", "0.10.0rc1", True),
+        ("0.9.3", "0.9.2.post1", True),
+        ("0.9.2.post1", "0.9.2", True),
+    ],
+)
+def test_a_pre_release_is_newer_only_for_a_pre_release_install(
+    candidate: str, current: str, expected: bool
+) -> None:
+    assert is_newer(candidate, current) is expected
+
+
+@pytest.mark.unit
+def test_a_stable_install_is_never_hinted_towards_a_pre_release() -> None:
+    assert _hint(state=_state(latest_known_version="0.10.0rc1")) is None
+
+
+@pytest.mark.unit
 def test_is_newer_compares_numerically_not_lexically() -> None:
     # A string comparison would call "0.9.9" newer than "0.10.0".
     assert is_newer("0.9.9", "0.10.0") is False

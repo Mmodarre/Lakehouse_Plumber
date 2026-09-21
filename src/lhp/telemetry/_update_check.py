@@ -27,13 +27,17 @@ def is_newer(candidate: str, current: str) -> bool:
     """Report whether ``candidate`` is a later release than ``current``.
 
     PEP 440 ordering, so ``0.10.0`` beats ``0.9.9`` and a release beats its
-    own release candidate. A version either side cannot parse is never an
-    upgrade.
+    own release candidate. A pre-release is an upgrade only for an install
+    that is itself a pre-release, so a stable user is never pointed at one.
+    A version either side cannot parse is never an upgrade.
     """
     try:
-        return Version(candidate) > Version(current)
+        latest, installed = Version(candidate), Version(current)
     except (InvalidVersion, TypeError):  # an unreadable version proves nothing
         return False
+    if latest.is_prerelease and not installed.is_prerelease:
+        return False
+    return latest > installed
 
 
 def update_check_disabled(environ: Mapping[str, str]) -> bool:

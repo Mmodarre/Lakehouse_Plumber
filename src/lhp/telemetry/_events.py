@@ -14,8 +14,9 @@ declaration order below rather than from a second list.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field, fields
-from typing import Any, Dict, Mapping, Optional, Tuple
+from typing import Any, Dict, Mapping, Optional, Tuple, TypeGuard
 
 from lhp.telemetry._project_shape import (
     PROJECT_SHAPE_KEYS,
@@ -25,6 +26,7 @@ from lhp.telemetry._project_shape import (
 
 __all__ = [
     "EVENT_NAMES",
+    "LHP_CODE_PATTERN",
     "PROJECT_SHAPE_KEYS",
     "SCHEMA_VERSION",
     "CliCommandProps",
@@ -34,10 +36,21 @@ __all__ = [
     "WebRunProps",
     "WebSessionProps",
     "fold_project_shape",
+    "is_lhp_code",
     "to_json_dict",
 ]
 
 SCHEMA_VERSION = 1
+
+# Every registered code, numeric (``LHP-DEP-002``) or named (``LHP-VAL-DUPFG``,
+# ``LHP-EVT-SOFT-CAP``), in at most 24 characters: the wire's error-code cap.
+LHP_CODE_PATTERN = re.compile(r"^LHP-[A-Z]{2,5}-[A-Z0-9][A-Z0-9-]{1,13}$")
+
+
+def is_lhp_code(value: object) -> TypeGuard[str]:
+    """Whether ``value`` may travel as an error code or a counter key."""
+    return isinstance(value, str) and LHP_CODE_PATTERN.fullmatch(value) is not None
+
 
 # ``web.ui`` is reserved in the wire schema but not emitted in v1: UI counts
 # ride along in ``web.session.ui``.

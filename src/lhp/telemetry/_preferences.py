@@ -123,12 +123,16 @@ def spool_count(environ: Environ = None) -> int:
 
 @_inert(list)
 def spooled_events(limit: int, environ: Environ = None) -> List[Dict[str, Any]]:
-    """The newest ``limit`` spooled envelopes as dicts; corrupt lines are skipped."""
+    """The newest ``limit`` spooled envelopes; non-envelope lines are skipped."""
     lines = _spool.read_lines(spool_path(config_dir(resolve_environ(environ))))
     events: List[Dict[str, Any]] = []
     for line in lines[-limit:] if limit > 0 else []:
         try:
-            events.append(json.loads(line))
+            event = json.loads(line)
         except ValueError:  # a corrupt line is not worth failing the listing
-            logger.debug("Skipping an unparseable spooled telemetry line")
+            event = None
+        if isinstance(event, dict):
+            events.append(event)
+        else:
+            logger.debug("Skipping a spooled telemetry line that is not an envelope")
     return events

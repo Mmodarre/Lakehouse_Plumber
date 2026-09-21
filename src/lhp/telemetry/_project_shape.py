@@ -123,4 +123,4 @@ def fold_project_shape(raw: Mapping[str, Union[int, bool]]) -> ProjectShape:
             values[name] = bool(value)
         else:
             values[name] = int(values.get(name, 0)) + int(value)
-    return ProjectShape(**values)  # type: ignore[arg-type]
+    return ProjectShape(**values)  # type: ignore[arg-type]  # keys are ProjectShape fields (via _canonical_key); mypy cannot narrow a splat

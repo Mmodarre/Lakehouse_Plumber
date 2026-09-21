@@ -167,7 +167,7 @@ def install_kind(
     try:
         payload = json.loads(raw)
     except (ValueError, TypeError):  # a malformed record is not evidence
-        logger.debug("Could not parse %s", _DIRECT_URL_FILE, exc_info=True)
+        logger.debug(f"Could not parse {_DIRECT_URL_FILE}", exc_info=True)
         return "unknown"
 
     dir_info = payload.get("dir_info") if isinstance(payload, dict) else None
