@@ -75,6 +75,7 @@ _ROUTER_MODULES: tuple[str, ...] = (
     "streaming",
     "runs",
     "events",
+    "telemetry",
     "assistant",
     "assistant_config",
     "assistant_sessions",
