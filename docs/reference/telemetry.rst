@@ -162,7 +162,7 @@ One event per command run, including failed runs.
      - Whether the run used the discovery cache.
    * - ``project``
      - object or null
-     - The project shape below. Present for ``generate``, ``validate`` and ``dag`` (including its ``deps`` alias) only, and only when reading it stays inside a 250 ms budget. Null when a ``generate`` run stops on an error before any pipeline has failed (for example a configuration error or an empty project), when a ``validate`` run is aborted by an exception before any pipeline has failed, or when you interrupt the run. A ``validate`` run on an empty project, or one stopped by its project-level checks, still carries the shape.
+     - The project shape below. Present for ``generate``, ``validate`` and ``dag`` (including its ``deps`` alias) only, and only when reading it stays inside a 250 ms budget. Null when a ``generate`` run stops on an error before any pipeline has failed (for example a configuration error or an empty project), when a ``validate`` run is aborted by an exception before any pipeline has failed, when a ``dag`` run fails, or when you interrupt the run. A ``validate`` run on an empty project, or one stopped by its project-level checks, still carries the shape.
 
 Project shape
 ~~~~~~~~~~~~~
@@ -468,7 +468,7 @@ cookies. LHP uses the default ``urllib`` opener, so ``HTTPS_PROXY`` and
    * - 3xx redirect
      - LHP discards the batch. The endpoint must not redirect: the HTTP client re-sends a redirected upload as a request without its body, so the reply says nothing about the batch.
    * - 429, 5xx, or a connection that failed before the request was fully sent
-     - The receiver has not accepted the batch, so LHP keeps it and offers it again on the next command, with no limit other than the spool caps.
+     - The receiver has not accepted the batch, so LHP keeps it and offers it again on the next upload, with no limit other than the spool caps.
    * - Sent but unanswered, or cut off at exit
      - The receiver may already hold the batch, so LHP limits the resends: it offers the batch again and discards an event whose send goes unanswered a second time. A request that times out waiting for the reply, or whose connection drops, is unanswered. So is a batch still in flight when the command exits: LHP leaves it on disk after the one-second exit wait, and the first upload it attempts more than a minute after claiming the batch puts it back in the spool. A resent event keeps its ``event_id``, which identifies the copies.
    * - Remote pause
@@ -478,7 +478,7 @@ cookies. LHP uses the default ``urllib`` opener, so ``HTTPS_PROXY`` and
    * - Delivery
      - A 200 reply means the receiver has queued the batch's events durably. It then writes them to storage and retries on failure, so a storage outage never reaches LHP. It rejects a malformed event on its own and accepts the rest of the batch. Delivery is at least once, so an event can be stored more than once; ``event_id`` identifies the copies.
    * - Rate limit
-     - 10 requests per 10 seconds from one IP address, applied by Cloudflare. A request over the limit gets 429 and its batch waits for the next command. CI runners behind one network address translation (NAT) gateway share its IP address and can reach the limit together, which delays their events; a runner discarded at the end of its job discards whatever is still in its spool.
+     - 10 requests per 10 seconds from one IP address, applied by Cloudflare. A request over the limit gets 429 and its batch waits for the next upload. CI runners behind one network address translation (NAT) gateway share its IP address and can reach the limit together, which delays their events; a runner discarded at the end of its job discards whatever is still in its spool.
    * - Storage
      - A Databricks workspace on Azure, in the West US 2 region (United States).
    * - IP addresses

@@ -409,7 +409,7 @@ one this build uses; a build whose endpoint is unreachable keeps events in the s
 until the caps drop them); ≤1 s is the whole exit latency it may add. Response
 handling: 2xx accepts the batch (a non-JSON 2xx body, i.e. a proxy or portal page,
 keeps it); 429/5xx or a connection failure before the request was fully sent keeps it for the
-next command, with no resend limit beyond the spool caps; a request sent but unanswered
+next upload, with no resend limit beyond the spool caps; a request sent but unanswered
 (read timeout, dropped connection) or still in flight at exit (its in-flight file is
 merged back by the first upload more than 60 s after the claim) is resent, but an event
 unanswered twice is discarded, and `event_id` identifies copies; any other 4xx and any
@@ -427,7 +427,7 @@ redirects; reads neither `Content-Type` nor `User-Agent`.
   rejected alone and the rest of the batch is accepted. Delivery is at-least-once;
   `event_id` identifies the copies.
 - **Rate limit:** 10 requests / 10 s per IP address, applied by Cloudflare → 429, batch
-  kept for the next command. CI runners behind one NAT gateway share the limit, which
+  kept for the next upload. CI runners behind one NAT gateway share the limit, which
   delays delivery; a runner discarded after its job discards what is still spooled.
 - **IP address:** never read or stored by the receiver, no location derived from it;
   Cloudflare's network sees it to deliver the request and apply the rate limit.
