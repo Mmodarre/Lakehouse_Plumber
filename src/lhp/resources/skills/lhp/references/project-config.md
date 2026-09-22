@@ -390,8 +390,8 @@ lhp diff --env <env>                          # Show what `lhp generate` would c
 lhp substitutions --env <env>                 # Show resolved substitution tokens
 
 # Anonymous usage telemetry (see the Telemetry section)
-lhp telemetry status                          # On/off, deciding layer, mode, config dir, install id, endpoint, spooled count
-lhp telemetry show                            # The event this run would send + the newest spooled events, one JSON line each (stdout is JSON only; off-notice + count on stderr)
+lhp telemetry status                          # On/off, deciding layer, mode, config dir, install id, endpoint, pending count (spool + in-flight batches)
+lhp telemetry show                            # The event this run would send + the newest pending events (spool + in-flight), one JSON line each (stdout is JSON only; off-notice + count on stderr)
 lhp telemetry on                              # Turn telemetry on for this user on this machine
 lhp telemetry off                             # Turn telemetry off for this user on this machine (install id + spool kept)
 ```
@@ -408,8 +408,12 @@ and are posted on a daemon thread to the HTTPS endpoint fixed at release time,
 one this build uses; a build whose endpoint is unreachable keeps events in the spool
 until the caps drop them); ≤1 s is the whole exit latency it may add. Response
 handling: 2xx accepts the batch (a non-JSON 2xx body, i.e. a proxy or portal page,
-keeps it); 429/5xx/timeout keeps it for the next command; any other 4xx and any 3xx
-redirect discard it (the endpoint must not redirect; the receiver never does).
+keeps it); 429/5xx or a connection failure before the request went out keeps it for the
+next command, with no resend limit beyond the spool caps; a request sent but unanswered
+(read timeout, dropped connection) or still in flight at exit (its in-flight file is
+merged back by the first upload more than 60 s after the claim) is resent, but an event
+unanswered twice is discarded, and `event_id` identifies copies; any other 4xx and any
+3xx redirect discard it (the endpoint must not redirect; the receiver never does).
 Full field tables:
 <https://lakehouse-plumber.readthedocs.io/en/latest/reference/telemetry.html>.
 
@@ -458,10 +462,12 @@ environment never touches the config dir.
 Config dir order: `LHP_CONFIG_DIR` verbatim → on Windows `%APPDATA%\lhp` (or
 `~\AppData\Roaming\lhp` when that variable is unset) → elsewhere `$XDG_CONFIG_HOME/lhp`
 when it holds an absolute path, otherwise `~/.config/lhp`. Files: `telemetry.json` (install id, on/off flag,
-version stamps) and `telemetry/spool.jsonl` (cap 500 events / 512 KB, oldest dropped),
-both owner-only and created on first write. Nothing is written in `log` mode or when
-off; `telemetry.json` is additionally never written in CI, so `install_id` is null
-there (the spool is still used).
+version stamps), `telemetry/spool.jsonl` (cap 500 events / 512 KB, oldest dropped; an
+event sent without an answer carries a trailing `"_unconfirmed":true` key, stripped
+before sending and from `lhp telemetry show`) and `telemetry/spool.inflight-<pid>-<ms>.jsonl`
+(a batch claimed by an upload; deleted when settled), all owner-only. Nothing is written
+in `log` mode or when off; `telemetry.json` is additionally never written in CI, so
+`install_id` is null there (the spool is still used).
 
 ### Never collected
 
@@ -471,9 +477,11 @@ secrets, usernames, hostnames, emails, git remotes, machine identifiers, IPs (ne
 or stored by the receiver — see [Receiver](#receiver)), assistant prompts/responses/tool
 arguments, token counts. Failures are the `LHP-XXX-NNN` code + exception class name
 only; a value that is not a recognised LHP error code is counted as `other` in
-`warning_codes`/`failure_codes` and sent as null in `error_code`. `error_code` is also
-null when a `validate`/`generate` run reports its failures per pipeline; their codes are
-counted in `failure_codes`.
+`warning_codes`/`failure_codes` and sent as null in `error_code`. `failure_codes` holds
+one code per failed pipeline for `generate` and one per error for `validate`. When
+`generate` stops on failed pipelines, `error_code` is the sole failed pipeline's code, or
+`LHP-VAL-902` when several failed; a run that completes and reports its failures itself
+(e.g. `validate` with errors) sends null `error_code`.
 
 The project **name** is never sent either: with no `project_id`/`bundle.uuid`, a salted
 hash of the name is sent and is **pseudonymous, not anonymous** (the salt is a public

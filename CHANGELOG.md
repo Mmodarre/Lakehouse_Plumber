@@ -99,10 +99,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   stderr instead of sending it. Everything that is sent is listed in the telemetry
   reference.
 - **`lhp telemetry status|show|on|off`.** Inspect the resolved state (on/off, the layer
-  that decided it, the config directory, the install id, the endpoint and the spooled
-  count), print the event this run would send plus the newest spooled events, or change
-  the preference for this user on this machine. A preference that cannot be written
-  fails with the new `LHP-IO-028`.
+  that decided it, the config directory, the install id, the endpoint and the count of
+  events not yet delivered, in-flight batches included), print the event this run would
+  send plus the newest of those events, or change the preference for this user on this
+  machine. A preference that cannot be written fails with the new `LHP-IO-028`.
 - **`project_id` in `lhp.yaml`.** `lhp init` now writes a top-level `project_id` UUID
   v4 — the same value it writes as `bundle.uuid` in `databricks.yml` when bundle
   support is on. Telemetry sends only a salted hash of it, so events from every
