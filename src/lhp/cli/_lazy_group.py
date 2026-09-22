@@ -47,6 +47,7 @@ COMMAND_IMPORTS: dict[str, str] = {
     "init": "lhp.cli.commands.init_command:init",
     "skill": "lhp.cli.commands.skill_command:skill",
     "web": "lhp.cli.commands.web_command:web_command",
+    "telemetry": "lhp.cli.commands.telemetry_command:telemetry",
     # Hidden backward-compatibility alias for the renamed ``dag`` command.
     "deps": "lhp.cli.commands.dag_command:deps",
 }

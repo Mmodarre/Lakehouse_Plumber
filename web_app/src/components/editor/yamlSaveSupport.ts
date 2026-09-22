@@ -15,29 +15,22 @@
 /** The subset of the run controller this module needs. */
 interface ValidateRunController {
   isRunning: boolean
-  startValidate: (env?: string, pipeline?: string) => void
+  startValidate: (env?: string, pipeline?: string, trigger?: 'manual' | 'auto') => void
   abort: () => void
+  queueValidate?: (env?: string, pipeline?: string, trigger?: 'manual' | 'auto') => void
 }
 
 /**
- * Trigger a validate run scoped to `pipeline` (or unscoped when undefined),
- * superseding any in-flight run on the same controller.
+ * Request validation without interrupting an operation already in progress.
  *
- * The transport hook ignores a `start()` while a run is in flight and only
- * clears its running flag asynchronously after an `abort()`. So when a run is
- * already in flight we abort and defer the start to the next macrotask, by
- * which time the flag has cleared; otherwise we start immediately.
+ * The run is tagged `auto`: the editor starts it, not the user.
  */
 export function startScopedValidate(
   controller: ValidateRunController,
   pipeline: string | undefined,
 ): void {
-  if (controller.isRunning) {
-    controller.abort()
-    setTimeout(() => controller.startValidate(undefined, pipeline), 0)
-  } else {
-    controller.startValidate(undefined, pipeline)
-  }
+  if (controller.queueValidate) controller.queueValidate(undefined, pipeline, 'auto')
+  else if (!controller.isRunning) controller.startValidate(undefined, pipeline, 'auto')
 }
 
 /** True for `.yaml` / `.yml` files (case-insensitive). */

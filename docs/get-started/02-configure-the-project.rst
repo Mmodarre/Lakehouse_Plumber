@@ -51,8 +51,9 @@ environment-specific values live:
 Set the two highlighted values:
 
 1. :guilabel:`edit` ``catalog`` — a Unity Catalog catalog you can ``CREATE`` in.
-   The demo makes three schemas (``sample_bronze``, ``sample_silver``,
-   ``sample_gold``) and a landing volume inside it.
+   The demo makes four schemas (``sample_bronze``, ``sample_silver``,
+   ``sample_gold``, ``_meta``) and two volumes (the landing volume and
+   ``_meta.checkpoints``) inside it.
 2. :guilabel:`edit` ``landing_volume`` — keep it in sync with the catalog above:
    ``/Volumes/<your_catalog>/sample_bronze/landing``.
 

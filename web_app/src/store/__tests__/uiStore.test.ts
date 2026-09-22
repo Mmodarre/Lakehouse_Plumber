@@ -7,6 +7,9 @@ import { useUIStore } from '@/store/uiStore'
 beforeEach(() => {
   useUIStore.setState({
     selectedPipelineConfig: null,
+    selectedEnv: '',
+    environmentProject: null,
+    environmentByProject: {},
     sandboxEnabled: false,
   })
 })
@@ -22,13 +25,14 @@ describe('uiStore — selectedPipelineConfig', () => {
     expect(useUIStore.getState().selectedPipelineConfig).toBeNull()
   })
 
-  it('persists exactly the run-config selection plus the sandbox toggle', () => {
+  it('persists run-config, sandbox and per-project environment choices', () => {
     useUIStore.getState().setSelectedPipelineConfig('config/pipeline_config_dev.yaml')
     const { partialize } = useUIStore.persist.getOptions()
     const slice = partialize!(useUIStore.getState())
     // Exact-equality pins the persisted surface: nothing else may leak into
     // localStorage without a deliberate test change.
     expect(slice).toEqual({
+      environmentByProject: {},
       selectedPipelineConfig: 'config/pipeline_config_dev.yaml',
       sandboxEnabled: false,
     })
@@ -48,5 +52,28 @@ describe('uiStore — sandboxEnabled', () => {
     useUIStore.getState().setSandboxEnabled(true)
     const { partialize } = useUIStore.persist.getOptions()
     expect(partialize!(useUIStore.getState())).toMatchObject({ sandboxEnabled: true })
+  })
+})
+
+describe('project environments', () => {
+  it('chooses an available environment when dev is absent and handles removal/empty lists', () => {
+    const reconcile = useUIStore.getState().reconcileEnvironments
+    reconcile('/project-a', ['test', 'prod'])
+    expect(useUIStore.getState().selectedEnv).toBe('test')
+    useUIStore.getState().setSelectedEnv('prod')
+    reconcile('/project-a', ['test'])
+    expect(useUIStore.getState().selectedEnv).toBe('test')
+    reconcile('/project-a', [])
+    expect(useUIStore.getState().selectedEnv).toBe('')
+  })
+  it('restores independent valid choices per project across reload reconciliation', () => {
+    const reconcile = useUIStore.getState().reconcileEnvironments
+    reconcile('/project-a', ['test', 'prod'])
+    useUIStore.getState().setSelectedEnv('prod')
+    reconcile('/project-b', ['dev', 'test'])
+    expect(useUIStore.getState().selectedEnv).toBe('dev')
+    useUIStore.setState({ selectedEnv: '', environmentProject: null })
+    reconcile('/project-a', ['test', 'prod'])
+    expect(useUIStore.getState().selectedEnv).toBe('prod')
   })
 })

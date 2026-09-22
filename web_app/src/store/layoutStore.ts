@@ -41,6 +41,10 @@ interface LayoutState {
   /** Active bottom-panel tab. */
   bottomTab: BottomTab
   /** Read-only viewer lens (D10) — feeds the readOnly chain + `data-viewer`. */
+  focusMode: boolean
+  density: 'compact' | 'comfortable'
+  toggleFocusMode: () => void
+  setDensity: (density: 'compact' | 'comfortable') => void
   viewerMode: boolean
 
   setExplorerWidth: (px: number) => void
@@ -78,25 +82,29 @@ const DEFAULTS = {
   bottomCollapsed: true,
   bottomTab: 'problems' as BottomTab,
   viewerMode: false,
+  focusMode: false,
+  density: 'compact' as const,
 }
 
 export const useLayoutStore = create<LayoutState>()(
   persist(
     (set) => ({
       ...DEFAULTS,
+      toggleFocusMode: () => set((s) => ({ focusMode: !s.focusMode })),
+      setDensity: (density) => set({ density }),
 
-      setExplorerWidth: (px) => set({ explorerWidth: px }),
+      setExplorerWidth: (px) => set({ explorerWidth: Math.min(420, Math.max(200, px)) }),
       setExplorerLens: (lens) => set({ explorerLens: lens }),
       setExplorerCollapsed: (collapsed) => set({ explorerCollapsed: collapsed }),
       toggleExplorer: () => set((s) => ({ explorerCollapsed: !s.explorerCollapsed })),
-      setInspectorWidth: (px) => set({ inspectorWidth: px }),
+      setInspectorWidth: (px) => set({ inspectorWidth: Math.min(460, Math.max(240, px)) }),
       setInspectorCollapsed: (collapsed) => set({ inspectorCollapsed: collapsed }),
       toggleInspector: () => set((s) => ({ inspectorCollapsed: !s.inspectorCollapsed })),
       setInspectorTab: (tab) => set({ inspectorTab: tab }),
       setAssistantOpen: (open) => set({ assistantOpen: open }),
       toggleAssistant: () => set((s) => ({ assistantOpen: !s.assistantOpen })),
-      setAssistantWidth: (px) => set({ assistantWidth: px }),
-      setBottomHeight: (px) => set({ bottomHeight: px }),
+      setAssistantWidth: (px) => set({ assistantWidth: Math.min(560, Math.max(280, px)) }),
+      setBottomHeight: (px) => set({ bottomHeight: Math.min(600, Math.max(120, px)) }),
       setBottomCollapsed: (collapsed) => set({ bottomCollapsed: collapsed }),
       toggleBottom: () => set((s) => ({ bottomCollapsed: !s.bottomCollapsed })),
       setBottomTab: (tab) => set({ bottomTab: tab }),
@@ -139,6 +147,7 @@ export const useLayoutStore = create<LayoutState>()(
         bottomCollapsed: s.bottomCollapsed,
         bottomTab: s.bottomTab,
         viewerMode: s.viewerMode,
+        density: s.density,
       }),
     },
   ),

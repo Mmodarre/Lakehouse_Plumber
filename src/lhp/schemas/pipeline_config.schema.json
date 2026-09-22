@@ -14,7 +14,9 @@
         "ProjectDefaultsDocument": {
             "type": "object",
             "description": "Project-wide defaults applied to every pipeline unless overridden by a pipeline-specific document",
-            "required": ["project_defaults"],
+            "required": [
+                "project_defaults"
+            ],
             "properties": {
                 "project_defaults": {
                     "allOf": [
@@ -34,7 +36,9 @@
                 }
             ],
             "type": "object",
-            "required": ["pipeline"],
+            "required": [
+                "pipeline"
+            ],
             "properties": {
                 "pipeline": {
                     "description": "Pipeline name(s) this document configures. A list applies the same configuration to multiple pipelines (each gets an independent deep copy). Use the standalone alias '__eventlog_monitoring' to configure the event-log monitoring pipeline without knowing its resolved name.",
@@ -62,53 +66,63 @@
                 "serverless": {
                     "type": "boolean",
                     "default": true,
-                    "description": "Databricks-managed compute. When false, a clusters configuration is required."
+                    "description": "Choose Databricks-managed compute for this pipeline. With serverless off, supply a clusters configuration. Classic-only options such as edition and photon are ignored for serverless pipelines. Inherit project defaults; if neither level sets it, LHP uses true."
                 },
                 "edition": {
                     "type": "string",
-                    "enum": ["CORE", "PRO", "ADVANCED"],
+                    "enum": [
+                        "CORE",
+                        "PRO",
+                        "ADVANCED"
+                    ],
                     "default": "ADVANCED",
-                    "description": "Rendered into the bundle resource only when serverless is off."
+                    "description": "Select the pipeline edition for classic compute. CORE, PRO and ADVANCED are the accepted values. This field is omitted from the generated pipeline resource when serverless is enabled. Inherit project defaults; LHP’s built-in edition is ADVANCED."
                 },
                 "channel": {
                     "type": "string",
-                    "enum": ["CURRENT", "PREVIEW"],
+                    "enum": [
+                        "CURRENT",
+                        "PREVIEW"
+                    ],
                     "default": "CURRENT",
-                    "description": "Runtime channel: CURRENT (stable) or PREVIEW (latest features)"
+                    "description": "Choose the pipeline runtime release channel. Use CURRENT for the stable channel or PREVIEW when deliberately evaluating upcoming runtime features. Inherit project defaults; LHP’s built-in channel is CURRENT."
                 },
                 "continuous": {
                     "type": "boolean",
                     "default": false,
-                    "description": "Streaming mode — the pipeline runs continuously."
+                    "description": "Control whether the pipeline keeps running between updates. This is a pipeline execution setting. It is separate from an action’s readMode, which chooses how that action reads data. Inherit project defaults; LHP’s built-in setting is false."
                 },
                 "packaging": {
                     "type": "string",
-                    "enum": ["wheel", "source"],
+                    "enum": [
+                        "wheel",
+                        "source"
+                    ],
                     "default": "source",
-                    "description": "LHP-internal: how pipeline code ships (source = notebooks/files; wheel requires wheel.artifact_volume). Never rendered into the bundle resource."
+                    "description": "Choose how the generated pipeline code is shipped. source ships source files; wheel builds a Python wheel and requires wheel.artifact_volume in lhp.yaml. Inherit project defaults; only when neither level specifies packaging does LHP use source."
                 },
                 "catalog": {
                     "type": "string",
-                    "description": "Unity Catalog catalog for the pipeline. Must be set together with 'schema' (in project_defaults or per pipeline). Supports LHP substitution tokens."
+                    "description": "Choose the Unity Catalog catalog for this pipeline’s tables. Enter a literal name or a substitution token. Both catalog and schema must resolve to nonempty values for bundle generation. Inherit the project-default catalog; no usable value means bundle generation cannot proceed."
                 },
                 "schema": {
                     "type": "string",
-                    "description": "Unity Catalog schema for the pipeline. Must be set together with 'catalog'. Supports LHP substitution tokens."
+                    "description": "Choose the Unity Catalog schema for this pipeline’s tables. Enter a literal name or a substitution token. Both schema and catalog must resolve to nonempty values for bundle generation. Inherit the project-default schema; no usable value means bundle generation cannot proceed."
                 },
                 "configuration": {
                     "type": "object",
-                    "description": "All values must be strings — the loader rejects anything else.",
+                    "description": "Pass named string settings to the pipeline. Every value in this mapping must be a string, including numbers and booleans. Nested mappings merge with defaults by key. Inherit the project-default mapping.",
                     "additionalProperties": {
                         "type": "string"
                     }
                 },
                 "environment": {
                     "type": "object",
-                    "description": "Pipeline environment specification (e.g. dependencies for serverless pipelines)",
+                    "description": "Declare the runtime environment used by the pipeline. Use dependencies for pip requirement specifiers needed by pipeline code; the environment mapping is passed to the generated pipeline resource. When unset here, the project-default value applies. If neither level sets this key, only a documented LHP or platform default applies; omission is not the same as an explicit value.",
                     "properties": {
                         "dependencies": {
                             "type": "array",
-                            "description": "List of pip requirement specifiers",
+                            "description": "Install Python requirements needed by pipeline code. List pip requirement specifiers such as requests==2.32.3. A locally declared list replaces the inherited list rather than appending to it. Inherit the dependency list from project defaults.",
                             "items": {
                                 "type": "string"
                             }
@@ -118,37 +132,45 @@
                 },
                 "permissions": {
                     "type": "array",
-                    "description": "Pipeline-level access control entries. Each entry needs a 'level' and exactly one identity (user_name, group_name, or service_principal_name).",
+                    "description": "Grant access to this pipeline. Each entry needs a permission level and exactly one identity: a user, group or service principal. An explicit list replaces the inherited list.",
                     "items": {
                         "type": "object",
-                        "required": ["level"],
+                        "required": [
+                            "level"
+                        ],
                         "properties": {
                             "level": {
                                 "type": "string",
-                                "description": "Permission level (e.g. CAN_VIEW, CAN_RUN, CAN_MANAGE, CAN_MANAGE_RUN)"
+                                "description": "Choose the access level for this identity. Select an access level supported for this resource, such as CAN_VIEW or CAN_MANAGE. Give the identity the access it needs to perform its role."
                             },
                             "user_name": {
                                 "type": "string",
-                                "description": "User email this entry applies to"
+                                "description": "Identify a user by their email address. Set only one of user_name, group_name and service_principal_name in an entry."
                             },
                             "group_name": {
                                 "type": "string",
-                                "description": "Group name this entry applies to"
+                                "description": "Grant this permission to a workspace group. Use the group name, and leave user_name and service_principal_name unset in this entry."
                             },
                             "service_principal_name": {
                                 "type": "string",
-                                "description": "Service principal application ID this entry applies to"
+                                "description": "Grant this permission to a service principal. Use the service principal application ID, not its display name; leave the other identity fields unset."
                             }
                         },
                         "oneOf": [
                             {
-                                "required": ["user_name"]
+                                "required": [
+                                    "user_name"
+                                ]
                             },
                             {
-                                "required": ["group_name"]
+                                "required": [
+                                    "group_name"
+                                ]
                             },
                             {
-                                "required": ["service_principal_name"]
+                                "required": [
+                                    "service_principal_name"
+                                ]
                             }
                         ],
                         "additionalProperties": true
@@ -156,7 +178,7 @@
                 },
                 "clusters": {
                     "type": "array",
-                    "description": "Cluster configuration (required when serverless: false). Passed through to the generated bundle resource.",
+                    "description": "Configure classic compute when serverless is disabled. Enter pipeline cluster definitions. This list is required for classic compute and replaces an inherited list rather than merging individual entries. Inherit clusters from project defaults; classic compute still requires an effective configuration.",
                     "items": {
                         "type": "object",
                         "additionalProperties": true
@@ -164,7 +186,7 @@
                 },
                 "notifications": {
                     "type": "array",
-                    "description": "Email notification blocks (email_recipients + alerts). Passed through to the generated bundle resource; replaces (not appends to) any inherited value.",
+                    "description": "Choose email recipients and pipeline events that trigger notifications. Each notification block pairs email_recipients with alerts. A per-pipeline list replaces the inherited list.",
                     "items": {
                         "type": "object",
                         "properties": {
@@ -173,7 +195,7 @@
                                 "items": {
                                     "type": "string"
                                 },
-                                "description": "e.g. on-update-success, on-update-failure, on-update-fatal-failure, on-flow-failure"
+                                "description": "Select pipeline events that should send this notification. Use event names such as on-update-success, on-update-failure, on-update-fatal-failure or on-flow-failure."
                             }
                         },
                         "additionalProperties": true
@@ -181,15 +203,15 @@
                 },
                 "tags": {
                     "type": "object",
-                    "description": "Classic compute only (serverless tags come from the compute policy). Values render as written.",
+                    "description": "Attach compute tags to a classic pipeline. These are pipeline compute tags, separate from Unity Catalog table tags on write actions. Serverless tags come from the compute policy. Inherit tags by mapping key from project defaults.",
                     "additionalProperties": true
                 },
                 "photon": {
                     "type": "boolean",
-                    "description": "Photon engine — classic compute only (ignored when serverless)."
+                    "description": "Enable Photon for classic pipeline compute. This setting is ignored when serverless is enabled. It does not select the pipeline runtime channel. When unset here, the project-default value applies. If neither level sets this key, only a documented LHP or platform default applies; omission is not the same as an explicit value."
                 },
                 "event_log": {
-                    "description": "Per-pipeline event log override. An object fully replaces the lhp.yaml event_log setting for this pipeline; 'false' disables event logging for this pipeline only.",
+                    "description": "Override event-log configuration for this pipeline. An object replaces the lhp.yaml event_log configuration for this pipeline; false explicitly disables event logging here. Use the project event-log behavior unless the pipeline configuration inherits an override.",
                     "oneOf": [
                         {
                             "type": "boolean"
@@ -202,7 +224,7 @@
                 },
                 "run_as": {
                     "type": "object",
-                    "description": "Identity the pipeline runs as (e.g. service_principal_name). Passed through to the generated bundle resource.",
+                    "description": "Choose the identity used to execute this pipeline. Supply the supported identity mapping, for example service_principal_name. This controls execution identity, while permissions control who can access the pipeline. When unset here, the project-default value applies. If neither level sets this key, only a documented LHP or platform default applies; omission is not the same as an explicit value.",
                     "additionalProperties": true
                 }
             },

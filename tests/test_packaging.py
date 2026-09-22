@@ -10,6 +10,7 @@ so developer-local noise (e.g. editor ``.vscode/`` dirs, ``.DS_Store``) does
 not generate false positives.
 """
 
+import json
 import pathlib
 import subprocess
 import sys
@@ -107,6 +108,35 @@ def test_wheel_contains_webapp_static_assets(built_wheel: pathlib.Path) -> None:
         "No files found under lhp/webapp/static/assets/ in the built wheel — "
         "check the 'lhp.webapp' package-data globs in pyproject.toml."
     )
+
+
+@pytest.mark.slow
+def test_wheel_contains_field_help_and_template_authoring_assets(
+    built_wheel: pathlib.Path,
+) -> None:
+    """Verify actual packaged help/schema bytes, including the new subdirectory."""
+    categories = {"project", "pipeline_config", "job_config", "flowgroup", "template"}
+    help_paths = {f"lhp/schemas/help/{kind}.json" for kind in categories}
+    expected = help_paths | {
+        "lhp/schemas/help/source-review.json",
+        "lhp/schemas/template.schema.json",
+        "lhp/webapp/schemas/template_authoring.py",
+    }
+    with zipfile.ZipFile(built_wheel) as wheel:
+        missing = expected - set(wheel.namelist())
+        assert not missing, (
+            "Field guidance/template authoring assets missing from the wheel:\n"
+            + "\n".join(sorted(missing))
+        )
+        for path in expected:
+            assert wheel.read(path) == (REPO / "src" / path).read_bytes(), (
+                f"The wheel contains stale or altered authoring content: {path}"
+            )
+        for path in help_paths:
+            catalog = json.loads(wheel.read(path))
+            assert catalog["version"] == 1 and catalog["entries"], (
+                f"The wheel's help catalog is empty or invalid: {path}"
+            )
 
 
 def test_py_typed_marker_ships_with_package() -> None:

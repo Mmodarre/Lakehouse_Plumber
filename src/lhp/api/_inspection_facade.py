@@ -26,7 +26,6 @@ from typing import (
 )
 
 from lhp.api._inspection_converters import (
-    _build_stats_result,
     _build_substitution_manager_for_env,
     _duplicates_to_validation_response,
     _flowgroup_file_paths,
@@ -39,6 +38,7 @@ from lhp.api._inspection_converters import (
 )
 from lhp.api._listings import _build_blueprint_views
 from lhp.api._operational_metadata_converter import _operational_metadata_to_view
+from lhp.api._stats_builder import _build_stats_result
 from lhp.api.responses import (
     StatsResult,
     ValidationResponse,
@@ -338,11 +338,16 @@ class InspectionFacade:
         if not templates_dir.exists():
             return ()
         template_files = sorted(
-            list(templates_dir.glob("*.yaml")) + list(templates_dir.glob("*.yml"))
+            list(templates_dir.rglob("*.yaml")) + list(templates_dir.rglob("*.yml"))
         )
         parser = YAMLParser()  # type: ignore[no-untyped-call]
         views: List[TemplateView] = []
         for path in template_files:
+            if not path.resolve().is_relative_to(
+                self._orchestrator.project_root.resolve()
+            ):
+                self._logger.warning("Skipping template outside the project: %s", path)
+                continue
             try:
                 template = parser.parse_template_raw(path)
             except Exception as exc:

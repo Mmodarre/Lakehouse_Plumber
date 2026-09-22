@@ -195,6 +195,51 @@ project:
         assert "TARGET TABLES" in result_with
         assert "DATA QUALITY TESTS" in result_with
 
+    def test_test_action_does_not_strip_the_F_alias_other_actions_need(self):
+        """A TEST action must not cost the module its ``functions as F`` binding.
+
+        Test generators contribute ``from pyspark.sql.functions import *`` while
+        an ``F.``-emitting action (here an ``operational_metadata`` column,
+        ``F.current_timestamp()``) contributes ``from pyspark.sql import
+        functions as F``. The two arrive from separate per-generator import
+        managers and are unioned in ``CodeAssembler.assemble``; the resolver
+        used to drop the alias there, leaving ``F.`` unbound (issue #217).
+        """
+        from lhp.core.processing.substitution import EnhancedSubstitutionManager
+
+        flowgroup = FlowGroup(
+            pipeline="alias_pipeline",
+            flowgroup="alias_flowgroup",
+            actions=[
+                Action(
+                    name="load_data",
+                    type=ActionType.LOAD,
+                    source={"type": "sql", "sql": "SELECT 1 as id"},
+                    target="v_data",
+                    operational_metadata=["_ingestion_timestamp"],
+                ),
+                Action(
+                    name="test_data",
+                    type=ActionType.TEST,
+                    test_type="uniqueness",
+                    source="v_data",
+                    columns=["id"],
+                ),
+            ],
+        )
+
+        substitution_mgr = EnhancedSubstitutionManager(
+            self.test_dir / "substitutions" / "test.yaml", "test"
+        )
+
+        result = self.orchestrator.codegen.generate(
+            flowgroup, substitution_mgr, include_tests=True
+        )
+
+        assert "F.current_timestamp()" in result
+        assert "from pyspark.sql import functions as F" in result
+        assert "from pyspark.sql.functions import *" in result
+
     def test_test_only_flowgroup_behavior(self):
         """Test that test-only flowgroups are skipped entirely when include_tests=False."""
         from lhp.core.processing.substitution import EnhancedSubstitutionManager

@@ -88,11 +88,11 @@ describe('scopeIssues', () => {
     expect(scope).toEqual({ label: 'orders.yaml', projectWide: false })
   })
 
-  it('falls back to the whole project when a file tab has no file-scoped issues', () => {
+  it('keeps an empty file scope instead of showing unrelated project issues', () => {
     const tab: WorkspaceTabRef = { kind: 'file', path: 'substitutions/dev.yaml' }
     const { issues, scope } = scopeIssues(all, tab)
-    expect(issues).toHaveLength(3)
-    expect(scope.projectWide).toBe(true)
+    expect(issues).toHaveLength(0)
+    expect(scope).toEqual({ label: 'dev.yaml', projectWide: false })
   })
 
   it('scopes a config tab by its file path', () => {

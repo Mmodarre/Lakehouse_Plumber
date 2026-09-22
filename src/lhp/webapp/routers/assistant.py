@@ -65,6 +65,7 @@ from lhp.webapp.schemas.assistant import (
 )
 from lhp.webapp.schemas.common import ErrorDetail, ErrorResponse, SuccessResponse
 from lhp.webapp.services import assistant_store, claude_sdk_auth, omnigent_lifecycle
+from lhp.webapp.services._telemetry_events import mark_assistant
 from lhp.webapp.services.assistant_chat import chat_turn
 from lhp.webapp.services.assistant_provision import installed_skill_version
 from lhp.webapp.services.claude_sdk_bridge import get_claude_turns
@@ -251,6 +252,10 @@ async def chat(
     provider has no daemon). Past the gates, the whole turn — session
     provisioning included — is relayed by the provider's ``chat_turn``,
     whose frame protocol is pinned in its module docstring.
+
+    A turn that reaches a configured executor marks the requesting tab's
+    anonymous session with the executor's provider and mode, both collapsed
+    to a bounded vocabulary; nothing the user typed is ever recorded.
     """
     assert_project_loaded(request, "the assistant is unavailable")
     executor_cfg: dict[str, Any] | None = await asyncio.to_thread(
@@ -270,6 +275,10 @@ async def chat(
             "Chat requires the packaged LHP skill in .claude/skills/lhp/.",
             ["Install the skill from the assistant panel (POST /api/assistant/skill)"],
         )
+    try:
+        mark_assistant(request, _provider_of(executor_cfg), executor_cfg.get("mode"))
+    except Exception:  # telemetry never reaches the chat request
+        logger.debug("Could not mark the assistant session", exc_info=True)
     if _provider_of(executor_cfg) == "claude_sdk":
         claude_frames = claude_chat_turn(
             project_root,

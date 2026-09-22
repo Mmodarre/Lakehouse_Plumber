@@ -25,8 +25,26 @@ from click.testing import CliRunner
 from conftest import strip_ansi
 
 from lhp.cli.commands.generate_command import generate
+from tests.helpers import (
+    assert_no_names_in_values,
+    last_cli_command_line,
+    parse_last_cli_command,
+    project_names,
+)
 
 _FIXTURE = Path(__file__).resolve().parents[1] / "e2e" / "fixtures" / "testing_project"
+
+# (flowgroup file, Python module it references), each the only flowgroup of its
+# pipeline. Discovery and preflight never open action modules, so pointing one
+# at a missing module fails its pipeline in the generate gate, not earlier.
+_PYTHON_LOAD = (
+    "pipelines/15_python_load/python_load_basic.yaml",
+    "extractors/api_extractor.py",
+)
+_PYTHON_TRANSFORM = (
+    "pipelines/09_test_python/sample_python_func_flow.yaml",
+    "py_functions/sample_func.py",
+)
 
 
 @pytest.fixture
@@ -173,3 +191,97 @@ def test_help_documents_sandbox_flag() -> None:
 
     assert result.exit_code == 0
     assert "--sandbox" in result.output
+
+
+def test_generate_records_one_cli_command_event_in_log_mode(
+    project_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    telemetry_log_mode: Path,
+    generous_shape_budget: None,
+) -> None:
+    """A clean generate emits exactly one ``cli.command`` envelope and no names.
+
+    ``log`` mode prints the envelope the client would otherwise spool, so the
+    assertions cover the wire payload itself: the command, its flag NAMES, the
+    exit code, the bounded project shape, and — negatively — that no project,
+    pipeline or flowgroup name from the fixture appears anywhere in the line.
+    """
+    monkeypatch.chdir(project_dir)
+    result = CliRunner().invoke(
+        generate,
+        ["-e", "dev", "--no-bundle", "--no-progress"],
+        catch_exceptions=False,
+    )
+    assert result.exit_code == 0, result.stderr
+
+    envelope = parse_last_cli_command(result.stderr)
+    props = envelope["props"]
+    assert props["command"] == "generate"
+    assert props["exit_code"] == 0
+    assert props["flags"] == ["env", "no_bundle", "no_progress"]
+    assert props["env_class"] == "production"
+    assert props["bundle_enabled"] is False
+    assert props["cache_used"] is True
+    assert props["files_written"] > 0
+    assert props["project"]["flowgroups"] > 0
+
+    assert result.stderr.count(last_cli_command_line(result.stderr)) == 1
+    assert_no_names_in_values(envelope, project_names(project_dir))
+
+
+def _point_at_missing_modules(project_dir: Path, *targets: tuple[str, str]) -> None:
+    for flowgroup, module in targets:
+        path = project_dir / flowgroup
+        text = path.read_text("utf-8")
+        assert module in text, f"{flowgroup} no longer references {module}"
+        path.write_text(text.replace(module, f"missing_{Path(module).name}"), "utf-8")
+
+
+def _generate_props(project_dir: Path, monkeypatch: pytest.MonkeyPatch) -> dict:
+    """Run generate on ``project_dir`` and return the checked envelope's props."""
+    monkeypatch.chdir(project_dir)
+    result = CliRunner().invoke(
+        generate,
+        ["-e", "dev", "--no-bundle", "--no-progress"],
+        catch_exceptions=False,
+    )
+    assert result.exit_code == 1, result.stderr
+    envelope = parse_last_cli_command(result.stderr)
+    assert_no_names_in_values(envelope, project_names(project_dir))
+    return envelope["props"]
+
+
+def test_generate_stopped_by_failed_pipelines_keeps_their_codes_and_shape(
+    project_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    telemetry_log_mode: Path,
+    generous_shape_budget: None,
+) -> None:
+    """Two pipelines failing in the gate end the run on the ``LHP-VAL-902``
+    aggregate, and the event still counts both failures and describes the
+    project."""
+    _point_at_missing_modules(project_dir, _PYTHON_LOAD, _PYTHON_TRANSFORM)
+
+    props = _generate_props(project_dir, monkeypatch)
+
+    assert sum(props["failure_codes"].values()) == 2
+    assert props["error_code"] == "LHP-VAL-902"
+    assert props["exit_code"] == 1
+    assert props["project"]["flowgroups"] > 0
+
+
+def test_generate_stopped_by_one_failed_pipeline_keeps_its_code_and_shape(
+    project_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    telemetry_log_mode: Path,
+    generous_shape_budget: None,
+) -> None:
+    """A sole gate failure ends the run on that pipeline's own error."""
+    _point_at_missing_modules(project_dir, _PYTHON_LOAD)
+
+    props = _generate_props(project_dir, monkeypatch)
+
+    assert props["failure_codes"] == {"LHP-IO-001": 1}
+    assert props["error_code"] == "LHP-IO-001"
+    assert props["exit_code"] == 1
+    assert props["project"]["flowgroups"] > 0

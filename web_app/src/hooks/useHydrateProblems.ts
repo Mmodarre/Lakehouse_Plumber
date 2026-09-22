@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect } from 'react'
 import { useRunStore } from '../store/runStore'
 import { fetchRuns, fetchRun } from '../api/runs'
 import type { ValidationIssue } from '../types/api'
@@ -38,10 +38,7 @@ export function extractValidationIssues(
 }
 
 export function useHydrateProblems(): void {
-  const done = useRef(false)
   useEffect(() => {
-    if (done.current) return
-    done.current = true
     let cancelled = false
 
     void (async () => {
@@ -55,7 +52,7 @@ export function useHydrateProblems(): void {
         // Don't overwrite anything already surfaced this session (a live run,
         // an earlier hydration, or a synthetic editor issue).
         const s = useRunStore.getState()
-        if (s.isRunning || s.hydratedFrom || s.issues.length > 0) return
+        if (s.runKind !== null || s.isRunning || s.hydratedFrom || s.issues.length > 0) return
         s.hydrateIssues(issues, {
           runId: latest.run_id,
           startedAt: latest.started_at,

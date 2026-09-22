@@ -1,3 +1,4 @@
+import { useConfigReadOnly } from '@/components/config/shared/configEditingContext'
 import { Plus, X } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -51,6 +52,8 @@ function ClusterEntry({
   cluster: Record<string, unknown>
   isLast: boolean
 }) {
+  const configReadOnly = useConfigReadOnly()
+
   const autoscale = isPlainObject(cluster.autoscale) ? cluster.autoscale : undefined
   const unknownKeys = Object.keys(cluster).filter((key) => !CLUSTER_RENDERED_KEYS.has(key))
   const id = `${idPrefix}-cluster-${index}`
@@ -60,20 +63,18 @@ function ClusterEntry({
       <CardContent className="space-y-3 px-4">
         <div className="flex items-center justify-between">
           <p className="text-2xs font-medium text-muted-foreground">Cluster {index + 1}</p>
-          <Button
+          <Button disabled={configReadOnly}
             type="button"
             variant="ghost"
             size="icon-xs"
             aria-label={`Remove cluster ${index + 1}`}
-            onClick={() =>
-              isLast ? api.del(['clusters']) : api.del(['clusters', index])
-            }
+            onClick={() => (isLast ? api.del(['clusters']) : api.del(['clusters', index]))}
           >
             <X aria-hidden="true" />
           </Button>
         </div>
         {TEXT_FIELDS.map(({ key, label }) => (
-          <OptionalTextField
+          <OptionalTextField helpPath={['clusters', index, key]}
             key={key}
             id={`${id}-${key}`}
             label={label}
@@ -88,7 +89,7 @@ function ClusterEntry({
           <div className="space-y-3 rounded-md border border-border p-3">
             <div className="flex items-center justify-between">
               <p className="text-2xs font-medium text-muted-foreground">Autoscale</p>
-              <Button
+              <Button disabled={configReadOnly}
                 type="button"
                 variant="ghost"
                 size="sm"
@@ -98,7 +99,7 @@ function ClusterEntry({
                 Remove autoscale
               </Button>
             </div>
-            <OptionalNumberField
+            <OptionalNumberField helpPath={['clusters', index, 'autoscale', 'min_workers']}
               id={`${id}-autoscale-min`}
               label="Min workers"
               value={autoscale.min_workers}
@@ -106,7 +107,7 @@ function ClusterEntry({
               onSet={(value) => api.set(['clusters', index, 'autoscale', 'min_workers'], value)}
               onUnset={() => api.del(['clusters', index, 'autoscale', 'min_workers'])}
             />
-            <OptionalNumberField
+            <OptionalNumberField helpPath={['clusters', index, 'autoscale', 'max_workers']}
               id={`${id}-autoscale-max`}
               label="Max workers"
               value={autoscale.max_workers}
@@ -114,7 +115,7 @@ function ClusterEntry({
               onSet={(value) => api.set(['clusters', index, 'autoscale', 'max_workers'], value)}
               onUnset={() => api.del(['clusters', index, 'autoscale', 'max_workers'])}
             />
-            <OptionalTextField
+            <OptionalTextField helpPath={['clusters', index, 'autoscale', 'mode']}
               id={`${id}-autoscale-mode`}
               label="Mode"
               value={autoscale.mode}
@@ -125,13 +126,16 @@ function ClusterEntry({
             />
           </div>
         ) : (
-          <Button
+          <Button disabled={configReadOnly}
             type="button"
             variant="outline"
             size="sm"
             className="h-6 px-2 text-2xs"
             onClick={() =>
-              api.set(['clusters', index, 'autoscale'], { min_workers: 1, max_workers: 4 })
+              api.set(['clusters', index, 'autoscale'], {
+                min_workers: 1,
+                max_workers: 4,
+              })
             }
           >
             <Plus aria-hidden="true" />
@@ -160,18 +164,19 @@ function ClusterEntry({
 }
 
 export function ClustersEditor({ api, idPrefix }: { api: DocFormApi; idPrefix: string }) {
+  const configReadOnly = useConfigReadOnly()
+
   const raw = api.settings.clusters
   const clusters = Array.isArray(raw) ? raw : undefined
 
   return (
     <SectionCard
       title="Clusters"
+      configured={['clusters'].some((key) => key in api.settings)}
       description="Compute for classic (non-serverless) pipelines — rendered only when serverless is off."
     >
       {raw !== undefined && clusters === undefined ? (
-        <p className="text-2xs text-warning">
-          clusters is not a list — edit it in the YAML view.
-        </p>
+        <p className="text-2xs text-warning">clusters is not a list — edit it in the YAML view.</p>
       ) : (
         <>
           {(clusters ?? []).map((cluster, index) =>
@@ -195,7 +200,7 @@ export function ClustersEditor({ api, idPrefix }: { api: DocFormApi; idPrefix: s
               Not set — serverless pipelines need no clusters.
             </p>
           )}
-          <Button
+          <Button disabled={configReadOnly}
             type="button"
             variant="outline"
             size="sm"

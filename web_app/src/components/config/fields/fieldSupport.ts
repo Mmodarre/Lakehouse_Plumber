@@ -14,3 +14,7 @@ export function displayString(value: unknown): string {
 export function issueId(id: string): string {
   return `${id}-issue`
 }
+
+/** Stable hint and error targets remain mounted during loading and validation. */
+export function hintId(id: string): string { return `${id}-hint` }
+export function descriptionIds(id: string): string { return `${hintId(id)} ${issueId(id)}` }

@@ -1,0 +1,25 @@
+# Golden fixture: private materialized view (SDP `private=True`).
+# The MV is persisted for the lifetime of the pipeline and visible only inside
+# the pipeline — it is NOT published to the metastore. Expected generated form:
+#   @dp.materialized_view(name="acme_edw_dev.edw_gold.private_customer_summary_mv",
+#                         comment=..., table_properties={}, private=True)
+pipeline: private_datasets
+flowgroup: mv_private
+#job_name: j_private
+
+actions:
+  - name: write_private_customer_summary_mv
+    type: write
+    write_target:
+      type: materialized_view
+      database: "${catalog}.${gold_schema}"
+      table: "private_customer_summary_mv"
+      comment: "Private materialized view: per-pipeline customer summary (not published to metastore)"
+      private: true
+      sql: |
+        SELECT
+          c_mktsegment AS market_segment,
+          COUNT(*) AS customer_count
+        FROM ${catalog}.${raw_schema}.customer_raw
+        GROUP BY c_mktsegment
+    description: "Write private customer summary materialized view"

@@ -10,7 +10,7 @@ outcome of a runtime operation.
 # JUSTIFIED: this file is the constitution-mandated single registry of
 # public view DTOs (TARGET §11): every inspection-result projection lives
 # here by design so the public contract stays auditable in one place, and
-# TARGET §8 grants DTO files <=600 lines. Each dataclass is a flat frozen
+# TARGET §8 grants this file <=700 lines by name. Each dataclass is a flat frozen
 # value object; splitting the registry would scatter the versioned surface
 # without removing any complexity.
 
@@ -168,10 +168,14 @@ class ProjectConfigView:
 
     Translation of the internal :class:`ProjectConfig` Pydantic model
     into a frozen view. Nested config sub-models (operational metadata,
-    event log, monitoring, test reporting) collapse to a boolean
-    ``has_*`` flag rather than re-export the Pydantic nested shape;
-    callers needing the underlying detail must reach into internal
-    modules (forbidden for public consumers).
+    event log, monitoring, test reporting, UC tagging, wheel, sandbox)
+    collapse to a boolean ``has_*`` flag rather than re-export the
+    Pydantic nested shape; callers needing the underlying detail must
+    reach into internal modules (forbidden for public consumers).
+
+    ``project_id`` is the opaque UUID v4 ``lhp init`` writes into
+    ``lhp.yaml``; projects scaffolded before it existed carry ``None``.
+    Fields are append-only, so positional construction keeps its meaning.
 
     :stability: provisional
     """
@@ -189,6 +193,11 @@ class ProjectConfigView:
     has_event_log: bool = False
     has_monitoring: bool = False
     has_test_reporting: bool = False
+    project_id: Optional[str] = None
+    has_uc_tagging: bool = False
+    has_wheel: bool = False
+    has_sandbox: bool = False
+    apply_formatting: bool = True
 
 
 @dataclass(frozen=True)
@@ -348,7 +357,8 @@ class TemplateParameterView:
     Frozen projection of a template parameter mapping. Mirrors the
     keys the legacy CLI presenter rendered: ``name``, ``type_``
     (defaulting to ``"string"``), ``required`` (defaulting to
-    ``False``), ``description``, and an optional ``default``.
+    ``False``), ``description``, and an optional ``default``. ``has_default``
+    distinguishes omission from an explicitly declared null default.
 
     :stability: provisional
     """
@@ -358,6 +368,7 @@ class TemplateParameterView:
     required: bool = False
     description: Optional[str] = None
     default: Optional[JSONValue] = None
+    has_default: bool = False
 
 
 @dataclass(frozen=True)

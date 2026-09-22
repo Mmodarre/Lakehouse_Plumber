@@ -118,3 +118,10 @@ pipeline: event_log_disabled
 catalog: "${catalog}"
 schema: "${raw_schema}"
 #event_log: false
+
+---
+# Private datasets (SDP private=True) golden E2E fixture
+pipeline: private_datasets
+catalog: "${catalog}"
+schema: "${raw_schema}"
+serverless: true

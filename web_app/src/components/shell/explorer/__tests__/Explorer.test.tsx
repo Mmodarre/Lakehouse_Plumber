@@ -25,7 +25,7 @@ describe('Explorer', () => {
     await userEvent.click(screen.getByRole('tab', { name: 'Tables' }))
     expect(useLayoutStore.getState().explorerLens).toBe('tables')
     expect(screen.getByTestId('lens-tables')).toBeInTheDocument()
-    expect(screen.queryByTestId('lens-structure')).not.toBeInTheDocument()
+    expect(screen.getByTestId('lens-structure')).not.toBeVisible()
   })
 
   it('hosts Structure directly in a flex column (it owns its scroll) but wraps Tables in a scroll region', async () => {
@@ -33,7 +33,7 @@ describe('Explorer', () => {
     // Structure lens fills the flex column itself — no outer overflow-auto, so
     // its pinned Config/Resources region can stay put while the tree scrolls.
     const structureParent = screen.getByTestId('lens-structure').parentElement
-    expect(structureParent?.className).toContain('flex-col')
+    expect(structureParent?.className).toContain('h-full')
     expect(structureParent?.className).not.toContain('overflow-auto')
     // Tables/Files still get their own scroll container.
     await userEvent.click(screen.getByRole('tab', { name: 'Tables' }))

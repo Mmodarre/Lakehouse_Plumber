@@ -15,7 +15,7 @@ import logging
 from pathlib import Path
 from typing import Dict, Optional, Tuple
 
-from jinja2 import Environment
+from jinja2 import Environment, StrictUndefined
 
 from lhp.models import ActionType, ProjectConfig, UCTaggingConfig
 
@@ -54,6 +54,10 @@ class UCTaggingHookGenerator:
         self._jinja_env = Environment(  # nosec B701 — generates Python, not HTML
             loader=get_lhp_template_loader(),
             keep_trailing_newline=True,
+            # A missing context key would render as "" — e.g.
+            # `max_allowable_consecutive_failures=)` — a SyntaxError the flowgroup AST
+            # guard never sees, since this file bypasses it. Fail loudly instead.
+            undefined=StrictUndefined,
         )
 
     @property
@@ -104,6 +108,7 @@ class UCTaggingHookGenerator:
             column_tags_repr=repr(column_tags),
             remove_undeclared_tags=config.remove_undeclared_tags,
             tag_update_concurrency=config.tag_update_concurrency,
+            max_allowable_consecutive_failures=config.max_allowable_consecutive_failures,
         )
 
         return {HOOK_FILENAME: hook_content}

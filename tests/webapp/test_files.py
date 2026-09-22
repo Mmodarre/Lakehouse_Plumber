@@ -18,6 +18,8 @@ The contract under test:
   persists), NOT a 4xx.
 * The protected prefixes are ``.git/`` / ``generated/`` / ``.lhp/logs/`` /
   ``.lhp/dependencies/``.
+* A successful mutation is counted on the requesting tab's telemetry session by
+  file KIND and operation; a rejected one is not.
 
 Write/delete tests use ``mutable_client`` (per-test deep copy); read/tree tests
 use the read-only ``client``.
@@ -26,9 +28,12 @@ use the read-only ``client``.
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
+
+from lhp.webapp.services.telemetry_sessions import SESSION_HEADER, WebSessionRegistry
 
 pytestmark = pytest.mark.webapp
 
@@ -272,3 +277,174 @@ class TestPathTraversal:
         resp = mutable_client.get(f"/api/files/{outside}")
         assert resp.status_code == 403
         assert "traversal" in resp.json()["detail"].lower()
+
+
+# -- mutation telemetry -------------------------------------------------------
+#
+# A save or delete is counted on the tab's ``web.session`` by the file KIND it
+# touched — never by path, name or content. These tests arm the app with a
+# registry over a list sink and read the counters back off the one emitted
+# record.
+
+_SID = "0f4a2c6e-1b3d-4e5f-8a9b-0c1d2e3f4a5b"
+
+
+def _arm_telemetry(
+    client: TestClient, *, enabled: bool = True
+) -> tuple[WebSessionRegistry, list[dict[str, Any]]]:
+    """Point the app at a registry whose ``web.session`` props land in a list."""
+    events: list[dict[str, Any]] = []
+
+    def sink(name: str, *, project_root: Path | None, props: dict[str, Any]) -> None:
+        events.append({"name": name, **props})
+
+    registry = WebSessionRegistry(sink=sink, flush=lambda: None)
+    client.app.state.telemetry_enabled = enabled  # type: ignore[attr-defined]
+    client.app.state.web_sessions = registry  # type: ignore[attr-defined]
+    return registry, events
+
+
+def _one_session(
+    registry: WebSessionRegistry, events: list[dict[str, Any]]
+) -> dict[str, Any]:
+    """End every tab and return the single ``web.session`` record produced."""
+    assert registry.emit_all("test") == 1
+    (props,) = events
+    assert props["name"] == "web.session"
+    return props
+
+
+class TestFileMutationTelemetry:
+    """PUT / DELETE count the mutation by file kind on the tab's session."""
+
+    def test_create_then_update_counts_by_kind(
+        self, mutable_client: TestClient
+    ) -> None:
+        registry, events = _arm_telemetry(mutable_client)
+        headers = {SESSION_HEADER: _SID}
+
+        created = mutable_client.put(
+            "/api/files/pipelines/x/new.yaml",
+            json={"content": "flowgroup: new\n"},
+            headers=headers,
+        )
+        assert created.status_code == 200
+        updated = mutable_client.put(
+            "/api/files/pipelines/x/new.yaml",
+            json={"content": "flowgroup: new2\n"},
+            headers=headers,
+        )
+        assert updated.status_code == 200
+
+        props = _one_session(registry, events)
+        assert props["files_created"] == {"flowgroup": 1}
+        assert props["files_updated"] == {"flowgroup": 1}
+        assert props["files_deleted"] == {}
+
+    def test_kind_comes_from_the_path_not_the_directory_depth(
+        self, mutable_client: TestClient
+    ) -> None:
+        registry, events = _arm_telemetry(mutable_client)
+        headers = {SESSION_HEADER: _SID}
+
+        assert (
+            mutable_client.put(
+                "/api/files/presets/p.yaml",
+                json={"content": "name: p\n"},
+                headers=headers,
+            ).status_code
+            == 200
+        )
+        assert (
+            mutable_client.put(
+                "/api/files/.lhp/profile.yaml",
+                json={"content": "profile: dev\n"},
+                headers=headers,
+            ).status_code
+            == 200
+        )
+
+        props = _one_session(registry, events)
+        assert props["files_created"] == {"preset": 1, "sandbox_profile": 1}
+
+    def test_delete_counts_by_kind(self, mutable_client: TestClient) -> None:
+        registry, events = _arm_telemetry(mutable_client)
+
+        response = mutable_client.delete(
+            "/api/files/pipelines/02_bronze/customer_bronze.yaml",
+            headers={SESSION_HEADER: _SID},
+        )
+        assert response.status_code == 200
+
+        props = _one_session(registry, events)
+        assert props["files_deleted"] == {"flowgroup": 1}
+        assert props["files_created"] == {}
+        assert props["files_updated"] == {}
+
+    def test_create_only_conflict_counts_no_mutation(
+        self, mutable_client: TestClient
+    ) -> None:
+        registry, events = _arm_telemetry(mutable_client)
+
+        response = mutable_client.put(
+            "/api/files/pipelines/02_bronze/customer_bronze.yaml",
+            json={"content": "clobbered: true\n"},
+            headers={SESSION_HEADER: _SID, "If-Match": "create-only"},
+        )
+        assert response.status_code == 412
+
+        # The request itself is still counted by the middleware; the rejected
+        # write is not, because the 412 returns before anything is written.
+        props = _one_session(registry, events)
+        assert props["files_created"] == {}
+        assert props["files_updated"] == {}
+        assert props["files_deleted"] == {}
+
+    def test_write_protected_rejection_counts_no_mutation(
+        self, mutable_client: TestClient
+    ) -> None:
+        registry, events = _arm_telemetry(mutable_client)
+
+        response = mutable_client.put(
+            "/api/files/generated/x.py",
+            json={"content": "x = 1\n"},
+            headers={SESSION_HEADER: _SID},
+        )
+        assert response.status_code == 403
+
+        props = _one_session(registry, events)
+        assert props["files_created"] == {}
+        assert props["files_updated"] == {}
+
+    def test_without_a_session_header_nothing_is_counted(
+        self, mutable_client: TestClient
+    ) -> None:
+        registry, events = _arm_telemetry(mutable_client)
+
+        assert (
+            mutable_client.put(
+                "/api/files/pipelines/x/anonymous.yaml",
+                json={"content": "flowgroup: anon\n"},
+            ).status_code
+            == 200
+        )
+
+        assert registry.emit_all("test") == 0
+        assert events == []
+
+    def test_telemetry_off_leaves_the_registry_untouched(
+        self, mutable_client: TestClient
+    ) -> None:
+        registry, events = _arm_telemetry(mutable_client, enabled=False)
+
+        assert (
+            mutable_client.put(
+                "/api/files/pipelines/x/off.yaml",
+                json={"content": "flowgroup: off\n"},
+                headers={SESSION_HEADER: _SID},
+            ).status_code
+            == 200
+        )
+
+        assert registry.emit_all("test") == 0
+        assert events == []

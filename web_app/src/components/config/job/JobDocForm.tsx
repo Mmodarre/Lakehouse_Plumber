@@ -1,4 +1,6 @@
+import { useConfigReadOnly } from '../shared/configEditingContext'
 import { Trash2 } from 'lucide-react'
+import { ConfigSections } from '../shared/ConfigSections'
 import { Button } from '@/components/ui/button'
 import { SchemaKindProvider } from '../../common/SchemaKindContext'
 import type { ValidationIssue } from '../../../lib/config-model'
@@ -37,6 +39,7 @@ const FORM_TITLES: Record<JobFormVariant, string> = {
 
 export interface JobDocFormProps {
   api: DocFormApi
+  scope?: string
   variant: JobFormVariant
   /** Full doc snapshot (settings + the `job_name` key for job docs). */
   docSnapshot: Record<string, unknown>
@@ -58,6 +61,7 @@ function JobNameHeader({
   duplicates,
 }: {
   api: DocFormApi
+  scope?: string
   idPrefix: string
   rawName: unknown
   duplicates: ReadonlySet<string>
@@ -117,13 +121,14 @@ function JobNameHeader({
   return (
     <p role="alert" className="text-2xs text-warning">
       {api.issueAt(['job_name'])?.message ??
-        "job_name must be a string or a list — the loader skips this document."}
+        'job_name must be a string or a list — the loader skips this document.'}
     </p>
   )
 }
 
 export function JobDocForm({
   api,
+  scope = 'config',
   variant,
   docSnapshot,
   duplicates,
@@ -131,69 +136,87 @@ export function JobDocForm({
   passthroughKeys,
   onDelete,
 }: JobDocFormProps) {
+  const readOnly = useConfigReadOnly()
   const idPrefix = `jobdoc${api.docIndex}`
 
   return (
     <SchemaKindProvider kind="job_config">
-    <div className="space-y-4">
-      <div className="flex items-start justify-between gap-3">
-        <h3 className="text-sm font-semibold text-foreground">{FORM_TITLES[variant]}</h3>
-        {onDelete && (
-          <Button type="button" variant="outline" size="sm" onClick={onDelete}>
-            <Trash2 aria-hidden="true" />
-            Delete document
-          </Button>
-        )}
-      </div>
-
-      {docScopeIssues.length > 0 && (
-        <div className="space-y-1">
-          {docScopeIssues.map((issue, i) => (
-            <p
-              key={i}
-              role="alert"
-              className={
-                issue.severity === 'error'
-                  ? 'text-2xs text-destructive'
-                  : 'text-2xs text-warning'
-              }
+      <div className="space-y-4">
+        <div className="flex items-start justify-between gap-3">
+          <h3 className="text-sm font-semibold text-foreground">{FORM_TITLES[variant]}</h3>
+          {onDelete && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={readOnly}
+              onClick={onDelete}
             >
-              {issue.message}
-            </p>
-          ))}
+              <Trash2 aria-hidden="true" />
+              Delete document
+            </Button>
+          )}
         </div>
-      )}
 
-      {variant === 'job' && (
-        <JobNameHeader
-          api={api}
-          idPrefix={idPrefix}
-          rawName={docSnapshot.job_name}
-          duplicates={duplicates}
-        />
-      )}
+        <p className="text-2xs text-muted-foreground">
+          {variant === 'defaults'
+            ? 'These file defaults apply to jobs using this configuration file. Project settings in lhp.yaml are separate.'
+            : variant === 'job'
+              ? 'Fields set here override this file’s project_defaults. Reset or remove a key to inherit its value again. Unset controls show built-in fallbacks; the saved preview shows resolved values.'
+              : 'This flat file configures the monitoring job.'}
+        </p>
 
-      <JobCoreFields api={api} variant={variant} idPrefix={idPrefix} />
-      <ScheduleEditor api={api} idPrefix={idPrefix} />
-      <JobNotificationsEditor api={api} idPrefix={idPrefix} />
-      <SectionCard
-        title="Permissions"
-        description="Each entry: a level plus exactly one principal. The job template renders only user_name and group_name — service-principal entries stay in the file but are not emitted."
-      >
-        <PermissionsEditor
-          id={`${idPrefix}-permissions`}
-          value={api.settings.permissions}
-          issueAt={(rel) => api.issueAt(['permissions', ...rel])}
-          set={(rel, value) => api.set(['permissions', ...rel], value)}
-          del={(rel) => api.del(['permissions', ...rel])}
-          onDeleteKey={() => api.del(['permissions'])}
-        />
-      </SectionCard>
-      <PassthroughKeysCard
-        keys={passthroughKeys}
-        description="Not rendered explicitly by LHP — passed through into the Databricks job resource exactly as written."
-      />
-    </div>
+        {docScopeIssues.length > 0 && (
+          <div className="space-y-1">
+            {docScopeIssues.map((issue, i) => (
+              <p
+                key={i}
+                role="alert"
+                className={
+                  issue.severity === 'error' ? 'text-2xs text-destructive' : 'text-2xs text-warning'
+                }
+              >
+                {issue.message}
+              </p>
+            ))}
+          </div>
+        )}
+
+        <div  className="min-w-0">
+          {variant === 'job' && (
+            <JobNameHeader
+              api={api}
+              idPrefix={idPrefix}
+              rawName={docSnapshot.job_name}
+              duplicates={duplicates}
+            />
+          )}
+        </div>
+
+        <ConfigSections key={`${scope}#${api.docIndex}`} scope={`${scope}#${api.docIndex}`}>
+          <JobCoreFields api={api} variant={variant} idPrefix={idPrefix} />
+          <ScheduleEditor api={api} idPrefix={idPrefix} />
+          <JobNotificationsEditor api={api} idPrefix={idPrefix} />
+          <SectionCard
+            title="Permissions"
+            configured={['permissions'].some((key) => key in api.settings)}
+            description="Each entry: a level plus exactly one principal. The job template renders only user_name and group_name — service-principal entries stay in the file but are not emitted."
+          >
+            <PermissionsEditor
+              id={`${idPrefix}-permissions`}
+              value={api.settings.permissions}
+              issueAt={(rel) => api.issueAt(['permissions', ...rel])}
+              set={(rel, value) => api.set(['permissions', ...rel], value)}
+              del={(rel) => api.del(['permissions', ...rel])}
+              onDeleteKey={() => api.del(['permissions'])}
+            />
+          </SectionCard>
+          <PassthroughKeysCard
+            keys={passthroughKeys}
+            description="Not rendered explicitly by LHP — passed through into the Databricks job resource exactly as written."
+          />
+        </ConfigSections>
+      </div>
     </SchemaKindProvider>
   )
 }

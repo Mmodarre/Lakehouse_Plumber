@@ -1,6 +1,7 @@
-import { useEffect } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { Toaster } from '../ui/sonner'
 import { CommandBar } from './CommandBar'
+import { WorkspaceNavigation } from './WorkspaceNavigation'
 import { CenterArea } from './center/CenterArea'
 import { Explorer } from './explorer/Explorer'
 import { Inspector } from './inspector/Inspector'
@@ -9,14 +10,15 @@ import { BottomPanel } from './bottom/BottomPanel'
 import { StatusBar } from '../layout/StatusBar'
 import { NavigationGuard } from '../layout/NavigationGuard'
 import { OfflineBanner } from '../layout/OfflineBanner'
-import { CreateFlowgroupDialog } from '../editor/CreateFlowgroupDialog'
+const CreateFlowgroupDialog = lazy(() => import('../editor/CreateFlowgroupDialog').then((m) => ({ default: m.CreateFlowgroupDialog })))
 import { useFlowgroupEditorBridge } from '../workspace/flowgroupBuffers'
 import { ErrorBoundary } from '../common/ErrorBoundary'
 import { ModalErrorFallback } from '../common/ModalErrorFallback'
-import { InitProjectPage } from '../../pages/InitProjectPage'
+const InitProjectPage = lazy(() => import('../../pages/InitProjectPage').then((m) => ({ default: m.InitProjectPage })))
 import { useHealth } from '../../hooks/useProject'
 import { usePushChannel } from '../../hooks/usePushChannel'
 import { useUIStore } from '../../store/uiStore'
+import { useNavigationStore } from '@/workspace/navigation'
 import { useWorkspaceStore } from '../../store/workspaceStore'
 import { useLayoutStore } from '../../store/layoutStore'
 
@@ -31,6 +33,15 @@ import { useLayoutStore } from '../../store/layoutStore'
 // health/no_project gate, OfflineBanner, NavigationGuard, CreateFlowgroupDialog
 // and the Toaster. Region bodies are filled by the explorer/center/inspector/
 // assistant/bottom surfaces.
+
+// Usage telemetry is loaded only after health confirms this server process
+// has it on: the client, its store bindings and the post helper stay out of
+// the eager app chunk, and a tab against an opted-out server never fetches
+// them. Until then components report through lib/telemetry-shim, which holds
+// their calls for the client.
+function loadTelemetry() {
+  return Promise.all([import('../../lib/telemetry'), import('../../lib/telemetry-bindings')])
+}
 
 export function AppShell() {
   const { data: health, isError: healthError, refetch } = useHealth()
@@ -54,13 +65,61 @@ export function AppShell() {
   const assistantWidth = useLayoutStore((s) => s.assistantWidth)
   const bottomCollapsed = useLayoutStore((s) => s.bottomCollapsed)
   const bottomHeight = useLayoutStore((s) => s.bottomHeight)
+  const viewerMode = useLayoutStore((s) => s.viewerMode)
+  const focusMode = useLayoutStore((s) => s.focusMode)
+  const density = useLayoutStore((s) => s.density)
+  const [viewport, setViewport] = useState(() => ({ width: window.innerWidth, height: window.innerHeight }))
+  const previousWidth = useRef(Infinity)
+  const workspaceRoot = useWorkspaceStore((s) => s.projectRoot)
+  const activePath = useWorkspaceStore((s) => s.activePath)
+
+  useEffect(() => {
+    const resize = () => setViewport({ width: window.innerWidth, height: window.innerHeight })
+    window.addEventListener('resize', resize)
+    return () => window.removeEventListener('resize', resize)
+  }, [])
+  // Free space when crossing into a narrower layout. Users can then reopen a
+  // side panel as a drawer without squeezing the active document.
+  useEffect(() => {
+    const layout = useLayoutStore.getState()
+    if (previousWidth.current >= 1380 && viewport.width < 1380) layout.setInspectorCollapsed(true)
+    if (previousWidth.current >= 1000 && viewport.width < 1000) layout.setExplorerCollapsed(true)
+    previousWidth.current = viewport.width
+  }, [viewport.width])
 
   // Persisted buffers are keyed to a project root: a different served project
   // drops the restored workspace instead of leaking it across.
   const projectRoot = health?.root
   useEffect(() => {
-    if (projectRoot) ensureProjectScope(projectRoot)
+    if (!projectRoot) return
+    const previousRoot = useWorkspaceStore.getState().projectRoot
+    if (previousRoot && previousRoot !== projectRoot) useNavigationStore.getState().reset()
+    ensureProjectScope(projectRoot)
   }, [projectRoot, ensureProjectScope])
+
+  // A telemetry chunk that fails to load (offline, a redeployed bundle) is
+  // swallowed: the workspace never depends on it.
+  const telemetryEnabled = health?.telemetry_enabled === true
+  useEffect(() => {
+    if (!telemetryEnabled) return
+    let cancelled = false
+    let unbind: (() => void) | undefined
+    void loadTelemetry()
+      .then(([client, bindings]) => {
+        if (cancelled) return
+        client.setTelemetryEnabled(true)
+        client.installTelemetry()
+        unbind = bindings.installTelemetryBindings()
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+      unbind?.()
+      void loadTelemetry()
+        .then(([client]) => client.setTelemetryEnabled(false))
+        .catch(() => {})
+    }
+  }, [telemetryEnabled])
 
   // Health gate (verbatim from the old Layout): while the server reports no
   // project, the first-run wizard fills the main area in place of the
@@ -68,19 +127,23 @@ export function AppShell() {
   // no_project, and the normal shell replaces this branch automatically.
   const noProject = health?.project_state === 'no_project'
 
-  const explorerCol = explorerCollapsed ? '0px' : `${explorerWidth}px`
-  const inspectorCol = inspectorCollapsed ? '42px' : `${inspectorWidth}px`
-  const assistantCol = assistantOpen ? `${assistantWidth}px` : '44px'
+  const explorerDrawer = viewport.width < 1000
+  const inspectorDrawer = viewport.width - (explorerCollapsed ? 0 : explorerWidth) - (assistantOpen ? assistantWidth : 44) - inspectorWidth < 480
+  const assistantDrawer = viewport.width < 1100
+  const explorerCol = focusMode || explorerCollapsed || explorerDrawer ? '0px' : `${explorerWidth}px`
+  const inspectorCol = focusMode ? '0px' : inspectorCollapsed || inspectorDrawer ? '42px' : `${inspectorWidth}px`
+  const assistantCol = focusMode ? '0px' : assistantOpen && !assistantDrawer ? `${assistantWidth}px` : '44px'
 
   return (
-    <div className="flex h-screen flex-col bg-background">
+    <div className="flex h-dvh min-h-0 flex-col overflow-hidden bg-background" data-density={density}>
       <CommandBar />
+      {!noProject && projectRoot && workspaceRoot === projectRoot && <WorkspaceNavigation />}
       {healthError && <OfflineBanner onRetry={() => void refetch()} />}
 
       {noProject ? (
         <div className="min-h-0 flex-1">
           <ErrorBoundary>
-            <InitProjectPage />
+            <Suspense fallback={<p className="p-6 text-sm text-muted-foreground" role="status">Loading project setup…</p>}><InitProjectPage /></Suspense>
           </ErrorBoundary>
         </div>
       ) : (
@@ -88,24 +151,30 @@ export function AppShell() {
           {/* Main 4-column region: explorer / center / inspector / assistant.
               Widths come from layoutStore; sibling tasks fill the bodies. */}
           <div
-            className="grid min-h-0 flex-1"
+            className="relative grid min-h-0 flex-1"
             style={{
               gridTemplateColumns: `${explorerCol} minmax(0,1fr) ${inspectorCol} ${assistantCol}`,
             }}
           >
-            <Explorer />
-            <CenterArea />
-            <Inspector />
-            <AssistantDock />
+            <div className={focusMode ? 'hidden' : explorerDrawer && !explorerCollapsed ? 'absolute inset-y-0 left-0 z-30 shadow-xl' : 'min-h-0 min-w-0 overflow-hidden'} style={{ gridColumn: 1, ...(explorerDrawer && !explorerCollapsed ? { width: Math.min(explorerWidth, viewport.width - 86) } : {}) }}>
+              <Explorer />
+            </div>
+            <div className="min-h-0 min-w-0" data-workspace-center tabIndex={-1} style={{ gridColumn: 2 }}><ErrorBoundary resetKeys={[activePath]}><CenterArea /></ErrorBoundary></div>
+            <div className={focusMode ? 'hidden' : inspectorDrawer && !inspectorCollapsed ? 'absolute inset-y-0 right-11 z-30 shadow-xl' : 'min-h-0 min-w-0 overflow-hidden'} style={{ gridColumn: 3, ...(inspectorDrawer && !inspectorCollapsed ? { width: Math.min(inspectorWidth, viewport.width - 86) } : {}) }}>
+              <ErrorBoundary><Inspector /></ErrorBoundary>
+            </div>
+            <div className={focusMode ? 'hidden' : assistantDrawer && assistantOpen ? 'absolute inset-y-0 right-0 z-40 shadow-xl' : 'min-h-0 min-w-0 overflow-hidden'} style={{ gridColumn: 4, ...(assistantDrawer && assistantOpen ? { width: Math.min(assistantWidth, viewport.width - 42) } : {}) }}>
+              <ErrorBoundary><AssistantDock /></ErrorBoundary>
+            </div>
           </div>
 
           {/* Bottom panel row (collapsed by default) — sits between main and
               StatusBar; AppShell owns the row height, BottomPanel fills it. */}
           <div
             className="flex shrink-0 border-t border-border bg-surface"
-            style={{ height: bottomCollapsed ? 28 : bottomHeight }}
+            style={{ height: focusMode || bottomCollapsed ? 28 : Math.min(bottomHeight, Math.max(120, viewport.height - 330)) }}
           >
-            <BottomPanel />
+            <BottomPanel forceCollapsed={focusMode} />
           </div>
         </>
       )}
@@ -120,7 +189,7 @@ export function AppShell() {
         fallback={<ModalErrorFallback onClose={closeCreateFlowgroupDialog} />}
         resetKeys={[createFlowgroupDialog]}
       >
-        <CreateFlowgroupDialog />
+        {!viewerMode && createFlowgroupDialog && <Suspense fallback={null}><CreateFlowgroupDialog /></Suspense>}
       </ErrorBoundary>
 
       {/* ui/sonner wrapper syncs its theme to the resolved app theme */}

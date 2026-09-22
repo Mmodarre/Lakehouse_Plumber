@@ -137,7 +137,8 @@ export function TokenAutocomplete({
         ]
       : []),
   ]
-  const showList = open && options.length > 0
+  const editable = !disabled && !readOnly
+  const showList = open && editable && options.length > 0
   const active = Math.min(activeIndex, Math.max(0, options.length - 1))
 
   useLayoutEffect(() => {
@@ -149,6 +150,7 @@ export function TokenAutocomplete({
   })
 
   const selectOption = (opt: TokenOption) => {
+    if (!editable) return
     const el = inputRef.current
     const caret = el?.selectionStart ?? value.length
     const trigger = findTrigger(value, caret)
@@ -161,6 +163,7 @@ export function TokenAutocomplete({
   }
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    if (!editable) return
     const next = e.target.value
     const caret = e.target.selectionStart ?? next.length
     onValueChange(next)
@@ -175,6 +178,8 @@ export function TokenAutocomplete({
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (!editable) return
+    if (e.nativeEvent.isComposing || e.keyCode === 229) return
     if (open) {
       if (e.key === 'Escape') {
         // Belongs to the popover — never DraftInput's revert.
@@ -214,10 +219,11 @@ export function TokenAutocomplete({
 
   const handleBlur = () => {
     setOpen(false)
-    onCommit()
+    if (editable) onCommit()
   }
 
   const openFromButton = () => {
+    if (!editable) return
     setQuery('')
     setActiveIndex(0)
     setOpen(true)
@@ -225,6 +231,7 @@ export function TokenAutocomplete({
   }
 
   const inputProps = {
+    'data-workspace-draft': true,
     id,
     value,
     placeholder,
@@ -236,7 +243,7 @@ export function TokenAutocomplete({
     'aria-label': ariaLabel,
     'aria-invalid': ariaInvalid,
     'aria-describedby': ariaDescribedby,
-    'aria-expanded': open,
+    'aria-expanded': open && editable,
     'aria-controls': listId,
     'aria-autocomplete': 'list' as const,
     'aria-activedescendant': showList ? optionId(active) : undefined,
@@ -268,7 +275,7 @@ export function TokenAutocomplete({
         type="button"
         aria-label="Insert token"
         title="Insert ${…} token"
-        disabled={disabled}
+        disabled={!editable}
         // Keep focus (and the caret) in the input while opening.
         onMouseDown={(e) => e.preventDefault()}
         onClick={openFromButton}

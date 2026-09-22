@@ -6,8 +6,11 @@ Bundle configuration
 
 Bundle support turns on whenever a ``databricks.yml`` file is present in the
 project root. Pass ``--no-bundle`` to ``lhp generate`` or ``lhp validate`` to
-disable it. LHP never reads or modifies ``databricks.yml``; it only detects the
-file's presence and writes pipeline resource YAML under ``resources/lhp/``.
+disable it. Bundle support never reads or modifies ``databricks.yml``; it only
+detects the file's presence and writes pipeline resource YAML under
+``resources/lhp/``. LHP reads ``bundle.uuid`` and ``targets.<env>.mode`` from
+``databricks.yml`` only for :doc:`anonymous usage telemetry
+</reference/telemetry>`; it never modifies the file.
 
 .. seealso::
 
@@ -41,8 +44,10 @@ resource generation entirely.
 ``databricks.yml``
 ------------------
 
-User-owned; LHP reads only its presence. These fields govern how the Databricks
-CLI picks up LHP-generated resources.
+User-owned; LHP never modifies it. Bundle support reads only the file's
+presence; telemetry additionally reads ``bundle.uuid`` and
+``targets.<env>.mode`` (see :doc:`/reference/telemetry`). These fields govern
+how the Databricks CLI picks up LHP-generated resources.
 
 .. list-table::
    :header-rows: 1
@@ -54,6 +59,9 @@ CLI picks up LHP-generated resources.
    * - ``bundle.name``
      - string
      - Bundle name used by the Databricks CLI for deploy paths.
+   * - ``bundle.uuid``
+     - string
+     - Written by ``lhp init --bundle``. Read only by telemetry, and sent only as a salted hash (see :doc:`/reference/telemetry`).
    * - ``include``
      - list[string]
      - Resource-file globs. Must cover ``resources/lhp/*.yml`` so the Databricks CLI loads LHP-generated pipeline resources.

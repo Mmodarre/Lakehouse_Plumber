@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { TemplateFieldBinding } from '@/components/template/TemplateFieldBinding'
 import { Plus, X } from 'lucide-react'
 import { isPlainObject } from '@/lib/config-model'
 import {
@@ -14,6 +15,7 @@ import { KeyValueMapEditor } from '@/components/config/fields/KeyValueMapEditor'
 import { OptionalNumberField } from '@/components/config/fields/OptionalNumberField'
 import { OptionalTextField } from '@/components/config/fields/OptionalTextField'
 import { StringListEditor } from '@/components/config/fields/StringListEditor'
+import { descriptionIds } from '@/components/config/fields/fieldSupport'
 import { FieldChrome } from '@/components/config/fields/FieldChrome'
 import { hasTemplateParam, isPresent, isSubstitutionToken, readPath } from './specs/helpers'
 import type { FieldSpec } from './specs/types'
@@ -61,7 +63,18 @@ export interface FieldRendererProps {
   tokenComplete?: boolean
 }
 
-export function FieldRenderer({
+export function FieldRenderer(props: FieldRendererProps): ReactNode {
+  const { field, raw, actionId, commit, disabled, saving } = props
+  if (field.widget === 'oneOfToggle') return <LiteralFieldRenderer {...props} />
+  const id = `af-${actionId}-${pathKey(field.path)}`
+  return <TemplateFieldBinding id={id} label={field.label} value={readPath(raw, field.path)} disabled={disabled || saving || (field.disabledWhen?.(raw) ?? false)} helpPath={field.path}
+    onSet={(value) => commit((doc) => setActionField(doc, actionId, field.path, value))}
+    onUnset={() => commit((doc) => deleteActionField(doc, actionId, field.path))}>
+    <LiteralFieldRenderer {...props} />
+  </TemplateFieldBinding>
+}
+
+function LiteralFieldRenderer({
   field,
   raw,
   actionId,
@@ -128,7 +141,8 @@ export function FieldRenderer({
   const ref = fileRefForField(field)
   if (ref) {
     return (
-      <FileRefField
+      <FileRefField id={id} describedBy={descriptionIds(id)}
+        disabled={fieldDisabled || saving}
         value={value}
         onChange={(next) => (next === '' ? delKey() : setKey(next))}
         accept={ref.accept}

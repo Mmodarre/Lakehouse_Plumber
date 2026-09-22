@@ -9,6 +9,7 @@ phases run behind the facade. Status/summary to stderr; stdout stays empty.
 from __future__ import annotations
 
 import logging
+from functools import partial
 from time import perf_counter
 from typing import Optional
 
@@ -22,6 +23,7 @@ from lhp.cli._app_context import (
     exit_for_outcome,
     resolve_project_root,
 )
+from lhp.cli._telemetry_hook import note_run
 from lhp.cli.error_boundary import cli_error_boundary
 from lhp.cli.presenters.event_stream._model import RenderOptions, RunHeader
 from lhp.cli.presenters.event_stream.renderer_factory import render
@@ -123,8 +125,14 @@ def generate(
 
     options = RenderOptions(show_details=show_details, strict=strict)
     start = perf_counter()
+    note = partial(note_run, facade, bundle_enabled=bundle_enabled, no_cache=no_cache)
     outcome = render(
-        events, header, options=options, no_progress=no_progress, progress=progress
+        events,
+        header,
+        options=options,
+        no_progress=no_progress,
+        progress=progress,
+        on_abort=note,
     )
     print_run_summary(
         outcome,
@@ -133,4 +141,5 @@ def generate(
         options=options,
         err_console=_console_module.err_console,
     )
+    note(outcome)
     exit_for_outcome(outcome, strict=strict)

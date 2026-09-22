@@ -69,7 +69,7 @@ each section below.
      - list
      - No
      - —
-     - Extra upstream table references (``catalog.schema.table`` or ``schema.table``) added to the dependency graph. Additive; malformed entries raise ``LHP-VAL-063``.
+     - Extra upstream table or view references added to the dependency graph. See :doc:`/reference/dependency-analysis`.
 
 sql
 ===

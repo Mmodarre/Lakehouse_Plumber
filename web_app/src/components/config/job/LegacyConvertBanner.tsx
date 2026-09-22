@@ -1,3 +1,4 @@
+import { useConfigReadOnly } from '../shared/configEditingContext'
 import { useState } from 'react'
 import { FileWarning } from 'lucide-react'
 import {
@@ -21,6 +22,7 @@ import { Button } from '@/components/ui/button'
 // never converts, and nothing auto-prompts.
 
 export function LegacyConvertBanner({ onConvert }: { onConvert: () => void }) {
+  const readOnly = useConfigReadOnly()
   const [confirming, setConfirming] = useState(false)
   return (
     <>
@@ -30,15 +32,15 @@ export function LegacyConvertBanner({ onConvert }: { onConvert: () => void }) {
       >
         <FileWarning className="size-3.5 shrink-0 text-warning" aria-hidden="true" />
         <span className="text-xs text-foreground">
-          This file uses the legacy single-document format — the whole file is
-          read as project defaults. Per-job overrides need the multi-document
-          format.
+          This file uses the legacy single-document format — the whole file is read as project
+          defaults. Per-job overrides need the multi-document format.
         </span>
         <Button
           type="button"
           variant="outline"
           size="xs"
           className="ml-auto shrink-0"
+          disabled={readOnly}
           onClick={() => setConfirming(true)}
         >
           Convert to multi-document format
@@ -52,21 +54,21 @@ export function LegacyConvertBanner({ onConvert }: { onConvert: () => void }) {
               Convert to the multi-document format?
             </AlertDialogTitle>
             <AlertDialogDescription className="text-xs">
-              Moves everything in this file under a project_defaults: key. The
-              file is rewritten and reformatted in the process — comments move
-              with their settings, but their exact placement and spacing may
-              shift. For job_config files the loader reads both formats
-              identically, so generated output does not change. You can review
-              the result before saving.
+              Moves everything in this file under a project_defaults: key. The file is rewritten and
+              reformatted in the process — comments move with their settings, but their exact
+              placement and spacing may shift. For job_config files the loader reads both formats
+              identically, so generated output does not change. You can review the result before
+              saving.
             </AlertDialogDescription>
             <AlertDialogDescription className="text-xs text-warning">
-              Do not convert a file referenced by monitoring.job_config_path in
-              lhp.yaml — monitoring configs must stay flat.
+              Do not convert a file referenced by monitoring.job_config_path in lhp.yaml —
+              monitoring configs must stay flat.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel size="sm">Keep current format</AlertDialogCancel>
             <AlertDialogAction
+              disabled={readOnly}
               size="sm"
               onClick={() => {
                 setConfirming(false)

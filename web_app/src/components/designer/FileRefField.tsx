@@ -20,6 +20,8 @@ import { companionCheckablePath, useCompanionFile } from './useCompanionFile'
 // 'unavailable'), leaving just the input plus Browse/New.
 
 export interface FileRefFieldProps {
+  id?: string
+  describedBy?: string
   /** Current field value — a project-relative path, a `${...}` token, or absent. */
   value: unknown
   /** Set the field value (typing OR a Browse pick both call this). */
@@ -36,6 +38,7 @@ export interface FileRefFieldProps {
   suggestedPath?: string
   /** Input placeholder — falls back to the accept list when absent. */
   placeholder?: string
+  disabled?: boolean
 }
 
 /** Stub content seeded from the ref's extension. FileRefField backs
@@ -69,6 +72,7 @@ function stubExtension(value: unknown, accept: string[]): string {
 }
 
 export function FileRefField({
+  id, describedBy,
   value,
   onChange,
   accept,
@@ -77,6 +81,7 @@ export function FileRefField({
   makeStub,
   suggestedPath,
   placeholder,
+  disabled = false,
 }: FileRefFieldProps) {
   const [browsing, setBrowsing] = useState(false)
   const path = companionCheckablePath(value)
@@ -88,6 +93,7 @@ export function FileRefField({
   }
 
   const handleCreate = async () => {
+    if (disabled) return
     // With an empty field, fall back to the proposed path (if any). A token /
     // absolute / no-suggestion target stays a no-op, exactly as before.
     const target = path ?? companionCheckablePath(suggestedPath)
@@ -104,19 +110,20 @@ export function FileRefField({
   return (
     <div className="space-y-1.5">
       <div className="flex items-center gap-1.5">
-        <Input
+        <Input id={id} aria-describedby={describedBy}
           value={typeof value === 'string' ? value : ''}
-          onChange={(e) => onChange(e.target.value)}
+          disabled={disabled}
+          onChange={(e) => { if (!disabled) onChange(e.target.value) }}
           placeholder={placeholder ?? accept.join(', ')}
           spellCheck={false}
           autoComplete="off"
           className="font-mono text-xs"
         />
-        <Button type="button" variant="outline" size="sm" onClick={() => setBrowsing(true)}>
+        <Button type="button" variant="outline" size="sm" disabled={disabled} onClick={() => setBrowsing(true)}>
           <FolderOpen aria-hidden="true" />
           Browse
         </Button>
-        <Button type="button" variant="outline" size="sm" onClick={() => void handleCreate()}>
+        <Button type="button" variant="outline" size="sm" disabled={disabled} onClick={() => void handleCreate()}>
           <FilePlus2 aria-hidden="true" />
           New
         </Button>
@@ -133,7 +140,7 @@ export function FileRefField({
       {path !== null && companion.status === 'missing' && (
         <div className="flex items-center justify-between gap-2 rounded-sm border border-dashed border-border px-2 py-1.5">
           <span className="text-2xs text-muted-foreground">This file doesn&apos;t exist yet.</span>
-          <Button type="button" variant="outline" size="xs" onClick={() => void handleCreate()}>
+          <Button type="button" variant="outline" size="xs" disabled={disabled} onClick={() => void handleCreate()}>
             <FilePlus2 aria-hidden="true" />
             Create file
           </Button>
@@ -151,7 +158,7 @@ export function FileRefField({
           accept={accept}
           baseDir={baseDir}
           onPick={(picked) => {
-            onChange(picked)
+            if (!disabled) onChange(picked)
             setBrowsing(false)
           }}
           onClose={() => setBrowsing(false)}

@@ -65,7 +65,13 @@ vi.mock('../../../../hooks/useFiles', () => ({
           name: 'presets',
           path: 'presets',
           type: 'directory',
-          children: [{ name: 'bronze_layer.yaml', path: 'presets/bronze_layer.yaml', type: 'file' }],
+          children: [
+            {
+              name: 'bronze_layer.yaml',
+              path: 'presets/bronze_layer.yaml',
+              type: 'file',
+            },
+          ],
         },
       ],
     },
@@ -74,8 +80,8 @@ vi.mock('../../../../hooks/useFiles', () => ({
 vi.mock('../../../../hooks/usePresets', () => ({
   usePresets: () => ({ data: { presets: ['bronze_layer'], total: 1 } }),
 }))
-vi.mock('../../../../hooks/useTemplates', () => ({
-  useTemplates: () => ({ data: { templates: [], total: 0 } }),
+vi.mock('../../../../hooks/useTemplateAuthoring', () => ({
+  useTemplateCatalog: () => ({ data: { templates: [], total: 0 }, isSuccess: true, isPending: false, isError: false, refetch: vi.fn() }),
 }))
 vi.mock('../../../../hooks/useBlueprints', () => ({
   useBlueprints: () => ({ data: { blueprints: [], total: 0 } }),
@@ -90,7 +96,9 @@ vi.mock('../../../../hooks/useTables', () => ({
 }))
 // Sandbox scope is injected directly (item 6): a mutable ref lets each test
 // pick the active scope (null = sandbox off ⇒ show everything).
-const scopeRef = vi.hoisted(() => ({ current: null as ReadonlySet<string> | null }))
+const scopeRef = vi.hoisted(() => ({
+  current: null as ReadonlySet<string> | null,
+}))
 vi.mock('../../../sandbox/useSandboxScope', () => ({
   useSandboxScope: () => scopeRef.current,
 }))
@@ -153,14 +161,14 @@ describe('StructureLens', () => {
     // The pipelines tree is the only content in the scroll region…
     expect(scroll.className).toContain('overflow-auto')
     expect(within(scroll).getByText('Pipelines')).toBeInTheDocument()
-    expect(within(scroll).queryByText('Config')).not.toBeInTheDocument()
+    expect(within(scroll).queryByText('Configuration')).not.toBeInTheDocument()
     expect(within(scroll).queryByText('Resources')).not.toBeInTheDocument()
     // …while Config + Resources live in the pinned bottom region (flex-none;
     // it gains a local overflow fallback only on a very short viewport).
     expect(pinned.className).toContain('flex-none')
-    expect(within(pinned).getByText('Config')).toBeInTheDocument()
+    expect(within(pinned).getByText('Configuration')).toBeInTheDocument()
     expect(within(pinned).getByText('Resources')).toBeInTheDocument()
-    expect(within(pinned).getByRole('button', { name: 'Project' })).toBeInTheDocument()
+    expect(within(pinned).getByRole('button', { name: 'Project settings' })).toBeInTheDocument()
   })
 
   it('renders a Search pipelines input in the fixed top region', () => {
@@ -206,7 +214,7 @@ describe('StructureLens', () => {
 
   it('opens lhp.yaml as a structured config tab from the Config Project row', async () => {
     render(<StructureLens />)
-    await userEvent.click(screen.getByRole('button', { name: 'Project' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Project settings' }))
     const cfg = useWorkspaceStore.getState().tabs.find((t) => t.kind === 'config')
     expect(cfg).toMatchObject({
       kind: 'config',

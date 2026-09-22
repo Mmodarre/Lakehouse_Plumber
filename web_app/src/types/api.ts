@@ -37,10 +37,21 @@ export interface ErrorResponse {
 // loaded, 'no_project' when the server started outside an LHP project); the
 // `(string & {})` arm keeps future backend values assignable. Optional for
 // older backends that did not send it (absent → treated as loaded).
+//
+// The remaining fields need no refinement and come straight from the
+// generated schema: `telemetry_enabled: boolean` is this process's consent
+// state, and `latest_version?: string | null` is a release NEWER than the
+// running one — the backend sends null unless there is something to upgrade
+// to, so a truthiness check is the whole test for "offer the hint".
 export interface HealthResponse
   extends Omit<Schemas['HealthResponse'], 'project_state'> {
   project_state?: 'ok' | 'no_project' | (string & {})
 }
+
+// ── Telemetry ────────────────────────────────────────────
+
+export type UiEvent = Schemas['UiEvent']
+export type UiEventsRequest = Schemas['UiEventsRequest']
 
 // ── Project ──────────────────────────────────────────────
 

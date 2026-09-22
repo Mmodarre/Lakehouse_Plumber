@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useQueryClient } from '@tanstack/react-query'
+import { useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { startStream } from '../api/stream'
 import type { StreamBody, StreamPath } from '../api/stream'
 import { ApiError } from '../api/client'
@@ -118,146 +118,119 @@ export function abortActiveStream(): void {
   activeStreamController?.abort()
 }
 
+/** Transport lifetime belongs to the operation, independent of any launching view. */
+export function startEventStream(
+  options: StartOptions,
+  callbacks: StreamCallbacks,
+  queryClient: QueryClient,
+): AbortController | null {
+  if (activeStreamController) return null
+  const controller = new AbortController()
+  activeStreamController = controller
+  const { path, ...body } = options
+  void (async () => {
+    let sawError = false
+    let sawGenerationSuccess = false
+    let reader: ReadableStreamDefaultReader<Uint8Array> | undefined
+    const emitError = (error: Error | ErrorFrame) => {
+      sawError = true
+      callbacks.onError?.(error)
+    }
+    try {
+      const response = await startStream(path, body, controller.signal)
+      if (!response.body) throw new Error('Stream response had no body')
+      reader = response.body.getReader()
+      // Also cancel synthetic/test readers which do not observe fetch's signal.
+      const cancelReader = () => { void reader?.cancel().catch(() => {}) }
+      controller.signal.addEventListener('abort', cancelReader, { once: true })
+      const decoder = new TextDecoder()
+      let buffer = ''
+      const handleLine = (line: string) => {
+        if (controller.signal.aborted) return
+        let frame: StreamFrame | null
+        try { frame = parseLine(line) } catch { return }
+        if (!frame) return
+        callbacks.onFrame?.(frame)
+        if (frame.type === 'error') emitError(frame)
+        if (frame.type === 'GenerationCompleted' && frame.response.success) {
+          sawGenerationSuccess = true
+        }
+      }
+      try {
+        while (!controller.signal.aborted) {
+          const result = await reader.read()
+          if (result.value) {
+            buffer += decoder.decode(result.value, { stream: true })
+            const split = splitLines(buffer)
+            buffer = split.rest
+            split.lines.forEach(handleLine)
+          }
+          if (result.done) break
+        }
+        buffer += decoder.decode()
+        if (buffer.trim()) handleLine(buffer)
+      } finally {
+        controller.signal.removeEventListener('abort', cancelReader)
+      }
+    } catch (error) {
+      if (!controller.signal.aborted) {
+        emitError(error instanceof ApiError || error instanceof Error
+          ? error : new Error('Event stream failed'))
+      }
+    } finally {
+      reader?.releaseLock()
+      const aborted = controller.signal.aborted
+      if (sawGenerationSuccess && !sawError && !aborted) {
+        for (const key of ['files', 'dep-graph', 'flowgroup-related', 'flowgroup-related-files', 'file-content', 'file-exists', 'tables', 'lineage']) {
+          void queryClient.invalidateQueries({ queryKey: [key] })
+        }
+      }
+      void queryClient.invalidateQueries({ queryKey: ['run-history'] })
+      if (activeStreamController === controller) activeStreamController = null
+      callbacks.onDone?.({ aborted })
+    }
+  })()
+  return controller
+}
+
 export function useEventStream(): UseEventStreamResult {
   const queryClient = useQueryClient()
   const [isRunning, setIsRunning] = useState(false)
   const [frames, setFrames] = useState<StreamFrame[]>([])
   const [error, setError] = useState<Error | ErrorFrame | null>(null)
-
   const abortRef = useRef<AbortController | null>(null)
-  // Snapshot of run flag readable inside the async loop without stale
-  // closures; mirrors `isRunning` but is synchronous.
-  const runningRef = useRef(false)
-
-  const abort = useCallback(() => {
-    abortRef.current?.abort()
-  }, [])
-
-  const start = useCallback(
-    (options: StartOptions, callbacks?: StreamCallbacks) => {
-      // v1: idempotent while running — ignore re-entrant starts.
-      if (runningRef.current) return
-
-      const controller = new AbortController()
-      abortRef.current = controller
-      // Publish it for the cross-component Stop control (bottom Run panel).
-      activeStreamController = controller
-      runningRef.current = true
-      setIsRunning(true)
-      setFrames([])
-      setError(null)
-
-      const { path, ...body } = options
-      const { onFrame, onError, onDone } = callbacks ?? {}
-
-      const emitError = (err: Error | ErrorFrame) => {
-        setError(err)
-        onError?.(err)
-      }
-
-      const run = async () => {
-        let sawError = false
-        let sawGenerationSuccess = false
-        try {
-          const response = await startStream(path, body, controller.signal)
-          const stream = response.body
-          if (stream === null) {
-            throw new Error('Stream response had no body')
-          }
-
-          const reader = stream.getReader()
-          const decoder = new TextDecoder()
-          let buffer = ''
-
-          const handleLine = (rawLine: string) => {
-            let frame: StreamFrame | null
-            try {
-              frame = parseLine(rawLine)
-            } catch {
-              // Skip malformed JSON lines rather than aborting the run;
-              // the server contract is one JSON object per line.
-              return
-            }
-            if (frame === null) return
-
-            setFrames((prev) => [...prev, frame])
-            onFrame?.(frame)
-
-            if (frame.type === 'error') {
-              sawError = true
-              emitError(frame)
-            } else if (
-              frame.type === 'GenerationCompleted' &&
-              frame.response.success
-            ) {
-              sawGenerationSuccess = true
-            }
-          }
-
-          let done = false
-          while (!done) {
-            const result = await reader.read()
-            done = result.done
-            if (result.value !== undefined) {
-              buffer += decoder.decode(result.value, { stream: true })
-              const split = splitLines(buffer)
-              buffer = split.rest
-              for (const rawLine of split.lines) {
-                handleLine(rawLine)
-              }
-            }
-          }
-
-          // Flush any trailing buffered line (stream may end without a
-          // final newline).
-          buffer += decoder.decode()
-          if (buffer.trim() !== '') {
-            handleLine(buffer)
-          }
-        } catch (err) {
-          if (controller.signal.aborted) {
-            // Caller-initiated abort / unmount — not a real failure.
-            return
-          }
-          sawError = true
-          const normalized =
-            err instanceof ApiError || err instanceof Error
-              ? err
-              : new Error('Event stream failed')
-          emitError(normalized)
-        } finally {
-          const aborted = controller.signal.aborted
-          // Only invalidate on a clean, successful generate run.
-          if (sawGenerationSuccess && !sawError && !aborted) {
-            queryClient.invalidateQueries({ queryKey: ['files'] })
-            queryClient.invalidateQueries({ queryKey: ['dep-graph'] })
-          }
-          // Guard against a superseded controller (StrictMode/restart):
-          // only the latest run clears the shared running state.
-          if (abortRef.current === controller) {
-            abortRef.current = null
-            runningRef.current = false
-            setIsRunning(false)
-          }
-          // Only the latest run clears the shared cross-component slot.
-          if (activeStreamController === controller) {
-            activeStreamController = null
-          }
-          onDone?.({ aborted })
+  const mounted = useRef(true)
+  const abort = useCallback(() => abortRef.current?.abort(), [])
+  const start = useCallback((options: StartOptions, callbacks?: StreamCallbacks) => {
+    const controller = startEventStream(options, {
+      onFrame: (frame) => {
+        if (mounted.current) setFrames((previous) => [...previous, frame])
+        callbacks?.onFrame?.(frame)
+      },
+      onError: (failure) => {
+        if (mounted.current) setError(failure)
+        callbacks?.onError?.(failure)
+      },
+      onDone: (info) => {
+        if (abortRef.current === controller) {
+          abortRef.current = null
+          if (mounted.current) setIsRunning(false)
         }
-      }
-
-      void run()
-    },
-    [queryClient],
-  )
-
-  // StrictMode-safe: abort any in-flight stream on unmount.
+        callbacks?.onDone?.(info)
+      },
+    }, queryClient)
+    if (!controller) return
+    abortRef.current = controller
+    setIsRunning(true)
+    setFrames([])
+    setError(null)
+  }, [queryClient])
   useEffect(() => {
+    mounted.current = true
     return () => {
+      mounted.current = false
       abortRef.current?.abort()
     }
   }, [])
-
   return { start, abort, isRunning, frames, error }
 }

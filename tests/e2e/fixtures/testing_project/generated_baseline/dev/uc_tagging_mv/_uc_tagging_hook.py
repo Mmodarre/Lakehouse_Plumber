@@ -298,9 +298,10 @@ def _apply(w, suppress_absent):
     return errors
 
 
-# A run raises at most twice — one combined RUNNING warning (snapshot + tag errors)
-# and one terminal warning — and the counter resets each update (the module re-imports
-# per run), so 3 leaves headroom without ever silently disabling tagging on a clean run.
+# The budget is uc_tagging.max_allowable_consecutive_failures. None (the default) means
+# no limit: a failing hook keeps raising on every update until the cause is fixed, and
+# tags are applied again on the next successful run. An integer lets SDP disable the
+# hook after that many consecutive failures.
 @dp.on_event_hook(max_allowable_consecutive_failures=3)
 def uc_tagging_hook(event):
     """Tag managed tables/columns during the run, surfacing failures as warnings.

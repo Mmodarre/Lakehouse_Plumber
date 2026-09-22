@@ -5,6 +5,247 @@ All notable changes to Lakehouse Plumber are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.2] — 2026-09-22
+
+### Added
+
+- **Anonymous usage telemetry, on by default and opt-out.** LHP records one event per
+  CLI command — which command ran, which option NAMES were passed, the exit code, the
+  duration, any `LHP-XXX-NNN` codes, and coarse counters describing the project's size
+  and which features it configures. `lhp web` adds one event per browser tab and per
+  validate/generate run. Names (project, pipeline, flowgroup, action, table, catalog,
+  schema, environment), paths, YAML/SQL/Python content, generated code, error and
+  warning messages, environment-variable values, secrets, usernames, hostnames, emails,
+  git remotes, machine identifiers, IP addresses, assistant prompts and responses, and
+  token counts are never collected. Events spool to a local JSONL file and are posted on
+  a daemon thread with a 3 s timeout, so telemetry never blocks a command, never changes
+  an exit code and adds at most 1 s to exit; when the endpoint is unreachable nothing
+  leaves the machine. Events go to `https://telemetry.lakehouse-plumber.dev/v1/events`,
+  a receiver that never reads or stores the sender's IP address, and are stored in a
+  Databricks workspace in Azure West US 2 (United States). Turn it off with
+  `LHP_TELEMETRY=off`, `DO_NOT_TRACK=1`, `LHP_DISABLE_ANALYTICS=1` or
+  `lhp telemetry off` — any one of them wins. `LHP_TELEMETRY=log` prints the event to
+  stderr instead of sending it. Everything that is sent is listed in the telemetry
+  reference. The events are named `cli.command`, `web.session` and `web.run`.
+  Telemetry is also on in CI, where events carry no install id.
+- **`lhp telemetry status|show|on|off`.** Inspect the resolved state (on/off, the layer
+  that decided it, the config directory, the install id, the endpoint and the count of
+  events not yet delivered, in-flight batches included), print the event this run would
+  send plus the newest of those events, or change the preference for this user on this
+  machine. A preference that cannot be written fails with the new `LHP-IO-028`.
+- **`project_id` in `lhp.yaml`.** `lhp init` now writes a top-level `project_id` UUID
+  v4 — the same value it writes as `bundle.uuid` in `databricks.yml` when bundle
+  support is on. Telemetry sends only a salted hash of it, so events from every
+  developer and every CI run roll up to one project. Existing projects are never
+  edited: they fall back to `bundle.uuid`, then to a salted hash of the project name.
+  `ProjectConfigView.project_id` (provisional) exposes it to API and web-IDE consumers.
+- **Update hint.** When the telemetry response names a newer release, the next
+  successful interactive run prints one line suggesting
+  `pip install -U lakehouse-plumber`, at most once every 24 hours, and `lhp web`
+  shows the newer version in its status bar. Silence it with
+  `LHP_UPDATE_CHECK=off`. The check never makes a request of its own, so it works only
+  while telemetry is on.
+- **Template authoring in `lhp web`.** Templates open in a shared Builder / Code /
+  Preview workspace with new/duplicate actions, parameter declarations, nested
+  list/object inputs, action editing, and parameter-expression insertion. Preview
+  checks the current unsaved draft, expands actions, or resolves a sample flowgroup
+  through the LHP template engine using saved project dependencies. Results include
+  YAML, an optional action graph, diagnostics, cancellation, and stale-result
+  detection. Save and use opens flowgroup creation with the template selected.
+- **Contextual field guidance in forms and YAML.** 363 packaged help entries cover
+  project, pipeline, job, action, and template settings, including all 24 action
+  subtypes. Persistent help panels and YAML hovers explain examples, choices, and
+  omitted/inherited values; CI checks catalog bindings and documentation drift.
+- **Workspace navigation and tab management.** Quick open, workspace Back/Forward,
+  pipeline breadcrumbs, shareable active-view links, tab search, pinning,
+  reordering, reopening, and bulk close with a shared Save/Discard/Cancel review.
+  File search, active-file reveal, contextual creation, panel controls, focus mode,
+  and compact/comfortable density make larger projects easier to navigate.
+- **Configuration inspection and editing tools.** Project configuration stays
+  accessible from the workspace; settings support key search, section navigation,
+  configured-only filtering, and explicit add/remove controls. Pipeline and job
+  previews resolve saved effective settings through the production resolvers, and
+  a read-only diff compares saved YAML with the working draft.
+
+- **`uc_tagging.max_allowable_consecutive_failures` in `lhp.yaml`.** The UC tagging
+  hook's `@dp.on_event_hook` failure budget is now configurable instead of hardcoded.
+  Accepts an integer >= 0 or `null`; anything else (including `true`, which YAML would
+  otherwise coerce to `1`) is rejected with `LHP-CFG-009`. There is deliberately no
+  upper bound — the Lakeflow SDP contract is "integer >= 0 or None". Also surfaced in
+  the `lhp web` config form and the packaged JSON schema.
+
+- **Private datasets (SDP `private=True`).** Streaming-table and materialized-view
+  write targets accept a `private` boolean (default `false`). When `true`, LHP emits
+  `private=True` on `dp.create_streaming_table(...)` and `@dp.materialized_view(...)`,
+  so the table persists for the pipeline's lifetime but is not published to the
+  metastore — it is visible only inside the pipeline.
+- **Telemetry and dependency-analysis reference pages.** New
+  `docs/reference/telemetry.rst` and `docs/reference/dependency-analysis.rst`; the
+  latter covers the action-level `depends_on` field, table and view matching,
+  warning suppression and trust-depends-on mode. The write-action reference gains a
+  UC tagging error-handling section, and its description of hook disabling now
+  matches the Databricks documentation.
+- **Terms of use, contributing guide and README disclaimer.** New `TERMS_OF_USE.md`
+  and `CONTRIBUTING.md` files. The README links the terms of use and adds a
+  Disclaimer section: LHP is provided "as is", and the pipeline code it generates
+  belongs to the user.
+
+### Changed
+
+- **`StatsResult.action_counts_by_type` gains `write_*`, `write_mode_*`, `test_*` and
+  `tables` keys.** Purely additive: write actions are now counted by target type
+  (`write_streaming_table`, `write_materialized_view`, `write_sink`, `write_other`) and,
+  for table targets, by mode (`write_mode_standard`, `write_mode_cdc`,
+  `write_mode_snapshot_cdc`, `write_mode_other`); test actions by test type
+  (`test_uniqueness`, …); and `tables` is the number of distinct non-sink write targets.
+  Existing keys are unchanged, and no key is ever emitted with a zero value.
+- **`ProjectConfigView` gains `project_id`, `has_uc_tagging`, `has_wheel`, `has_sandbox`
+  and `apply_formatting`** (provisional, additive).
+- **Web IDE diagnostics and run history expose more context.** Problems support
+  severity/file filters, source navigation, suggestions, and result staleness.
+  History adds filtering, export, and incremental loading within the existing
+  200-run API limit. Local error boundaries and retry controls preserve the rest
+  of the workspace when a panel fails; editor and graph code load on demand.
+
+- **The UC tagging hook's default failure budget is now unlimited (`None`) instead of
+  `3`.** This matches the SDP default: `None` means there is no limit to the
+  consecutive failures allowed and the hook is never disabled. Projects that
+  regenerate will see `@dp.on_event_hook(max_allowable_consecutive_failures=None)` in
+  `_uc_tagging_hook.py`. In practice a run raises at most twice (one combined `RUNNING`
+  warning, one terminal warning); under the old budget a hook that hit the limit was
+  disabled and, per Databricks, did not process new events until the pipeline was
+  restarted (#201). Set `uc_tagging.max_allowable_consecutive_failures: 3` to restore
+  the previous behavior.
+
+- **`sqlglot` is now pinned `>=28,<31`** (was `>=26.0,<28`). The floor is
+  deliberate: only the `exp.Stream` tree shape is supported, so one LHP version
+  yields one deterministic dependency graph. Also ~28% faster cold extraction.
+- `DependencyStalenessResult.fingerprint` (provisional) gains a fourth
+  component, the sqlglot version. Its format was never a stable contract; treat
+  it as opaque and compare only for equality.
+- **CI guards `uv.lock` and isolates the test suite.** `packaging-check` fails when
+  `uv.lock` contains `pypi-proxy.dev.databricks.com` URLs, and the lock no longer
+  carries them. Tests run with telemetry off and cannot open a connection to a
+  non-loopback host.
+
+### Fixed
+
+- **Web IDE writes block-style YAML when filling an empty collection.** Adding the
+  first action to a flowgroup created from the Create dialog, the first parameter
+  to a template draft, or the first item to any hand-written `[]` / `{}` field no
+  longer serializes that subtree as a single-line flow collection. Non-empty
+  inline collections keep their style.
+- **Web IDE writes multi-line SQL and Python bodies as `|` block scalars.** Text
+  entered through a designer textarea or the inline code editor no longer lands in
+  the YAML as an escaped or blank-line-folded double-quoted string. A field that
+  already uses a `|` or `>` block scalar keeps its style, and single-line values
+  keep the existing quoting rules.
+- **Web IDE saves preserve in-flight edits and existing files.** Save responses no
+  longer overwrite newer edits, and New/Duplicate use create-only writes. Form,
+  Graph, and Code share file buffers and save controls; saving captures pending
+  field edits, while failed or incomplete saves block save-before-run execution.
+  Viewer mode also guards raw YAML, graph, and configuration mutation paths.
+- **Workspace editing and navigation retain the correct document state.** Source
+  links and diagnostics open the owning file tab without losing its draft, graph
+  undo/redo preserves YAML comments and refuses to overwrite newer Code edits,
+  and multi-flowgroup files fall back to Code for safe editing. Returning to views
+  retains editor positions, graph viewports, configuration selection, and assistant
+  drafts; lineage arrows now follow actual recorded edges.
+- **Run state remains consistent across workspace navigation.** A shared run
+  coordinator keeps streams alive across tab changes, rejects stale callbacks,
+  queues save validation, and distinguishes stopped, incomplete, failed, and
+  successful runs. History hydration preserves live results; file/run events also
+  refresh configuration previews and generated artifacts.
+- **Public API startup stays lightweight with configuration previews enabled.**
+  Preview resolvers load when requested, so importing `lhp.api` does not eagerly
+  import the dependency-analysis or code-generation stack.
+- **CI coverage includes Web IDE backend tests.** The dedicated webapp suite
+  uploads its coverage alongside unit and end-to-end tests, so tested routes and
+  request/response schemas are included in patch-coverage checks.
+
+- **`lhp init --sample`: the `data_prep` task no longer fails with a `NameError`.**
+  The sample quickstart's data-prep notebook referenced a bare `_meta` where the
+  `_meta` schema *name* was meant, so the first task of the `lhp_sample_quickstart`
+  job aborted with `NameError: name '_meta' is not defined` before creating any
+  schema — taking the whole quickstart down. Regression in v0.9.1.
+
+- **Python load/transform actions that omit `parameters` now receive `{}`
+  instead of the unbound name `null`.** A `transform_type: python` action with
+  no `parameters:` block (or a bare `parameters:` key, which YAML reads as
+  null) generated `parameters = null`, so the deployed pipeline imported
+  cleanly and then failed with `NameError: name 'null' is not defined` the
+  first time the view was evaluated. The same applied to a `source.type:
+  python` load with an explicit `parameters:` null. Both now emit
+  `parameters = {}`, the default the reference documentation always described.
+
+- **`--include-tests` no longer drops `from pyspark.sql import functions as F`.**
+  When a flowgroup contained any `type: test` action, the import resolver treated
+  the test generators' `from pyspark.sql.functions import *` as superseding the
+  parent `pyspark.sql` import — but a wildcard never binds the name `F`, so the
+  generated module raised `NameError` on its first `F.` reference as soon as the
+  flow was evaluated. Any generator that emits `F.` was a trigger, not just
+  `transform_type: schema`: `operational_metadata` columns
+  (`F.current_timestamp()`) alone were enough, as were custom sinks. The
+  exclusion also applied to the whole `pyspark.sql` module group, so sibling
+  imports such as `from pyspark.sql import DataFrame` (materialized-view writes)
+  were dropped with it. Parent-module imports are now always kept; a wildcard
+  still supersedes specific-name imports from that same module. Both `lhp
+  validate` and `lhp generate` reported success, so the failure only surfaced at
+  pipeline start-up.
+- **SQL dependency extraction no longer invents edges from opaque `stream()`
+  arguments.** sqlglot 28 began emitting a dedicated `exp.Stream` node above
+  the wrapped table, which bypassed the opaqueness check: `stream('bronze.x')`
+  and `stream(live(bronze.x))` produced a dependency edge from an argument that
+  is not a statically known table reference. A string-literal argument is again
+  excluded, consistently with `live(...)` and `snapshot(...)`.
+- **`FROM STREAM tbl` (unparenthesized) now yields a real dependency edge.**
+  Valid Databricks syntax that older sqlglot either failed to parse — losing
+  every edge in the body behind an `LHP-DEP-003` advisory — or mis-parsed as a
+  table literally named `STREAM`.
+- **A backtick-quoted dotted identifier under `stream(...)` is extracted.**
+  ``stream(`my.table`)`` is one identifier whose name contains a dot, and is
+  now distinguished from the string literal `stream('my.table')` by the
+  argument's quote character rather than by its text.
+- **The persistent dependency-graph cache now invalidates on a sqlglot
+  upgrade.** Extracted edges are a function of sqlglot's parse tree, but
+  `pip install -U sqlglot` moved neither the YAML manifest nor any body's
+  `(mtime_ns, size)`, so `lhp dag` could serve edges parsed by the previous
+  version. The cache version tag now includes the sqlglot version, and
+  `CACHE_SCHEMA_VERSION` is bumped to 2 to force one clean sweep.
+- **CDC validation reads a file-based `table_schema` before checking for
+  `__START_AT`/`__END_AT`.** An SCD Type 2 streaming-table target whose
+  `table_schema` pointed at a file failed `lhp validate` and `lhp generate` with
+  false "CDC schema must include '__START_AT' column" and `'__END_AT'` errors,
+  because the check searched the file path instead of the file's content. The
+  validator now resolves the file through the same resolver the generators use,
+  and leaves a missing or invalid file for the generator to report.
+- **SCD Type 1 CDC targets no longer have to declare `__START_AT`/`__END_AT`.**
+  Those validity columns exist only on SCD Type 2 tables and the Lakeflow runtime
+  rejects them on Type 1, so a Type 1 target that set `table_schema` — the only way
+  to declare a `PRIMARY KEY` on a pipeline-managed table — could never pass
+  validation. The check now applies only to `scd_type: 2`.
+- **The generated UC tagging hook's comment describes the configurable failure
+  budget.** The comment above `@dp.on_event_hook` in `_uc_tagging_hook.py` now
+  says that `None` means no limit and that an integer lets SDP disable the hook
+  after that many consecutive failures.
+
+### Removed
+
+- **The tracked `.claude/skills/lhp/` copy of the `lhp` skill and its
+  `sync-claude-skill` pre-commit hook.** The packaged skill under
+  `src/lhp/resources/skills/lhp/` is the single source; `lhp skill install` writes
+  it into a project on demand.
+- **The Dependabot auto-merge workflow**
+  (`.github/workflows/dependabot-automerge.yml`).
+
+### Dependencies
+
+- Bump `pydantic` to `==2.13.5` (was `==2.13.4`).
+- Add `pytest-socket>=0.7` as a dev dep (the test suite's network guard).
+- Dependabot bumps for Python dev and docs requirements, `web_app` npm packages and
+  GitHub Actions; the lock moves `cryptography` to 50.0.0. `ruff` is excluded from
+  Dependabot because it is the exact-pinned formatter for generated code.
+
 ## [0.9.1] — 2026-06-10
 
 Developer sandbox mode plus a dependency-extraction overhaul.

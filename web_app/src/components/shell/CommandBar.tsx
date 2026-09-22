@@ -1,10 +1,13 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import {
   CircleCheck,
   Eye,
   FileCog,
   Layers,
   Loader2,
+  PanelLeft,
+  Focus,
+  Settings2,
   Play,
   Sparkles,
   Wifi,
@@ -12,6 +15,11 @@ import {
   X,
 } from 'lucide-react'
 import { toast } from 'sonner'
+import { useQueryClient } from '@tanstack/react-query'
+import { useWorkspaceStore } from '../../store/workspaceStore'
+import { saveAllWorkspaceBuffers } from '../../workspace/persistBuffer'
+import { captureWorkspaceEditors } from '../../workspace/editorCommands'
+import { PipelineFilter } from './center/PipelineFilter'
 import { Badge } from '../ui/badge'
 import { Button } from '../ui/button'
 import {
@@ -29,18 +37,14 @@ import { useEnvironments } from '../../hooks/useEnvironments'
 import { useFileList } from '../../hooks/useFiles'
 import type { FileNode } from '../../types/api'
 import { useUIStore } from '../../store/uiStore'
-import { useRunController, useRunStore } from '../../store/runStore'
+import { captureRunInputs, startRunWithInputs, useRunController, useRunStore } from '../../store/runStore'
 import { useLayoutStore } from '../../store/layoutStore'
 
 // ── CommandBar — the unified-workspace top command bar (§3/§6.4) ──
 //
-// Replaces the old Header. Relocates its still-live controls verbatim —
-// version chip, env selector, SandboxControl, run-config chip,
-// Validate/Generate (useRunController), theme toggle, health indicator — and
-// wires the viewer-lens + assistant toggles to layoutStore. The old Header's
-// nav tabs / Resources dropdown / sidebar toggle die (the explorer replaces
-// them); the pipeline filter is NOT here (it moves into the Project-map
-// toolbar in a sibling task) — uiStore.pipelineFilter is left untouched.
+// Keeps project/config navigation and the exact execution inputs available
+// in every view. Explicit runs capture/save workspace edits before starting;
+// automatic validation is suppressed until the requested operation launches.
 
 /** 16px LHP pipe-glyph mark (mirrors public/favicon.svg). */
 function LogoMark() {
@@ -135,7 +139,7 @@ export function RunConfigChip() {
       className="max-w-40 gap-1 rounded-sm px-1.5 text-2xs text-muted-foreground lg:max-w-56"
     >
       <FileCog className="size-3 shrink-0" aria-hidden="true" />
-      <span className="truncate font-mono">{name}</span>
+      <button type="button" className="truncate font-mono hover:text-foreground" onClick={() => useWorkspaceStore.getState().openConfigTab(selected, 'pipeline')} aria-label={`Open run configuration ${selected}`}>{name}</button>
       <button
         type="button"
         onClick={() => {
@@ -159,7 +163,19 @@ export function CommandBar() {
   const setSelectedEnv = useUIStore((s) => s.setSelectedEnv)
   const pipelineFilter = useUIStore((s) => s.pipelineFilter)
   const sandboxEnabled = useUIStore((s) => s.sandboxEnabled)
-  const { isRunning, startValidate, startGenerate } = useRunController()
+  const runController = useRunController()
+  const { isRunning } = runController
+  const queryClient = useQueryClient()
+  const [savingForRun, setSavingForRun] = useState(false)
+  const dirtyCount = useWorkspaceStore((s) => s.buffers.filter((b) => b.isDirty).length)
+  const reconcileEnvironments = useUIStore((s) => s.reconcileEnvironments)
+  const toggleExplorer = useLayoutStore((s) => s.toggleExplorer)
+  const explorerCollapsed = useLayoutStore((s) => s.explorerCollapsed)
+  const toggleFocusMode = useLayoutStore((s) => s.toggleFocusMode)
+  const focusMode = useLayoutStore((s) => s.focusMode)
+  useEffect(() => {
+    if (health?.root && envData) reconcileEnvironments(health.root, envData.environments)
+  }, [health?.root, envData, reconcileEnvironments])
   const runKind = useRunStore((s) => s.runKind)
 
   const viewerMode = useLayoutStore((s) => s.viewerMode)
@@ -169,9 +185,34 @@ export function CommandBar() {
 
   const isHealthy = health?.status === 'healthy' && !healthError
   const scope = sandboxEnabled ? 'sandbox scope' : (pipelineFilter ?? 'all pipelines')
+  const ready = isHealthy && health?.project_state !== 'no_project'
+    && !!selectedEnv && !!envData?.environments.includes(selectedEnv)
+  const execute = async (kind: 'validate' | 'generate') => {
+    if (!ready || savingForRun || useRunStore.getState().isRunning) return
+    if (kind === 'generate' && viewerMode) return
+    const inputs = captureRunInputs(kind)
+    captureWorkspaceEditors()
+    setSavingForRun(true)
+    try {
+      if (useWorkspaceStore.getState().buffers.some((b) => b.isDirty)) {
+        if (!await saveAllWorkspaceBuffers(queryClient, runController, { validate: false })) {
+          toast.error('Run paused: resolve unsaved files, then try again')
+          return
+        }
+      }
+      if (useRunStore.getState().isRunning) {
+        toast.info('Another run started while saving. Wait for it to finish, then try again.')
+        return
+      }
+      useLayoutStore.getState().setBottomTab('run')
+      useLayoutStore.getState().setBottomCollapsed(false)
+      startRunWithInputs(inputs, queryClient)
+    } finally { setSavingForRun(false) }
+  }
 
   return (
-    <header className="flex h-11 shrink-0 items-center gap-2.5 border-b border-border bg-surface px-2.5">
+    <header className="flex min-h-11 shrink-0 flex-wrap items-center gap-x-2.5 gap-y-1 border-b border-border bg-surface px-2.5 py-1">
+      <Button variant="ghost" size="icon-sm" onClick={toggleExplorer} aria-label={explorerCollapsed ? 'Show explorer' : 'Hide explorer'} aria-pressed={!explorerCollapsed} title="Toggle explorer (⌘/Ctrl+B)"><PanelLeft /></Button>
       {/* Brand: logomark · wordmark · version chip */}
       <div className="flex min-w-0 items-center gap-2">
         <LogoMark />
@@ -199,14 +240,17 @@ export function CommandBar() {
         </Badge>
       )}
 
+      <Button variant="ghost" size="sm" onClick={() => useWorkspaceStore.getState().openConfigTab('lhp.yaml', 'project')} title="Open project settings">
+        <Settings2 aria-hidden="true" /> Configuration
+      </Button>
       {/* Environment selector */}
-      <Select value={selectedEnv} onValueChange={setSelectedEnv}>
+      <Select value={selectedEnv} onValueChange={setSelectedEnv} disabled={isRunning || savingForRun || !envData?.environments.length}>
         <SelectTrigger size="sm" aria-label="Environment" className="gap-1.5">
           <Layers className="size-3.5 text-muted-foreground" aria-hidden="true" />
-          <SelectValue placeholder="env" />
+          <SelectValue placeholder={envData ? "No environments" : "Loading environments…"} />
         </SelectTrigger>
         <SelectContent position="popper" align="start">
-          {(envData?.environments ?? ['dev']).map((env) => (
+          {(envData?.environments ?? []).map((env) => (
             <SelectItem key={env} value={env}>
               {env}
             </SelectItem>
@@ -225,7 +269,11 @@ export function CommandBar() {
         </Badge>
       )}
 
-      <div className="ml-auto flex items-center gap-2">
+      <div className="ml-auto flex max-w-full flex-wrap items-center justify-end gap-2">
+        <div className="flex items-center gap-1.5 text-xs text-muted-foreground" aria-label="Execution scope">
+          <span>Run:</span>
+          {sandboxEnabled ? <span>Sandbox scope</span> : <PipelineFilter />}
+        </div>
         {/* Sandbox mode (scope from .lhp/profile.yaml) */}
         <SandboxControl />
 
@@ -236,8 +284,8 @@ export function CommandBar() {
         <Button
           variant="outline"
           size="sm"
-          onClick={() => startValidate()}
-          disabled={isRunning}
+          onClick={() => { void execute('validate') }}
+          disabled={isRunning || savingForRun || !ready}
           title={`Validate ${scope} (${selectedEnv})`}
         >
           {isRunning && runKind === 'validate' ? (
@@ -245,15 +293,15 @@ export function CommandBar() {
           ) : (
             <CircleCheck aria-hidden="true" />
           )}
-          Validate
+          {dirtyCount ? 'Save & Validate' : 'Validate'}
         </Button>
 
         {/* Generate — the screen's one accent ▶ button (no separate "Run" op:
             only validate/generate streams exist, so Generate IS the run). */}
         <Button
           size="sm"
-          onClick={() => startGenerate()}
-          disabled={isRunning}
+          onClick={() => { void execute('generate') }}
+          disabled={isRunning || savingForRun || !ready || viewerMode}
           title={`Generate ${scope} (${selectedEnv})`}
         >
           {isRunning && runKind === 'generate' ? (
@@ -261,12 +309,13 @@ export function CommandBar() {
           ) : (
             <Play aria-hidden="true" />
           )}
-          Generate
+          {dirtyCount ? 'Save & Generate' : 'Generate'}
         </Button>
 
         <div className="h-5 w-px shrink-0 bg-border" aria-hidden="true" />
 
-        {/* Viewer-lens toggle (visual + badge only; enforcement lands later) */}
+        <Button variant="ghost" size="icon-sm" onClick={toggleFocusMode} aria-label={focusMode ? 'Exit focus mode' : 'Enter focus mode'} aria-pressed={focusMode} title="Focus editor"><Focus /></Button>
+        {/* Viewer-lens toggle */}
         <Button
           variant="ghost"
           size="icon-sm"
@@ -298,6 +347,9 @@ export function CommandBar() {
           <Sparkles />
         </Button>
       </div>
+      <span className="basis-full pl-9 text-xs text-muted-foreground" role="status">
+        {savingForRun ? 'Saving files before execution…' : !ready ? 'Runs become available when the project and an environment are ready.' : `${selectedEnv} · ${scope} · ${dirtyCount ? `${dirtyCount} unsaved ${dirtyCount === 1 ? 'file will' : 'files will'} be saved before execution` : 'runs use saved files'}`}
+      </span>
     </header>
   )
 }

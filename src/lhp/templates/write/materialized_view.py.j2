@@ -32,6 +32,9 @@
     {%- if refresh_policy %},
     refresh_policy="{{ refresh_policy }}"
     {%- endif %}
+    {%- if private %},
+    private={{ private | string | title }}
+    {%- endif %}
 )
 {% if expect_all %}
 @dp.expect_all({{ expect_all | tojson }})

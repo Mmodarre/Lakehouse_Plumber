@@ -261,9 +261,21 @@ The full [changelog](https://lakehouse-plumber.readthedocs.io/en/latest/changelo
 
 [Issues](https://github.com/Mmodarre/Lakehouse_Plumber/issues) for bugs and feature requests. [Discussions](https://github.com/Mmodarre/Lakehouse_Plumber/discussions) for design questions and best-practice exchange.
 
+## Anonymous usage telemetry
+
+Anonymous usage telemetry is **on by default**: LHP reports which command ran, whether it succeeded, how long it took, and coarse environment facts, so the project can see which features are actually used. Names (project, pipeline, flowgroup, action, table, catalog, schema), file paths, YAML/SQL/Python content, generated code and error messages are never collected. Turn it off with `LHP_TELEMETRY=off`, `DO_NOT_TRACK=1`, or `lhp telemetry off` — the [telemetry reference](https://lakehouse-plumber.readthedocs.io/en/latest/reference/telemetry.html) lists everything that is sent and every off switch.
+
 ## License
 
 Apache 2.0 — see [LICENSE](LICENSE).
+
+See also the [Terms of Use](TERMS_OF_USE.md), which apply to use of the software and the LHP Web IDE.
+
+## Disclaimer
+
+Lakehouse Plumber is provided **"as is"**, without warranty of any kind, express or implied — including but not limited to the warranties of merchantability, fitness for a particular purpose, and non-infringement. You are solely responsible for reviewing, testing, and validating any code this tool generates before running it in any environment. In no event shall the authors or copyright holders be liable for any claim, damages, or other liability arising from the use of this software or the code it generates. See Sections 7–9 of the [Apache 2.0 license](LICENSE) for the full legal terms.
+
+**Generated code is yours.** The Python pipeline code that Lakehouse Plumber generates from your YAML configurations is your output, not a derivative work of this project. No license from this project applies to generated code, and no attribution is required for it.
 
 <div align="center">
 

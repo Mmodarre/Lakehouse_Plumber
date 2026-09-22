@@ -1,8 +1,7 @@
 """Template read endpoints for the LHP web IDE backend.
 
-Read-only: ``GET /api/templates`` (list) and ``GET /api/templates/{name}``
-(detail incl. declared parameters). Template create/update/delete are
-intentionally not ported — the local IDE edits YAML through the file-write
+The legacy name reads coexist with a recursive path catalog and read-only
+in-memory draft preview. Template create/update/delete are intentionally not ported — the local IDE edits YAML through the file-write
 surface, not a dedicated template CUD API.
 
 Both endpoints are backed by the read-only inspection facade
@@ -14,18 +13,31 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from lhp.api import InspectionFacade, TemplateView
-from lhp.webapp.dependencies import get_inspection
+from lhp.api import (
+    InspectionFacade,
+    TemplateView,
+    preview_template,
+    template_catalog,
+    template_source,
+)
+from lhp.webapp.dependencies import get_inspection, get_project_root
 from lhp.webapp.schemas.template import (
     TemplateDetailResponse,
     TemplateInfoResponse,
     TemplateListDetailResponse,
     TemplateListResponse,
     TemplateSummary,
+)
+from lhp.webapp.schemas.template_authoring import (
+    TemplateCatalogResponse,
+    TemplatePreviewRequest,
+    TemplatePreviewResponse,
+    TemplateSourceResponse,
 )
 
 logger = logging.getLogger(__name__)
@@ -61,6 +73,46 @@ async def list_templates(
     return TemplateListDetailResponse(templates=summaries, total=len(summaries))
 
 
+@router.get("/catalog", response_model=TemplateCatalogResponse)
+async def get_template_catalog(
+    root: Path = Depends(get_project_root),
+) -> dict[str, Any]:
+    try:
+        return await asyncio.to_thread(template_catalog, root)
+    except PermissionError as exc:
+        raise HTTPException(403, str(exc)) from exc
+
+
+@router.get("/source", response_model=TemplateSourceResponse)
+async def get_template_source(
+    path: str = Query(..., max_length=2048),
+    root: Path = Depends(get_project_root),
+) -> dict[str, Any]:
+    try:
+        return await asyncio.to_thread(template_source, root, path=path)
+    except PermissionError as exc:
+        raise HTTPException(403, str(exc)) from exc
+    except FileNotFoundError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+
+@router.post("/preview", response_model=TemplatePreviewResponse)
+async def post_template_preview(
+    body: TemplatePreviewRequest,
+    root: Path = Depends(get_project_root),
+) -> dict[str, Any]:
+    try:
+        return await asyncio.to_thread(
+            preview_template, root, request=body.model_dump(mode="json")
+        )
+    except PermissionError as exc:
+        raise HTTPException(403, str(exc)) from exc
+    except (ValueError, TypeError) as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+
 @router.get(
     "/{name}",
     response_model=TemplateDetailResponse,
@@ -72,9 +124,15 @@ async def get_template(
 ) -> TemplateDetailResponse:
     """Return a single template's metadata including its declared parameters."""
     views = await asyncio.to_thread(inspection.list_templates)
-    view = next((v for v in views if v.name == name), None)
-    if view is None:
+    matches = [v for v in views if v.name == name]
+    if not matches:
         raise HTTPException(404, f"Template '{name}' not found")
+    if len(matches) > 1:
+        raise HTTPException(
+            409,
+            f"Template name '{name}' is ambiguous. Select a source path from the template catalog.",
+        )
+    view = matches[0]
 
     return TemplateDetailResponse(name=name, template=_view_to_info(view))
 
@@ -88,6 +146,7 @@ def _view_to_info(view: TemplateView) -> TemplateInfoResponse:
             "required": p.required,
             "description": p.description,
             "default": p.default,
+            "has_default": p.has_default,
         }
         for p in view.parameters
     ]

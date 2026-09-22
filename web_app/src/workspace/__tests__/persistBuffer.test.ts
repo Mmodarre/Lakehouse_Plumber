@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { QueryClient } from '@tanstack/react-query'
 
-vi.mock('@/api/files', () => ({ writeFile: vi.fn() }))
+vi.mock('@/api/files', () => ({ writeFile: vi.fn(), IF_MATCH_CREATE_ONLY: 'create-only' }))
 vi.mock('sonner', () => ({
   toast: { error: vi.fn(), success: vi.fn(), dismiss: vi.fn() },
 }))
@@ -25,6 +25,7 @@ const startValidate = vi.fn()
 const runController = {
   isRunning: false,
   startValidate,
+  queueValidate: startValidate,
   startGenerate: vi.fn(),
   abort: vi.fn(),
 }
@@ -140,9 +141,9 @@ describe('persistBufferToDisk — validation refresh (Fix #1)', () => {
 
     expect(ok).toBe(true)
     // Mirrors useWorkspaceSave: derivePipelineFromYaml(content) → 'bronze',
-    // startScopedValidate → startValidate(undefined, 'bronze').
+    // startScopedValidate → startValidate(undefined, 'bronze', 'auto').
     expect(startValidate).toHaveBeenCalledTimes(1)
-    expect(startValidate).toHaveBeenCalledWith(undefined, 'bronze')
+    expect(startValidate).toHaveBeenCalledWith(undefined, 'bronze', 'auto')
   })
 
   it('does NOT refresh validation on a 412 conflict (write never landed)', async () => {

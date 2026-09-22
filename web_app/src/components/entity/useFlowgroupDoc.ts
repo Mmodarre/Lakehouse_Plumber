@@ -1,8 +1,11 @@
+import { useDocumentHistoryStore } from '@/store/documentHistoryStore'
+import { useWorkspaceStore } from '@/store/workspaceStore'
 import { useCallback, useEffect, useMemo } from 'react'
 
 import {
   deriveGraph,
   listActions,
+  listFlowgroups,
   readFlowgroupMeta,
   readTemplateParams,
   selectFlowgroupAt,
@@ -29,11 +32,9 @@ import type { DocKind } from '@/store/workspaceStore'
 // and exposes a single atomic `commit` that routes through
 // `documentStore.mutate` (byte-surgical, live-synced into the buffer).
 //
-// Selection rule: a form view edits ONE flowgroup per file — the entry at
-// file index 0 (`selectFlowgroupAt(file, 0)`), or the template body for a
-// template file. Selecting by INDEX (not by name) means renaming the
-// `flowgroup:` key never loses the selection. Multi-flowgroup files show
-// their first entry (a documented v1 limitation — §6.6 risk 4).
+// Structured editing is available only for an unambiguous single flowgroup
+// or template body. Multi-flowgroup files use the explicitly labeled Code
+// fallback, so selecting another entity can never mutate the first entry.
 //
 // Memoization discipline (§6.1): the parse handle's object identity is
 // PRESERVED across an in-place `mutate` — only `version` changes (it is bumped
@@ -81,6 +82,7 @@ export interface FlowgroupDocApi {
   readOnlyReason: ReadOnlyReason | null
   /** The entity document's version — the sole memo/change signal. */
   version: number
+  multipleFlowgroups: boolean
 }
 
 const EMPTY_ACTIONS: readonly ActionRead[] = []
@@ -89,7 +91,7 @@ const EMPTY_PARAMS: readonly TemplateParamRead[] = []
 /** Select the one editable flowgroup/template a form view binds to. */
 function selectEntity(handle: EntityHandle, docKind: DocKind): FlowgroupDocHandle | undefined {
   const file = handle as FlowgroupFileHandle
-  return docKind === 'template' ? selectTemplate(file)?.body : selectFlowgroupAt(file, 0)
+  return docKind === 'template' ? selectTemplate(file)?.body : listFlowgroups(file).length === 1 ? selectFlowgroupAt(file, 0) : undefined
 }
 
 export function useFlowgroupDoc(filePath: string, docKind: DocKind): FlowgroupDocApi {
@@ -142,15 +144,20 @@ export function useFlowgroupDoc(filePath: string, docKind: DocKind): FlowgroupDo
   }, [version, handle, docKind, filePath])
 
   const commit = useCallback(
-    (fn: FlowgroupMutator): boolean =>
-      useDocumentStore.getState().mutate(filePath, (h) => {
+    (fn: FlowgroupMutator): boolean => {
+      const before = useWorkspaceStore.getState().buffers.find((b) => b.path === filePath)?.content
+      const ok = useDocumentStore.getState().mutate(filePath, (h) => {
         const selected = selectEntity(h, docKind)
         if (selected === undefined) {
           // mutate() swallows this and returns false (nothing was touched).
           throw new Error(`No editable ${docKind} at index 0 in ${filePath}`)
         }
         fn(selected)
-      }),
+      })
+      const after = useWorkspaceStore.getState().buffers.find((b) => b.path === filePath)?.content
+      if (ok && before !== undefined && after !== undefined) useDocumentHistoryStore.getState().record(filePath, before, after)
+      return ok
+    },
     [filePath, docKind],
   )
 
@@ -173,5 +180,6 @@ export function useFlowgroupDoc(filePath: string, docKind: DocKind): FlowgroupDo
     readOnly,
     readOnlyReason,
     version,
+    multipleFlowgroups: docKind !== 'template' && handle !== null && listFlowgroups(handle as FlowgroupFileHandle).length > 1,
   }
 }

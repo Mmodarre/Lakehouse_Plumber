@@ -25,9 +25,10 @@ job task is generated pipeline code.
   workspace.
 - **Serverless compute** enabled — the notebook task and all three pipelines
   run serverless.
-- A **catalog you can `CREATE` in**. The demo creates three schemas
-  (`sample_bronze`, `sample_silver`, `sample_gold`) and one volume
-  (`<your_catalog>.sample_bronze.landing`) inside it.
+- A **catalog you can `CREATE` in**. The demo creates four schemas
+  (`sample_bronze`, `sample_silver`, `sample_gold`, `_meta`) and two volumes
+  (`<your_catalog>.sample_bronze.landing` and
+  `<your_catalog>._meta.checkpoints`) inside it.
 - The **Databricks CLI** installed and authenticated
   (`databricks auth login --host https://<your-workspace>`).
 - `lhp` installed (it generated this project).

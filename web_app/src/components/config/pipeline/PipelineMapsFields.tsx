@@ -31,7 +31,10 @@ function kvHandlers(api: DocFormApi, key: string) {
 export function PipelineMapsFields({ api, idPrefix }: { api: DocFormApi; idPrefix: string }) {
   return (
     <>
-      <SectionCard title="Pipeline configuration">
+      <SectionCard
+        title="Pipeline configuration"
+        configured={['configuration'].some((key) => key in api.settings)}
+      >
         <KeyValueMapEditor
           id={`${idPrefix}-configuration`}
           label="Spark / SDP configuration"
@@ -41,7 +44,7 @@ export function PipelineMapsFields({ api, idPrefix }: { api: DocFormApi; idPrefi
         />
       </SectionCard>
 
-      <SectionCard title="Tags">
+      <SectionCard title="Tags" configured={['tags'].some((key) => key in api.settings)}>
         <KeyValueMapEditor
           id={`${idPrefix}-tags`}
           label="Tags"

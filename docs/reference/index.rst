@@ -16,6 +16,7 @@ and the reasoning behind it, see the :doc:`guides </guides/index>` and
 
    CLI <cli>
    Python API <api>
+   Dependency analysis <dependency-analysis>
 
 .. toctree::
    :maxdepth: 1
@@ -46,4 +47,5 @@ and the reasoning behind it, see the :doc:`guides </guides/index>` and
 
    Errors <errors>
    Glossary <glossary>
+   Telemetry <telemetry>
    Changelog <changelog>

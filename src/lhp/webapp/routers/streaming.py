@@ -10,7 +10,8 @@ The sync→async bridge, frame protocol, §5.7 ordering, terminal-error framing,
 and single-run serialization all live in
 :mod:`lhp.webapp.services.stream_adapter`. This router only:
 
-1. validates the JSON body (``{env, pipeline?, pipeline_config?, sandbox?}``),
+1. validates the JSON body
+   (``{env, pipeline?, pipeline_config?, sandbox?, trigger?}``),
 2. binds the facade method into a zero-config ``run(progress) -> Iterator``
    via :func:`functools.partial` (every kwarg bound EXCEPT ``progress`` — the
    adapter injects the sink as ``progress=``), and
@@ -35,7 +36,8 @@ re-exported by :mod:`lhp.api`, so the ``webapp-uses-public-api`` boundary
 contract — §5.3 — still holds: no :mod:`lhp.bundle` import here.)
 
 Per that contract this module imports ONLY :mod:`lhp.api` from the ``lhp``
-package, plus FastAPI / pydantic / the in-package adapter + DI helpers.
+package, plus FastAPI / pydantic / the in-package adapter, DI helpers and
+telemetry hook.
 
 ROUTER CONVENTION: routes carry their full sub-path (``/validate/stream`` and
 ``/generate/stream``); the app mounts this router with ``prefix="/api"``.
@@ -46,6 +48,7 @@ from __future__ import annotations
 import functools
 from collections.abc import Iterator
 from pathlib import Path
+from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
@@ -58,6 +61,7 @@ from lhp.api import (
     should_enable_bundle_support,
 )
 from lhp.webapp.dependencies import get_facade_for, get_project_root
+from lhp.webapp.services._telemetry_events import RunTelemetryContext, run_context
 from lhp.webapp.services.run_recorder import record_ndjson
 from lhp.webapp.services.stream_adapter import stream_events
 
@@ -78,6 +82,8 @@ class StreamRunRequest(BaseModel):
     ``databricks.yml`` detection. ``sandbox`` (default ``false``) switches the
     run to developer-sandbox mode — scope and namespace come from
     ``.lhp/profile.yaml`` — and is mutually exclusive with ``pipeline``.
+    ``trigger`` distinguishes a run the user asked for from one the editor
+    fired on its own; it affects nothing but usage counting.
     """
 
     env: str = Field(..., min_length=1, description="Substitution environment.")
@@ -99,6 +105,14 @@ class StreamRunRequest(BaseModel):
         description=(
             "Developer-sandbox mode: scope and namespace come from "
             ".lhp/profile.yaml. Mutually exclusive with 'pipeline'."
+        ),
+    )
+    trigger: Literal["manual", "auto"] = Field(
+        default="manual",
+        description=(
+            "What started the run: 'manual' (the default) for a user action, "
+            "'auto' for one the editor fired itself, such as the scoped "
+            "validate after a save."
         ),
     )
 
@@ -167,6 +181,23 @@ def _reject_sandbox_with_pipeline_filter(body: StreamRunRequest) -> None:
         )
 
 
+def _run_telemetry(
+    request: Request, body: StreamRunRequest, bundle_enabled: bool
+) -> RunTelemetryContext | None:
+    """Attribute this run to the requesting tab, or ``None`` when uncounted.
+
+    ``pipeline_filter`` is the FLAG — that a filter was applied — never the
+    pipeline it named.
+    """
+    return run_context(
+        request,
+        trigger=body.trigger,
+        sandbox=body.sandbox,
+        pipeline_filter=body.pipeline is not None,
+        bundle_enabled=bundle_enabled,
+    )
+
+
 @router.post("/validate/stream")
 def validate_stream(
     body: StreamRunRequest,
@@ -201,6 +232,7 @@ def validate_stream(
         kind="validate",
         env=body.env,
         pipeline=body.pipeline,
+        telemetry=_run_telemetry(request, body, bundle_enabled),
     )
     return StreamingResponse(frames, media_type=_NDJSON_MEDIA_TYPE)
 
@@ -240,6 +272,7 @@ def generate_stream(
         kind="generate",
         env=body.env,
         pipeline=body.pipeline,
+        telemetry=_run_telemetry(request, body, bundle_enabled),
     )
     return StreamingResponse(frames, media_type=_NDJSON_MEDIA_TYPE)
 

@@ -16,13 +16,15 @@ interface Props {
   /** Editable right side (the user's version — merge target). */
   modified: string
   language: string
+  /** Inspection previews disable both sides; conflict editing remains the default. */
+  readOnly?: boolean
 }
 
 /** Theme-aware Monaco diff editor used by the conflict-resolution dialog:
  * original (disk) is read-only, modified (mine) is editable so the user can
  * merge manually before re-saving. */
 const DiffEditorWrapper = forwardRef<DiffEditorHandle, Props>(function DiffEditorWrapper(
-  { original, modified, language },
+  { original, modified, language, readOnly = false },
   ref,
 ) {
   const diffRef = useRef<editor.IStandaloneDiffEditor | null>(null)
@@ -31,8 +33,7 @@ const DiffEditorWrapper = forwardRef<DiffEditorHandle, Props>(function DiffEdito
   const resolvedTheme = useThemeStore((s) => s.resolved)
 
   useImperativeHandle(ref, () => ({
-    getModifiedValue: () =>
-      diffRef.current?.getModifiedEditor().getValue() ?? modified,
+    getModifiedValue: () => diffRef.current?.getModifiedEditor().getValue() ?? modified,
   }))
 
   const handleMount: DiffOnMount = (ed) => {
@@ -49,7 +50,7 @@ const DiffEditorWrapper = forwardRef<DiffEditorHandle, Props>(function DiffEdito
       onMount={handleMount}
       options={{
         originalEditable: false,
-        readOnly: false,
+        readOnly,
         renderSideBySide: true,
         minimap: { enabled: false },
         scrollBeyondLastLine: false,

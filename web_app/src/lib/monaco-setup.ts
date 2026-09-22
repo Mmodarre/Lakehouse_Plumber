@@ -31,6 +31,7 @@ import jsonWorker from 'monaco-editor/esm/vs/language/json/json.worker?worker'
 import yamlWorker from 'monaco-yaml/yaml.worker?worker'
 
 import { loadSchemaCached, type SchemaKind } from '../api/schemas'
+import { registerFieldHelp } from './monaco-field-help'
 
 self.MonacoEnvironment = {
   getWorker(_workerId: string, label: string) {
@@ -164,6 +165,7 @@ const SCHEMA_FILE_MATCH: Record<SchemaKind, string[]> = {
 }
 
 let yamlConfigured = false
+let fieldHelpRegistered = false
 
 /**
  * Configure monaco-yaml lazily, after the editor has bootstrapped.
@@ -175,6 +177,7 @@ let yamlConfigured = false
  * and the editor remains fully usable.
  */
 export async function setupMonacoYaml(): Promise<void> {
+  if (!fieldHelpRegistered) { registerFieldHelp(monaco); fieldHelpRegistered = true }
   if (yamlConfigured) return
   yamlConfigured = true
 

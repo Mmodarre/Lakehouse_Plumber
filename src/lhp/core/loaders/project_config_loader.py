@@ -149,6 +149,7 @@ class ProjectConfigLoader:
 
         return ProjectConfig(
             name=config_data.get("name", "unnamed_project"),
+            project_id=config_data.get("project_id"),
             version=config_data.get("version", "1.0"),
             description=config_data.get("description"),
             author=config_data.get("author"),

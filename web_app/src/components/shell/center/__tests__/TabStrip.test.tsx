@@ -105,4 +105,21 @@ describe('TabStrip', () => {
     const fileTab = screen.getByText('foo.yaml').closest('div') as HTMLElement
     expect(within(fileTab).getByTitle(/edit and save to create/i)).toBeInTheDocument()
   })
+  it('right-click commands use the clicked inactive tab as their anchor', async () => {
+    const onCloseMany = vi.fn()
+    render(<TabStrip onSelect={vi.fn()} onClose={vi.fn()} onCloseMany={onCloseMany} />)
+    fireEvent.contextMenu(screen.getByText('lhp.yaml'))
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Close tabs to the right' }))
+    expect(onCloseMany).toHaveBeenCalledWith(['project-map', 'pipeline-dag:bronze', 'table:cat.bronze.customers', 'resource:preset:presets/bronze.yaml'])
+  })
+
+  it('offers the same tab commands from the keyboard-accessible actions button', async () => {
+    const onCloseMany = vi.fn()
+    render(<TabStrip onSelect={vi.fn()} onClose={vi.fn()} onCloseMany={onCloseMany} />)
+    await userEvent.click(screen.getByRole('button', { name: 'Tab actions for Project map' }))
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Close other tabs' }))
+    expect(onCloseMany.mock.calls[0][0]).not.toContain('project-map')
+    expect(onCloseMany.mock.calls[0][0]).toHaveLength(TABS.length - 1)
+  })
+
 })

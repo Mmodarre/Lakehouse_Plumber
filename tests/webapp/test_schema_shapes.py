@@ -81,11 +81,22 @@ pytestmark = pytest.mark.webapp
 
 def test_health_response_fields() -> None:
     dumped = HealthResponse(status="healthy", version="0.9.1").model_dump()
-    assert set(dumped) == {"status", "version", "project_state", "root"}
+    assert set(dumped) == {
+        "status",
+        "version",
+        "project_state",
+        "root",
+        "telemetry_enabled",
+        "latest_version",
+    }
     # project_state/root default to the "working project" reading; the app
     # lifespan overrides them per request context.
     assert dumped["project_state"] == "ok"
     assert dumped["root"] == ""
+    # The telemetry pair fails closed: a response built without them claims
+    # neither consent nor an available upgrade.
+    assert dumped["telemetry_enabled"] is False
+    assert dumped["latest_version"] is None
     # dropped feature: dev_mode must not be present
     assert "dev_mode" not in dumped
     assert "python_version" not in dumped

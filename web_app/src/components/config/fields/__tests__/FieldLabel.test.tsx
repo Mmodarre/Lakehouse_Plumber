@@ -1,5 +1,6 @@
 import { beforeAll, describe, expect, it, vi } from 'vitest'
 import type { ReactElement } from 'react'
+import userEvent from '@testing-library/user-event'
 import { render, screen } from '@testing-library/react'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { FieldLabel } from '../FieldLabel'
@@ -30,8 +31,8 @@ describe('FieldLabel', () => {
     expect(screen.getByText('Serverless')).toBeInTheDocument()
     const button = screen.getByRole('button', { name: /more info about serverless/i })
 
-    button.focus()
-    const tip = await screen.findByRole('tooltip')
+    await userEvent.click(button)
+    const tip = await screen.findByRole('dialog')
     expect(tip).toHaveTextContent('Databricks-managed compute.')
   })
 

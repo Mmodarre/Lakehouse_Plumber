@@ -1,0 +1,1324 @@
+{
+  "version": 1,
+  "entries": [
+    {
+      "id": "project.name",
+      "summary": "Identify this LHP project in generated resources and monitoring.",
+      "sources": [
+        {
+          "file": "src/lhp/resources/skills/lhp/references/project-config.md"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "name"
+          ]
+        }
+      ],
+      "details": [
+        "Choose a stable project name. This is project metadata, not the name of an individual pipeline or flowgroup."
+      ],
+      "examples": [
+        {
+          "label": "YAML example",
+          "yaml": "name: acme_warehouse"
+        }
+      ],
+      "constraints": [
+        "A project name is required."
+      ]
+    },
+    {
+      "id": "project.version",
+      "summary": "Record the version of your project configuration.",
+      "sources": [
+        {
+          "file": "src/lhp/resources/skills/lhp/references/project-config.md"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "version"
+          ]
+        }
+      ],
+      "details": [
+        "This value describes your project; required_lhp_version controls the supported LHP installation versions."
+      ],
+      "examples": [
+        {
+          "label": "YAML example",
+          "yaml": "version: \"1.0\""
+        }
+      ],
+      "unsetBehavior": "LHP uses the project model default, \"1.0\".",
+      "constraints": [
+        "Keep the YAML value a string: quote numeric-looking versions."
+      ]
+    },
+    {
+      "id": "project.description",
+      "summary": "Explain the purpose of this project to the people maintaining it.",
+      "sources": [
+        {
+          "file": "src/lhp/resources/skills/lhp/references/project-config.md"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "description"
+          ]
+        }
+      ],
+      "details": [
+        "Describe the datasets or business area it covers. This metadata does not change action processing."
+      ],
+      "examples": [
+        {
+          "label": "YAML example",
+          "yaml": "description: Customer and order pipelines"
+        }
+      ]
+    },
+    {
+      "id": "project.author",
+      "summary": "Record who owns or maintains this project.",
+      "sources": [
+        {
+          "file": "src/lhp/resources/skills/lhp/references/project-config.md"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "author"
+          ]
+        }
+      ],
+      "details": [
+        "Use a team or author name that helps other contributors find the owner. This is descriptive metadata, not an access-control setting."
+      ]
+    },
+    {
+      "id": "project.created_date",
+      "summary": "Record when the project was created.",
+      "sources": [
+        {
+          "file": "src/lhp/resources/skills/lhp/references/project-config.md"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "created_date"
+          ]
+        }
+      ],
+      "details": [
+        "Use a quoted date such as \"2026-09-09\" to keep it as text in YAML; it does not schedule pipeline execution."
+      ],
+      "examples": [
+        {
+          "label": "YAML example",
+          "yaml": "created_date: \"2026-09-09\""
+        }
+      ]
+    },
+    {
+      "id": "project.required_lhp_version",
+      "summary": "Require a compatible LHP version before generating this project.",
+      "sources": [
+        {
+          "file": "src/lhp/resources/skills/lhp/references/project-config.md"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "required_lhp_version"
+          ]
+        }
+      ],
+      "details": [
+        "Use a PEP 440 version constraint. A range can allow compatible updates while excluding a breaking release."
+      ],
+      "examples": [
+        {
+          "label": "YAML example",
+          "yaml": "required_lhp_version: \">=0.9,<1.0\""
+        }
+      ],
+      "unsetBehavior": "No project-level LHP version constraint is enforced."
+    },
+    {
+      "id": "project.include",
+      "summary": "Choose which flowgroup YAML files LHP discovers.",
+      "sources": [
+        {
+          "file": "src/lhp/resources/skills/lhp/references/project-config.md"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "include"
+          ]
+        },
+        {
+          "path": [
+            "include",
+            "*"
+          ]
+        }
+      ],
+      "details": [
+        "Patterns are relative to pipelines/. Use a directory pattern when a project contains several layers; do not add another pipelines/ prefix."
+      ],
+      "examples": [
+        {
+          "label": "YAML example",
+          "yaml": "include:\n  - bronze/**/*.yaml\n  - silver/**/*.yaml"
+        }
+      ]
+    },
+    {
+      "id": "project.blueprint_include",
+      "summary": "Choose which blueprint definitions LHP discovers.",
+      "sources": [
+        {
+          "file": "src/lhp/resources/skills/lhp/references/project-config.md"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "blueprint_include"
+          ]
+        },
+        {
+          "path": [
+            "blueprint_include",
+            "*"
+          ]
+        }
+      ],
+      "details": [
+        "These patterns select reusable blueprint definitions, not the instance files that supply values to them."
+      ],
+      "examples": [
+        {
+          "label": "YAML example",
+          "yaml": "blueprint_include:\n  - blueprints/**/*.yaml"
+        }
+      ]
+    },
+    {
+      "id": "project.instance_include",
+      "summary": "Choose where LHP discovers blueprint instance files.",
+      "sources": [
+        {
+          "file": "src/lhp/resources/skills/lhp/references/project-config.md"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "instance_include"
+          ]
+        },
+        {
+          "path": [
+            "instance_include",
+            "*"
+          ]
+        }
+      ],
+      "details": [
+        "Instance discovery distinguishes files by their content, so overlap with ordinary flowgroup discovery is safe."
+      ],
+      "examples": [
+        {
+          "label": "YAML example",
+          "yaml": "instance_include:\n  - pipelines/**/*.yaml"
+        }
+      ],
+      "unsetBehavior": "The default pattern is pipelines/**/*.yaml."
+    },
+    {
+      "id": "project.apply_formatting",
+      "summary": "Format generated Python after code generation.",
+      "sources": [
+        {
+          "file": "src/lhp/resources/skills/lhp/references/project-config.md"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "apply_formatting"
+          ]
+        }
+      ],
+      "details": [
+        "The Python syntax validity check still runs when formatting is off. The CLI --no-format option overrides this project setting."
+      ],
+      "examples": [
+        {
+          "label": "YAML example",
+          "yaml": "apply_formatting: true"
+        }
+      ]
+    },
+    {
+      "id": "project.operational_metadata",
+      "summary": "Add reusable audit columns to generated datasets.",
+      "sources": [
+        {
+          "file": "docs/reference/config/operational-metadata.rst"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "operational_metadata"
+          ]
+        }
+      ],
+      "details": [
+        "Define each column once, group columns into metadata presets, then choose the default selection. Flowgroups and actions can select metadata explicitly."
+      ]
+    },
+    {
+      "id": "project.operational_metadata.columns",
+      "summary": "Define the expressions used to populate audit columns.",
+      "sources": [
+        {
+          "file": "docs/reference/config/operational-metadata.rst"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "operational_metadata",
+            "columns"
+          ]
+        },
+        {
+          "path": [
+            "operational_metadata",
+            "columns",
+            "*"
+          ]
+        }
+      ],
+      "details": [
+        "Each mapping key becomes a column name. Use an object for expression, target types and imports, or a bare expression string for the short form."
+      ],
+      "examples": [
+        {
+          "label": "YAML example",
+          "yaml": "operational_metadata:\n  columns:\n    _processed_at:\n      expression: F.current_timestamp()\n      applies_to: [streaming_table, materialized_view]"
+        }
+      ]
+    },
+    {
+      "id": "project.operational_metadata.columns.*.expression",
+      "summary": "Compute this metadata column for each row.",
+      "sources": [
+        {
+          "file": "docs/reference/config/operational-metadata.rst"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "operational_metadata",
+            "columns",
+            "*",
+            "expression"
+          ]
+        }
+      ],
+      "details": [
+        "Use a Spark expression such as F.current_timestamp(). Declare any imports the expression needs in additional_imports."
+      ],
+      "examples": [
+        {
+          "label": "YAML example",
+          "yaml": "expression: F.current_timestamp()"
+        }
+      ]
+    },
+    {
+      "id": "project.operational_metadata.columns.*.description",
+      "summary": "Explain what this audit column records.",
+      "sources": [
+        {
+          "file": "docs/reference/config/operational-metadata.rst"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "operational_metadata",
+            "columns",
+            "*",
+            "description"
+          ]
+        }
+      ],
+      "details": [
+        "Describe its meaning so someone selecting metadata can distinguish processing time, source identity and business values."
+      ]
+    },
+    {
+      "id": "project.operational_metadata.columns.*.applies_to",
+      "summary": "Choose the dataset types that receive this metadata column.",
+      "sources": [
+        {
+          "file": "docs/reference/config/operational-metadata.rst"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "operational_metadata",
+            "columns",
+            "*",
+            "applies_to"
+          ]
+        }
+      ],
+      "details": [
+        "Select only targets where the expression is valid. For example, file-source _metadata columns should be captured in the load view."
+      ],
+      "examples": [
+        {
+          "label": "YAML example",
+          "yaml": "applies_to: [view]"
+        }
+      ],
+      "unsetBehavior": "The default target types are streaming_table and materialized_view."
+    },
+    {
+      "id": "project.operational_metadata.columns.*.additional_imports",
+      "summary": "Add imports needed by this column’s Spark expression.",
+      "sources": [
+        {
+          "file": "docs/reference/config/operational-metadata.rst"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "operational_metadata",
+            "columns",
+            "*",
+            "additional_imports"
+          ]
+        }
+      ],
+      "details": [
+        "Enter complete Python import statements. LHP includes them in generated code that uses the metadata expression."
+      ],
+      "examples": [
+        {
+          "label": "YAML example",
+          "yaml": "additional_imports:\n  - from pyspark.sql.functions import xxhash64"
+        }
+      ]
+    },
+    {
+      "id": "project.operational_metadata.columns.*.enabled",
+      "summary": "Control whether this metadata column is available for generation.",
+      "sources": [
+        {
+          "file": "docs/reference/config/operational-metadata.rst"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "operational_metadata",
+            "columns",
+            "*",
+            "enabled"
+          ]
+        }
+      ],
+      "details": [
+        "Disable a column when it should not be added, while keeping its expression and documentation in the project."
+      ]
+    },
+    {
+      "id": "project.operational_metadata.presets",
+      "summary": "Group audit columns into reusable named selections.",
+      "sources": [
+        {
+          "file": "docs/reference/config/operational-metadata.rst"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "operational_metadata",
+            "presets"
+          ]
+        }
+      ],
+      "details": [
+        "Each preset lists column names defined under operational_metadata.columns. This grouping is separate from an action configuration preset."
+      ]
+    },
+    {
+      "id": "project.operational_metadata.presets.*.columns",
+      "summary": "Select the audit columns included by this metadata preset.",
+      "sources": [
+        {
+          "file": "docs/reference/config/operational-metadata.rst"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "operational_metadata",
+            "presets",
+            "*"
+          ]
+        },
+        {
+          "path": [
+            "operational_metadata",
+            "presets",
+            "*",
+            "columns"
+          ]
+        }
+      ],
+      "details": [
+        "Use existing column names; this list selects definitions rather than creating new expressions."
+      ],
+      "examples": [
+        {
+          "label": "YAML example",
+          "yaml": "columns: [_processed_at, _source_file]"
+        }
+      ]
+    },
+    {
+      "id": "project.operational_metadata.presets.*.description",
+      "summary": "Explain when someone should choose this metadata preset.",
+      "sources": [
+        {
+          "file": "docs/reference/config/operational-metadata.rst"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "operational_metadata",
+            "presets",
+            "*",
+            "description"
+          ]
+        }
+      ],
+      "details": [
+        "Describe the purpose of the group, such as ingestion traceability or processing audit."
+      ]
+    },
+    {
+      "id": "project.operational_metadata.defaults",
+      "summary": "Choose metadata when a flowgroup does not make its own selection.",
+      "sources": [
+        {
+          "file": "docs/reference/config/operational-metadata.rst"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "operational_metadata",
+            "defaults"
+          ]
+        }
+      ],
+      "details": [
+        "Use the documented metadata selection forms: a boolean, column selection or named preset selection. An explicit flowgroup/action selection may override this default."
+      ],
+      "examples": [
+        {
+          "label": "YAML example",
+          "yaml": "operational_metadata:\n  defaults: true"
+        }
+      ]
+    },
+    {
+      "id": "project.event_log",
+      "summary": "Configure event-log tables used to inspect pipeline activity.",
+      "sources": [
+        {
+          "file": "src/lhp/resources/skills/lhp/references/monitoring.md"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "event_log"
+          ]
+        }
+      ],
+      "details": [
+        "Enabling the block requires a catalog and schema. Naming prefixes and suffixes let each pipeline have its own event-log table."
+      ]
+    },
+    {
+      "id": "project.event_log.enabled",
+      "summary": "Enable project event-log configuration for generated pipelines.",
+      "sources": [
+        {
+          "file": "src/lhp/resources/skills/lhp/references/monitoring.md"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "event_log",
+            "enabled"
+          ]
+        }
+      ],
+      "details": [
+        "Monitoring depends on event logging being enabled. Individual pipelines may explicitly override or disable their event log."
+      ]
+    },
+    {
+      "id": "project.event_log.catalog",
+      "summary": "Choose the catalog that stores pipeline event logs.",
+      "sources": [
+        {
+          "file": "src/lhp/resources/skills/lhp/references/monitoring.md"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "event_log",
+            "catalog"
+          ]
+        }
+      ],
+      "details": [
+        "Required while event logging is enabled. Substitution tokens resolve for the selected generation environment."
+      ],
+      "examples": [
+        {
+          "label": "YAML example",
+          "yaml": "event_log:\n  catalog: \"${catalog}\""
+        }
+      ]
+    },
+    {
+      "id": "project.event_log.schema",
+      "summary": "Choose the schema that stores pipeline event logs.",
+      "sources": [
+        {
+          "file": "src/lhp/resources/skills/lhp/references/monitoring.md"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "event_log",
+            "schema"
+          ]
+        }
+      ],
+      "details": [
+        "Required while event logging is enabled; keep event-log storage separate from business tables when that matches your project layout."
+      ],
+      "examples": [
+        {
+          "label": "YAML example",
+          "yaml": "event_log:\n  schema: _meta"
+        }
+      ]
+    },
+    {
+      "id": "project.event_log.name_prefix",
+      "summary": "Add a prefix before each pipeline’s event-log table name.",
+      "sources": [
+        {
+          "file": "src/lhp/resources/skills/lhp/references/monitoring.md"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "event_log",
+            "name_prefix"
+          ]
+        }
+      ],
+      "details": [
+        "The pipeline name remains part of the table name, so logs from different pipelines can be distinguished."
+      ],
+      "examples": [
+        {
+          "label": "YAML example",
+          "yaml": "event_log:\n  name_prefix: event_log_"
+        }
+      ]
+    },
+    {
+      "id": "project.event_log.name_suffix",
+      "summary": "Add a suffix after each pipeline’s event-log table name.",
+      "sources": [
+        {
+          "file": "src/lhp/resources/skills/lhp/references/monitoring.md"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "event_log",
+            "name_suffix"
+          ]
+        }
+      ],
+      "details": [
+        "Use the suffix to follow your team’s event-log naming convention."
+      ],
+      "examples": [
+        {
+          "label": "YAML example",
+          "yaml": "event_log:\n  name_suffix: _events"
+        }
+      ]
+    },
+    {
+      "id": "project.monitoring",
+      "summary": "Combine pipeline event logs into monitoring datasets.",
+      "sources": [
+        {
+          "file": "src/lhp/resources/skills/lhp/references/monitoring.md"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "monitoring"
+          ]
+        }
+      ],
+      "details": [
+        "LHP generates a union notebook, a monitoring pipeline and a workflow connecting them. Enable event logging and provide checkpoint_path and job_config_path first."
+      ]
+    },
+    {
+      "id": "project.monitoring.enabled",
+      "summary": "Generate the project’s monitoring workflow.",
+      "sources": [
+        {
+          "file": "src/lhp/resources/skills/lhp/references/monitoring.md"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "monitoring",
+            "enabled"
+          ]
+        }
+      ],
+      "details": [
+        "Requires enabled event logging, a checkpoint location and a monitoring job config path."
+      ]
+    },
+    {
+      "id": "project.monitoring.pipeline_name",
+      "summary": "Name the pipeline that builds monitoring views.",
+      "sources": [
+        {
+          "file": "src/lhp/resources/skills/lhp/references/monitoring.md"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "monitoring",
+            "pipeline_name"
+          ]
+        }
+      ],
+      "details": [
+        "Choose a name distinct from business pipelines; without an override LHP derives it from the project name."
+      ]
+    },
+    {
+      "id": "project.monitoring.catalog",
+      "summary": "Choose the catalog for monitoring tables.",
+      "sources": [
+        {
+          "file": "src/lhp/resources/skills/lhp/references/monitoring.md"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "monitoring",
+            "catalog"
+          ]
+        }
+      ],
+      "details": [
+        "When omitted, monitoring uses the event-log catalog."
+      ]
+    },
+    {
+      "id": "project.monitoring.schema",
+      "summary": "Choose the schema for monitoring tables.",
+      "sources": [
+        {
+          "file": "src/lhp/resources/skills/lhp/references/monitoring.md"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "monitoring",
+            "schema"
+          ]
+        }
+      ],
+      "details": [
+        "When omitted, monitoring uses the event-log schema."
+      ]
+    },
+    {
+      "id": "project.monitoring.streaming_table",
+      "summary": "Name the Delta table that receives the unified event-log streams.",
+      "sources": [
+        {
+          "file": "src/lhp/resources/skills/lhp/references/monitoring.md"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "monitoring",
+            "streaming_table"
+          ]
+        }
+      ],
+      "details": [
+        "The monitoring notebook writes pipeline event logs into this table; downstream monitoring views read from it."
+      ]
+    },
+    {
+      "id": "project.monitoring.checkpoint_path",
+      "summary": "Choose persistent storage for monitoring stream checkpoints.",
+      "sources": [
+        {
+          "file": "src/lhp/resources/skills/lhp/references/monitoring.md"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "monitoring",
+            "checkpoint_path"
+          ]
+        }
+      ],
+      "details": [
+        "LHP creates a per-pipeline checkpoint subdirectory. This is required when monitoring is enabled; use a stable storage location."
+      ]
+    },
+    {
+      "id": "project.monitoring.job_config_path",
+      "summary": "Choose the YAML settings file for the monitoring job.",
+      "sources": [
+        {
+          "file": "src/lhp/resources/skills/lhp/references/monitoring.md"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "monitoring",
+            "job_config_path"
+          ]
+        }
+      ],
+      "details": [
+        "Use a project-relative path such as config/monitoring_job_config.yaml. It controls monitoring compute, schedule and notifications and is required when monitoring is enabled."
+      ]
+    },
+    {
+      "id": "project.monitoring.max_concurrent_streams",
+      "summary": "Limit how many event-log streams the union notebook runs at once.",
+      "sources": [
+        {
+          "file": "src/lhp/resources/skills/lhp/references/monitoring.md"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "monitoring",
+            "max_concurrent_streams"
+          ]
+        }
+      ],
+      "details": [
+        "This controls the notebook’s worker pool, not the number of business pipelines or concurrent workflow runs."
+      ]
+    },
+    {
+      "id": "project.monitoring.enable_job_monitoring",
+      "summary": "Also collect orchestration-job run information.",
+      "sources": [
+        {
+          "file": "src/lhp/resources/skills/lhp/references/monitoring.md"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "monitoring",
+            "enable_job_monitoring"
+          ]
+        }
+      ],
+      "details": [
+        "Adds job monitoring using the Databricks SDK and a jobs_stats materialized view, alongside pipeline event monitoring."
+      ]
+    },
+    {
+      "id": "project.monitoring.materialized_views",
+      "summary": "Define the views built over the unified event-log data.",
+      "sources": [
+        {
+          "file": "src/lhp/resources/skills/lhp/references/monitoring.md"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "monitoring",
+            "materialized_views"
+          ]
+        }
+      ],
+      "details": [
+        "Each view needs a name and either an inline SQL query or a SQL file reference."
+      ]
+    },
+    {
+      "id": "project.monitoring.materialized_views.*.name",
+      "summary": "Name this monitoring materialized view.",
+      "sources": [
+        {
+          "file": "src/lhp/resources/skills/lhp/references/monitoring.md"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "monitoring",
+            "materialized_views",
+            "*",
+            "name"
+          ]
+        }
+      ],
+      "details": [
+        "Choose a dataset name that communicates the metric or diagnostic it exposes."
+      ]
+    },
+    {
+      "id": "project.monitoring.materialized_views.*.sql",
+      "summary": "Write the query for this monitoring view.",
+      "sources": [
+        {
+          "file": "src/lhp/resources/skills/lhp/references/monitoring.md"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "monitoring",
+            "materialized_views",
+            "*",
+            "sql"
+          ]
+        }
+      ],
+      "details": [
+        "Provide inline SQL or sql_path, not both. Keep reusable or longer queries in a SQL file."
+      ]
+    },
+    {
+      "id": "project.monitoring.materialized_views.*.sql_path",
+      "summary": "Load this monitoring view’s query from a SQL file.",
+      "sources": [
+        {
+          "file": "src/lhp/resources/skills/lhp/references/monitoring.md"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "monitoring",
+            "materialized_views",
+            "*",
+            "sql_path"
+          ]
+        }
+      ],
+      "details": [
+        "Use a project-relative .sql path and remove the inline sql key when selecting a file."
+      ]
+    },
+    {
+      "id": "project.uc_tagging",
+      "summary": "Apply declared table and column tags to Unity Catalog.",
+      "sources": [
+        {
+          "file": "src/lhp/resources/skills/lhp/references/actions-write-streaming-table-standard.md"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "uc_tagging"
+          ]
+        }
+      ],
+      "details": [
+        "Declaring tags opts a table into the generated tagging hook. The feature is enabled by default; this block controls the project-wide behavior."
+      ]
+    },
+    {
+      "id": "project.uc_tagging.enabled",
+      "summary": "Enable the hook that applies declared Unity Catalog tags.",
+      "sources": [
+        {
+          "file": "src/lhp/resources/skills/lhp/references/actions-write-streaming-table-standard.md"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "uc_tagging",
+            "enabled"
+          ]
+        }
+      ],
+      "details": [
+        "Set false to disable tag application across the project without removing tag declarations."
+      ],
+      "unsetBehavior": "Enabled by default, including when the entire uc_tagging block is absent."
+    },
+    {
+      "id": "project.uc_tagging.remove_undeclared_tags",
+      "summary": "Remove existing tags that are absent from the declared YAML.",
+      "sources": [
+        {
+          "file": "src/lhp/resources/skills/lhp/references/actions-write-streaming-table-standard.md"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "uc_tagging",
+            "remove_undeclared_tags"
+          ]
+        }
+      ],
+      "details": [
+        "Enable this only when the YAML should own the complete tag set. It can remove tags set by other tools or people."
+      ],
+      "unsetBehavior": "False: existing undeclared tags are retained."
+    },
+    {
+      "id": "project.uc_tagging.tag_update_concurrency",
+      "summary": "Limit parallel tag operations in the generated hook.",
+      "sources": [
+        {
+          "file": "src/lhp/resources/skills/lhp/references/actions-write-streaming-table-standard.md"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "uc_tagging",
+            "tag_update_concurrency"
+          ]
+        }
+      ],
+      "details": [
+        "Choose an integer from 1 to 20. Lower values reduce concurrent requests when applying tags."
+      ],
+      "unsetBehavior": "LHP uses 16 parallel operations."
+    },
+    {
+      "id": "project.uc_tagging.max_allowable_consecutive_failures",
+      "summary": "Set how many consecutive failures the tagging hook tolerates.",
+      "sources": [
+        {
+          "file": "src/lhp/resources/skills/lhp/references/actions-write-streaming-table-standard.md"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "uc_tagging",
+            "max_allowable_consecutive_failures"
+          ]
+        }
+      ],
+      "details": [
+        "A nonnegative integer supplies the hook’s failure budget. Explicit null means no limit, so the hook is never disabled by that budget."
+      ],
+      "examples": [
+        {
+          "label": "YAML example",
+          "yaml": "uc_tagging:\n  max_allowable_consecutive_failures: null"
+        }
+      ],
+      "unsetBehavior": "No failure limit (null)."
+    },
+    {
+      "id": "project.test_reporting",
+      "summary": "Publish test results through a project-provided Python hook.",
+      "sources": [
+        {
+          "file": "docs/guides/test/test-reporting.rst"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "test_reporting"
+          ]
+        }
+      ],
+      "details": [
+        "Provide the module and function implementing your reporter. An optional YAML config file supplies reporter settings."
+      ]
+    },
+    {
+      "id": "project.test_reporting.module_path",
+      "summary": "Choose the Python file implementing test-result reporting.",
+      "sources": [
+        {
+          "file": "docs/guides/test/test-reporting.rst"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "test_reporting",
+            "module_path"
+          ]
+        }
+      ],
+      "details": [
+        "Use the project’s original module, not a generated copy. Pair it with function_name to identify the report hook."
+      ]
+    },
+    {
+      "id": "project.test_reporting.function_name",
+      "summary": "Name the report hook inside the Python module.",
+      "sources": [
+        {
+          "file": "docs/guides/test/test-reporting.rst"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "test_reporting",
+            "function_name"
+          ]
+        }
+      ],
+      "details": [
+        "The function must implement the documented reporting interface; selecting a name does not verify external delivery."
+      ]
+    },
+    {
+      "id": "project.test_reporting.config_file",
+      "summary": "Supply optional YAML settings to the report hook.",
+      "sources": [
+        {
+          "file": "docs/guides/test/test-reporting.rst"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "test_reporting",
+            "config_file"
+          ]
+        }
+      ],
+      "details": [
+        "Use this for reporter configuration that should live separately from the hook implementation."
+      ]
+    },
+    {
+      "id": "project.wheel",
+      "summary": "Configure where wheel-packaged pipeline artifacts are uploaded.",
+      "sources": [
+        {
+          "file": "docs/reference/config/bundle.rst"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "wheel"
+          ]
+        }
+      ],
+      "details": [
+        "Only pipelines using packaging: wheel consume this setting. Source packaging does not require an artifact volume."
+      ]
+    },
+    {
+      "id": "project.wheel.artifact_volume",
+      "summary": "Choose the Unity Catalog volume path for built wheels.",
+      "sources": [
+        {
+          "file": "docs/reference/config/bundle.rst"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "wheel",
+            "artifact_volume"
+          ]
+        }
+      ],
+      "details": [
+        "Substitution tokens resolve per environment. The resolved path must begin with /Volumes/; required when any pipeline uses wheel packaging."
+      ],
+      "examples": [
+        {
+          "label": "YAML example",
+          "yaml": "wheel:\n  artifact_volume: \"/Volumes/${catalog}/artifacts/wheels\""
+        }
+      ],
+      "relatedHelpIds": [
+        "pipeline.packaging"
+      ]
+    },
+    {
+      "id": "project.sandbox",
+      "summary": "Set the team policy for developer sandbox generation.",
+      "sources": [
+        {
+          "file": "docs/reference/config/sandbox.rst"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "sandbox"
+          ]
+        }
+      ],
+      "details": [
+        "This shared policy lives in lhp.yaml. A developer’s personal namespace lives in the separate local profile."
+      ]
+    },
+    {
+      "id": "project.sandbox.strategy",
+      "summary": "Choose how generated sandbox tables are isolated.",
+      "sources": [
+        {
+          "file": "docs/reference/config/sandbox.rst"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "sandbox",
+            "strategy"
+          ]
+        }
+      ],
+      "details": [
+        "Only table renaming is implemented. Catalog and schema isolation strategies are not available."
+      ],
+      "unsetBehavior": "The default strategy is table."
+    },
+    {
+      "id": "project.sandbox.table_pattern",
+      "summary": "Build sandbox table names from the namespace and original table name.",
+      "sources": [
+        {
+          "file": "docs/reference/config/sandbox.rst"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "sandbox",
+            "table_pattern"
+          ]
+        }
+      ],
+      "details": [
+        "Include both {namespace} and {table}. Literal text may contain letters, digits and underscores; format specifiers and conversions are not supported."
+      ],
+      "examples": [
+        {
+          "label": "YAML example",
+          "yaml": "sandbox:\n  table_pattern: \"{namespace}__{table}\""
+        }
+      ],
+      "unsetBehavior": "The default is {namespace}_{table}."
+    },
+    {
+      "id": "project.sandbox.allowed_envs",
+      "summary": "Limit sandbox generation to named environments.",
+      "sources": [
+        {
+          "file": "docs/reference/config/sandbox.rst"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "sandbox",
+            "allowed_envs"
+          ]
+        },
+        {
+          "path": [
+            "sandbox",
+            "allowed_envs",
+            "*"
+          ]
+        }
+      ],
+      "details": [
+        "Use the names of environments configured by your project. An empty list is invalid; remove the key to allow all environments."
+      ],
+      "examples": [
+        {
+          "label": "YAML example",
+          "yaml": "sandbox:\n  allowed_envs: [dev]"
+        }
+      ]
+    }
+  ]
+}

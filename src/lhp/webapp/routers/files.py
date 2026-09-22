@@ -42,6 +42,11 @@ application facade so the edit is immediately visible to browse / validate /
 generate without a server restart. This fires even when ``yaml_error`` is set,
 because the bytes persisted.
 
+MUTATION TELEMETRY — a successful write or delete is counted on the requesting
+tab's anonymous session by the file's KIND and the operation (created / updated
+/ deleted). A rejected mutation counts nothing: the ``If-Match`` check and the
+service guards all run first. The path itself never leaves the router.
+
 PINNED DESIGN DECISION — bad YAML on PUT returns HTTP 200, not 400.
 ``PUT /api/files/{path}`` writes the bytes first and the write *persists* even
 when the content is syntactically broken YAML (the user is deliberately saving
@@ -64,6 +69,7 @@ from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel, Field
 
 from lhp.webapp.dependencies import compute_etag, get_project_root, invalidate_facade
+from lhp.webapp.services._telemetry_events import count_file_mutation
 from lhp.webapp.services.file_io import (
     FileIOService,
     PathTraversalError,
@@ -245,6 +251,10 @@ def write_file(
     try:
         with _mutation_lock:
             _enforce_if_match(service, path, if_match)
+            # Probed under the same lock as the write it describes, so the
+            # create/update verdict cannot be invalidated by a concurrent
+            # mutation before the bytes land.
+            existed = service.file_exists(path)
             result = service.write_file(path, body.content)
     except PathTraversalError as exc:
         raise HTTPException(status_code=403, detail=str(exc)) from exc
@@ -253,6 +263,7 @@ def write_file(
 
     if not is_generated_or_internal(path):
         invalidate_facade(request.app)
+    count_file_mutation(request, path, "updated" if existed else "created")
 
     new_etag = compute_etag(body.content.encode("utf-8"))
     response.headers["ETag"] = f'"{new_etag}"'
@@ -300,5 +311,6 @@ def delete_file(
 
     if not is_generated_or_internal(path):
         invalidate_facade(request.app)
+    count_file_mutation(request, path, "deleted")
 
     return FileDeleteResponse(deleted=True, path=path)

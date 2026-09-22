@@ -98,6 +98,7 @@ def cli(
     ctx.obj["log_file"] = log_file_path
     ctx.obj["no_progress"] = no_progress
     ctx.obj["perf"] = perf
+    ctx.obj["project_root"] = project_root
 
     if perf and project_root is not None:
         from ..utils.performance_timer import enable_perf_timing

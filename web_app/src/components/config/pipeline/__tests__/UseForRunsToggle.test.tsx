@@ -32,13 +32,13 @@ describe('UseForRunsToggle', () => {
     renderToggle()
     const toggle = screen.getByRole('switch', { name: 'Use for runs' })
     expect(toggle).not.toBeChecked()
-    // R5: enabling this makes Generate write bundle resources — the copy
-    // must state that consequence plainly, not hide it behind a tooltip.
-    expect(screen.getByText(/Validate\/Generate use this file/)).toBeInTheDocument()
-    expect(screen.getByText(/resources\/lhp\//)).toBeInTheDocument()
+    expect(screen.getByText(/This file is not used for runs/)).toBeInTheDocument()
+    expect(screen.queryByText(/Validate\/Generate use this file/)).not.toBeInTheDocument()
 
     await userEvent.setup().click(toggle)
     expect(useUIStore.getState().selectedPipelineConfig).toBe(PATH)
+    expect(screen.getByText(/Validate\/Generate use this file/)).toBeInTheDocument()
+    expect(screen.getByText(/resources\/lhp\//)).toBeInTheDocument()
   })
 
   it('checked while this file is the run config; toggling off clears it', async () => {
@@ -56,7 +56,7 @@ describe('UseForRunsToggle', () => {
     renderToggle()
     const toggle = screen.getByRole('switch', { name: 'Use for runs' })
     expect(toggle).not.toBeChecked()
-    expect(screen.getByText('pipeline_config_prod.yaml')).toBeInTheDocument()
+    expect(screen.getByText(OTHER)).toBeInTheDocument()
 
     await userEvent.setup().click(toggle)
     expect(useUIStore.getState().selectedPipelineConfig).toBe(PATH)

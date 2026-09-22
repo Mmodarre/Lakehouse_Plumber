@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { Label } from '@/components/ui/label'
 import { FieldHelp } from '@/components/common/FieldHelp'
-import { useFieldHelp } from '@/components/common/SchemaKindContext'
+import { useResolvedFieldHelp } from '@/components/common/SchemaKindContext'
 import { cn } from '@/lib/utils'
 import type { SchemaPath } from '@/lib/schema-help'
 
@@ -23,7 +23,7 @@ export interface FieldLabelProps {
 
 /** Label + optional focusable (i) help icon — the shared markup FieldChrome and
  * the four bypass editors adopt (task 6). This is the SINGLE place that calls
- * `useFieldHelp`; consumers just pass `helpPath`/`help` down. When there is no
+ * `useResolvedFieldHelp`; consumers just pass `helpPath`/`help` down. When there is no
  * help text, `FieldHelp` renders null and the row is just the label. */
 export function FieldLabel({
   htmlFor,
@@ -34,17 +34,16 @@ export function FieldLabel({
   className,
   labelClassName = 'text-xs',
 }: FieldLabelProps) {
-  const text = useFieldHelp(helpPath, help)
+  const resolved = useResolvedFieldHelp(helpPath, help)
   return (
-    <div className={cn('flex items-center gap-1', className)}>
+    <div
+      className={cn('flex items-center gap-1', className)}
+      data-setting-path={helpPath?.join('.')}
+    >
       <Label htmlFor={htmlFor} className={labelClassName}>
         {label}
       </Label>
-      <FieldHelp
-        text={text}
-        label={typeof label === 'string' ? label : undefined}
-        side={side}
-      />
+      <FieldHelp help={resolved} label={typeof label === 'string' ? label : undefined} side={side} />
     </div>
   )
 }

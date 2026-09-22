@@ -1,5 +1,6 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { CircleSlash, Download, Loader2, MessageSquare } from 'lucide-react'
+import { useChatDraftStore } from '@/store/chatDraftStore'
 import { Button } from '../ui/button'
 import { ApprovalCard } from './ApprovalCard'
 import { ChatMessage } from './ChatMessage'
@@ -116,8 +117,10 @@ export function ChatThread({
   failure,
   interrupted,
   profile,
+  conversationKey,
 }: {
   parts: MessagePart[]
+  conversationKey?: string
   streaming: boolean
   statusState: string | null
   failure: AssistantFailure | null
@@ -127,17 +130,44 @@ export function ChatThread({
 }) {
   const scrollRef = useRef<HTMLDivElement>(null)
 
-  // Pin the view to the newest content while a turn streams in.
+  const savedPosition = conversationKey ? useChatDraftStore.getState().positions[conversationKey] : undefined
+  const atBottom = useRef(savedPosition?.atBottom ?? true)
+  const [readingEarlier, setReadingEarlier] = useState(() => savedPosition ? !savedPosition.atBottom : false)
+  const restored = useRef(false)
+  // Follow new content only while the reader is already at the bottom.
   useEffect(() => {
     const el = scrollRef.current
-    if (el !== null) el.scrollTop = el.scrollHeight
-  }, [parts, failure, interrupted])
+    if (!el) return
+    if (!restored.current && savedPosition && !savedPosition.atBottom) {
+      el.scrollTop = savedPosition.top
+    } else if (atBottom.current) el.scrollTop = el.scrollHeight
+    restored.current = true
+  }, [parts, failure, interrupted, savedPosition])
 
   return (
     <div
       ref={scrollRef}
+      role="region"
+      aria-label="Assistant conversation"
+      tabIndex={0}
+      onScroll={(e) => {
+        const el = e.currentTarget
+        atBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 48
+        setReadingEarlier(!atBottom.current)
+        if (conversationKey) useChatDraftStore.getState().setPosition(conversationKey, { top: el.scrollTop, atBottom: atBottom.current })
+      }}
       className="custom-scrollbar min-h-0 flex-1 overflow-y-auto p-3"
     >
+      {readingEarlier && (
+        <div className="sticky top-0 z-10 flex justify-center">
+          <Button size="xs" onClick={() => {
+            atBottom.current = true
+            if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+            setReadingEarlier(false)
+            if (conversationKey) useChatDraftStore.getState().setPosition(conversationKey, { top: scrollRef.current?.scrollTop ?? 0, atBottom: true })
+          }}>Jump to latest messages</Button>
+        </div>
+      )}
       {parts.length === 0 && !streaming && failure === null && (
         <div className="flex h-full flex-col items-center justify-center text-center text-xs text-muted-foreground">
           <MessageSquare className="mb-2 size-5" aria-hidden="true" />

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   CircleCheck,
@@ -11,6 +11,7 @@ import {
 import { toast } from 'sonner'
 import { initProject } from '../api/project'
 import { errorMessage } from '../lib/errors'
+import { track } from '../lib/telemetry-shim'
 import type { InitProjectResponse } from '../types/api'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -56,6 +57,12 @@ export function InitProjectPage() {
   const [bundle, setBundle] = useState(true)
   const [result, setResult] = useState<InitProjectResponse | null>(null)
   const [requestError, setRequestError] = useState<string | null>(null)
+
+  // The wizard is a surface in its own right; showing it is the event, not
+  // what is typed into it.
+  useEffect(() => {
+    track('init_wizard', 'opened')
+  }, [])
 
   const mutation = useMutation({
     mutationFn: initProject,
@@ -179,8 +186,9 @@ export function InitProjectPage() {
             <Separator />
             <CreatedList title="Created directories" icon={FolderTree} items={result.created_dirs} />
             <CreatedList title="Created files" icon={FolderPlus} items={result.created_files} />
+            <Button asChild><a href="/">Open workspace</a></Button>
             <p className="text-2xs text-muted-foreground">
-              The app is reloading its project data — use the navigation above to explore.
+              Your project is ready. Open the workspace to explore its files and configuration.
             </p>
           </div>
         )}

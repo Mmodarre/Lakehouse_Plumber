@@ -35,7 +35,7 @@ export function UcTaggingSection({ form }: { form: ProjectFormApi }) {
       <SectionIssues issues={issuesAtExactly(form.issues, [...BASE])} />
       {!broken && (
         <>
-          <BoolSwitch
+          <BoolSwitch helpPath={[...[...BASE], 'enabled']}
             id="uc-tagging-enabled"
             label="Enabled"
             value={strictBool('enabled')}
@@ -54,7 +54,7 @@ export function UcTaggingSection({ form }: { form: ProjectFormApi }) {
             onReset={() => form.del([...BASE, 'remove_undeclared_tags'])}
             issue={issueText(form.issues, [...BASE, 'remove_undeclared_tags'])?.message}
           />
-          <OptionalNumberField
+          <OptionalNumberField helpPath={[...[...BASE], 'tag_update_concurrency']}
             id="uc-tagging-concurrency"
             label="Tag update concurrency"
             value={section.tag_update_concurrency}
@@ -64,6 +64,19 @@ export function UcTaggingSection({ form }: { form: ProjectFormApi }) {
             onUnset={() => form.del([...BASE, 'tag_update_concurrency'])}
             placeholder="default: 16"
             issue={issueText(form.issues, [...BASE, 'tag_update_concurrency'])?.message}
+          />
+          <OptionalNumberField
+            id="uc-tagging-max-failures"
+            label="Max allowable consecutive failures"
+            helpPath={['uc_tagging', 'max_allowable_consecutive_failures']}
+            value={section.max_allowable_consecutive_failures}
+            min={0}
+            onSet={(v) => form.setField([...BASE], 'max_allowable_consecutive_failures', v)}
+            onUnset={() => form.del([...BASE, 'max_allowable_consecutive_failures'])}
+            placeholder="default: none (no limit)"
+            issue={
+              issueText(form.issues, [...BASE, 'max_allowable_consecutive_failures'])?.message
+            }
           />
         </>
       )}

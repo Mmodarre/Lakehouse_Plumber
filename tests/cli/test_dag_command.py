@@ -15,6 +15,12 @@ import pytest
 from click.testing import CliRunner
 
 from lhp.cli.commands.dag_command import dag, deps
+from tests.helpers import (
+    assert_no_names_in_values,
+    last_cli_command_line,
+    parse_last_cli_command,
+    project_names,
+)
 
 # A minimal but schema-valid project: one flowgroup with a SQL-source load and
 # a streaming-table write, so dependency analysis runs without warnings.
@@ -203,3 +209,35 @@ def test_dag_trust_depends_on_flag_accepted(runner: CliRunner) -> None:
         assert result.exit_code == 0, result.stderr
         json_path = root / ".lhp" / "dependencies" / "pipeline_dependencies.json"
         assert json_path.exists()
+
+
+def test_dag_records_one_cli_command_event_in_log_mode(
+    runner: CliRunner, telemetry_log_mode: Path
+) -> None:
+    """``dag`` emits one ``cli.command`` envelope with the project shape only.
+
+    There is no run outcome for dag, so the code counters are empty and
+    ``files_written`` / ``bundle_enabled`` are null; the command has no
+    ``env`` option, so ``env_class`` is null too.
+    """
+    with runner.isolated_filesystem():
+        root = Path.cwd()
+        _make_project(root)
+        result = runner.invoke(dag, ["--format", "json"], catch_exceptions=False)
+        assert result.exit_code == 0, result.stderr
+        names = project_names(root)
+
+    envelope = parse_last_cli_command(result.stderr)
+    props = envelope["props"]
+    assert props["command"] == "dag"
+    assert props["exit_code"] == 0
+    assert props["flags"] == ["output_format"]
+    assert props["env_class"] is None
+    assert props["warning_codes"] == {} and props["failure_codes"] == {}
+    assert props["files_written"] is None
+    assert props["bundle_enabled"] is None
+    assert props["cache_used"] is True
+    assert props["project"]["flowgroups"] == 1
+
+    assert result.stderr.count(last_cli_command_line(result.stderr)) == 1
+    assert_no_names_in_values(envelope, names)

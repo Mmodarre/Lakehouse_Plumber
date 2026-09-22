@@ -44,7 +44,10 @@ function RunSummary() {
   const errors = issues.filter((i) => i.severity === 'error').length
   const warnings = issues.filter((i) => i.severity === 'warning').length
   const failed = terminal === 'failed' || terminal === 'error' || errors > 0
-  const outcome = failed
+  const interrupted = terminal === 'stopped' || terminal === 'incomplete'
+  const outcome = interrupted
+    ? `${kindLabel} ${terminal}`
+    : failed
     ? `${kindLabel} failed`
     : runKind === 'validate'
       ? 'Validated'
@@ -55,7 +58,7 @@ function RunSummary() {
   ]
     .filter(Boolean)
     .join(' · ')
-  const summaryText = `${outcome}${counts ? ` · ${counts}` : ' · no issues'}`
+  const summaryText = `${outcome}${counts ? ` · ${counts}` : interrupted ? ' · results partial' : ' · no issues'}`
 
   // Persistent sr-only live region: mounted from app start and updated with
   // text (not attribute) changes, so screen readers announce the run outcome.
@@ -83,7 +86,7 @@ function RunSummary() {
     )
   }
 
-  const Icon = failed ? CircleX : warnings > 0 ? TriangleAlert : CircleCheck
+  const Icon = interrupted ? TriangleAlert : failed ? CircleX : warnings > 0 ? TriangleAlert : CircleCheck
 
   return (
     <Segment title={summaryText}>
@@ -121,6 +124,16 @@ export function StatusBar() {
         {health?.version && (
           <Segment>
             <span className="font-mono">LHP v{health.version}</span>
+            {/* Set by the server only when a strictly newer release exists,
+                so it is rendered on truthiness alone — never re-compared. */}
+            {health.latest_version && (
+              <span
+                className="font-mono"
+                title="A newer version is available: pip install -U lakehouse-plumber"
+              >
+                ↑ v{health.latest_version}
+              </span>
+            )}
           </Segment>
         )}
       </span>

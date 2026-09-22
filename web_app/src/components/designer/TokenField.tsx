@@ -2,7 +2,7 @@ import { Badge } from '@/components/ui/badge'
 import type { SchemaPath } from '@/lib/schema-help'
 import { DraftInput } from '@/components/config/fields/DraftInput'
 import { FieldChrome } from '@/components/config/fields/FieldChrome'
-import { issueId } from '@/components/config/fields/fieldSupport'
+import { descriptionIds } from '@/components/config/fields/fieldSupport'
 import { isPureTemplateParam, templateParamNames } from './specs/helpers'
 
 // ── TokenField — a typed field currently holding a token ─────
@@ -69,7 +69,7 @@ export function TokenField({
           onCommit={(next) => (next === '' ? onUnset() : onSet(next))}
           monospace
           disabled={disabled}
-          aria-describedby={issueId(id)}
+          aria-describedby={descriptionIds(id)}
         />
         <Badge
           variant="outline"

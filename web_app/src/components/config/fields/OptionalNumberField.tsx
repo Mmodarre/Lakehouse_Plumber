@@ -1,8 +1,9 @@
+import { useConfigReadOnly } from '@/components/config/shared/configEditingContext'
 import { useState } from 'react'
 import { Input } from '@/components/ui/input'
 import type { SchemaPath } from '@/lib/schema-help'
 import { FieldChrome } from './FieldChrome'
-import { displayString, issueId } from './fieldSupport'
+import { displayString, descriptionIds } from './fieldSupport'
 
 // ── OptionalNumberField — optional integer key ───────────────
 //
@@ -53,6 +54,8 @@ export function OptionalNumberField({
   issue,
   disabled,
 }: OptionalNumberFieldProps) {
+  const configReadOnly = useConfigReadOnly()
+
   const initial = displayString(value)
   const [draft, setDraft] = useState(initial)
   const [localError, setLocalError] = useState<string | null>(null)
@@ -65,6 +68,7 @@ export function OptionalNumberField({
   }
 
   const commit = () => {
+    if (configReadOnly || disabled) return
     const trimmed = draft.trim()
     if (trimmed === initial) return
     if (trimmed === '') {
@@ -122,9 +126,9 @@ export function OptionalNumberField({
         placeholder={placeholder}
         spellCheck={false}
         autoComplete="off"
-        disabled={disabled}
+        disabled={configReadOnly || (disabled)}
         aria-invalid={shownIssue !== undefined && shownIssue !== null ? true : undefined}
-        aria-describedby={issueId(id)}
+        aria-describedby={descriptionIds(id)}
         className="max-w-40 font-mono text-xs"
       />
     </FieldChrome>

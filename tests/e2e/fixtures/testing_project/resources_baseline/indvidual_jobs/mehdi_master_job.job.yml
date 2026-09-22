@@ -41,6 +41,9 @@ resources:
         - task_key: j_one_task
           job_task:
             job_id: ${resources.jobs.j_one.id}
+        - task_key: j_private_task
+          job_task:
+            job_id: ${resources.jobs.j_private.id}
         - task_key: j_python_load_task
           job_task:
             job_id: ${resources.jobs.j_python_load.id}

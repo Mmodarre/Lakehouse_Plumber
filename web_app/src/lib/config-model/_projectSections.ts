@@ -410,6 +410,23 @@ export function validateUcTagging(value: unknown, issues: ValidationIssue[]): vo
       ),
     )
   }
+  // Absent AND explicit null both mean "no limit" (:79-104) — no default to
+  // substitute here, unlike concurrency above: null is a legal terminal value.
+  // No upper bound; the SDP contract is "integer >= 0 or None".
+  if (
+    'max_allowable_consecutive_failures' in value &&
+    value.max_allowable_consecutive_failures !== null &&
+    intRangeCheck(value.max_allowable_consecutive_failures, 0, Number.MAX_SAFE_INTEGER) !== 'ok'
+  ) {
+    issues.push(
+      errorIssue(
+        0,
+        [...base, 'max_allowable_consecutive_failures'],
+        `'max_allowable_consecutive_failures' must be an integer >= 0 or null`,
+        'CFG_009',
+      ),
+    )
+  }
 }
 
 /** wheel (loaders/_wheel_config_parser.py). */

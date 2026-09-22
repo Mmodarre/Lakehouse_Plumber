@@ -45,6 +45,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 
+import sqlglot
+
 from ...models.dependencies import (
     AffectedAction,
     DependencyAnalysisResult,
@@ -60,7 +62,7 @@ logger = logging.getLogger(__name__)
 #: fields of :class:`DependencyAnalysisResult` and its nested models. The
 #: model-field hash below is a best-effort guard, but this constant is the
 #: authoritative invalidation mechanism.
-CACHE_SCHEMA_VERSION = 1
+CACHE_SCHEMA_VERSION = 2
 
 #: Directory names never included in the structural YAML manifest: caches,
 #: VCS metadata, and generated output (``generated/`` Python, ``resources/``
@@ -116,11 +118,21 @@ def _model_schema_hash() -> str:
 def _compute_version_tag() -> str:
     """Version tag embedded in every shard slot and filename prefix.
 
-    Combines the installed LHP version, :data:`CACHE_SCHEMA_VERSION`, and the
-    model-field hash. The last two invalidate shards even when
-    ``get_version()`` reads stale editable-install metadata.
+    Combines the installed LHP version, :data:`CACHE_SCHEMA_VERSION`, the
+    model-field hash, and the installed sqlglot version. The latter three
+    invalidate shards even when ``get_version()`` reads stale editable-install
+    metadata.
+
+    sqlglot's version is load-bearing: the SQL extractor's output is a function
+    of sqlglot's parse tree, but a ``pip install -U sqlglot`` touches neither
+    the YAML manifest nor any body's ``(mtime_ns, size)``, so without it a
+    ``lhp dag`` run after an upgrade would HIT and serve edges parsed by the
+    previous version.
     """
-    return f"{get_version()}|{CACHE_SCHEMA_VERSION}|{_model_schema_hash()}"
+    return (
+        f"{get_version()}|{CACHE_SCHEMA_VERSION}"
+        f"|{_model_schema_hash()}|sqlglot{sqlglot.__version__}"
+    )
 
 
 class PersistentGraphCache:
@@ -304,8 +316,9 @@ class PersistentGraphCache:
         ``built_at`` is the shard file's mtime as an ISO-8601 UTC string, or
         ``None`` when no shard exists for ``option_triple`` (never built, or
         the cache is disabled). ``fingerprint`` is the cache version tag — the
-        build identity (LHP version + schema version + model-field hash) that
-        keys every slot; it lives in-memory and needs no read.
+        build identity (LHP version + schema version + model-field hash + the
+        sqlglot version) that keys every slot; it lives in-memory and needs no
+        read.
 
         O(1) by construction: one ``os.stat`` on the shard file, NEVER an
         unpickle of the (multi-MB) result nor a content re-hash — the staleness

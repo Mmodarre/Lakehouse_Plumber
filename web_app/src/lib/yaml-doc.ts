@@ -30,6 +30,10 @@
  *   ONLY the containing document via `Document.toString()`; sibling
  *   documents keep their exact bytes. Rewriting normalizes that
  *   document's comment whitespace (pinned by tests).
+ * - An empty flow collection (`[]` / `{}`) receiving its first item is
+ *   emitted in block style unless it sits inside a non-empty flow
+ *   collection; a flow collection that still holds items keeps its flow
+ *   style.
  *
  * `toString` fidelity options: `lineWidth: 0` disables re-wrapping of long
  * plain scalars and flow collections, which would otherwise reflow lines
@@ -38,16 +42,23 @@
  * These files are read back by PyYAML's SafeLoader (YAML 1.1), so strings
  * that YAML 1.1 resolves as non-strings (`yes`/`on`/`off`, `1:30`,
  * `1_000`, `0b101`, ISO dates, ...) are double-quoted when written, in
- * addition to the YAML 1.2 ambiguities (`true`, `42`, ...).
+ * addition to the YAML 1.2 ambiguities (`true`, `42`, ...). Multi-line
+ * strings are written as `|` literal block scalars (a slot that is already
+ * a `|` or `>` block scalar keeps its style); the emitter falls back to
+ * double quotes when a block scalar cannot represent the value.
  *
  * Pinned caveats (asserted in yaml-doc.test.ts):
  * - Deleting a node deletes the comment block above it and its inline
  *   comment (they are owned by the deleted pair).
  * - A rewrite re-emits the containing document from its AST: trailing
  *   whitespace inside comments and the column of out-dented comments are
- *   normalized in that one document.
+ *   normalized in that one document, and flow-collection spacing is
+ *   normalized (`[a, b]` becomes `[ a, b ]`).
  * - Rewritten and added documents always end with a newline; an unmutated
- *   file without a trailing newline round-trips without gaining one.
+ *   file without a trailing newline round-trips without gaining one. A
+ *   patch or splice that puts a block scalar at an unterminated last line
+ *   adds the file's final newline, because a block scalar's body always
+ *   ends with a line break.
  * - Files whose dominant line ending is CRLF get CRLF in all emitted text.
  * - Mutations throw on a handle with parse errors; callers must block
  *   form editing on broken files.
@@ -57,13 +68,14 @@ import {
   Document,
   isCollection,
   isMap,
+  isPair,
   isScalar,
   isSeq,
   parse,
   parseAllDocuments,
   visit,
 } from 'yaml'
-import type { Node, Pair, Scalar, YAMLError, YAMLMap } from 'yaml'
+import type { Node, Pair, Scalar, YAMLError, YAMLMap, YAMLSeq } from 'yaml'
 
 /** Path into a document, as accepted by `Document.getIn`/`setIn`. */
 export type YamlPath = readonly (string | number)[]
@@ -191,10 +203,12 @@ export function getPath(handle: ConfigFileHandle, docIndex: number, path: YamlPa
  *
  * Replacing an existing scalar with a primitive is patched at the CST
  * level: only that scalar's bytes change and its original quoting style is
- * kept. Adding a key under an existing block map (any value; intermediate
- * maps are created) splices the new entry at the end of that map's text.
- * Strings that would re-parse as another type under YAML 1.1 or 1.2 are
- * double-quoted. Everything else (numeric segments creating sequences,
+ * kept, except that multi-line text is written as a `|` literal block (a
+ * `|` or `>` slot keeps its style). Adding a key under an existing block
+ * map (any value; intermediate maps are created) splices the new entry at
+ * the end of that map's text. Single-line strings that would re-parse as
+ * another type under YAML 1.1 or 1.2 are double-quoted. Everything else
+ * (numeric segments creating sequences,
  * flow-collection inserts, populating empty documents) rewrites the
  * containing document only. `undefined` is treated as `null`. Throws if
  * the handle has parse errors.
@@ -235,7 +249,9 @@ export function setPath(
       if (inherited) contents.commentBefore = inherited
     }
   } else {
+    const emptied = emptyFlowAncestor(doc, path)
     setViaAst(doc, path, normalized)
+    if (emptied !== null) emptied.flow = false
   }
   entry.rewritten = true
 }
@@ -296,7 +312,9 @@ export function insertListItem(
       `Insert index ${index} out of range (sequence has ${node.items.length} item(s))`,
     )
   }
-  node.items.splice(index, 0, buildValueNode(doc, value === undefined ? null : value))
+  const item = buildValueNode(doc, value === undefined ? null : value)
+  if (isEmptyFlow(node)) node.flow = false
+  node.items.splice(index, 0, item)
   entry.rewritten = true
 }
 
@@ -438,15 +456,51 @@ function stringNeedsQuote(value: string): boolean {
   }
 }
 
-/** Quote a scalar node's string value if plain style would misparse it. */
-function applyScalarStyle(node: Scalar, value: Primitive): void {
-  if (typeof value === 'string') {
-    if ((node.type === undefined || node.type === 'PLAIN') && stringNeedsQuote(value)) {
-      node.type = 'QUOTE_DOUBLE'
-    }
-  } else {
-    node.type = 'PLAIN'
+/**
+ * The style a string should be written in, given the current style of the
+ * scalar it replaces: multi-line text becomes a `|` literal block unless the
+ * scalar is already a block scalar; single-line text is double-quoted only
+ * when plain style would misparse it. `undefined` keeps the current style.
+ */
+function stringStyle(
+  value: string,
+  current: Scalar.Type | undefined,
+): 'BLOCK_LITERAL' | 'QUOTE_DOUBLE' | undefined {
+  if (value.includes('\n')) {
+    return current === 'BLOCK_LITERAL' || current === 'BLOCK_FOLDED' ? undefined : 'BLOCK_LITERAL'
   }
+  if ((current === undefined || current === 'PLAIN') && stringNeedsQuote(value)) {
+    return 'QUOTE_DOUBLE'
+  }
+  return undefined
+}
+
+/** The style a CST scalar token was parsed in. */
+function tokenStyle(token: ScalarToken): Scalar.Type {
+  switch (token.type) {
+    case 'single-quoted-scalar':
+      return 'QUOTE_SINGLE'
+    case 'double-quoted-scalar':
+      return 'QUOTE_DOUBLE'
+    case 'block-scalar': {
+      const header = token.props[0]
+      return header?.type === 'block-scalar-header' && header.source.startsWith('>')
+        ? 'BLOCK_FOLDED'
+        : 'BLOCK_LITERAL'
+    }
+    default:
+      return 'PLAIN'
+  }
+}
+
+/** Set a scalar node's style for the value it now holds; non-strings are always plain. */
+function applyScalarStyle(node: Scalar, value: Primitive): void {
+  if (typeof value !== 'string') {
+    node.type = 'PLAIN'
+    return
+  }
+  const style = stringStyle(value, node.type)
+  if (style !== undefined) node.type = style
 }
 
 /** Wrap a JS value as AST nodes with YAML-1.1-safe string quoting. */
@@ -482,6 +536,31 @@ function pathInFlow(doc: Document, path: YamlPath): boolean {
     if (isCollection(node) && node.flow) return true
   }
   return false
+}
+
+/**
+ * `[]` and `{}` are the only spellings of an empty collection, so an empty
+ * flow collection carries no style intent and its first item should
+ * serialize in block style. The check is on the current item count: a flow
+ * collection that still holds items keeps its style. Callers clear `flow`
+ * only after the insertion has succeeded, so a rejected edit leaves the
+ * handle untouched.
+ */
+function isEmptyFlow(node: unknown): node is YAMLMap | YAMLSeq {
+  return isCollection(node) && node.flow === true && node.items.length === 0
+}
+
+/**
+ * The deepest existing ancestor node of `path` when it is an empty flow
+ * collection, else null. A scalar or non-empty ancestor ends the search:
+ * every node above it already holds an item, so none of them can be empty.
+ */
+function emptyFlowAncestor(doc: Document, path: YamlPath): YAMLMap | YAMLSeq | null {
+  for (let i = path.length - 1; i >= 0; i--) {
+    const node = i === 0 ? doc.contents : doc.getIn(path.slice(0, i), true)
+    if (node !== undefined && node !== null) return isEmptyFlow(node) ? node : null
+  }
+  return null
 }
 
 /** Does `path` lead into a subtree created by an earlier splice? */
@@ -528,9 +607,9 @@ function tryPatchScalar(
 
   const parentPath = path.slice(0, -1)
   const parent = parentPath.length > 0 ? doc.getIn(parentPath, true) : doc.contents
-  let type: 'PLAIN' | 'QUOTE_DOUBLE' | undefined
+  let type: Scalar.Type | undefined
   if (typeof value === 'string') {
-    if (token.type === 'scalar' && stringNeedsQuote(value)) type = 'QUOTE_DOUBLE'
+    type = stringStyle(value, tokenStyle(token))
   } else {
     // Numbers, booleans, and null must not inherit a quoted style, which
     // would turn them into strings on the next parse.
@@ -649,9 +728,24 @@ function renderSplice(h: HandleState, splice: Splice): string | null {
   if (splice.indent > 0) text = text.replace(/^(?!$)/gm, ' '.repeat(splice.indent))
   text = toFileNewlines(text, h._newline)
   const afterNewline = splice.start === 0 || h._source[splice.start - 1] === '\n'
+  if (afterNewline) return text
   // At an unterminated last line, lead with the newline instead of
-  // trailing one so a file without a final newline stays that way.
-  return afterNewline ? text : h._newline + text.slice(0, -h._newline.length)
+  // trailing one so a file without a final newline stays that way. When the
+  // entry ends in a block scalar that final newline is content under the
+  // chomping indicator, so it stays and the file gains its terminator.
+  return endsInBlockScalar(splice.pair.value)
+    ? h._newline + text
+    : h._newline + text.slice(0, -h._newline.length)
+}
+
+/** Is the last scalar emitted for `node` a block scalar? */
+function endsInBlockScalar(node: unknown): boolean {
+  let leaf = node
+  while (isCollection(leaf) && leaf.items.length > 0) {
+    const last = leaf.items[leaf.items.length - 1]
+    leaf = isPair(last) ? last.value : last
+  }
+  return isScalar(leaf) && (leaf.type === 'BLOCK_LITERAL' || leaf.type === 'BLOCK_FOLDED')
 }
 
 /** Emit a rewritten or added document, managing its `---` marker. */

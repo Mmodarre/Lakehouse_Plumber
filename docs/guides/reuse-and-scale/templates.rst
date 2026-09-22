@@ -46,12 +46,13 @@ Each parameter is a name plus a few rules. ``entity`` is marked ``required:
 true`` — every flowgroup must supply it, and omitting it stops generation with a
 clear error before any Python is written. ``file_format`` and ``cluster_columns``
 each carry a ``default``, which makes them optional: a flowgroup that says
-nothing about them gets ``csv`` and no clustering. A parameter is optional
-exactly when it has a default (or you mark it ``required: false``).
+nothing about them gets ``csv`` and no clustering. A parameter is optional unless ``required: true`` is set. Required parameters
+must be supplied explicitly even if they also declare a default.
 
-You do not declare a parameter's type. Lakehouse Plumber infers the kind from
-the value you pass — a list stays a list, a number stays a number,
-``true``/``false`` becomes a boolean. That is why ``cluster_columns`` can default
+You do not need to declare a parameter's type; the engine does not enforce
+``type`` metadata. Lists and objects render as native collections, integers can
+become integers, and ``true``/``false`` becomes a boolean. Decimal results remain
+strings, and numeric-looking strings can become integers. That is why ``cluster_columns`` can default
 to an empty list ``[]`` and render into a real ``cluster_by`` list downstream,
 not the string ``"[]"``.
 
@@ -177,11 +178,11 @@ hand. That is how one template scales across a schema's worth of tables.
 What's next
 ===========
 
-- **Make the actions themselves vary.** When tables need not just different
-  values but different *structure* — an optional surrogate-key column, a
-  ``GROUP BY`` built from a list parameter — the template body can use Jinja2
-  ``{% if %}`` conditionals, ``{% for %}`` loops, and filters. The dynamic
-  templates guide covers those patterns.
+- **Make a scalar expression vary.** An eligible action string containing
+  ``{{ ... }}`` may also use Jinja2 conditions, loops and filters. The engine
+  evaluates individual string values; it does not expand whole-document loops
+  or conditionally add/remove action entries. See the templates reference for
+  the rendering and conversion rules.
 - **See every field.** The templates reference lists the full parameter and
   template file schema, and how to organize templates in subdirectories
   (``use_template: ingestion/bronze_ingest``).

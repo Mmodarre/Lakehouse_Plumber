@@ -44,7 +44,9 @@ class PythonLoadGenerator(BaseActionGenerator):
 
         module_path = source_config.get("module_path")
         function_name = source_config.get("function_name", "get_df")
-        parameters = source_config.get("parameters", {})
+        # Coalesce: a present-but-null `parameters:` key yields None, which the
+        # template would emit as the unbound name `null`.
+        parameters = source_config.get("parameters") or {}
 
         if not module_path:
             raise ErrorFactory.missing_required_field(

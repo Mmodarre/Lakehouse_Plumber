@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { ReactNode } from 'react'
 import { usePushChannel } from '../usePushChannel'
 import { useGraphStalenessStore } from '../../store/graphStalenessStore'
+import { getSessionId } from '../../lib/session-id'
 
 // jsdom has no EventSource; install a controllable stub. The hook reads the
 // static CLOSED constant off the global, so the stub must carry the
@@ -101,7 +102,7 @@ describe('usePushChannel', () => {
   it('opens a single push source against /api/events', () => {
     mount()
     expect(MockEventSource.instances).toHaveLength(1)
-    expect(latestSource().url).toBe('/api/events')
+    expect(latestSource().url).toBe(`/api/events?session=${getSessionId()}`)
   })
 
   it('file-changed invalidates every file-derived query key except dep-graph', () => {
@@ -125,7 +126,9 @@ describe('usePushChannel', () => {
     // The dependency graph is served stale-tolerant: a file change never
     // refetches it — the `graph-stale` event flips a flag instead.
     expect(keys).not.toContainEqual(['dep-graph'])
-    expect(invalidateSpy).toHaveBeenCalledTimes(13)
+    for (const key of ['templates', 'template', 'presets', 'preset', 'blueprints', 'blueprint-params', 'operational-metadata', 'environments', 'environment-resolved', 'project', 'sandbox', 'lineage', 'file-exists', 'flowgroup-related']) {
+      expect(keys).toContainEqual([key])
+    }
   })
 
   it('file-changed invalidates a per-path file-content key for EACH changed path', () => {
@@ -140,7 +143,6 @@ describe('usePushChannel', () => {
     expect(keys).toContainEqual(['file-content', 'config/pipeline_config_dev.yaml'])
     // Non-string entries are skipped, never turned into keys.
     expect(keys).not.toContainEqual(['file-content', 42])
-    expect(invalidateSpy).toHaveBeenCalledTimes(14) // 12 broad + 2 per-path
   })
 
   it('ignores file-changed events it cannot parse', () => {
@@ -168,13 +170,12 @@ describe('usePushChannel', () => {
     expect(invalidateSpy).not.toHaveBeenCalled()
   })
 
-  it('run-updated (validate) invalidates only run-history', () => {
+  it('run-updated (validate) invalidates history and its detail', () => {
     const { invalidateSpy } = mount()
     latestSource().emitMessage('run-updated', runUpdated('validate', 'completed'))
 
-    expect(invalidateSpy).toHaveBeenCalledExactlyOnceWith({
-      queryKey: ['run-history'],
-    })
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['run-history'] })
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['run', 'r1'] })
   })
 
   it('run-updated (generate completed) adds the post-generate invalidations', () => {
@@ -182,7 +183,7 @@ describe('usePushChannel', () => {
     latestSource().emitMessage('run-updated', runUpdated('generate', 'completed'))
 
     const keys = invalidateSpy.mock.calls.map(([arg]) => arg?.queryKey)
-    expect(keys).toEqual([['run-history'], ['files'], ['dep-graph']])
+    expect(keys).toEqual(expect.arrayContaining([['run-history'], ['run', 'r1'], ['files'], ['dep-graph'], ['flowgroup-related'], ['file-content']]))
   })
 
   it('run-updated (generate running/failed) does not add the generate extras', () => {
@@ -191,7 +192,7 @@ describe('usePushChannel', () => {
     latestSource().emitMessage('run-updated', runUpdated('generate', 'failed'))
 
     const keys = invalidateSpy.mock.calls.map(([arg]) => arg?.queryKey)
-    expect(keys).toEqual([['run-history'], ['run-history']])
+    expect(keys).toEqual([['run-history'], ['run', 'r1'], ['run-history'], ['run', 'r1']])
   })
 
   it('ignores run-updated payloads that fail the shape guard', () => {

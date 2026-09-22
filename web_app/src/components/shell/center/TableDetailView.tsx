@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useRef, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, type ReactNode } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import {
   ArrowRight,
@@ -24,7 +24,7 @@ import { useWorkspaceStore } from '../../../store/workspaceStore'
 import { ApiError } from '../../../api/client'
 import { EmptyState } from '../../common/EmptyState'
 import { Button } from '../../ui/button'
-import type { DatasetConsumer, LineageEdge, LineageNode } from '../../../types/api'
+import type { DatasetConsumer, LineageNode } from '../../../types/api'
 import { cn } from '@/lib/utils'
 
 // ── TableDetailView — produced-dataset detail center view (D6 / §6.7) ──
@@ -74,35 +74,6 @@ function kindMeta(node: LineageNode, focus: boolean, datasetKind: string): KindM
   }
 }
 
-/** Best-effort topological order of the lineage nodes from their edges, stable
- * on the backend's already kind-sorted order when the graph is linear or has
- * cycles. The rail reads left→right = upstream→focus. */
-function orderNodes(nodes: readonly LineageNode[], edges: readonly LineageEdge[]): LineageNode[] {
-  const byId = new Map(nodes.map((n) => [n.id, n]))
-  const indeg = new Map(nodes.map((n) => [n.id, 0]))
-  const adj = new Map<string, string[]>()
-  for (const e of edges) {
-    if (!byId.has(e.source) || !byId.has(e.target)) continue
-    adj.set(e.source, [...(adj.get(e.source) ?? []), e.target])
-    indeg.set(e.target, (indeg.get(e.target) ?? 0) + 1)
-  }
-  const queue = nodes.filter((n) => (indeg.get(n.id) ?? 0) === 0)
-  const visited = new Set<string>()
-  const order: LineageNode[] = []
-  while (queue.length > 0) {
-    const n = queue.shift()!
-    if (visited.has(n.id)) continue
-    visited.add(n.id)
-    order.push(n)
-    for (const t of adj.get(n.id) ?? []) {
-      indeg.set(t, (indeg.get(t) ?? 1) - 1)
-      const tn = byId.get(t)
-      if (tn && (indeg.get(t) ?? 0) <= 0 && !visited.has(t)) queue.push(tn)
-    }
-  }
-  for (const n of nodes) if (!visited.has(n.id)) order.push(n)
-  return order
-}
 
 function RailCard({
   node,
@@ -228,10 +199,6 @@ export function TableDetailView({ fqn }: { fqn: string }) {
 
   const leaf = fqn.startsWith('sink:') ? fqn.slice('sink:'.length) : (fqn.split('.').pop() ?? fqn)
 
-  const ordered = useMemo(
-    () => (data ? orderNodes(data.nodes, data.edges) : []),
-    [data],
-  )
   const focusId = useMemo(
     () => data?.nodes.find((n) => n.kind === 'write' && n.dataset_fqn === data.fqn)?.id ?? null,
     [data],
@@ -389,7 +356,7 @@ export function TableDetailView({ fqn }: { fqn: string }) {
 
         {/* 2. lineage rail */}
         <section className="flex flex-col gap-2.5">
-          <SectionHeader icon={GitFork} hint="source → write → downstream">
+          <SectionHeader icon={GitFork} hint="Each row is a recorded dependency">
             Lineage — how it is loaded
           </SectionHeader>
           <div
@@ -400,30 +367,19 @@ export function TableDetailView({ fqn }: { fqn: string }) {
               backgroundPosition: '12px 12px',
             }}
           >
-            <div className="flex min-w-max items-center px-4 py-5">
-              {ordered.map((node, i) => (
-                <Fragment key={node.id}>
-                  {i > 0 && <RailArrow />}
-                  <RailCard node={node} focus={node.id === focusId} datasetKind={data.kind} />
-                </Fragment>
-              ))}
-              {data.consumers.map((c) => (
-                <Fragment key={consumerKey(c)}>
-                  <RailArrow label="reads" />
-                  <RailCard
-                    node={{
-                      id: consumerKey(c),
-                      kind: 'dataset',
-                      label: c.dataset_fqn || c.flowgroup,
-                      pipeline: c.pipeline,
-                      flowgroup: c.flowgroup,
-                      dataset_fqn: c.dataset_fqn,
-                    }}
-                    downstream
-                    datasetKind={data.kind}
-                  />
-                </Fragment>
-              ))}
+            <div className="flex min-w-max flex-col gap-4 px-4 py-5">
+              {data.edges.map((edge, index) => {
+                const source = data.nodes.find((node) => node.id === edge.source)
+                const target = data.nodes.find((node) => node.id === edge.target)
+                if (!source || !target) return null
+                return <div key={`${edge.source}:${edge.target}:${index}`} data-lineage-edge={`${edge.source}→${edge.target}`} className="flex items-center">
+                  <RailCard node={source} focus={source.id === focusId} datasetKind={data.kind} />
+                  <RailArrow />
+                  <RailCard node={target} focus={target.id === focusId} datasetKind={data.kind} />
+                </div>
+              })}
+              {data.nodes.filter((node) => !data.edges.some((edge) => edge.source === node.id || edge.target === node.id)).map((node) => <RailCard key={node.id} node={node} focus={node.id === focusId} datasetKind={data.kind} />)}
+              {data.edges.length === 0 && <p className="text-xs text-muted-foreground">No dependency edges were reported. Nodes are shown independently.</p>}
             </div>
           </div>
         </section>

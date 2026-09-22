@@ -285,11 +285,11 @@ describe('runStore.applyFrame', () => {
 })
 
 describe('runStore terminal transitions', () => {
-  it('finish() after a clean stream defaults the outcome to success', () => {
+  it('finish() without a terminal completion records an incomplete outcome', () => {
     store().begin('validate')
     store().finish()
     expect(store().isRunning).toBe(false)
-    expect(store().terminal).toBe('success')
+    expect(store().terminal).toBe('incomplete')
   })
 
   it('finish() does not clobber an earlier terminal outcome', () => {

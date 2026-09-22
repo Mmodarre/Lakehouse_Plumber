@@ -52,6 +52,10 @@ export interface paths {
          *     provider has no daemon). Past the gates, the whole turn — session
          *     provisioning included — is relayed by the provider's ``chat_turn``,
          *     whose frame protocol is pinned in its module docstring.
+         *
+         *     A turn that reaches a configured executor marks the requesting tab's
+         *     anonymous session with the executor's provider and mode, both collapsed
+         *     to a bounded vocabulary; nothing the user typed is ever recorded.
          */
         post: operations["chat_api_assistant_chat_post"];
         delete?: never;
@@ -405,6 +409,23 @@ export interface paths {
          *             packaged resource is missing.
          */
         get: operations["get_config_template_api_config_templates__kind__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/configuration/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Configuration Preview */
+        get: operations["get_configuration_preview_api_configuration_preview_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -922,6 +943,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/help/{kind}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Field Help
+         * @description Read one small category of reviewed field guidance from package data.
+         */
+        get: operations["get_field_help_api_help__kind__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/lineage": {
         parameters: {
             query?: never;
@@ -1261,6 +1302,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/telemetry/ui": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Record Ui Events
+         * @description Count a batch of UI-surface observations on the posting tab's session.
+         *
+         *     Deliberately silent: there is no logger in this module, so no posted
+         *     value can reach a log line even at DEBUG level.
+         */
+        post: operations["record_ui_events_api_telemetry_ui_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/templates": {
         parameters: {
             query?: never;
@@ -1276,6 +1340,57 @@ export interface paths {
          *     With ``detail=true`` returns summaries with description and counts.
          */
         get: operations["list_templates_api_templates_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/templates/catalog": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Template Catalog */
+        get: operations["get_template_catalog_api_templates_catalog_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/templates/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Post Template Preview */
+        post: operations["post_template_preview_api_templates_preview_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/templates/source": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Template Source */
+        get: operations["get_template_source_api_templates_source_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1493,6 +1608,38 @@ export interface components {
             has_circular: boolean;
             /** Total Cycles */
             total_cycles: number;
+        };
+        /** ConfigurationPreviewResponse */
+        ConfigurationPreviewResponse: {
+            /** Env */
+            env: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "pipeline" | "job";
+            /** Path */
+            path: string;
+            /**
+             * Source
+             * @constant
+             */
+            source: "saved";
+            /** Target */
+            target: string;
+            /** Targets */
+            targets: string[];
+            /** Tiers */
+            tiers: string[];
+            /**
+             * Values
+             * @description Resolved saved settings from LHP's production resolvers
+             */
+            values: {
+                [key: string]: unknown;
+            };
+            /** Warnings */
+            warnings: string[];
         };
         /**
          * CrossPipelineConnection
@@ -1923,6 +2070,8 @@ export interface components {
         };
         /** HealthResponse */
         HealthResponse: {
+            /** Latest Version */
+            latest_version?: string | null;
             /**
              * Project State
              * @default ok
@@ -1938,6 +2087,11 @@ export interface components {
              * @default healthy
              */
             status: string;
+            /**
+             * Telemetry Enabled
+             * @default false
+             */
+            telemetry_enabled: boolean;
             /** Version */
             version: string;
         };
@@ -2494,6 +2648,8 @@ export interface components {
          *     ``databricks.yml`` detection. ``sandbox`` (default ``false``) switches the
          *     run to developer-sandbox mode — scope and namespace come from
          *     ``.lhp/profile.yaml`` — and is mutually exclusive with ``pipeline``.
+         *     ``trigger`` distinguishes a run the user asked for from one the editor
+         *     fired on its own; it affects nothing but usage counting.
          */
         StreamRunRequest: {
             /**
@@ -2517,6 +2673,13 @@ export interface components {
              * @default false
              */
             sandbox: boolean;
+            /**
+             * Trigger
+             * @description What started the run: 'manual' (the default) for a user action, 'auto' for one the editor fired itself, such as the scoped validate after a save.
+             * @default manual
+             * @enum {string}
+             */
+            trigger: "manual" | "auto";
         };
         /**
          * SubstitutionResolvedResponse
@@ -2581,6 +2744,54 @@ export interface components {
             /** Write Mode */
             write_mode?: string | null;
         };
+        /** TemplateAuthoringParameter */
+        TemplateAuthoringParameter: {
+            /** Declared Type */
+            declared_type?: string | null;
+            /** Default */
+            default?: unknown;
+            /** Description */
+            description?: string | null;
+            /** Has Default */
+            has_default: boolean;
+            /** Name */
+            name: string;
+            /** Required */
+            required: boolean;
+        };
+        /** TemplateCatalogEntry */
+        TemplateCatalogEntry: {
+            /** Action Count */
+            action_count: number | null;
+            /** Declared Name */
+            declared_name: string | null;
+            /** Description */
+            description: string | null;
+            /** Diagnostics */
+            diagnostics: components["schemas"]["TemplateDiagnostic"][];
+            /** Parameters */
+            parameters: components["schemas"]["TemplateAuthoringParameter"][];
+            /** Presets */
+            presets: string[];
+            /** Reference */
+            reference: string | null;
+            /** Source Path */
+            source_path: string;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "ready" | "invalid" | "unsupported_extension";
+            /** Version */
+            version: string | null;
+        };
+        /** TemplateCatalogResponse */
+        TemplateCatalogResponse: {
+            /** Templates */
+            templates: components["schemas"]["TemplateCatalogEntry"][];
+            /** Total */
+            total: number;
+        };
         /**
          * TemplateDetailResponse
          * @description Single template with full metadata.
@@ -2589,6 +2800,33 @@ export interface components {
             /** Name */
             name: string;
             template: components["schemas"]["TemplateInfoResponse"];
+        };
+        /** TemplateDiagnostic */
+        TemplateDiagnostic: {
+            /** Code */
+            code: string;
+            /** Column */
+            column?: number | null;
+            /** Field Path */
+            field_path?: (string | number)[] | null;
+            /** Line */
+            line?: number | null;
+            /** Message */
+            message: string;
+            /**
+             * Severity
+             * @enum {string}
+             */
+            severity: "error" | "warning" | "info";
+            /** Source Path */
+            source_path: string;
+            /**
+             * Stage
+             * @enum {string}
+             */
+            stage: "inspect" | "expanded" | "resolved";
+            /** Suggestion */
+            suggestion?: string | null;
         };
         /**
          * TemplateInfoResponse
@@ -2628,6 +2866,95 @@ export interface components {
             /** Total */
             total: number;
         };
+        /** TemplatePreviewContext */
+        TemplatePreviewContext: {
+            /**
+             * Environment
+             * @default
+             */
+            environment: string;
+            /**
+             * Flowgroup
+             * @default
+             */
+            flowgroup: string;
+            /**
+             * Pipeline
+             * @default
+             */
+            pipeline: string;
+            /** Presets */
+            presets?: string[];
+            /** Variables */
+            variables?: {
+                [key: string]: string;
+            };
+        };
+        /** TemplatePreviewRequest */
+        TemplatePreviewRequest: {
+            context?: components["schemas"]["TemplatePreviewContext"] | null;
+            /** Request Revision */
+            request_revision: string;
+            /** Sample Parameters */
+            sample_parameters?: {
+                [key: string]: unknown;
+            };
+            /** Source Path */
+            source_path: string;
+            /** Source Yaml */
+            source_yaml: string;
+            /**
+             * Stage
+             * @enum {string}
+             */
+            stage: "inspect" | "expanded" | "resolved";
+        };
+        /** TemplatePreviewResponse */
+        TemplatePreviewResponse: {
+            /** Diagnostics */
+            diagnostics: components["schemas"]["TemplateDiagnostic"][];
+            /** Effective Parameters */
+            effective_parameters?: {
+                [key: string]: unknown;
+            } | null;
+            /** Expanded Actions */
+            expanded_actions?: {
+                [key: string]: unknown;
+            }[] | null;
+            /** Missing Parameters */
+            missing_parameters: string[];
+            /** Request Revision */
+            request_revision: string;
+            /** Resolved Flowgroup */
+            resolved_flowgroup?: {
+                [key: string]: unknown;
+            } | null;
+            /** Saved Dependencies */
+            saved_dependencies: components["schemas"]["TemplateSavedDependency"][];
+            /** Source Hash */
+            source_hash: string;
+            /**
+             * Stage
+             * @enum {string}
+             */
+            stage: "inspect" | "expanded" | "resolved";
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "ready" | "needs_parameters" | "needs_context" | "invalid" | "stale";
+        };
+        /** TemplateSavedDependency */
+        TemplateSavedDependency: {
+            /** Fingerprint */
+            fingerprint: string | null;
+            /** Path */
+            path: string;
+        };
+        /** TemplateSourceResponse */
+        TemplateSourceResponse: {
+            template: components["schemas"]["TemplateCatalogEntry"];
+        };
         /**
          * TemplateSummary
          * @description Lightweight template summary for list views.
@@ -2643,6 +2970,36 @@ export interface components {
             name: string;
             /** Parameter Count */
             parameter_count: number;
+        };
+        /**
+         * UiEvent
+         * @description One observation of a UI surface, rendered as ``surface.action[.via]``.
+         *
+         *     The fields are plain bounded strings rather than enums so that a value
+         *     the server does not know costs the event, not the request.
+         */
+        UiEvent: {
+            /** Action */
+            action: string;
+            /** Surface */
+            surface: string;
+            /** Via */
+            via?: string | null;
+        };
+        /**
+         * UiEventsRequest
+         * @description Body of ``POST /api/telemetry/ui``.
+         *
+         *     ``session_id`` is the tab's own id in the same lowercase-uuid spelling
+         *     the ``X-LHP-Session`` header uses. Carrying it in the body as well makes
+         *     a batch self-describing, so it can still be attributed to its tab when
+         *     the request itself presents no usable header.
+         */
+        UiEventsRequest: {
+            /** Events */
+            events: components["schemas"]["UiEvent"][];
+            /** Session Id */
+            session_id: string;
         };
         /**
          * UsageTotals
@@ -3203,6 +3560,40 @@ export interface operations {
                 };
                 content: {
                     "text/plain": string;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_configuration_preview_api_configuration_preview_get: {
+        parameters: {
+            query: {
+                path: string;
+                kind: "pipeline" | "job";
+                env: string;
+                target?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConfigurationPreviewResponse"];
                 };
             };
             /** @description Validation Error */
@@ -3909,6 +4300,37 @@ export interface operations {
             };
         };
     };
+    get_field_help_api_help__kind__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                kind: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_lineage_api_lineage_get: {
         parameters: {
             query: {
@@ -4344,6 +4766,37 @@ export interface operations {
             };
         };
     };
+    record_ui_events_api_telemetry_ui_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UiEventsRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_templates_api_templates_get: {
         parameters: {
             query?: {
@@ -4363,6 +4816,90 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TemplateListResponse"] | components["schemas"]["TemplateListDetailResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_template_catalog_api_templates_catalog_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TemplateCatalogResponse"];
+                };
+            };
+        };
+    };
+    post_template_preview_api_templates_preview_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TemplatePreviewRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TemplatePreviewResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_template_source_api_templates_source_get: {
+        parameters: {
+            query: {
+                path: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TemplateSourceResponse"];
                 };
             };
             /** @description Validation Error */

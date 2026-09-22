@@ -66,7 +66,7 @@ class ConfigValidator:
             self.project_config,
         )
         self.write_validator = WriteActionValidator(
-            self.action_registry, self.field_validator
+            self.action_registry, self.field_validator, self.project_root
         )
         self.test_validator = TestActionValidator(
             self.action_registry, self.field_validator

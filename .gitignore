@@ -118,10 +118,6 @@ Example_Projects/performance_testing/resources
 
 Example_Projects/performance_testing/monitoring/
 .claude/*
-!.claude/skills/
-.claude/skills/*
-!.claude/skills/lhp/
-!.claude/skills/lhp/**
 HOW_TO_CREATE_BLUEPRINTS.md
 
 # Raw perf.log archives from `python -m tests.performance.benchmark capture`.
@@ -144,3 +140,6 @@ HOW_TO_CREATE_BLUEPRINTS.md
 .superpowers/sdd/task-11.patch
 .superpowers/sdd/task-12.patch
 .superpowers/sdd/task-13.patch
+
+# Internal review artefacts belong in LOCAL/, never in the published docs tree
+docs/reviews/

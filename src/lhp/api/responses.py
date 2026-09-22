@@ -209,6 +209,30 @@ class StatsResult:
     a per-action-type breakdown and a sequence of per-pipeline rows.
     All fields are immutable, JSON-shape-compatible (§4.8).
 
+    ``action_counts_by_type`` keys:
+
+    * ``load`` / ``transform`` / ``write`` / ``test`` — one per action;
+    * ``load_<source type>`` — the raw ``source.type`` string the project
+      wrote; ``Action.source`` is unvalidated, so this family is open-ended
+      and a project can introduce a key of its own here;
+    * ``transform_<transform type>`` — the ``TransformType`` value; bounded
+      by model validation rather than by this module's allow-lists;
+    * ``write_<streaming_table|materialized_view|sink>``, or
+      ``write_other`` for an unreadable write target;
+    * ``write_mode_<standard|cdc|snapshot_cdc>`` (``write_mode_other``
+      otherwise) for non-sink writes only;
+    * ``test_<test type>``, or ``test_other`` for an unknown one;
+    * ``tables`` — the number of DISTINCT non-sink targets written, so a
+      table written by two actions counts once.
+
+    The ``write_*``, ``write_mode_*`` and ``test_*`` families are the
+    ones bounded by this module: each is drawn from a fixed allow-list,
+    so the number of distinct keys they contribute is a property of LHP
+    rather than of the project being described. ``load_*`` is the only
+    family a project can extend.
+
+    A key is absent rather than zero when nothing matched it.
+
     :stability: provisional
     """
 
@@ -410,8 +434,10 @@ class DependencyStalenessResult:
     project is edited and rebuilds only on an explicit Refresh.
 
     ``fingerprint`` is the persisted build's identity (the graph cache version
-    tag — LHP version + schema version + model-field hash), ``""`` when no
-    cache is available. ``built_at`` is the last build's timestamp (ISO-8601
+    tag — LHP version + schema version + model-field hash + the sqlglot
+    version that parsed the SQL bodies), ``""`` when no cache is available.
+    Treat it as opaque and compare only for equality. ``built_at`` is the last
+    build's timestamp (ISO-8601
     UTC) or ``None`` when nothing has been persisted yet. ``stale`` is the
     facade's own cheap view — ``True`` when no persisted build exists; the live
     edit signal is surfaced by the webapp's watcher-set flag, not recomputed

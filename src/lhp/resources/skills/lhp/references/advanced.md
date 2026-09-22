@@ -142,7 +142,7 @@ Blueprint synthetic flowgroups are ALWAYS fully expanded (one graph node per ins
 
 ### What Extraction Resolves
 
-- **SQL** (sqlglot, Databricks dialect; multi-statement): `FROM`/`JOIN` reads incl. inside `MERGE`/`INSERT`/CTAS (write targets excluded — reads only), `stream()`/`live()`/`snapshot()` wrappers unwrapped, CTE names excluded, quoted identifiers output unquoted, string literals containing `FROM` never mis-extracted. The SQL-transform `$source` placeholder is excluded (the action's declared `source:` view carries that edge). Substitution tokens (`${token}`, `${secret:scope/key}`, legacy `{token}`) survive byte-for-byte, even mid-segment: `FROM cat.sch.tbl${suffix}` extracts `cat.sch.tbl${suffix}`. Unparseable body → zero edges + ONE `LHP-DEP-003` advisory (never an error).
+- **SQL** (sqlglot, Databricks dialect; multi-statement): `FROM`/`JOIN` reads incl. inside `MERGE`/`INSERT`/CTAS (write targets excluded — reads only), `stream()`/`live()`/`snapshot()` wrappers unwrapped (incl. unparenthesized `FROM STREAM tbl`), CTE names excluded, quoted identifiers output unquoted, string literals containing `FROM` never mis-extracted. The SQL-transform `$source` placeholder is excluded (the action's declared `source:` view carries that edge). Substitution tokens (`${token}`, `${secret:scope/key}`, legacy `{token}`) survive byte-for-byte, even mid-segment: `FROM cat.sch.tbl${suffix}` extracts `cat.sch.tbl${suffix}`. Unparseable body → zero edges + ONE `LHP-DEP-003` advisory (never an error).
 - **Python**: recognized Spark reads (`spark.table`, `spark.read`/`readStream.table`, `spark.read.format("delta"|"iceberg"|"hive"|"unity_catalog").table`/`.load`, `spark.catalog.tableExists`/`.dropTempView`, `spark.sql`) resolve through literals, module constants, conditional reassignment (union), `+`/`"{}.{}".format(...)`, string methods (`.replace`/`.upper`/`.lower`/`.strip`/`.lstrip`/`.rstrip`/`sep.join`), f-strings over bound values, and `for`-loops over statically-foldable iterables (unrolled — one read per element).
 - **Inter-procedural (within a file):** function params (union of arg values across the file's call sites + YAML-bound + signature defaults), user-function return values (so `spark.read.table(helper(x))` resolves), `a or b`/`a and b` folds to operand-set union, collection builtins `list`/`tuple`/`sorted`/`set`/`dict.fromkeys` fold as identity, `for`-loops over foldable iterables incl. dict-key iteration. Memoized, cycle-guarded (recursion→unknown), depth-cap 20, value-set-cap 256; never speculative (`os.environ` etc. stay unresolved).
 - **YAML parameters resolve like codegen applies them** (entry function looked up at module top level by name; signature mismatch binds nothing): python transform `parameters:` dict passed positionally (3rd arg with ≥1 source view, 2nd with none); python load `source.parameters` dict as 2nd arg (`function_name` default `get_df`); snapshot_cdc `source_function.parameters` bound as keyword-only kwargs via `functools.partial`. `parameters["k"]` and `parameters.get("k", default)` resolve.
@@ -303,3 +303,38 @@ top-level `custom_python_functions` package, so every copied descendant
 (`custom_python_functions.helpers.*`) is pickled by value with no change to the registration
 line — which is why helpers are mirrored under `custom_python_functions/` rather than placed
 elsewhere on `sys.path`.
+
+## Job field guidance
+
+The job configuration editor changes explicit YAML. Omitted per-job settings
+inherit project defaults. LHP's built-ins include `max_concurrent_runs: 1`,
+`performance_target: STANDARD`, and enabled queuing. An omitted timeout is not
+written when no default supplies it. Maps merge by key; lists such as notification
+recipients and permissions replace inherited lists.
+
+- `queue.enabled` allows excess runs to wait when the concurrency limit is reached.
+- `performance_target: PERFORMANCE_OPTIMIZED` favors faster compute startup at
+  higher cost; `STANDARD` is the built-in target.
+- `timeout_seconds` measures job duration, not an individual data test's duration.
+- `schedule` combines Quartz cron (including seconds), an IANA timezone and
+  `PAUSED` or `UNPAUSED`. For example, `0 0 8 * * ?` means daily at 08:00 in the
+  selected timezone. It is not a five-field Unix cron expression.
+- `email_notifications` has separate start/success/failure recipient lists.
+  `webhook_notifications` references configured notification destination IDs.
+- `permissions` entries have a resource permission level and one identity:
+  `user_name`, `group_name` or `service_principal_name`. A service principal is
+  identified by its application ID. The current job template emits only user/group
+  permission entries; service-principal entries remain in YAML but are not emitted.
+  `run_as` separately determines execution
+  identity.
+- `trigger`, `continuous`, `git_source` and `health` are passed into the generated
+  job YAML. The continuous job block differs from a pipeline's continuous flag;
+  health rules differ from flowgroup data tests. Git source settings do not
+  change the local checkout.
+- `generate_master_job` and `master_job_name` are LHP control settings read only
+  from job-config project defaults. Per-job and monitoring-job values are ignored;
+  neither key is emitted into the job resource. Master generation defaults to on,
+  with a name derived from the project.
+
+For monitoring compute use `notebook_cluster.new_cluster` or
+`notebook_cluster.existing_cluster_id` as documented in `monitoring.md`.
