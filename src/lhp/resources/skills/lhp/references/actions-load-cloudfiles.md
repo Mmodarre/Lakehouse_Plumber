@@ -42,3 +42,23 @@
 - Globs in `path`: `*`, `?`, char classes `[a-z]`, brace alternatives `{a,b,c}`. Use `[^x]` for negation — Spark does **not** support the Unix `[!x]`. Avoid the `**` globstar (undocumented for Auto Loader).
 - `cloudFiles.useStrictGlobber: "true"` (DBR 12.2+) gives predictable Spark-standard globbing; the default globber is more permissive and `*` can cross directory boundaries.
 - For filtering globs can't express, post-filter in a SQL transform on `_metadata.file_path`, e.g. `WHERE NOT _metadata.file_path RLIKE '.*/exclude_[^/]+/.*'`.
+
+## Legacy scalar options
+
+These `source:` keys are compatibility aliases. Prefer the corresponding
+`cloudFiles.*` options for new configurations; the generator rejects a legacy
+key and its mapped option when both are supplied.
+
+| Legacy key | Current LHP option mapping | Purpose |
+|------------|----------------------------|---------|
+| `schema_location` | `cloudFiles.schemaLocation` | Stores inferred schema state; it is not a schema-definition file. |
+| `schema_infer_column_types` | `cloudFiles.inferColumnTypes` | Infers column types during schema discovery. |
+| `max_files_per_trigger` | `cloudFiles.maxFilesPerTrigger` | Limits the number of files in a micro-batch. |
+| `schema_evolution_mode` | `cloudFiles.schemaEvolutionMode` | Chooses handling for newly discovered columns. |
+| `rescue_data_column` | `cloudFiles.rescueDataColumn` | Current legacy mapping in LHP. For the documented Auto Loader option, use `options.cloudFiles.rescuedDataColumn` instead and inspect generated settings when migrating. |
+
+`source.schema` is a schema-file path, including when represented as a string.
+Inline DDL belongs in `source.options.cloudFiles.schemaHints`. The schema editor
+must distinguish this from Delta's `source.schema`, which names a Unity Catalog
+schema. Leaving `source.schema` unset does not select inference if the legacy
+`schema_file` is still supplied.

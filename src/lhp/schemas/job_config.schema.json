@@ -17,7 +17,9 @@
         "ProjectDefaultsDocument": {
             "type": "object",
             "description": "Project-wide defaults applied to every job unless overridden by a job-specific document",
-            "required": ["project_defaults"],
+            "required": [
+                "project_defaults"
+            ],
             "properties": {
                 "project_defaults": {
                     "allOf": [
@@ -37,7 +39,9 @@
                 }
             ],
             "type": "object",
-            "required": ["job_name"],
+            "required": [
+                "job_name"
+            ],
             "properties": {
                 "job_name": {
                     "description": "Job name(s) this document configures. A list applies the same configuration to multiple jobs (each gets an independent deep copy).",
@@ -67,10 +71,14 @@
             "not": {
                 "anyOf": [
                     {
-                        "required": ["project_defaults"]
+                        "required": [
+                            "project_defaults"
+                        ]
                     },
                     {
-                        "required": ["job_name"]
+                        "required": [
+                            "job_name"
+                        ]
                     }
                 ]
             },
@@ -83,16 +91,16 @@
                 "max_concurrent_runs": {
                     "type": "integer",
                     "default": 1,
-                    "description": "Maximum number of concurrent runs of the job"
+                    "description": "Limit how many runs of this job execute at the same time. Use queue.enabled to decide whether additional runs wait when this limit is reached. This is independent of pipeline streaming concurrency. Inherit project defaults; LHP’s built-in limit is 1."
                 },
                 "queue": {
                     "type": "object",
-                    "description": "Job queue settings (default: enabled). When enabled, runs wait in queue once max_concurrent_runs is reached.",
+                    "description": "Control how runs wait for available job capacity. Enable queue.enabled to let additional runs wait after maximum concurrent runs is reached.",
                     "properties": {
                         "enabled": {
                             "type": "boolean",
                             "default": true,
-                            "description": "Queue new runs while maximum concurrent runs is reached (queue.enabled)."
+                            "description": "Queue new runs while the concurrency limit is reached. This controls waiting runs; max_concurrent_runs controls how many may execute simultaneously. Inherit project defaults; LHP enables queuing by default."
                         }
                     },
                     "additionalProperties": true
@@ -100,72 +108,75 @@
                 "performance_target": {
                     "type": "string",
                     "default": "STANDARD",
-                    "examples": ["STANDARD", "PERFORMANCE_OPTIMIZED"],
-                    "description": "PERFORMANCE_OPTIMIZED starts compute faster at higher cost."
+                    "examples": [
+                        "STANDARD",
+                        "PERFORMANCE_OPTIMIZED"
+                    ],
+                    "description": "Choose the performance target for job compute. STANDARD is the built-in target. PERFORMANCE_OPTIMIZED favors faster compute startup at higher cost. Inherit project defaults; LHP’s built-in target is STANDARD."
                 },
                 "timeout_seconds": {
                     "type": "integer",
-                    "description": "Job-level timeout in seconds (e.g. 3600 = 1 hour) — rendered only when set."
+                    "description": "Limit the duration of a job run in seconds. For example, 3600 is one hour. The timeout applies to the job rather than an individual data-quality check. Inherit project defaults; when no level sets it, LHP emits no timeout_seconds setting."
                 },
                 "tags": {
                     "type": "object",
-                    "description": "Deep-merged with project-default tags; values render quoted.",
+                    "description": "Add labels to the generated job resource. Per-job tags merge with project defaults by key; values are rendered as quoted values. These are separate from Unity Catalog dataset tags.",
                     "additionalProperties": true
                 },
                 "email_notifications": {
                     "type": "object",
-                    "description": "Email notifications for job lifecycle events",
+                    "description": "Notify email recipients about job run events. Configure separate recipient lists for start, success and failure. Per-event lists replace inherited lists.",
                     "properties": {
                         "on_start": {
                             "type": "array",
                             "items": {
                                 "type": "string"
                             },
-                            "description": "Email addresses notified when a run starts"
+                            "description": "Notify these addresses when a run starts. This event’s recipient list replaces the inherited list; leaving it unset preserves inherited recipients."
                         },
                         "on_success": {
                             "type": "array",
                             "items": {
                                 "type": "string"
                             },
-                            "description": "Email addresses notified when a run succeeds"
+                            "description": "Notify these addresses when a run succeeds. This event’s recipient list replaces the inherited list; leaving it unset preserves inherited recipients."
                         },
                         "on_failure": {
                             "type": "array",
                             "items": {
                                 "type": "string"
                             },
-                            "description": "Email addresses notified when a run fails"
+                            "description": "Notify these addresses when a run fails. This event’s recipient list replaces the inherited list; leaving it unset preserves inherited recipients."
                         }
                     },
                     "additionalProperties": true
                 },
                 "webhook_notifications": {
                     "type": "object",
-                    "description": "Webhook notifications for external integrations (entries reference notification destination IDs)",
+                    "description": "Send job lifecycle events to configured notification destinations. Entries reference destination IDs. Configure the destination separately, then reference its ID for the relevant event.",
                     "additionalProperties": true
                 },
                 "permissions": {
                     "type": "array",
-                    "description": "Job-level access control entries (level plus one identity: user_name, group_name, or service_principal_name)",
+                    "description": "Grant access to this job. Each entry needs a permission level and one identity. The current job template emits user_name and group_name permissions only. Service-principal entries remain in YAML but are not emitted. An explicit list replaces inherited permissions.",
                     "items": {
                         "type": "object",
                         "properties": {
                             "level": {
                                 "type": "string",
-                                "description": "Permission level (e.g. CAN_VIEW, CAN_MANAGE_RUN, CAN_MANAGE)"
+                                "description": "Choose the access level for this identity. Select an access level supported for this resource, such as CAN_VIEW or CAN_MANAGE. Give the identity the access it needs to perform its role."
                             },
                             "user_name": {
                                 "type": "string",
-                                "description": "User email this entry applies to"
+                                "description": "Identify a user by their email address. Set only one of user_name, group_name and service_principal_name in an entry."
                             },
                             "group_name": {
                                 "type": "string",
-                                "description": "Group name this entry applies to"
+                                "description": "Grant this permission to a workspace group. Use the group name, and leave user_name and service_principal_name unset in this entry."
                             },
                             "service_principal_name": {
                                 "type": "string",
-                                "description": "Service principal application ID this entry applies to"
+                                "description": "Record a service-principal permission entry in the source YAML. The current job template does not emit service-principal permissions. This entry is preserved for source compatibility; it does not grant access through generated job YAML."
                             }
                         },
                         "additionalProperties": true
@@ -173,51 +184,51 @@
                 },
                 "schedule": {
                     "type": "object",
-                    "description": "Cron schedule for the job",
+                    "description": "Run the job on a time-based schedule. A schedule combines a Quartz cron expression, timezone and pause status. Check the timezone as well as the time before enabling it.",
                     "properties": {
                         "quartz_cron_expression": {
                             "type": "string",
-                            "description": "Quartz syntax: seconds minutes hours day-of-month month day-of-week — \"0 0 8 * * ?\" runs daily at 08:00."
+                            "description": "Define when the job runs using Quartz cron syntax. Quartz includes seconds. The example runs daily at 08:00 in schedule.timezone_id; a five-field Unix cron expression is not equivalent."
                         },
                         "timezone_id": {
                             "type": "string",
-                            "description": "IANA zone id — suggestions offered, any zone accepted."
+                            "description": "Choose the timezone used to interpret the schedule. Use an IANA timezone such as Australia/Melbourne or UTC. This setting affects the scheduled time, not timestamps stored in your data."
                         },
                         "pause_status": {
                             "type": "string",
-                            "description": "PAUSED or UNPAUSED"
+                            "description": "Enable or pause scheduled runs without deleting the schedule. PAUSED keeps the schedule configured while preventing its scheduled runs. UNPAUSED enables it."
                         }
                     },
                     "additionalProperties": true
                 },
                 "trigger": {
                     "type": "object",
-                    "description": "Job trigger block (file_arrival, periodic, table_update, ...). Rendered verbatim into the generated job YAML.",
+                    "description": "Configure an event-based job trigger. Provide a supported trigger mapping, such as file_arrival or table_update. LHP passes this block into job YAML; use a scheduling approach supported by the job service.",
                     "additionalProperties": true
                 },
                 "continuous": {
                     "type": "object",
-                    "description": "Continuous job block (e.g. pause_status). Rendered verbatim into the generated job YAML.",
+                    "description": "Configure continuous job execution. This is the job-level continuous block, not pipeline continuous mode. Use supported job settings such as pause_status.",
                     "additionalProperties": true
                 },
                 "run_as": {
                     "type": "object",
-                    "description": "Identity the job runs as (e.g. service_principal_name). Rendered verbatim into the generated job YAML.",
+                    "description": "Choose the identity that executes the job. Set a supported run-as mapping such as service_principal_name. Job permissions separately control who may access or manage it.",
                     "additionalProperties": true
                 },
                 "git_source": {
                     "type": "object",
-                    "description": "Remote Git source for the job. Rendered verbatim into the generated job YAML.",
+                    "description": "Choose a remote Git source for job code. Use the job service’s Git source fields, including URL/provider and the intended branch, tag or commit. This does not change your local LHP checkout.",
                     "additionalProperties": true
                 },
                 "health": {
                     "type": "object",
-                    "description": "Job health rules. Rendered verbatim into the generated job YAML.",
+                    "description": "Set job health rules evaluated by the job service. LHP passes the health block through to generated job YAML. Health rules are distinct from data tests defined inside a flowgroup.",
                     "additionalProperties": true
                 },
                 "notebook_cluster": {
                     "type": "object",
-                    "description": "Cluster overrides for the monitoring job's union notebook task (monitoring job configs only)",
+                    "description": "Override compute for the monitoring union notebook task. This block is used only by monitoring jobs. Use new_cluster for a cluster specification or existing_cluster_id for an existing cluster.",
                     "properties": {
                         "spark_version": {
                             "type": "string",
@@ -234,7 +245,7 @@
                         "new_cluster": {
                             "type": "object",
                             "additionalProperties": true,
-                            "description": "e.g. spark_version, node_type_id, num_workers — rendered as written."
+                            "description": "Define a cluster for the monitoring union notebook. Fields inside this mapping, such as spark_version, node_type_id and num_workers, are rendered as written. A new_cluster mapping takes precedence over existing_cluster_id."
                         }
                     },
                     "additionalProperties": true
@@ -242,12 +253,15 @@
                 "generate_master_job": {
                     "type": "boolean",
                     "default": true,
-                    "description": "One master job that chains every orchestration job. LHP control knob — never emitted into the rendered job YAML."
+                    "description": "Generate a master job that chains orchestration jobs. Only job_config project defaults control this setting. Per-job and monitoring-job values have no effect, and this key is not emitted into the job resource. LHP enables master-job generation by default."
                 },
                 "master_job_name": {
-                    "type": ["string", "null"],
+                    "type": [
+                        "string",
+                        "null"
+                    ],
                     "default": null,
-                    "description": "LHP control knob: override the master orchestration job's name. Never emitted into the rendered job YAML."
+                    "description": "Override the generated master orchestration job’s name. Set this in job_config project defaults. Per-job and monitoring-job values are ignored. LHP derives the master-job name from the project."
                 }
             },
             "additionalProperties": true

@@ -186,8 +186,9 @@ export function InitProjectPage() {
             <Separator />
             <CreatedList title="Created directories" icon={FolderTree} items={result.created_dirs} />
             <CreatedList title="Created files" icon={FolderPlus} items={result.created_files} />
+            <Button asChild><a href="/">Open workspace</a></Button>
             <p className="text-2xs text-muted-foreground">
-              The app is reloading its project data — use the navigation above to explore.
+              Your project is ready. Open the workspace to explore its files and configuration.
             </p>
           </div>
         )}

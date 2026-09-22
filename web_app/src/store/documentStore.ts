@@ -9,7 +9,7 @@ import {
 } from '../lib/flowgroup-doc'
 import { parseConfigFile, serializeConfigFile, type ConfigFileHandle } from '../lib/yaml-doc'
 import { useLayoutStore } from './layoutStore'
-import { useWorkspaceStore } from './workspaceStore'
+import { useWorkspaceStore, isReadOnlyPath } from './workspaceStore'
 import type { DocKind } from './workspaceStore'
 
 // ── documentStore — the entity-document sync engine (§6.1) ───
@@ -150,6 +150,7 @@ export const useDocumentStore = create<DocumentStoreState>()((set, get) => ({
   },
 
   mutate: (path, fn) => {
+    if (useLayoutStore.getState().viewerMode || isReadOnlyPath(path)) return false
     const existing = get().docs[path]
     if (!existing || existing.handle === null) return false
     if (existing.errors.length > 0) return false

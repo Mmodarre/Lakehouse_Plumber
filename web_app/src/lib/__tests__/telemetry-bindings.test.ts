@@ -44,8 +44,20 @@ describe('surfaceForTab', () => {
       'flowgroup_code',
     ],
     [
+      { kind: 'entity', pipeline: '', flowgroup: 't', filePath: 'templates/t.yaml', docKind: 'template', view: 'builder' },
+      'template_builder',
+    ],
+    [
+      { kind: 'entity', pipeline: '', flowgroup: 't', filePath: 'templates/t.yaml', docKind: 'template', view: 'preview' },
+      'template_preview',
+    ],
+    [
       { kind: 'entity', pipeline: '', flowgroup: 't', filePath: 'templates/t.yaml', docKind: 'template', view: 'graph' },
-      'template_graph',
+      'template_builder',
+    ],
+    [
+      { kind: 'entity', pipeline: 'p', flowgroup: 'f', filePath: 'pipelines/p/f.yaml', docKind: 'flowgroup', view: 'preview' },
+      'flowgroup_graph',
     ],
     [
       { kind: 'entity', pipeline: '', flowgroup: 't', filePath: 'templates/t.yaml', docKind: 'template', view: 'code' },

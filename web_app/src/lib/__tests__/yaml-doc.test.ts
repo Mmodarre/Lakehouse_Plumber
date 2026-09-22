@@ -22,6 +22,7 @@ import {
   deletePath,
   documentCount,
   getPath,
+  insertListItem,
   parseConfigFile,
   removeDocument,
   serializeConfigFile,
@@ -869,5 +870,189 @@ describe('API basics', () => {
     const index = addDocument(handle, { pipeline: 'p' })
     setPath(handle, index, ['serverless'], true)
     expect(serializeConfigFile(handle)).toBe('a: 1\n---\npipeline: p\nserverless: true\n')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// 11. Empty flow collections
+// ---------------------------------------------------------------------------
+
+describe('empty flow collections', () => {
+  // `[]` and `{}` are the only spellings of an empty collection, so they carry
+  // no style intent; a non-empty flow collection is a deliberate choice.
+  it('insertListItem into `[]` emits a block sequence, nested collections included', () => {
+    const handle = parseConfigFile('pipeline: p\nactions: []\n')
+    insertListItem(handle, 0, ['actions'], 0, {
+      name: 'a',
+      type: 'load',
+      source: { type: 'sql', sql: 'SELECT 1' },
+      tags: ['x', 'z'],
+    })
+    expect(serializeConfigFile(handle)).toBe(
+      'pipeline: p\nactions:\n  - name: a\n    type: load\n    source:\n      type: sql\n      sql: SELECT 1\n    tags:\n      - x\n      - z\n',
+    )
+  })
+
+  it('insertListItem into a nested `[]` keeps the parent indentation', () => {
+    const handle = parseConfigFile('a:\n  list: []\n  keep: 1\n')
+    insertListItem(handle, 0, ['a', 'list'], 0, 'x')
+    expect(serializeConfigFile(handle)).toBe('a:\n  list:\n    - x\n  keep: 1\n')
+  })
+
+  it('setPath adding a key under `{}` emits a block map', () => {
+    const handle = parseConfigFile('use_template: t\ntemplate_parameters: {}\n')
+    setPath(handle, 0, ['template_parameters', 'schedule'], { cron: '0 1 * * *', tz: 'UTC' })
+    expect(serializeConfigFile(handle)).toBe(
+      'use_template: t\ntemplate_parameters:\n  schedule:\n    cron: 0 1 * * *\n    tz: UTC\n',
+    )
+  })
+
+  it('setPath with a numeric segment into `[]` emits a block sequence', () => {
+    const handle = parseConfigFile('items: []\n')
+    setPath(handle, 0, ['items', 0], 'first')
+    expect(serializeConfigFile(handle)).toBe('items:\n  - first\n')
+  })
+
+  it('non-empty flow collections keep their inline style when extended', () => {
+    const seq = parseConfigFile('tags: [a, b]\n')
+    insertListItem(seq, 0, ['tags'], 2, 'c')
+    expect(serializeConfigFile(seq)).toBe('tags: [ a, b, c ]\n')
+
+    const map = parseConfigFile('opts: { a: 1 }\n')
+    setPath(map, 0, ['opts', 'b'], 2)
+    expect(serializeConfigFile(map)).toBe('opts: { a: 1, b: 2 }\n')
+  })
+
+  it('a rejected setPath leaves an empty flow collection in its flow style', () => {
+    const handle = parseConfigFile('items: []\nother: 1\n')
+    expect(() => setPath(handle, 0, ['items', 'x'], 1)).toThrow()
+    deletePath(handle, 0, ['other'])
+    expect(serializeConfigFile(handle)).toBe('items: []\n')
+  })
+
+  it('a root-level `[]` document becomes a block sequence', () => {
+    const handle = parseConfigFile('[]\n')
+    insertListItem(handle, 0, [], 0, 'x')
+    expect(serializeConfigFile(handle)).toBe('- x\n')
+  })
+
+  it('an empty collection inside a non-empty flow parent stays flow', () => {
+    const handle = parseConfigFile('a: { b: [] }\n')
+    insertListItem(handle, 0, ['a', 'b'], 0, 'x')
+    expect(serializeConfigFile(handle)).toBe('a: { b: [ x ] }\n')
+  })
+
+  it('a flow list emptied by a delete and refilled becomes block', () => {
+    const handle = parseConfigFile('tags: [a]\n')
+    deletePath(handle, 0, ['tags', 0])
+    insertListItem(handle, 0, ['tags'], 0, 'b')
+    expect(serializeConfigFile(handle)).toBe('tags:\n  - b\n')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// 12. Multi-line strings
+// ---------------------------------------------------------------------------
+
+describe('multi-line strings', () => {
+  const sql = 'SELECT 1\nFROM t'
+
+  it('writes a multi-line string into a plain slot as a literal block scalar', () => {
+    const handle = parseConfigFile('sql: old\nnext: 1\n')
+    setPath(handle, 0, ['sql'], sql)
+    expect(serializeConfigFile(handle)).toBe('sql: |-\n  SELECT 1\n  FROM t\nnext: 1\n')
+  })
+
+  it('writes a multi-line string into a quoted slot as a literal block scalar', () => {
+    const handle = parseConfigFile('sql: "a"\nnext: 1\n')
+    setPath(handle, 0, ['sql'], sql)
+    expect(serializeConfigFile(handle)).toBe('sql: |-\n  SELECT 1\n  FROM t\nnext: 1\n')
+  })
+
+  it('keeps an existing folded block scalar folded', () => {
+    const handle = parseConfigFile('sql: >\n  a\n  b\nnext: 1\n')
+    setPath(handle, 0, ['sql'], sql)
+    const out = serializeConfigFile(handle)
+    expect(out).toBe('sql: >-\n  SELECT 1\n\n  FROM t\nnext: 1\n')
+    expect(toJS(parseConfigFile(out), 0)).toEqual({ sql, next: 1 })
+  })
+
+  it('indents the block body under nested keys and sequence items', () => {
+    const nested = parseConfigFile('m:\n  sql: old\n  next: 1\n')
+    setPath(nested, 0, ['m', 'sql'], sql)
+    expect(serializeConfigFile(nested)).toBe('m:\n  sql: |-\n    SELECT 1\n    FROM t\n  next: 1\n')
+
+    const item = parseConfigFile('- sql: old\n- 2\n')
+    setPath(item, 0, [0, 'sql'], sql)
+    expect(serializeConfigFile(item)).toBe('- sql: |-\n    SELECT 1\n    FROM t\n- 2\n')
+  })
+
+  it('splices a new multi-line key as a literal block scalar', () => {
+    const flat = parseConfigFile('a: 1\n')
+    setPath(flat, 0, ['sql'], sql)
+    expect(serializeConfigFile(flat)).toBe('a: 1\nsql: |-\n  SELECT 1\n  FROM t\n')
+
+    const nested = parseConfigFile('a: 1\n')
+    setPath(nested, 0, ['x', 'sql'], sql)
+    expect(serializeConfigFile(nested)).toBe('a: 1\nx:\n  sql: |-\n    SELECT 1\n    FROM t\n')
+  })
+
+  it('inserts list items holding multi-line strings as literal block scalars', () => {
+    const handle = parseConfigFile('actions: []\n')
+    insertListItem(handle, 0, ['actions'], 0, { name: 'a', sql })
+    expect(serializeConfigFile(handle)).toBe(
+      'actions:\n  - name: a\n    sql: |-\n      SELECT 1\n      FROM t\n',
+    )
+  })
+
+  it('keeps a trailing newline in the value with the | chomping indicator', () => {
+    const handle = parseConfigFile('sql: old\n')
+    setPath(handle, 0, ['sql'], 'SELECT 1\nFROM t\n')
+    const out = serializeConfigFile(handle)
+    expect(out).toBe('sql: |\n  SELECT 1\n  FROM t\n')
+    expect(toJS(parseConfigFile(out), 0)).toEqual({ sql: 'SELECT 1\nFROM t\n' })
+  })
+
+  it('a file without a final newline gains one when a block scalar ends it', () => {
+    const handle = parseConfigFile('sql: old')
+    setPath(handle, 0, ['sql'], sql)
+    expect(serializeConfigFile(handle)).toBe('sql: |-\n  SELECT 1\n  FROM t\n')
+  })
+
+  it('falls back to double quotes when a block scalar cannot hold the value', () => {
+    const handle = parseConfigFile('sql: old\n')
+    const value = 'SELECT 1\n   '
+    setPath(handle, 0, ['sql'], value)
+    const out = serializeConfigFile(handle)
+    expect(out.startsWith('sql: "')).toBe(true)
+    expect(toJS(parseConfigFile(out), 0)).toEqual({ sql: value })
+  })
+
+  it('a spliced entry ending in a block scalar keeps its final newline at an unterminated last line', () => {
+    const handle = parseConfigFile('a: 1')
+    setPath(handle, 0, ['sql'], 'SELECT 1\n')
+    const out = serializeConfigFile(handle)
+    expect(out).toBe('a: 1\nsql: |\n  SELECT 1\n')
+    expect(toJS(parseConfigFile(out), 0)).toEqual({ a: 1, sql: 'SELECT 1\n' })
+  })
+
+  it('keeps an inline comment on the block scalar header', () => {
+    const handle = parseConfigFile('sql: old # keep\nnext: 1\n')
+    setPath(handle, 0, ['sql'], sql)
+    expect(serializeConfigFile(handle)).toBe('sql: |- # keep\n  SELECT 1\n  FROM t\nnext: 1\n')
+  })
+
+  it("writes the block body with the file's CRLF line endings", () => {
+    const handle = parseConfigFile('sql: old\r\nnext: 1\r\n')
+    setPath(handle, 0, ['sql'], sql)
+    expect(serializeConfigFile(handle)).toBe('sql: |-\r\n  SELECT 1\r\n  FROM t\r\nnext: 1\r\n')
+  })
+
+  it('double-quotes multi-line text inside a flow collection, where block scalars are not allowed', () => {
+    const handle = parseConfigFile('flow: { sql: old, n: 1 }\n')
+    setPath(handle, 0, ['flow', 'sql'], sql)
+    const out = serializeConfigFile(handle)
+    expect(out.startsWith('flow: { sql: "')).toBe(true)
+    expect(toJS(parseConfigFile(out), 0)).toEqual({ flow: { sql, n: 1 } })
   })
 })

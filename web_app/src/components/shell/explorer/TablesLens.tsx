@@ -65,7 +65,7 @@ export function TablesLens() {
   const selectedEnv = useUIStore((s) => s.selectedEnv)
   const openTableDetail = useWorkspaceStore((s) => s.openTableDetail)
   const activePath = useWorkspaceStore((s) => s.activePath)
-  const { data, isLoading } = useTables(selectedEnv)
+  const { data, isLoading, error, refetch } = useTables(selectedEnv)
   const enrichment = useMapEnrichment(selectedEnv)
   const [query, setQuery] = useState('')
 
@@ -93,6 +93,8 @@ export function TablesLens() {
           <p className="px-3 py-2 text-2xs text-faint">Select an environment to list tables.</p>
         ) : isLoading ? (
           <p className="px-3 py-2 text-2xs text-faint">Loading…</p>
+        ) : error ? (
+          <div role="alert" className="space-y-2 px-3 py-2 text-xs"><p>Could not load tables: {error instanceof Error ? error.message : 'Request failed'}</p><button className="underline" onClick={() => void refetch()}>Retry</button></div>
         ) : groups.length === 0 ? (
           <p className="px-3 py-2 text-2xs text-faint">
             {query ? 'No tables match the filter.' : 'No tables resolved for this environment.'}

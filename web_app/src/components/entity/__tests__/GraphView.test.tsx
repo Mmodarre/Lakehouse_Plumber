@@ -12,6 +12,9 @@ import { useLayoutStore } from '@/store/layoutStore'
 import { useSelectionStore } from '@/store/selectionStore'
 import { writeFile } from '@/api/files'
 import { GraphView } from '../GraphView'
+import { TemplateBuilder } from '@/components/template/TemplateBuilder'
+import { entityTemplateTabId } from '@/store/workspaceStore'
+import { useDocumentHistoryStore } from '@/store/documentHistoryStore'
 
 // GraphView drives the real documentStore + workspaceStore + layoutStore (same
 // data core as FlowgroupFormView), so structural edits are exercised through
@@ -198,6 +201,7 @@ function entityView(): string | undefined {
 }
 
 beforeEach(() => {
+  useDocumentHistoryStore.setState({ histories: {} })
   localStorage.clear()
   rf.fitView.mockClear()
   mockWriteFile.mockReset()
@@ -427,5 +431,98 @@ describe('GraphView — readOnly chain', () => {
     expect(
       screen.queryByText('YAML has syntax errors — fix in the Code view.'),
     ).not.toBeInTheDocument()
+  })
+})
+
+
+describe('GraphView recovery controls', () => {
+  it('shows a retry action after source loading fails', () => {
+    useWorkspaceStore.getState().openBuffer(PATH, { exists: true, loading: true })
+    useWorkspaceStore.getState().markLoadFailed(PATH)
+    render(<GraphView tabId={TAB_ID} filePath={PATH} docKind="flowgroup" />, { wrapper: providers })
+    expect(screen.getByText('Could not load source file')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument()
+  })
+})
+
+
+describe('GraphView editing safeguards', () => {
+  it('undoes deletion and restores the original comments', async () => {
+    seedAndRender()
+    fireEvent.click(await screen.findByTestId('rf-node-clean_orders'))
+    fireEvent.click(screen.getByRole('button', { name: /delete action/i }))
+    expect(bufferContent()).not.toContain('name: clean_orders')
+    fireEvent.click(screen.getByRole('button', { name: 'Undo graph change' }))
+    expect(bufferContent()).toBe(YAML)
+    expect(useWorkspaceStore.getState().buffers[0].isDirty).toBe(false)
+  })
+  it('Enter opens the selected action editor', async () => {
+    seedAndRender()
+    fireEvent.click(await screen.findByTestId('rf-node-load_orders'))
+    fireEvent.keyDown(screen.getByRole('group', { name: 'Pipeline canvas' }), { key: 'Enter' })
+    expect(await screen.findByRole('dialog')).toHaveTextContent('Edit action')
+  })
+  it('keeps uncommitted field text when Cancel is declined', async () => {
+    seedAndRender()
+    fireEvent.doubleClick(await screen.findByTestId('rf-node-load_orders'))
+    const dialog = await screen.findByRole('dialog')
+    fireEvent.change(within(dialog).getByLabelText('Path'), { target: { value: '/draft/path' } })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+    expect(await screen.findByRole('alertdialog')).toHaveTextContent('Discard action edits?')
+    fireEvent.click(screen.getByRole('button', { name: 'Keep editing' }))
+    expect(within(screen.getByRole('dialog')).getByLabelText('Path')).toHaveValue('/draft/path')
+    expect(bufferContent()).toBe(YAML)
+  })
+})
+
+
+describe('TemplateBuilder — integrated source draft', () => {
+  const templatePath = 'templates/orders.yaml'
+  const templateId = entityTemplateTabId(templatePath)
+  const templateYaml = `# Reusable orders
+name: orders_template
+version: "1.0"
+parameters:
+  - name: output_view
+    type: string
+    required: true
+actions:
+  - name: clean
+    type: transform
+    transform_type: sql
+    source: v_raw
+    sql: SELECT * FROM v_raw
+    target: v_clean
+`
+  function mountTemplate() {
+    useWorkspaceStore.getState().openBuffer(templatePath, { content: templateYaml, exists: true })
+    useWorkspaceStore.getState().openEntityTab('', 'orders_template', templatePath, { docKind: 'template' })
+    return render(<TemplateBuilder path={templatePath} tabId={templateId} />, { wrapper: providers })
+  }
+  it('edits actual metadata and applies an action to the same draft without disk writes', async () => {
+    mountTemplate()
+    const name = await screen.findByLabelText('Template name')
+    fireEvent.change(name, { target: { value: 'orders_reusable' } })
+    fireEvent.blur(name)
+    expect(useWorkspaceStore.getState().buffers[0].content).toContain('name: orders_reusable')
+    expect(screen.queryByLabelText('Job name')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Actions (1)' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit action' }))
+    const target = screen.getByLabelText('Target view')
+    fireEvent.change(target, { target: { value: 'v_new' } })
+    fireEvent.blur(target)
+    expect(useWorkspaceStore.getState().buffers[0].content).toContain('target: v_clean')
+    fireEvent.click(screen.getByRole('button', { name: 'Apply action changes' }))
+    await waitFor(() => expect(useWorkspaceStore.getState().buffers[0].content).toContain('target: v_new'))
+    expect(mockWriteFile).not.toHaveBeenCalled()
+    expect(useWorkspaceStore.getState().buffers[0].content).toContain('# Reusable orders')
+  })
+  it('keeps template declarations disabled in viewer mode', async () => {
+    useLayoutStore.setState({ viewerMode: true })
+    mountTemplate()
+    expect(await screen.findByLabelText('Template name')).toBeDisabled()
+    fireEvent.click(screen.getByRole('button', { name: 'Parameters (1)' }))
+    expect(screen.getByRole('button', { name: 'Add parameter' })).toBeDisabled()
+    expect(useWorkspaceStore.getState().buffers[0].content).toBe(templateYaml)
   })
 })

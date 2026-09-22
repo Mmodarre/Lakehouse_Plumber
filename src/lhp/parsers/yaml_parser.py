@@ -12,7 +12,7 @@ from lhp.models import ActionType, FlowGroup, Preset, Template
 
 from ..errors import ErrorFactory, LHPError, codes
 from .parse_cache import PersistentParseCache
-from .yaml_loader import load_yaml_documents_all, load_yaml_file
+from .yaml_loader import load_yaml_documents_all, load_yaml_file, load_yaml_text
 
 _CacheValueT = TypeVar("_CacheValueT")
 
@@ -278,11 +278,21 @@ class YAMLParser:
         """Skip Action object creation so template syntax (e.g. ``{{ table_properties }}``)
         is not validated until rendering when actual parameter values are available.
         """
-        content = self.parse_file(file_path)
+        return self.parse_template_data(self.parse_file(file_path))
 
-        raw_actions = content.pop("actions", [])
-        template = Template(**content, actions=raw_actions)
-        template._raw_actions = True  # Set flag after creation
+    def parse_template_text(self, text: str, *, source_path: Path) -> Template:
+        """Parse a draft without saving it or changing any parser cache."""
+        return self.parse_template_data(
+            load_yaml_text(text, source_path=source_path) or {}
+        )
+
+    @staticmethod
+    def parse_template_data(content: Dict[str, Any]) -> Template:
+        """Preserve deferred action validation for both file and draft adapters."""
+        metadata = content.copy()
+        raw_actions = metadata.pop("actions", [])
+        template = Template(**metadata, actions=raw_actions)
+        template._raw_actions = True
         return template
 
     def parse_preset(self, file_path: Path) -> Preset:

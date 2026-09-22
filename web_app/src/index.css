@@ -431,3 +431,9 @@
     font-feature-settings: "cv11"; /* Inter: open digits */
   }
 }
+/* Optional reading density; layout dimensions remain independent of type size. */
+[data-density="comfortable"] .text-2xs { font-size: 0.75rem; line-height: 1.5; }
+[data-density="comfortable"] .text-xs { font-size: 0.8125rem; line-height: 1.5; }
+[data-density="comfortable"] button:not([role="tab"]),
+[data-density="comfortable"] input,
+[data-density="comfortable"] select { min-height: 30px; }

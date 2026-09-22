@@ -126,11 +126,11 @@ export function ActionForm({
         )}
       </div>
 
-      <SchemaKindProvider kind="flowgroup">
+      <SchemaKindProvider kind="flowgroup" subtype={`${spec.kind}:${spec.subType}`}>
         <div className="flex flex-col gap-4 px-4 py-4">
           <OptionalTextField
             id={`af-${actionId}-description`}
-            label="Description"
+            label="Description" helpPath={['description']}
             value={raw.description}
             onSet={(value) => commit((doc) => setActionField(doc, actionId, ['description'], value))}
             onUnset={() => commit((doc) => deleteActionField(doc, actionId, ['description']))}

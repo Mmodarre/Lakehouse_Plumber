@@ -1,0 +1,680 @@
+{
+  "version": 1,
+  "sources": {
+    "docs/concepts/flowgroups-and-dependencies.rst": {
+      "sha256": "8237bd2f2b37450a2ed61bf9c248e2b391e55fd3e3374a8995d16a0e1fe95a83",
+      "entryIds": [
+        "flowgroup.depends_on",
+        "flowgroup.description",
+        "flowgroup.flowgroup",
+        "flowgroup.job_name",
+        "flowgroup.name",
+        "flowgroup.pipeline"
+      ]
+    },
+    "docs/guides/test/test-reporting.rst": {
+      "sha256": "c9eca44e1da4619213c545e59536cc4b113855289e47e10d87dcab161af354cf",
+      "entryIds": [
+        "project.test_reporting",
+        "project.test_reporting.config_file",
+        "project.test_reporting.function_name",
+        "project.test_reporting.module_path"
+      ]
+    },
+    "docs/reference/actions/write.rst": {
+      "sha256": "bf9ccae07031ecfb58547ddbb3f4157a1b24126ae345d95de5c8feffb926bf85",
+      "entryIds": [
+        "action.write.streaming_table.once"
+      ]
+    },
+    "docs/reference/config/bundle.rst": {
+      "sha256": "c33e2f3be8c419f97be0af18f978f30ce6a7e685be4f99c4359f6a18659be154",
+      "entryIds": [
+        "pipeline.catalog",
+        "pipeline.channel",
+        "pipeline.clusters",
+        "pipeline.clusters.*.autoscale.max_workers",
+        "pipeline.clusters.*.autoscale.min_workers",
+        "pipeline.clusters.*.autoscale.mode",
+        "pipeline.clusters.*.driver_node_type_id",
+        "pipeline.clusters.*.label",
+        "pipeline.clusters.*.node_type_id",
+        "pipeline.clusters.*.policy_id",
+        "pipeline.configuration",
+        "pipeline.continuous",
+        "pipeline.edition",
+        "pipeline.environment",
+        "pipeline.environment.dependencies",
+        "pipeline.event_log",
+        "pipeline.event_log.catalog",
+        "pipeline.event_log.name",
+        "pipeline.event_log.schema",
+        "pipeline.notifications",
+        "pipeline.notifications.*.alerts",
+        "pipeline.notifications.*.email_recipients",
+        "pipeline.packaging",
+        "pipeline.permissions",
+        "pipeline.permissions.*.group_name",
+        "pipeline.permissions.*.level",
+        "pipeline.permissions.*.service_principal_name",
+        "pipeline.permissions.*.user_name",
+        "pipeline.photon",
+        "pipeline.run_as",
+        "pipeline.schema",
+        "pipeline.serverless",
+        "pipeline.tags",
+        "project.wheel",
+        "project.wheel.artifact_volume"
+      ]
+    },
+    "docs/reference/config/operational-metadata.rst": {
+      "sha256": "41ca829482cd697f90ea8ccf175067112fa7ab07d543fd57cc7a9005e2b5013c",
+      "entryIds": [
+        "flowgroup.operational_metadata",
+        "project.operational_metadata",
+        "project.operational_metadata.columns",
+        "project.operational_metadata.columns.*.additional_imports",
+        "project.operational_metadata.columns.*.applies_to",
+        "project.operational_metadata.columns.*.description",
+        "project.operational_metadata.columns.*.enabled",
+        "project.operational_metadata.columns.*.expression",
+        "project.operational_metadata.defaults",
+        "project.operational_metadata.presets",
+        "project.operational_metadata.presets.*.columns",
+        "project.operational_metadata.presets.*.description"
+      ]
+    },
+    "docs/reference/config/presets.rst": {
+      "sha256": "66f8c8e987d0d1e738f9f6b59a1fd91db6375b24098de2e0711776448ee6b3e4",
+      "entryIds": [
+        "flowgroup.presets"
+      ]
+    },
+    "docs/reference/config/sandbox.rst": {
+      "sha256": "bf1f213f403d9e8a10be94b0a5c567c8116fb9c6a7aa293df4533651ecf36152",
+      "entryIds": [
+        "project.sandbox",
+        "project.sandbox.allowed_envs",
+        "project.sandbox.strategy",
+        "project.sandbox.table_pattern"
+      ]
+    },
+    "docs/reference/config/templates.rst": {
+      "sha256": "cd466dbf8166d788fb7560704487278a94a0a6f9e5744d723f92cf7a13287a26",
+      "entryIds": [
+        "flowgroup.template_parameters",
+        "flowgroup.use_template",
+        "template.actions",
+        "template.description",
+        "template.name",
+        "template.parameters",
+        "template.parameters.*.default",
+        "template.parameters.*.description",
+        "template.parameters.*.name",
+        "template.parameters.*.required",
+        "template.parameters.*.type",
+        "template.presets",
+        "template.version"
+      ]
+    },
+    "src/lhp/resources/skills/lhp/references/actions-load-cloudfiles.md": {
+      "sha256": "11d1220689729d29ea6d23eb9d3f95050911e798fffea15ed062cd8d9be666fe",
+      "entryIds": [
+        "action.load.cloudfiles.overview",
+        "action.load.cloudfiles.source.format",
+        "action.load.cloudfiles.source.format_options",
+        "action.load.cloudfiles.source.max_files_per_trigger",
+        "action.load.cloudfiles.source.options",
+        "action.load.cloudfiles.source.path",
+        "action.load.cloudfiles.source.readMode",
+        "action.load.cloudfiles.source.reader_options",
+        "action.load.cloudfiles.source.rescue_data_column",
+        "action.load.cloudfiles.source.schema",
+        "action.load.cloudfiles.source.schema_evolution_mode",
+        "action.load.cloudfiles.source.schema_file",
+        "action.load.cloudfiles.source.schema_infer_column_types",
+        "action.load.cloudfiles.source.schema_location",
+        "action.load.cloudfiles.target"
+      ]
+    },
+    "src/lhp/resources/skills/lhp/references/actions-load-custom-datasource.md": {
+      "sha256": "097a5e45fd98d18f0f86bc400e54382fbf65e3e5ce9ad250548815a5aa204831",
+      "entryIds": [
+        "action.load.custom_datasource.overview",
+        "action.load.custom_datasource.readMode",
+        "action.load.custom_datasource.source.custom_datasource_class",
+        "action.load.custom_datasource.source.module_path",
+        "action.load.custom_datasource.source.options",
+        "action.load.custom_datasource.target"
+      ]
+    },
+    "src/lhp/resources/skills/lhp/references/actions-load-delta.md": {
+      "sha256": "76d3e1c1c046352dc6ae0570ce097112fc0a2e074adede5418f1d2660e2be46c",
+      "entryIds": [
+        "action.load.delta.overview",
+        "action.load.delta.readMode",
+        "action.load.delta.source.catalog",
+        "action.load.delta.source.options",
+        "action.load.delta.source.schema",
+        "action.load.delta.source.select_columns",
+        "action.load.delta.source.table",
+        "action.load.delta.source.where_clause",
+        "action.load.delta.target"
+      ]
+    },
+    "src/lhp/resources/skills/lhp/references/actions-load-jdbc.md": {
+      "sha256": "0f6c9a4e0ab27d127c7d30c5a4009197e9ecbc57f8a63944b57da18d3fb14829",
+      "entryIds": [
+        "action.load.jdbc.overview",
+        "action.load.jdbc.source.driver",
+        "action.load.jdbc.source.password",
+        "action.load.jdbc.source.query",
+        "action.load.jdbc.source.table",
+        "action.load.jdbc.source.url",
+        "action.load.jdbc.source.user",
+        "action.load.jdbc.target"
+      ]
+    },
+    "src/lhp/resources/skills/lhp/references/actions-load-kafka.md": {
+      "sha256": "b9247d68bbef0054cb34dd6d9abed102c16e119fcf50a5eaffda73c43bedf1c2",
+      "entryIds": [
+        "action.load.kafka.overview",
+        "action.load.kafka.readMode",
+        "action.load.kafka.source.assign",
+        "action.load.kafka.source.bootstrap_servers",
+        "action.load.kafka.source.options",
+        "action.load.kafka.source.subscribe",
+        "action.load.kafka.source.subscribePattern",
+        "action.load.kafka.target"
+      ]
+    },
+    "src/lhp/resources/skills/lhp/references/actions-load-python.md": {
+      "sha256": "5a2e6ccd2fa22d1c45aae2901e621cdb34c4aa48076c3fc2e48c7e419c6f9924",
+      "entryIds": [
+        "action.load.python.overview",
+        "action.load.python.source.function_name",
+        "action.load.python.source.module_path",
+        "action.load.python.source.parameters",
+        "action.load.python.target"
+      ]
+    },
+    "src/lhp/resources/skills/lhp/references/actions-load-sql.md": {
+      "sha256": "b451df14ac3bb721c6ab1730b4e589e34c3265d0f94b06b9bbd88b12edb62218",
+      "entryIds": [
+        "action.load.sql.overview",
+        "action.load.sql.source.sql",
+        "action.load.sql.source.sql_path",
+        "action.load.sql.target"
+      ]
+    },
+    "src/lhp/resources/skills/lhp/references/actions-test-all-lookups-found.md": {
+      "sha256": "366727b0fa3235a5feb31c5850d4da93e43f8dedc93ef1003dbf3ff8a4ceee58",
+      "entryIds": [
+        "action.test.all_lookups_found.lookup_columns",
+        "action.test.all_lookups_found.lookup_result_columns",
+        "action.test.all_lookups_found.lookup_table",
+        "action.test.all_lookups_found.on_violation",
+        "action.test.all_lookups_found.overview",
+        "action.test.all_lookups_found.source",
+        "action.test.all_lookups_found.target",
+        "action.test.all_lookups_found.test_id"
+      ]
+    },
+    "src/lhp/resources/skills/lhp/references/actions-test-completeness.md": {
+      "sha256": "d0c84a2a519d0753e90be7a2992539e434ec5d737a653060c2ace20c7e25cf46",
+      "entryIds": [
+        "action.test.completeness.on_violation",
+        "action.test.completeness.overview",
+        "action.test.completeness.required_columns",
+        "action.test.completeness.source",
+        "action.test.completeness.target",
+        "action.test.completeness.test_id"
+      ]
+    },
+    "src/lhp/resources/skills/lhp/references/actions-test-custom-expectations.md": {
+      "sha256": "1b0395d77f21645234505d251dfc6367ac5a48334e91012bcc18e5d96bd2c822",
+      "entryIds": [
+        "action.test.custom_expectations.expectations",
+        "action.test.custom_expectations.expectations.*.expression",
+        "action.test.custom_expectations.expectations.*.name",
+        "action.test.custom_expectations.expectations.*.on_violation",
+        "action.test.custom_expectations.overview",
+        "action.test.custom_expectations.source",
+        "action.test.custom_expectations.target",
+        "action.test.custom_expectations.test_id"
+      ]
+    },
+    "src/lhp/resources/skills/lhp/references/actions-test-custom-sql.md": {
+      "sha256": "78e5ca81bb465840c388c3edb9cd4d258b0d4e8c52d7ab48ee17fcd88c36da78",
+      "entryIds": [
+        "action.test.custom_sql.expectations",
+        "action.test.custom_sql.expectations.*.expression",
+        "action.test.custom_sql.expectations.*.name",
+        "action.test.custom_sql.expectations.*.on_violation",
+        "action.test.custom_sql.overview",
+        "action.test.custom_sql.source",
+        "action.test.custom_sql.sql",
+        "action.test.custom_sql.target",
+        "action.test.custom_sql.test_id"
+      ]
+    },
+    "src/lhp/resources/skills/lhp/references/actions-test-range.md": {
+      "sha256": "a20ee6098747c6ff7aa5050d2b9c5e0fbed8473232e5f059370d061de1819512",
+      "entryIds": [
+        "action.test.range.column",
+        "action.test.range.max_value",
+        "action.test.range.min_value",
+        "action.test.range.on_violation",
+        "action.test.range.overview",
+        "action.test.range.source",
+        "action.test.range.target",
+        "action.test.range.test_id"
+      ]
+    },
+    "src/lhp/resources/skills/lhp/references/actions-test-referential-integrity.md": {
+      "sha256": "463bb6df89fa758db3d2d89593033f20598d0691541862930a270d6a09b132e0",
+      "entryIds": [
+        "action.test.referential_integrity.on_violation",
+        "action.test.referential_integrity.overview",
+        "action.test.referential_integrity.reference",
+        "action.test.referential_integrity.reference_columns",
+        "action.test.referential_integrity.source",
+        "action.test.referential_integrity.source_columns",
+        "action.test.referential_integrity.target",
+        "action.test.referential_integrity.test_id"
+      ]
+    },
+    "src/lhp/resources/skills/lhp/references/actions-test-row-count.md": {
+      "sha256": "3c89a63af503eb6bb86a97bb278dfec4919f7fc1cf1c24104e808b7e48381372",
+      "entryIds": [
+        "action.test.row_count.on_violation",
+        "action.test.row_count.overview",
+        "action.test.row_count.source",
+        "action.test.row_count.target",
+        "action.test.row_count.test_id",
+        "action.test.row_count.tolerance"
+      ]
+    },
+    "src/lhp/resources/skills/lhp/references/actions-test-schema-match.md": {
+      "sha256": "f7c2d30c19b73b5b61e7643b89f8aad2e01481362df051c0989aa31558af353f",
+      "entryIds": [
+        "action.test.schema_match.on_violation",
+        "action.test.schema_match.overview",
+        "action.test.schema_match.reference",
+        "action.test.schema_match.source",
+        "action.test.schema_match.target",
+        "action.test.schema_match.test_id"
+      ]
+    },
+    "src/lhp/resources/skills/lhp/references/actions-test-uniqueness.md": {
+      "sha256": "402f31ea1fc8ef5a6fb9aa404d37fecb2e3c76fde5b5bc101f191fa339712876",
+      "entryIds": [
+        "action.test.uniqueness.columns",
+        "action.test.uniqueness.filter",
+        "action.test.uniqueness.on_violation",
+        "action.test.uniqueness.overview",
+        "action.test.uniqueness.source",
+        "action.test.uniqueness.target",
+        "action.test.uniqueness.test_id"
+      ]
+    },
+    "src/lhp/resources/skills/lhp/references/actions-transform-data-quality.md": {
+      "sha256": "4ee1bba0c0f1506c1709617f3c59795731c3c1fc0eb0c70d9f3d01d25d15e89d",
+      "entryIds": [
+        "action.transform.data_quality.expectations_file",
+        "action.transform.data_quality.mode",
+        "action.transform.data_quality.overview",
+        "action.transform.data_quality.quarantine.dlq_table",
+        "action.transform.data_quality.quarantine.source_table",
+        "action.transform.data_quality.source",
+        "action.transform.data_quality.target"
+      ]
+    },
+    "src/lhp/resources/skills/lhp/references/actions-transform-python.md": {
+      "sha256": "38da1d24d86ac18ef3bc0e8f3d3139c9968793e82187000dcb98cb3a3d8fb375",
+      "entryIds": [
+        "action.transform.python.function_name",
+        "action.transform.python.module_path",
+        "action.transform.python.overview",
+        "action.transform.python.parameters",
+        "action.transform.python.readMode",
+        "action.transform.python.source",
+        "action.transform.python.target"
+      ]
+    },
+    "src/lhp/resources/skills/lhp/references/actions-transform-schema.md": {
+      "sha256": "22f42131b9426da026d9b532543cce5edd3b39e49d7e7ff461ff2f96c8991ad1",
+      "entryIds": [
+        "action.transform.schema.enforcement",
+        "action.transform.schema.overview",
+        "action.transform.schema.readMode",
+        "action.transform.schema.schema_file",
+        "action.transform.schema.schema_inline",
+        "action.transform.schema.source",
+        "action.transform.schema.target"
+      ]
+    },
+    "src/lhp/resources/skills/lhp/references/actions-transform-sql.md": {
+      "sha256": "71babfbe9557c9e9994a7207a3469503935972d3f3ccd42f38c874d33d8ff39b",
+      "entryIds": [
+        "action.transform.sql.overview",
+        "action.transform.sql.source",
+        "action.transform.sql.sql",
+        "action.transform.sql.sql_path",
+        "action.transform.sql.target"
+      ]
+    },
+    "src/lhp/resources/skills/lhp/references/actions-transform-temp-table.md": {
+      "sha256": "e5a9b6e573b45280f43a0af5b446bb8e7c0811b686a273cdedd9ed28def060c0",
+      "entryIds": [
+        "action.transform.temp_table.overview",
+        "action.transform.temp_table.readMode",
+        "action.transform.temp_table.source",
+        "action.transform.temp_table.sql",
+        "action.transform.temp_table.target"
+      ]
+    },
+    "src/lhp/resources/skills/lhp/references/actions-write-materialized-view.md": {
+      "sha256": "536f5272374ac6688402eecfe82772dff14a9c70e3d242a5a5fe524a58f73503",
+      "entryIds": [
+        "action.write.materialized_view.overview",
+        "action.write.materialized_view.source",
+        "action.write.materialized_view.write_target.catalog",
+        "action.write.materialized_view.write_target.cluster_by_auto",
+        "action.write.materialized_view.write_target.cluster_columns",
+        "action.write.materialized_view.write_target.comment",
+        "action.write.materialized_view.write_target.partition_columns",
+        "action.write.materialized_view.write_target.path",
+        "action.write.materialized_view.write_target.refresh_policy",
+        "action.write.materialized_view.write_target.refresh_schedule",
+        "action.write.materialized_view.write_target.row_filter",
+        "action.write.materialized_view.write_target.schema",
+        "action.write.materialized_view.write_target.spark_conf",
+        "action.write.materialized_view.write_target.sql",
+        "action.write.materialized_view.write_target.sql_path",
+        "action.write.materialized_view.write_target.table",
+        "action.write.materialized_view.write_target.table_properties",
+        "action.write.materialized_view.write_target.table_schema",
+        "action.write.materialized_view.write_target.tags",
+        "action.write.materialized_view.write_target.tags_file",
+        "action.write.materialized_view.write_target.temporary"
+      ]
+    },
+    "src/lhp/resources/skills/lhp/references/actions-write-sink-custom.md": {
+      "sha256": "60ddf7c66c2000aee4492a582dce623b14fbd313eb154f8b4cd095373ca5f122",
+      "entryIds": [
+        "action.write.sink.overview",
+        "action.write.sink.source",
+        "action.write.sink.write_target.batch_handler",
+        "action.write.sink.write_target.bootstrap_servers",
+        "action.write.sink.write_target.comment",
+        "action.write.sink.write_target.custom_sink_class",
+        "action.write.sink.write_target.module_path",
+        "action.write.sink.write_target.options",
+        "action.write.sink.write_target.sink_name",
+        "action.write.sink.write_target.sink_type",
+        "action.write.sink.write_target.topic"
+      ]
+    },
+    "src/lhp/resources/skills/lhp/references/actions-write-sink-delta.md": {
+      "sha256": "8d095e2ca0cb762f0dfa4ee819c031da3fab408a71b39eab3e1cd9985a1cb2e8",
+      "entryIds": [
+        "action.write.sink.overview",
+        "action.write.sink.source",
+        "action.write.sink.write_target.batch_handler",
+        "action.write.sink.write_target.bootstrap_servers",
+        "action.write.sink.write_target.comment",
+        "action.write.sink.write_target.custom_sink_class",
+        "action.write.sink.write_target.module_path",
+        "action.write.sink.write_target.options",
+        "action.write.sink.write_target.sink_name",
+        "action.write.sink.write_target.sink_type",
+        "action.write.sink.write_target.topic"
+      ]
+    },
+    "src/lhp/resources/skills/lhp/references/actions-write-sink-foreachbatch.md": {
+      "sha256": "22cb56db901f36487f0612d455932bd8dda7a35a4c34a26d531b105773a873bd",
+      "entryIds": [
+        "action.write.sink.overview",
+        "action.write.sink.source",
+        "action.write.sink.write_target.batch_handler",
+        "action.write.sink.write_target.bootstrap_servers",
+        "action.write.sink.write_target.comment",
+        "action.write.sink.write_target.custom_sink_class",
+        "action.write.sink.write_target.module_path",
+        "action.write.sink.write_target.options",
+        "action.write.sink.write_target.sink_name",
+        "action.write.sink.write_target.sink_type",
+        "action.write.sink.write_target.topic"
+      ]
+    },
+    "src/lhp/resources/skills/lhp/references/actions-write-sink-kafka.md": {
+      "sha256": "366f92c640bf1607b653f53b69cd2e202899382134081e2f4374211bee26b638",
+      "entryIds": [
+        "action.write.sink.overview",
+        "action.write.sink.source",
+        "action.write.sink.write_target.batch_handler",
+        "action.write.sink.write_target.bootstrap_servers",
+        "action.write.sink.write_target.comment",
+        "action.write.sink.write_target.custom_sink_class",
+        "action.write.sink.write_target.module_path",
+        "action.write.sink.write_target.options",
+        "action.write.sink.write_target.sink_name",
+        "action.write.sink.write_target.sink_type",
+        "action.write.sink.write_target.topic"
+      ]
+    },
+    "src/lhp/resources/skills/lhp/references/actions-write-streaming-table-cdc.md": {
+      "sha256": "d6a6c7265af7ee7d34abf059811a5ec8a1c65979bb769df1ce42ad750c6bf67b",
+      "entryIds": [
+        "action.write.streaming_table.once",
+        "action.write.streaming_table.overview",
+        "action.write.streaming_table.source",
+        "action.write.streaming_table.write_target.catalog",
+        "action.write.streaming_table.write_target.cdc_config.apply_as_deletes",
+        "action.write.streaming_table.write_target.cdc_config.apply_as_truncates",
+        "action.write.streaming_table.write_target.cdc_config.column_list",
+        "action.write.streaming_table.write_target.cdc_config.except_column_list",
+        "action.write.streaming_table.write_target.cdc_config.ignore_null_updates",
+        "action.write.streaming_table.write_target.cdc_config.keys",
+        "action.write.streaming_table.write_target.cdc_config.scd_type",
+        "action.write.streaming_table.write_target.cdc_config.sequence_by",
+        "action.write.streaming_table.write_target.cdc_config.track_history_column_list",
+        "action.write.streaming_table.write_target.cdc_config.track_history_except_column_list",
+        "action.write.streaming_table.write_target.cluster_by_auto",
+        "action.write.streaming_table.write_target.cluster_columns",
+        "action.write.streaming_table.write_target.comment",
+        "action.write.streaming_table.write_target.create_table",
+        "action.write.streaming_table.write_target.mode",
+        "action.write.streaming_table.write_target.partition_columns",
+        "action.write.streaming_table.write_target.path",
+        "action.write.streaming_table.write_target.row_filter",
+        "action.write.streaming_table.write_target.schema",
+        "action.write.streaming_table.write_target.snapshot_cdc_config.keys",
+        "action.write.streaming_table.write_target.snapshot_cdc_config.source",
+        "action.write.streaming_table.write_target.snapshot_cdc_config.source_function",
+        "action.write.streaming_table.write_target.snapshot_cdc_config.source_function.file",
+        "action.write.streaming_table.write_target.snapshot_cdc_config.source_function.function",
+        "action.write.streaming_table.write_target.snapshot_cdc_config.source_function.parameters",
+        "action.write.streaming_table.write_target.snapshot_cdc_config.stored_as_scd_type",
+        "action.write.streaming_table.write_target.snapshot_cdc_config.track_history_column_list",
+        "action.write.streaming_table.write_target.snapshot_cdc_config.track_history_except_column_list",
+        "action.write.streaming_table.write_target.spark_conf",
+        "action.write.streaming_table.write_target.table",
+        "action.write.streaming_table.write_target.table_properties",
+        "action.write.streaming_table.write_target.table_schema",
+        "action.write.streaming_table.write_target.tags",
+        "action.write.streaming_table.write_target.tags_file",
+        "action.write.streaming_table.write_target.temporary"
+      ]
+    },
+    "src/lhp/resources/skills/lhp/references/actions-write-streaming-table-snapshot-cdc.md": {
+      "sha256": "554b29079db58f1209f61462fdab62bcb04f604a292a049a21f829fbc2aee8cc",
+      "entryIds": [
+        "action.write.streaming_table.once",
+        "action.write.streaming_table.overview",
+        "action.write.streaming_table.source",
+        "action.write.streaming_table.write_target.catalog",
+        "action.write.streaming_table.write_target.cdc_config.apply_as_deletes",
+        "action.write.streaming_table.write_target.cdc_config.apply_as_truncates",
+        "action.write.streaming_table.write_target.cdc_config.column_list",
+        "action.write.streaming_table.write_target.cdc_config.except_column_list",
+        "action.write.streaming_table.write_target.cdc_config.ignore_null_updates",
+        "action.write.streaming_table.write_target.cdc_config.keys",
+        "action.write.streaming_table.write_target.cdc_config.scd_type",
+        "action.write.streaming_table.write_target.cdc_config.sequence_by",
+        "action.write.streaming_table.write_target.cdc_config.track_history_column_list",
+        "action.write.streaming_table.write_target.cdc_config.track_history_except_column_list",
+        "action.write.streaming_table.write_target.cluster_by_auto",
+        "action.write.streaming_table.write_target.cluster_columns",
+        "action.write.streaming_table.write_target.comment",
+        "action.write.streaming_table.write_target.create_table",
+        "action.write.streaming_table.write_target.mode",
+        "action.write.streaming_table.write_target.partition_columns",
+        "action.write.streaming_table.write_target.path",
+        "action.write.streaming_table.write_target.row_filter",
+        "action.write.streaming_table.write_target.schema",
+        "action.write.streaming_table.write_target.snapshot_cdc_config.keys",
+        "action.write.streaming_table.write_target.snapshot_cdc_config.source",
+        "action.write.streaming_table.write_target.snapshot_cdc_config.source_function",
+        "action.write.streaming_table.write_target.snapshot_cdc_config.source_function.file",
+        "action.write.streaming_table.write_target.snapshot_cdc_config.source_function.function",
+        "action.write.streaming_table.write_target.snapshot_cdc_config.source_function.parameters",
+        "action.write.streaming_table.write_target.snapshot_cdc_config.stored_as_scd_type",
+        "action.write.streaming_table.write_target.snapshot_cdc_config.track_history_column_list",
+        "action.write.streaming_table.write_target.snapshot_cdc_config.track_history_except_column_list",
+        "action.write.streaming_table.write_target.spark_conf",
+        "action.write.streaming_table.write_target.table",
+        "action.write.streaming_table.write_target.table_properties",
+        "action.write.streaming_table.write_target.table_schema",
+        "action.write.streaming_table.write_target.tags",
+        "action.write.streaming_table.write_target.tags_file",
+        "action.write.streaming_table.write_target.temporary"
+      ]
+    },
+    "src/lhp/resources/skills/lhp/references/actions-write-streaming-table-standard.md": {
+      "sha256": "9d5c8512a1572d9b16de9346682c323e0172cc7413556c6abaea47d073696a7e",
+      "entryIds": [
+        "action.write.streaming_table.once",
+        "action.write.streaming_table.overview",
+        "action.write.streaming_table.source",
+        "action.write.streaming_table.write_target.catalog",
+        "action.write.streaming_table.write_target.cdc_config.apply_as_deletes",
+        "action.write.streaming_table.write_target.cdc_config.apply_as_truncates",
+        "action.write.streaming_table.write_target.cdc_config.column_list",
+        "action.write.streaming_table.write_target.cdc_config.except_column_list",
+        "action.write.streaming_table.write_target.cdc_config.ignore_null_updates",
+        "action.write.streaming_table.write_target.cdc_config.keys",
+        "action.write.streaming_table.write_target.cdc_config.scd_type",
+        "action.write.streaming_table.write_target.cdc_config.sequence_by",
+        "action.write.streaming_table.write_target.cdc_config.track_history_column_list",
+        "action.write.streaming_table.write_target.cdc_config.track_history_except_column_list",
+        "action.write.streaming_table.write_target.cluster_by_auto",
+        "action.write.streaming_table.write_target.cluster_columns",
+        "action.write.streaming_table.write_target.comment",
+        "action.write.streaming_table.write_target.create_table",
+        "action.write.streaming_table.write_target.mode",
+        "action.write.streaming_table.write_target.partition_columns",
+        "action.write.streaming_table.write_target.path",
+        "action.write.streaming_table.write_target.row_filter",
+        "action.write.streaming_table.write_target.schema",
+        "action.write.streaming_table.write_target.snapshot_cdc_config.keys",
+        "action.write.streaming_table.write_target.snapshot_cdc_config.source",
+        "action.write.streaming_table.write_target.snapshot_cdc_config.source_function",
+        "action.write.streaming_table.write_target.snapshot_cdc_config.source_function.file",
+        "action.write.streaming_table.write_target.snapshot_cdc_config.source_function.function",
+        "action.write.streaming_table.write_target.snapshot_cdc_config.source_function.parameters",
+        "action.write.streaming_table.write_target.snapshot_cdc_config.stored_as_scd_type",
+        "action.write.streaming_table.write_target.snapshot_cdc_config.track_history_column_list",
+        "action.write.streaming_table.write_target.snapshot_cdc_config.track_history_except_column_list",
+        "action.write.streaming_table.write_target.spark_conf",
+        "action.write.streaming_table.write_target.table",
+        "action.write.streaming_table.write_target.table_properties",
+        "action.write.streaming_table.write_target.table_schema",
+        "action.write.streaming_table.write_target.tags",
+        "action.write.streaming_table.write_target.tags_file",
+        "action.write.streaming_table.write_target.temporary",
+        "project.uc_tagging",
+        "project.uc_tagging.enabled",
+        "project.uc_tagging.max_allowable_consecutive_failures",
+        "project.uc_tagging.remove_undeclared_tags",
+        "project.uc_tagging.tag_update_concurrency"
+      ]
+    },
+    "src/lhp/resources/skills/lhp/references/advanced.md": {
+      "sha256": "d44125362314ff4bfd1b55db2d27352b4e0a4a42e637f640f8a5defeef5f028d",
+      "entryIds": [
+        "job.continuous",
+        "job.email_notifications",
+        "job.email_notifications.on_failure",
+        "job.email_notifications.on_start",
+        "job.email_notifications.on_success",
+        "job.generate_master_job",
+        "job.git_source",
+        "job.health",
+        "job.master_job_name",
+        "job.max_concurrent_runs",
+        "job.performance_target",
+        "job.permissions",
+        "job.permissions.*.group_name",
+        "job.permissions.*.level",
+        "job.permissions.*.service_principal_name",
+        "job.permissions.*.user_name",
+        "job.queue",
+        "job.queue.enabled",
+        "job.run_as",
+        "job.schedule",
+        "job.schedule.pause_status",
+        "job.schedule.quartz_cron_expression",
+        "job.schedule.timezone_id",
+        "job.tags",
+        "job.timeout_seconds",
+        "job.trigger",
+        "job.webhook_notifications"
+      ]
+    },
+    "src/lhp/resources/skills/lhp/references/monitoring.md": {
+      "sha256": "297da4b903b755242336b4e68f6fada9c52857ce2b15151817ee6bb709a68cd4",
+      "entryIds": [
+        "job.notebook_cluster",
+        "job.notebook_cluster.existing_cluster_id",
+        "job.notebook_cluster.new_cluster",
+        "project.event_log",
+        "project.event_log.catalog",
+        "project.event_log.enabled",
+        "project.event_log.name_prefix",
+        "project.event_log.name_suffix",
+        "project.event_log.schema",
+        "project.monitoring",
+        "project.monitoring.catalog",
+        "project.monitoring.checkpoint_path",
+        "project.monitoring.enable_job_monitoring",
+        "project.monitoring.enabled",
+        "project.monitoring.job_config_path",
+        "project.monitoring.materialized_views",
+        "project.monitoring.materialized_views.*.name",
+        "project.monitoring.materialized_views.*.sql",
+        "project.monitoring.materialized_views.*.sql_path",
+        "project.monitoring.max_concurrent_streams",
+        "project.monitoring.pipeline_name",
+        "project.monitoring.schema",
+        "project.monitoring.streaming_table"
+      ]
+    },
+    "src/lhp/resources/skills/lhp/references/project-config.md": {
+      "sha256": "0f14ebec1435a6b027b73b8617cf8ee00c84f1a5e5ba15d1f63e8d5657dad60a",
+      "entryIds": [
+        "project.apply_formatting",
+        "project.author",
+        "project.blueprint_include",
+        "project.created_date",
+        "project.description",
+        "project.include",
+        "project.instance_include",
+        "project.name",
+        "project.required_lhp_version",
+        "project.version"
+      ]
+    }
+  }
+}

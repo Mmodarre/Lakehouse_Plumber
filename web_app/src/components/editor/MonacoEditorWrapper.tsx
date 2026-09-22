@@ -1,13 +1,15 @@
-import { useRef, useImperativeHandle, forwardRef } from 'react'
+import { useRef, useImperativeHandle, useLayoutEffect, forwardRef } from 'react'
 import Editor from '@monaco-editor/react'
 import type { OnMount, Monaco } from '@monaco-editor/react'
 import type { editor } from 'monaco-editor'
 import { monacoThemeFor, setupMonacoYaml } from '../../lib/monaco-setup'
+import { useWorkspaceStore } from '../../store/workspaceStore'
 import { useThemeStore } from '../../store/themeStore'
 
 /** Marker owner used for our YAML syntax-error markers. Kept distinct from
  * monaco-yaml's own schema markers so we only ever clear what we set. */
 const YAML_MARKER_OWNER = 'lhp-yaml'
+const viewStates = new Map<string, editor.ICodeEditorViewState>()
 
 const EXT_TO_LANGUAGE: Record<string, string> = {
   yaml: 'yaml',
@@ -38,6 +40,7 @@ export interface YamlSyntaxMarker {
 }
 
 export interface MonacoEditorHandle {
+  revealLine?: (line: number) => void
   getValue: () => string
   /** Programmatically replace the editor buffer (e.g. reloading from disk).
    * Resets the dirty signal to `false` since this is not a user edit. No-op if
@@ -75,8 +78,24 @@ const MonacoEditorWrapper = forwardRef<MonacoEditorHandle, Props>(function Monac
   // Subscribing keeps open editors live: a theme flip re-renders with the
   // other `lhp-*` theme name and @monaco-editor/react calls setTheme for us.
   const resolvedTheme = useThemeStore((s) => s.resolved)
+  const projectRoot = useWorkspaceStore((s) => s.projectRoot)
+  const viewKey = `${projectRoot ?? ''}::${path}`
+  useLayoutEffect(() => () => {
+    const state = editorRef.current?.saveViewState()
+    if (state) {
+      viewStates.set(viewKey, state)
+      if (viewStates.size > 100) viewStates.delete(viewStates.keys().next().value!)
+    }
+  }, [viewKey])
 
   useImperativeHandle(ref, () => ({
+    revealLine: (line: number) => {
+      const ed = editorRef.current
+      if (!ed) return
+      ed.setPosition({ lineNumber: Math.max(1, Math.floor(line)), column: 1 })
+      ed.revealLineInCenter(Math.max(1, Math.floor(line)))
+      ed.focus()
+    },
     getValue: () => editorRef.current?.getValue() ?? '',
     setValue: (value: string) => {
       const ed = editorRef.current
@@ -123,6 +142,8 @@ const MonacoEditorWrapper = forwardRef<MonacoEditorHandle, Props>(function Monac
   const handleMount: OnMount = (ed, monacoInstance) => {
     editorRef.current = ed
     monacoRef.current = monacoInstance
+    const previousView = viewStates.get(viewKey)
+    if (previousView) ed.restoreViewState(previousView)
     ed.focus()
 
     // Lazily wire monaco-yaml (schema validation) on first editor mount.

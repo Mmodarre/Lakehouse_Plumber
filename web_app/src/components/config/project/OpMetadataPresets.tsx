@@ -1,3 +1,4 @@
+import { useConfigReadOnly } from '@/components/config/shared/configEditingContext'
 import { useState } from 'react'
 import { Plus, X } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
@@ -29,6 +30,8 @@ function PresetEditor({
   value: unknown
   count: number
 }) {
+  const configReadOnly = useConfigReadOnly()
+
   const base = [...PRESETS_PATH, name]
   const shorthand = Array.isArray(value)
   const spec = isPlainObject(value) ? value : {}
@@ -53,7 +56,7 @@ function PresetEditor({
             </Badge>
           )}
         </p>
-        <Button
+        <Button disabled={configReadOnly}
           type="button"
           variant="ghost"
           size="icon-sm"
@@ -83,7 +86,7 @@ function PresetEditor({
             onRemoveItem={(i) => form.del([...listPath, i])}
             onDeleteKey={() => form.del(listPath)}
           />
-          <OptionalTextField
+          <OptionalTextField helpPath={[...base, 'description']}
             id={`om-preset-${name}-description`}
             label="Description"
             value={spec.description}
@@ -109,6 +112,8 @@ export function OpMetadataPresets({
   form: ProjectFormApi
   presets: Record<string, unknown> | undefined
 }) {
+  const configReadOnly = useConfigReadOnly()
+
   const [newName, setNewName] = useState('')
   const [nameError, setNameError] = useState<string | null>(null)
   const names = presets !== undefined ? Object.keys(presets) : []
@@ -141,7 +146,7 @@ export function OpMetadataPresets({
         />
       ))}
       <div className="flex items-center gap-1.5">
-        <Input
+        <Input disabled={configReadOnly}
           value={newName}
           onChange={(e) => {
             setNewName(e.target.value)
@@ -164,7 +169,7 @@ export function OpMetadataPresets({
           variant="outline"
           size="sm"
           onClick={addPreset}
-          disabled={newName.trim() === ''}
+          disabled={configReadOnly || (newName.trim() === '')}
         >
           <Plus aria-hidden="true" />
           Add preset

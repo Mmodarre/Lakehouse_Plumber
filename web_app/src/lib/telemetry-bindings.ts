@@ -5,7 +5,14 @@ import {
   type InspectorTab,
 } from '../store/layoutStore'
 import { useUIStore } from '../store/uiStore'
-import { useWorkspaceStore, workspaceTabId, type WorkspaceTabRef } from '../store/workspaceStore'
+import {
+  normalizeEntityView,
+  useWorkspaceStore,
+  workspaceTabId,
+  type FlowgroupEntityView,
+  type TemplateEntityView,
+  type WorkspaceTabRef,
+} from '../store/workspaceStore'
 import { track, type UiSurface } from './telemetry'
 
 /**
@@ -28,6 +35,17 @@ const INSPECTOR_SURFACE: Record<InspectorTab, UiSurface> = {
   help: 'inspector_help',
 }
 
+const TEMPLATE_VIEW_SURFACE: Record<TemplateEntityView, UiSurface> = {
+  builder: 'template_builder',
+  code: 'template_code',
+  preview: 'template_preview',
+}
+
+const FLOWGROUP_VIEW_SURFACE: Record<FlowgroupEntityView, UiSurface> = {
+  graph: 'flowgroup_graph',
+  code: 'flowgroup_code',
+}
+
 const BOTTOM_SURFACE: Record<BottomTab, UiSurface> = {
   problems: 'problems',
   run: 'run_stream',
@@ -39,8 +57,15 @@ export function surfaceForTab(tab: WorkspaceTabRef): UiSurface {
   switch (tab.kind) {
     case 'file':
       return 'file_editor'
-    case 'entity':
-      return tab.docKind === 'template' ? `template_${tab.view}` : `flowgroup_${tab.view}`
+    case 'entity': {
+      // normalizeEntityView maps a stored view onto the views that doc kind
+      // offers (a legacy template 'graph' becomes 'builder'), so each lookup
+      // only ever sees a key of its own table.
+      const view = normalizeEntityView(tab.docKind, tab.view)
+      return tab.docKind === 'template'
+        ? TEMPLATE_VIEW_SURFACE[view as TemplateEntityView]
+        : FLOWGROUP_VIEW_SURFACE[view as FlowgroupEntityView]
+    }
     case 'designer':
       return tab.docKind === 'template' ? 'template_graph' : 'flowgroup_graph'
     case 'config':

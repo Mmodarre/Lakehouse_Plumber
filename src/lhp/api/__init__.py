@@ -27,6 +27,7 @@ from lhp.api._progress import ProgressSink
 from lhp.api._serialization import to_dict
 from lhp.api._skill_facade import SkillFacade
 from lhp.api.bootstrap import LakehousePlumberBootstrap
+from lhp.api.configuration import preview_configuration
 from lhp.api.events import (
     BundleSyncCompleted,
     ErrorEmitted,
@@ -80,6 +81,7 @@ from lhp.api.responses import (
     ValidationResponse,
     WheelExtractionResult,
 )
+from lhp.api.templates import preview_template, template_catalog, template_source
 from lhp.api.views import (
     ActionView,
     BlueprintInstanceView,
@@ -235,6 +237,10 @@ __all__: list[str] = [
     "WheelFacade",
     "WheelModuleView",
     "collect_response",
+    "preview_configuration",
+    "preview_template",
     "should_enable_bundle_support",
+    "template_catalog",
+    "template_source",
     "to_dict",
 ]

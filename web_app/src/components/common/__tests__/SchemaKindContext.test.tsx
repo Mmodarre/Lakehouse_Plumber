@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 // useSchemaHelp fetches the schema through loadSchemaCached; stub it so no real
 // network GET happens (mirrors api/__tests__/schemas.test.ts mocking style).
+vi.mock('../../../api/help', () => ({ loadHelpCached: vi.fn().mockResolvedValue({ version: 1, entries: [] }) }))
 vi.mock('../../../api/schemas', () => ({
   loadSchemaCached: vi.fn(),
 }))

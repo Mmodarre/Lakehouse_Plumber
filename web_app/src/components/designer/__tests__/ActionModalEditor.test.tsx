@@ -103,6 +103,8 @@ function wrapper({ children }: { children: ReactNode }) {
 
 function seedAndRender(props?: {
   onSaved?: () => void
+  saveMode?: 'persist' | 'apply'
+  onApplied?: () => void
   onCancel?: () => void
   onOpenCodeView?: () => void
 }) {
@@ -114,6 +116,8 @@ function seedAndRender(props?: {
       action={ACTION}
       actionId="t_orders"
       onSaved={props?.onSaved}
+      saveMode={props?.saveMode}
+      onApplied={props?.onApplied}
       onCancel={props?.onCancel}
       onOpenCodeView={props?.onOpenCodeView}
     />,
@@ -236,6 +240,18 @@ describe('ActionModalEditor — staged-save shell', () => {
     expect(listActions(doc)[0].raw.target).toBe('v_orders_v2')
     // Persisted the same file.
     expect(mockPersist.mock.calls[0][0]).toBe(PATH)
+  })
+
+  it('Apply mode updates the shared draft once without persisting the template', async () => {
+    const onApplied = vi.fn()
+    seedAndRender({ saveMode: 'apply', onApplied })
+    editField('Target view', 'v_preview_draft')
+    fireEvent.click(screen.getByRole('button', { name: 'Apply action changes' }))
+    await waitFor(() => expect(onApplied).toHaveBeenCalledTimes(1))
+    expect(commitSpy).toHaveBeenCalledTimes(1)
+    expect(mockPersist).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: 'Apply action changes' }))
+    expect(commitSpy).toHaveBeenCalledTimes(1)
   })
 
   it('a failed persist (simulated 412) surfaces the soft banner and never fires onSaved', async () => {

@@ -5,6 +5,7 @@ import type { ReactNode } from 'react'
 import { useAssistantStream } from '../useAssistantStream'
 import { startAssistantChat } from '../../api/assistant'
 import { ApiError } from '../../api/client'
+import { useChatDraftStore } from '../../store/chatDraftStore'
 import { useAssistantStore } from '../../store/assistantStore'
 import type { AssistantFrame } from '../../types/assistant'
 
@@ -88,6 +89,7 @@ function conversationOf(tabKey: string) {
 beforeEach(() => {
   vi.clearAllMocks()
   resetStore()
+  useChatDraftStore.setState({ drafts: {}, positions: {} })
 })
 
 describe('useAssistantStream', () => {
@@ -129,6 +131,24 @@ describe('useAssistantStream', () => {
       { message: 'hi', permission_mode: 'default', session_id: draftKey },
       expect.any(AbortSignal),
     )
+  })
+
+  it('moves a next-message draft and reading position when the server assigns a session id', async () => {
+    const stream = openStream()
+    startChatMock.mockResolvedValue({ body: stream.stream } as Response)
+    const draftKey = store().openTab()
+    const { result } = setup()
+    act(() => result.current.send(draftKey, 'First message'))
+    act(() => {
+      useChatDraftStore.getState().setDraft(draftKey, 'Next unfinished message')
+      useChatDraftStore.getState().setPosition(draftKey, { top: 120, atBottom: false })
+      stream.push(frameLine({ type: 'session', session_id: 'claude_new', created: true }))
+      stream.push(frameLine({ type: 'turn.completed' }))
+      stream.close()
+    })
+    await waitFor(() => expect(conversationOf('claude_new')?.streaming).toBe(false))
+    expect(useChatDraftStore.getState().drafts).toEqual({ claude_new: 'Next unfinished message' })
+    expect(useChatDraftStore.getState().positions.claude_new).toEqual({ top: 120, atBottom: false })
   })
 
   it('sends the currently selected permission mode and the real tab key', async () => {

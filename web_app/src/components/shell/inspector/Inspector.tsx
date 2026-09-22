@@ -1,4 +1,6 @@
 import { useCallback } from 'react'
+import { openWorkspaceFile } from '@/workspace/openWorkspaceFile'
+import { tablistKeyDown } from '@/lib/keyboard'
 import {
   ChevronRight,
   CircleCheck,
@@ -7,10 +9,7 @@ import {
   ClipboardCheck,
   TriangleAlert,
 } from 'lucide-react'
-import { toast } from 'sonner'
 import { cn } from '../../../lib/utils'
-import { errorMessage } from '../../../lib/errors'
-import { fetchFileContentWithMeta } from '../../../api/files'
 import { useLayoutStore } from '../../../store/layoutStore'
 import type { InspectorTab } from '../../../store/layoutStore'
 import { useRunStore } from '../../../store/runStore'
@@ -37,12 +36,6 @@ import { mergeConfigIssues, useActiveConfigIssues } from './configIssues'
 // identical to ProblemsPanel's behaviour. Help is a static placeholder until
 // the schema-help routing task wires it.
 
-/** Normalize a reported `file_path` to a project-relative path (strip any
- * leading slash) — mirrors ProblemsPanel. */
-function toProjectRelative(filePath: string): string {
-  return filePath.replace(/^\/+/, '')
-}
-
 function toIssueItems(issues: ValidationIssue[]): IssueListItem[] {
   return issues.map((issue) => {
     const line = issue.context['line']
@@ -50,35 +43,12 @@ function toIssueItems(issues: ValidationIssue[]): IssueListItem[] {
       severity: issue.severity,
       code: issue.code,
       message: issue.title,
+      details: issue.details,
+      suggestions: issue.suggestions,
       file: issue.file_path,
       line: typeof line === 'number' ? line : null,
     }
   })
-}
-
-/** Open the offending file as a workspace buffer (ProblemsPanel's handler). */
-function useOpenIssueFile(): (filePath: string) => void {
-  const openBuffer = useWorkspaceStore((s) => s.openBuffer)
-  const setActiveBuffer = useWorkspaceStore((s) => s.setActive)
-  return useCallback(
-    (filePath: string) => {
-      const relative = toProjectRelative(filePath)
-      if (relative === '') return
-      if (useWorkspaceStore.getState().buffers.some((b) => b.path === relative)) {
-        setActiveBuffer(relative)
-        return
-      }
-      void (async () => {
-        try {
-          const { content, etag } = await fetchFileContentWithMeta(relative)
-          openBuffer(relative, { content, etag, exists: true })
-        } catch (err) {
-          toast.error(errorMessage(err, 'Failed to open file'))
-        }
-      })()
-    },
-    [openBuffer, setActiveBuffer],
-  )
 }
 
 /** Active center tab (or null when the workspace is on the page view). */
@@ -90,8 +60,17 @@ function useActiveTab(): WorkspaceTabRef | null {
 }
 
 function ValidationPane({ scoped }: { scoped: ScopedIssues }) {
-  const openFile = useOpenIssueFile()
   const { issues, scope } = scoped
+  const isRunning = useRunStore((s) => s.isRunning)
+  const terminal = useRunStore((s) => s.terminal)
+  const hydrated = useRunStore((s) => s.hydratedFrom)
+  const runInputs = useRunStore((s) => s.inputs)
+  const dirty = useWorkspaceStore((s) => s.buffers.some((b) => b.isDirty))
+  const description = isRunning ? 'Validation is in progress; these results are incomplete.'
+    : dirty ? 'Results out of date: unsaved edits have not been validated.'
+    : terminal === 'stopped' || terminal === 'incomplete' || terminal === 'error' ? 'The last run did not complete. Validate again for current results.'
+    : !terminal && !hydrated ? 'Not validated. Run Validate to check saved project files.'
+    : `Saved-file results${runInputs?.env || hydrated?.env ? ` · ${runInputs?.env || hydrated?.env}` : ''}${runInputs?.pipeline || hydrated?.pipeline ? ` / ${runInputs?.pipeline || hydrated?.pipeline}` : ' · all pipelines'}.`
   const errorCount = issues.filter((i) => i.severity === 'error').length
   const warningCount = issues.length - errorCount
 
@@ -101,9 +80,7 @@ function ValidationPane({ scoped }: { scoped: ScopedIssues }) {
         icon={CircleCheck}
         title="No issues"
         message={
-          scope.projectWide
-            ? 'Validate the project to surface issues here.'
-            : `No issues for ${scope.label}.`
+          `${scope.projectWide ? '' : `No issues for ${scope.label}. `}${description}`
         }
       />
     )
@@ -111,6 +88,7 @@ function ValidationPane({ scoped }: { scoped: ScopedIssues }) {
 
   return (
     <div className="flex min-h-0 flex-col">
+      <p className="border-b border-border px-3 py-2 text-xs text-muted-foreground">{description}</p>
       <div className="flex items-center gap-2 border-b border-border px-3 py-1.5 text-2xs text-muted-foreground">
         {errorCount > 0 ? (
           <span className="flex items-center gap-1 text-error">
@@ -133,9 +111,10 @@ function ValidationPane({ scoped }: { scoped: ScopedIssues }) {
         </span>
       </div>
       <IssueList
+        filterable
         issues={toIssueItems(issues)}
         onSelect={(item) => {
-          if (item.file) openFile(item.file)
+          if (item.file) void openWorkspaceFile(item.file, { source: true, line: item.line ?? undefined })
         }}
       />
     </div>
@@ -145,7 +124,20 @@ function ValidationPane({ scoped }: { scoped: ScopedIssues }) {
 function HelpPane() {
   return (
     <div className="px-3 py-3 text-xs text-muted-foreground">
-      <p>Field help arrives with the inspector routing task.</p>
+      <p className="font-semibold text-foreground">Workspace guide</p>
+      <p className="mt-2">Structure groups flowgroups by pipeline and lists project, pipeline and job configuration. Files gives you the project folder tree. Tables shows resolved datasets for the selected environment.</p>
+      <p className="mt-2">Graph changes update the same document as Code. Select a node and press Enter to edit its fields. Save writes the whole file. Validation and generation use saved project files and the scope shown in the command bar.</p>
+      <p className="mt-2">Project defaults can be overridden by pipeline configuration. Job configuration defines orchestration. Open Project configuration to inspect sections and the effective values for saved configuration.</p>
+      <dl className="mt-3 grid grid-cols-[1fr_auto] gap-2">
+        <dt>Quick open</dt><dd>Ctrl/⌘ K</dd>
+        <dt>Save document</dt><dd>Ctrl/⌘ S</dd>
+        <dt>Explorer</dt><dd>Ctrl/⌘ B</dd>
+        <dt>Inspector</dt><dd>Ctrl/⌘ I</dd>
+        <dt>Bottom panel</dt><dd>Ctrl/⌘ J</dd>
+        <dt>Focus mode</dt><dd>Ctrl/⌘ Shift F</dd>
+        <dt>Previous / next view</dt><dd>Alt ← / →</dd>
+      </dl>
+      <p className="mt-3">Right-click a tab for bulk close, pin and navigation actions. Unsaved documents are listed before a bulk close.</p>
     </div>
   )
 }
@@ -219,7 +211,7 @@ export function Inspector() {
   return (
     <div className="flex h-full w-full min-w-0 flex-col border-l border-border bg-surface">
       <div
-        role="tablist"
+        role="tablist" onKeyDown={tablistKeyDown}
         aria-label="Inspector"
         className="flex h-8 shrink-0 items-center border-b border-border pr-1 pl-1"
       >
@@ -265,6 +257,7 @@ function TabButton({
       type="button"
       role="tab"
       aria-selected={active}
+      tabIndex={active ? 0 : -1}
       onClick={onClick}
       className={cn(
         'flex h-8 items-center gap-1.5 border-b-2 px-2.5 text-xs font-medium transition-colors',

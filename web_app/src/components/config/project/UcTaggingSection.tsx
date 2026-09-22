@@ -35,7 +35,7 @@ export function UcTaggingSection({ form }: { form: ProjectFormApi }) {
       <SectionIssues issues={issuesAtExactly(form.issues, [...BASE])} />
       {!broken && (
         <>
-          <BoolSwitch
+          <BoolSwitch helpPath={[...[...BASE], 'enabled']}
             id="uc-tagging-enabled"
             label="Enabled"
             value={strictBool('enabled')}
@@ -54,7 +54,7 @@ export function UcTaggingSection({ form }: { form: ProjectFormApi }) {
             onReset={() => form.del([...BASE, 'remove_undeclared_tags'])}
             issue={issueText(form.issues, [...BASE, 'remove_undeclared_tags'])?.message}
           />
-          <OptionalNumberField
+          <OptionalNumberField helpPath={[...[...BASE], 'tag_update_concurrency']}
             id="uc-tagging-concurrency"
             label="Tag update concurrency"
             value={section.tag_update_concurrency}

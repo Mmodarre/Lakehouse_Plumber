@@ -1,0 +1,692 @@
+{
+  "version": 1,
+  "entries": [
+    {
+      "id": "job.permissions",
+      "summary": "Grant access to this job.",
+      "sources": [
+        {
+          "file": "src/lhp/resources/skills/lhp/references/advanced.md"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "permissions"
+          ]
+        }
+      ],
+      "details": [
+        "Each entry needs a permission level and one identity. The current job template emits user_name and group_name permissions only. Service-principal entries remain in YAML but are not emitted. An explicit list replaces inherited permissions."
+      ],
+      "examples": [
+        {
+          "label": "YAML example",
+          "yaml": "permissions:\n  - level: CAN_VIEW\n    group_name: data_readers"
+        }
+      ]
+    },
+    {
+      "id": "job.permissions.*.level",
+      "summary": "Choose the access level for this identity.",
+      "sources": [
+        {
+          "file": "src/lhp/resources/skills/lhp/references/advanced.md"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "permissions",
+            "*",
+            "level"
+          ]
+        }
+      ],
+      "details": [
+        "Select an access level supported for this resource, such as CAN_VIEW or CAN_MANAGE. Give the identity the access it needs to perform its role."
+      ]
+    },
+    {
+      "id": "job.permissions.*.user_name",
+      "summary": "Identify a user by their email address.",
+      "sources": [
+        {
+          "file": "src/lhp/resources/skills/lhp/references/advanced.md"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "permissions",
+            "*",
+            "user_name"
+          ]
+        }
+      ],
+      "details": [
+        "Set only one of user_name, group_name and service_principal_name in an entry."
+      ]
+    },
+    {
+      "id": "job.permissions.*.group_name",
+      "summary": "Grant this permission to a workspace group.",
+      "sources": [
+        {
+          "file": "src/lhp/resources/skills/lhp/references/advanced.md"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "permissions",
+            "*",
+            "group_name"
+          ]
+        }
+      ],
+      "details": [
+        "Use the group name, and leave user_name and service_principal_name unset in this entry."
+      ]
+    },
+    {
+      "id": "job.permissions.*.service_principal_name",
+      "summary": "Record a service-principal permission entry in the source YAML.",
+      "sources": [
+        {
+          "file": "src/lhp/resources/skills/lhp/references/advanced.md"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "permissions",
+            "*",
+            "service_principal_name"
+          ]
+        }
+      ],
+      "details": [
+        "The current job template does not emit service-principal permissions. This entry is preserved for source compatibility; it does not grant access through generated job YAML."
+      ]
+    },
+    {
+      "id": "job.max_concurrent_runs",
+      "summary": "Limit how many runs of this job execute at the same time.",
+      "sources": [
+        {
+          "file": "src/lhp/resources/skills/lhp/references/advanced.md"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "max_concurrent_runs"
+          ]
+        }
+      ],
+      "details": [
+        "Use queue.enabled to decide whether additional runs wait when this limit is reached. This is independent of pipeline streaming concurrency."
+      ],
+      "examples": [
+        {
+          "label": "YAML example",
+          "yaml": "max_concurrent_runs: 1"
+        }
+      ],
+      "unsetBehavior": "Inherit project defaults; LHP’s built-in limit is 1."
+    },
+    {
+      "id": "job.queue",
+      "summary": "Control how runs wait for available job capacity.",
+      "sources": [
+        {
+          "file": "src/lhp/resources/skills/lhp/references/advanced.md"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "queue"
+          ]
+        }
+      ],
+      "details": [
+        "Enable queue.enabled to let additional runs wait after maximum concurrent runs is reached."
+      ]
+    },
+    {
+      "id": "job.queue.enabled",
+      "summary": "Queue new runs while the concurrency limit is reached.",
+      "sources": [
+        {
+          "file": "src/lhp/resources/skills/lhp/references/advanced.md"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "queue",
+            "enabled"
+          ]
+        }
+      ],
+      "details": [
+        "This controls waiting runs; max_concurrent_runs controls how many may execute simultaneously."
+      ],
+      "unsetBehavior": "Inherit project defaults; LHP enables queuing by default."
+    },
+    {
+      "id": "job.performance_target",
+      "summary": "Choose the performance target for job compute.",
+      "sources": [
+        {
+          "file": "src/lhp/resources/skills/lhp/references/advanced.md"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "performance_target"
+          ]
+        }
+      ],
+      "details": [
+        "STANDARD is the built-in target. PERFORMANCE_OPTIMIZED favors faster compute startup at higher cost."
+      ],
+      "unsetBehavior": "Inherit project defaults; LHP’s built-in target is STANDARD."
+    },
+    {
+      "id": "job.timeout_seconds",
+      "summary": "Limit the duration of a job run in seconds.",
+      "sources": [
+        {
+          "file": "src/lhp/resources/skills/lhp/references/advanced.md"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "timeout_seconds"
+          ]
+        }
+      ],
+      "details": [
+        "For example, 3600 is one hour. The timeout applies to the job rather than an individual data-quality check."
+      ],
+      "examples": [
+        {
+          "label": "YAML example",
+          "yaml": "timeout_seconds: 3600"
+        }
+      ],
+      "unsetBehavior": "Inherit project defaults; when no level sets it, LHP emits no timeout_seconds setting."
+    },
+    {
+      "id": "job.tags",
+      "summary": "Add labels to the generated job resource.",
+      "sources": [
+        {
+          "file": "src/lhp/resources/skills/lhp/references/advanced.md"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "tags"
+          ]
+        }
+      ],
+      "details": [
+        "Per-job tags merge with project defaults by key; values are rendered as quoted values. These are separate from Unity Catalog dataset tags."
+      ],
+      "examples": [
+        {
+          "label": "YAML example",
+          "yaml": "tags:\n  owner: data_platform"
+        }
+      ]
+    },
+    {
+      "id": "job.email_notifications",
+      "summary": "Notify email recipients about job run events.",
+      "sources": [
+        {
+          "file": "src/lhp/resources/skills/lhp/references/advanced.md"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "email_notifications"
+          ]
+        }
+      ],
+      "details": [
+        "Configure separate recipient lists for start, success and failure. Per-event lists replace inherited lists."
+      ],
+      "examples": [
+        {
+          "label": "YAML example",
+          "yaml": "email_notifications:\n  on_failure: [data-team@example.com]"
+        }
+      ]
+    },
+    {
+      "id": "job.email_notifications.on_start",
+      "summary": "Notify these addresses when a run starts.",
+      "sources": [
+        {
+          "file": "src/lhp/resources/skills/lhp/references/advanced.md"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "email_notifications",
+            "on_start"
+          ]
+        }
+      ],
+      "details": [
+        "This event’s recipient list replaces the inherited list; leaving it unset preserves inherited recipients."
+      ],
+      "examples": [
+        {
+          "label": "YAML example",
+          "yaml": "on_start: [data-team@example.com]"
+        }
+      ]
+    },
+    {
+      "id": "job.email_notifications.on_success",
+      "summary": "Notify these addresses when a run succeeds.",
+      "sources": [
+        {
+          "file": "src/lhp/resources/skills/lhp/references/advanced.md"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "email_notifications",
+            "on_success"
+          ]
+        }
+      ],
+      "details": [
+        "This event’s recipient list replaces the inherited list; leaving it unset preserves inherited recipients."
+      ],
+      "examples": [
+        {
+          "label": "YAML example",
+          "yaml": "on_success: [data-team@example.com]"
+        }
+      ]
+    },
+    {
+      "id": "job.email_notifications.on_failure",
+      "summary": "Notify these addresses when a run fails.",
+      "sources": [
+        {
+          "file": "src/lhp/resources/skills/lhp/references/advanced.md"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "email_notifications",
+            "on_failure"
+          ]
+        }
+      ],
+      "details": [
+        "This event’s recipient list replaces the inherited list; leaving it unset preserves inherited recipients."
+      ],
+      "examples": [
+        {
+          "label": "YAML example",
+          "yaml": "on_failure: [data-team@example.com]"
+        }
+      ]
+    },
+    {
+      "id": "job.webhook_notifications",
+      "summary": "Send job lifecycle events to configured notification destinations.",
+      "sources": [
+        {
+          "file": "src/lhp/resources/skills/lhp/references/advanced.md"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "webhook_notifications"
+          ]
+        }
+      ],
+      "details": [
+        "Entries reference destination IDs. Configure the destination separately, then reference its ID for the relevant event."
+      ],
+      "examples": [
+        {
+          "label": "YAML example",
+          "yaml": "webhook_notifications:\n  on_failure:\n    - id: \"${failure_notification_id}\""
+        }
+      ]
+    },
+    {
+      "id": "job.schedule",
+      "summary": "Run the job on a time-based schedule.",
+      "sources": [
+        {
+          "file": "src/lhp/resources/skills/lhp/references/advanced.md"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "schedule"
+          ]
+        }
+      ],
+      "details": [
+        "A schedule combines a Quartz cron expression, timezone and pause status. Check the timezone as well as the time before enabling it."
+      ]
+    },
+    {
+      "id": "job.schedule.quartz_cron_expression",
+      "summary": "Define when the job runs using Quartz cron syntax.",
+      "sources": [
+        {
+          "file": "src/lhp/resources/skills/lhp/references/advanced.md"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "schedule",
+            "quartz_cron_expression"
+          ]
+        }
+      ],
+      "details": [
+        "Quartz includes seconds. The example runs daily at 08:00 in schedule.timezone_id; a five-field Unix cron expression is not equivalent."
+      ],
+      "examples": [
+        {
+          "label": "YAML example",
+          "yaml": "schedule:\n  quartz_cron_expression: \"0 0 8 * * ?\"\n  timezone_id: Australia/Melbourne\n  pause_status: PAUSED"
+        }
+      ]
+    },
+    {
+      "id": "job.schedule.timezone_id",
+      "summary": "Choose the timezone used to interpret the schedule.",
+      "sources": [
+        {
+          "file": "src/lhp/resources/skills/lhp/references/advanced.md"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "schedule",
+            "timezone_id"
+          ]
+        }
+      ],
+      "details": [
+        "Use an IANA timezone such as Australia/Melbourne or UTC. This setting affects the scheduled time, not timestamps stored in your data."
+      ],
+      "examples": [
+        {
+          "label": "YAML example",
+          "yaml": "timezone_id: Australia/Melbourne"
+        }
+      ]
+    },
+    {
+      "id": "job.schedule.pause_status",
+      "summary": "Enable or pause scheduled runs without deleting the schedule.",
+      "sources": [
+        {
+          "file": "src/lhp/resources/skills/lhp/references/advanced.md"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "schedule",
+            "pause_status"
+          ]
+        }
+      ],
+      "details": [
+        "PAUSED keeps the schedule configured while preventing its scheduled runs. UNPAUSED enables it."
+      ],
+      "choices": [
+        {
+          "value": "PAUSED",
+          "explanation": "Keep the schedule without starting scheduled runs."
+        },
+        {
+          "value": "UNPAUSED",
+          "explanation": "Allow scheduled runs."
+        }
+      ]
+    },
+    {
+      "id": "job.trigger",
+      "summary": "Configure an event-based job trigger.",
+      "sources": [
+        {
+          "file": "src/lhp/resources/skills/lhp/references/advanced.md"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "trigger"
+          ]
+        }
+      ],
+      "details": [
+        "Provide a supported trigger mapping, such as file_arrival or table_update. LHP passes this block into job YAML; use a scheduling approach supported by the job service."
+      ]
+    },
+    {
+      "id": "job.continuous",
+      "summary": "Configure continuous job execution.",
+      "sources": [
+        {
+          "file": "src/lhp/resources/skills/lhp/references/advanced.md"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "continuous"
+          ]
+        }
+      ],
+      "details": [
+        "This is the job-level continuous block, not pipeline continuous mode. Use supported job settings such as pause_status."
+      ],
+      "examples": [
+        {
+          "label": "YAML example",
+          "yaml": "continuous:\n  pause_status: PAUSED"
+        }
+      ]
+    },
+    {
+      "id": "job.run_as",
+      "summary": "Choose the identity that executes the job.",
+      "sources": [
+        {
+          "file": "src/lhp/resources/skills/lhp/references/advanced.md"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "run_as"
+          ]
+        }
+      ],
+      "details": [
+        "Set a supported run-as mapping such as service_principal_name. Job permissions separately control who may access or manage it."
+      ],
+      "examples": [
+        {
+          "label": "YAML example",
+          "yaml": "run_as:\n  service_principal_name: \"${job_principal}\""
+        }
+      ]
+    },
+    {
+      "id": "job.git_source",
+      "summary": "Choose a remote Git source for job code.",
+      "sources": [
+        {
+          "file": "src/lhp/resources/skills/lhp/references/advanced.md"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "git_source"
+          ]
+        }
+      ],
+      "details": [
+        "Use the job service’s Git source fields, including URL/provider and the intended branch, tag or commit. This does not change your local LHP checkout."
+      ]
+    },
+    {
+      "id": "job.health",
+      "summary": "Set job health rules evaluated by the job service.",
+      "sources": [
+        {
+          "file": "src/lhp/resources/skills/lhp/references/advanced.md"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "health"
+          ]
+        }
+      ],
+      "details": [
+        "LHP passes the health block through to generated job YAML. Health rules are distinct from data tests defined inside a flowgroup."
+      ]
+    },
+    {
+      "id": "job.generate_master_job",
+      "summary": "Generate a master job that chains orchestration jobs.",
+      "sources": [
+        {
+          "file": "src/lhp/resources/skills/lhp/references/advanced.md"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "generate_master_job"
+          ]
+        }
+      ],
+      "details": [
+        "Only job_config project defaults control this setting. Per-job and monitoring-job values have no effect, and this key is not emitted into the job resource."
+      ],
+      "unsetBehavior": "LHP enables master-job generation by default."
+    },
+    {
+      "id": "job.master_job_name",
+      "summary": "Override the generated master orchestration job’s name.",
+      "sources": [
+        {
+          "file": "src/lhp/resources/skills/lhp/references/advanced.md"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "master_job_name"
+          ]
+        }
+      ],
+      "details": [
+        "Set this in job_config project defaults. Per-job and monitoring-job values are ignored."
+      ],
+      "unsetBehavior": "LHP derives the master-job name from the project."
+    },
+    {
+      "id": "job.notebook_cluster",
+      "summary": "Override compute for the monitoring union notebook task.",
+      "sources": [
+        {
+          "file": "src/lhp/resources/skills/lhp/references/monitoring.md"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "notebook_cluster"
+          ]
+        }
+      ],
+      "details": [
+        "This block is used only by monitoring jobs. Use new_cluster for a cluster specification or existing_cluster_id for an existing cluster."
+      ]
+    },
+    {
+      "id": "job.notebook_cluster.new_cluster",
+      "summary": "Define a cluster for the monitoring union notebook.",
+      "sources": [
+        {
+          "file": "src/lhp/resources/skills/lhp/references/monitoring.md"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "notebook_cluster",
+            "new_cluster"
+          ]
+        }
+      ],
+      "details": [
+        "Fields inside this mapping, such as spark_version, node_type_id and num_workers, are rendered as written. A new_cluster mapping takes precedence over existing_cluster_id."
+      ],
+      "examples": [
+        {
+          "label": "YAML example",
+          "yaml": "notebook_cluster:\n  new_cluster:\n    spark_version: \"15.4.x-scala2.12\"\n    node_type_id: \"${monitoring_node_type}\"\n    num_workers: 1"
+        }
+      ]
+    },
+    {
+      "id": "job.notebook_cluster.existing_cluster_id",
+      "summary": "Use an existing cluster for the monitoring notebook.",
+      "sources": [
+        {
+          "file": "src/lhp/resources/skills/lhp/references/monitoring.md"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "notebook_cluster",
+            "existing_cluster_id"
+          ]
+        }
+      ],
+      "details": [
+        "Used only when notebook_cluster.new_cluster is absent. This setting applies to the monitoring union notebook, not orchestration pipeline tasks."
+      ]
+    }
+  ]
+}

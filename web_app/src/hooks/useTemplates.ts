@@ -15,3 +15,5 @@ export function useTemplateDetail(name: string | null) {
     enabled: !!name,
   })
 }
+
+export { useTemplateCatalog, useTemplateSource } from './useTemplateAuthoring'

@@ -44,7 +44,10 @@ function RunSummary() {
   const errors = issues.filter((i) => i.severity === 'error').length
   const warnings = issues.filter((i) => i.severity === 'warning').length
   const failed = terminal === 'failed' || terminal === 'error' || errors > 0
-  const outcome = failed
+  const interrupted = terminal === 'stopped' || terminal === 'incomplete'
+  const outcome = interrupted
+    ? `${kindLabel} ${terminal}`
+    : failed
     ? `${kindLabel} failed`
     : runKind === 'validate'
       ? 'Validated'
@@ -55,7 +58,7 @@ function RunSummary() {
   ]
     .filter(Boolean)
     .join(' · ')
-  const summaryText = `${outcome}${counts ? ` · ${counts}` : ' · no issues'}`
+  const summaryText = `${outcome}${counts ? ` · ${counts}` : interrupted ? ' · results partial' : ' · no issues'}`
 
   // Persistent sr-only live region: mounted from app start and updated with
   // text (not attribute) changes, so screen readers announce the run outcome.
@@ -83,7 +86,7 @@ function RunSummary() {
     )
   }
 
-  const Icon = failed ? CircleX : warnings > 0 ? TriangleAlert : CircleCheck
+  const Icon = interrupted ? TriangleAlert : failed ? CircleX : warnings > 0 ? TriangleAlert : CircleCheck
 
   return (
     <Segment title={summaryText}>

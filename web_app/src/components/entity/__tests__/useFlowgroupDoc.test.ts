@@ -232,3 +232,19 @@ describe('useFlowgroupDoc — memoization on version', () => {
     expect(result.current.actions[0].target).toBe('v_orders_new')
   })
 })
+
+
+describe('multi-flowgroup safety', () => {
+  it('never projects or mutates the first entry of a shared multi-flowgroup file', async () => {
+    const { workspace, document, entity } = await loadStores()
+    const yaml = 'pipeline: p\nflowgroup: first\nactions: []\n---\npipeline: p\nflowgroup: second\nactions: []\n'
+    seedClean(workspace, document, yaml)
+    workspace.useWorkspaceStore.getState().openEntityTab('p', 'first', PATH)
+    workspace.useWorkspaceStore.getState().openEntityTab('p', 'second', PATH)
+    const { result } = renderHook(() => entity.useFlowgroupDoc(PATH, 'flowgroup'))
+    expect(result.current.multipleFlowgroups).toBe(true)
+    expect(result.current.doc).toBeNull()
+    act(() => { expect(result.current.rename('wrong-target')).toBe(false) })
+    expect(workspace.useWorkspaceStore.getState().buffers[0].content).toBe(yaml)
+  })
+})

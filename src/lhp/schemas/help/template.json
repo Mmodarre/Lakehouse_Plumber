@@ -1,0 +1,288 @@
+{
+  "version": 1,
+  "entries": [
+    {
+      "id": "template.name",
+      "summary": "Describe this reusable template with a stable declared name.",
+      "sources": [
+        {
+          "file": "docs/reference/config/templates.rst"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "name"
+          ]
+        }
+      ],
+      "details": [
+        "The name is metadata. A flowgroup’s use_template reference comes from the template file path, which can differ from this value."
+      ],
+      "examples": [
+        {
+          "label": "YAML example",
+          "yaml": "name: ingest_orders"
+        }
+      ],
+      "constraints": [
+        "A template name is required."
+      ]
+    },
+    {
+      "id": "template.version",
+      "summary": "Record changes to this reusable definition.",
+      "sources": [
+        {
+          "file": "docs/reference/config/templates.rst"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "version"
+          ]
+        }
+      ],
+      "details": [
+        "Use a string version tag such as \"1.0\". The runtime does not select a template by version; it loads the referenced file."
+      ],
+      "examples": [
+        {
+          "label": "YAML example",
+          "yaml": "version: \"1.0\""
+        }
+      ]
+    },
+    {
+      "id": "template.description",
+      "summary": "Explain when someone should choose this template.",
+      "sources": [
+        {
+          "file": "docs/reference/config/templates.rst"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "description"
+          ]
+        }
+      ],
+      "details": [
+        "Describe the ingestion/transformation pattern and its expected inputs, so users can compare templates before instantiating one."
+      ]
+    },
+    {
+      "id": "template.presets",
+      "summary": "Apply action defaults when this template expands.",
+      "sources": [
+        {
+          "file": "docs/reference/config/templates.rst"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "presets"
+          ]
+        }
+      ],
+      "details": [
+        "List existing action configuration presets. These settings participate in resolution alongside flowgroup presets and explicit action fields."
+      ],
+      "examples": [
+        {
+          "label": "YAML example",
+          "yaml": "presets: [bronze_defaults]"
+        }
+      ]
+    },
+    {
+      "id": "template.parameters",
+      "summary": "Declare the inputs supplied when this template is used.",
+      "sources": [
+        {
+          "file": "docs/reference/config/templates.rst"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "parameters"
+          ]
+        }
+      ],
+      "details": [
+        "Each parameter has a name and can declare required, default and descriptive metadata. Reference it with {{ name }} in action string values."
+      ],
+      "examples": [
+        {
+          "label": "YAML example",
+          "yaml": "parameters:\n  - name: table_name\n    required: true\n    description: Name of the source table"
+        }
+      ]
+    },
+    {
+      "id": "template.parameters.*.name",
+      "summary": "Name the value a flowgroup will supply.",
+      "sources": [
+        {
+          "file": "docs/reference/config/templates.rst"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "parameters",
+            "*",
+            "name"
+          ]
+        }
+      ],
+      "details": [
+        "Use this exact name in {{ parameter_name }} expressions and as a key under template_parameters. Rename deliberately because existing invocations may still use the old name."
+      ],
+      "examples": [
+        {
+          "label": "YAML example",
+          "yaml": "name: table_name"
+        }
+      ]
+    },
+    {
+      "id": "template.parameters.*.description",
+      "summary": "Explain the expected value and how the template uses it.",
+      "sources": [
+        {
+          "file": "docs/reference/config/templates.rst"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "parameters",
+            "*",
+            "description"
+          ]
+        }
+      ],
+      "details": [
+        "Give the input’s purpose, useful examples and any convention a caller must follow. This description guides users but does not add runtime validation."
+      ],
+      "examples": [
+        {
+          "label": "YAML example",
+          "yaml": "description: Source table name without a catalog or schema"
+        }
+      ]
+    },
+    {
+      "id": "template.parameters.*.required",
+      "summary": "Require each flowgroup to supply this parameter explicitly.",
+      "sources": [
+        {
+          "file": "docs/reference/config/templates.rst"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "parameters",
+            "*",
+            "required"
+          ]
+        }
+      ],
+      "details": [
+        "Required checks happen before defaults are applied. A default does not satisfy a required parameter; the invocation must include its key."
+      ],
+      "examples": [
+        {
+          "label": "YAML example",
+          "yaml": "parameters:\n  - name: table_name\n    required: true\n    default: orders"
+        }
+      ],
+      "unsetBehavior": "When required is absent, the parameter is optional."
+    },
+    {
+      "id": "template.parameters.*.default",
+      "summary": "Supply the value used when an optional parameter is omitted.",
+      "sources": [
+        {
+          "file": "docs/reference/config/templates.rst"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "parameters",
+            "*",
+            "default"
+          ]
+        }
+      ],
+      "details": [
+        "No default differs from an explicit null, false, zero, empty string or collection. A required parameter still needs an explicit invocation entry even if a default is declared."
+      ],
+      "examples": [
+        {
+          "label": "YAML example",
+          "yaml": "parameters:\n  - name: columns\n    required: false\n    default: []"
+        }
+      ]
+    },
+    {
+      "id": "template.parameters.*.type",
+      "summary": "Document the intended value type for this parameter.",
+      "sources": [
+        {
+          "file": "docs/reference/config/templates.rst"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "parameters",
+            "*",
+            "type"
+          ]
+        }
+      ],
+      "details": [
+        "This is advisory metadata. The template engine does not enforce it; rendered-string conversion is heuristic and can change numeric-looking values."
+      ],
+      "examples": [
+        {
+          "label": "YAML example",
+          "yaml": "type: string"
+        }
+      ]
+    },
+    {
+      "id": "template.actions",
+      "summary": "Build the action patterns expanded by this template.",
+      "sources": [
+        {
+          "file": "docs/reference/config/templates.rst"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "actions"
+          ]
+        }
+      ],
+      "details": [
+        "Use {{ parameter }} inside supported action string values. The engine renders those values, not mapping keys or arbitrary whole-document Jinja control flow. Preview with representative inputs."
+      ],
+      "examples": [
+        {
+          "label": "YAML example",
+          "yaml": "actions:\n  - name: \"load_{{ table_name }}\"\n    type: load\n    source:\n      type: delta\n      table: \"{{ table_name }}\"\n    target: \"v_{{ table_name }}\""
+        }
+      ]
+    }
+  ]
+}

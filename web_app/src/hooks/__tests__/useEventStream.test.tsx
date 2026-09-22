@@ -246,7 +246,7 @@ describe('useEventStream', () => {
     expect(result.current.error).toEqual(errorFrame)
     expect(onError).toHaveBeenCalledExactlyOnceWith(errorFrame)
     expect(onDone).toHaveBeenCalledExactlyOnceWith({ aborted: false })
-    expect(invalidateSpy).not.toHaveBeenCalled()
+    expect(invalidateSpy).toHaveBeenCalledExactlyOnceWith({ queryKey: ['run-history'] })
   })
 
   it('surfaces an HTTP open failure (ApiError) via onError', async () => {
@@ -304,7 +304,9 @@ describe('useEventStream', () => {
 
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['files'] })
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['dep-graph'] })
-    expect(invalidateSpy).toHaveBeenCalledTimes(2)
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['flowgroup-related'] })
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['file-content'] })
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['run-history'] })
   })
 
   it('ignores a re-entrant start() while a stream is running', async () => {
@@ -321,7 +323,7 @@ describe('useEventStream', () => {
     await waitFor(() => expect(result.current.isRunning).toBe(false))
   })
 
-  it('abort() ends the run as aborted: no error, no invalidation', async () => {
+  it('abort() ends the run as aborted: no error, history refreshed', async () => {
     const held = openStream()
     startStreamMock.mockImplementation(async (_path, _body, signal) => {
       // Mirror real fetch: an abort rejects the in-flight read.
@@ -342,7 +344,7 @@ describe('useEventStream', () => {
     expect(onDone).toHaveBeenCalledExactlyOnceWith({ aborted: true })
     expect(onError).not.toHaveBeenCalled()
     expect(result.current.error).toBeNull()
-    expect(invalidateSpy).not.toHaveBeenCalled()
+    expect(invalidateSpy).toHaveBeenCalledExactlyOnceWith({ queryKey: ['run-history'] })
   })
 
   it('a new start() clears the previous run’s frames and error', async () => {

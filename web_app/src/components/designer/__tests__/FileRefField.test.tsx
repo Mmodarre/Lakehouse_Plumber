@@ -135,4 +135,16 @@ describe('FileRefField', () => {
     fireEvent.change(input, { target: { value: '${x}/g.sql' } })
     expect(onChange).toHaveBeenCalledWith('${x}/g.sql')
   })
+  it('disables mutation and companion creation when read-only', () => {
+    const create = setStatus('missing', vi.fn())
+    const onChange = vi.fn()
+    render(<FileRefField value="sql/missing.sql" onChange={onChange} accept={['.sql']} onEditCode={vi.fn()} disabled />)
+    expect(screen.getByRole('textbox')).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Browse' })).toBeDisabled()
+    fireEvent.click(screen.getByRole('button', { name: 'New' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Create file' }))
+    expect(create).not.toHaveBeenCalled()
+    expect(onChange).not.toHaveBeenCalled()
+  })
+
 })

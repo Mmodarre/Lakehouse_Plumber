@@ -3,11 +3,13 @@
     "title": "LakehousePlumber Template",
     "description": "Schema for LakehousePlumber template files",
     "type": "object",
-    "required": ["name"],
+    "required": [
+        "name"
+    ],
     "properties": {
         "name": {
             "type": "string",
-            "description": "Name of the template"
+            "description": "Display name for the template. use_template selects its path under templates/, without the .yaml extension."
         },
         "version": {
             "type": "string",
@@ -31,7 +33,9 @@
             "description": "Template parameters",
             "items": {
                 "type": "object",
-                "required": ["name"],
+                "required": [
+                    "name"
+                ],
                 "properties": {
                     "name": {
                         "type": "string",
@@ -39,21 +43,20 @@
                     },
                     "type": {
                         "type": "string",
-                        "enum": ["string", "number", "boolean", "array", "object"],
                         "default": "string",
-                        "description": "Parameter type"
+                        "description": "Advisory metadata for editors; the template engine does not enforce parameter types."
                     },
                     "required": {
                         "type": "boolean",
                         "default": false,
-                        "description": "Whether this parameter is required"
+                        "description": "Require an explicit key in template_parameters. Checked before defaults, so a default does not satisfy required."
                     },
                     "description": {
                         "type": "string",
                         "description": "Parameter description"
                     },
                     "default": {
-                        "description": "Default value for the parameter"
+                        "description": "Value used only when the parameter is omitted; null, false, zero, empty strings and empty collections are distinct from no default."
                     }
                 }
             },
@@ -71,7 +74,10 @@
     "definitions": {
         "Action": {
             "type": "object",
-            "required": ["name", "type"],
+            "required": [
+                "name",
+                "type"
+            ],
             "properties": {
                 "name": {
                     "type": "string",
@@ -79,8 +85,20 @@
                 },
                 "type": {
                     "type": "string",
-                    "enum": ["load", "transform", "write"],
-                    "description": "Type of action"
+                    "description": "Type of action",
+                    "anyOf": [
+                        {
+                            "enum": [
+                                "load",
+                                "transform",
+                                "write",
+                                "test"
+                            ]
+                        },
+                        {
+                            "pattern": "\\{\\{[\\s\\S]*\\}\\}"
+                        }
+                    ]
                 },
                 "source": {
                     "oneOf": [
@@ -105,7 +123,22 @@
                             "properties": {
                                 "type": {
                                     "type": "string",
-                                    "enum": ["cloudfiles", "delta", "sql", "python", "jdbc", "custom_datasource", "kafka"]
+                                    "anyOf": [
+                                        {
+                                            "enum": [
+                                                "cloudfiles",
+                                                "delta",
+                                                "sql",
+                                                "python",
+                                                "jdbc",
+                                                "custom_datasource",
+                                                "kafka"
+                                            ]
+                                        },
+                                        {
+                                            "pattern": "\\{\\{[\\s\\S]*\\}\\}"
+                                        }
+                                    ]
                                 },
                                 "path": {
                                     "type": "string",
@@ -113,8 +146,24 @@
                                 },
                                 "format": {
                                     "type": "string",
-                                    "enum": ["json", "parquet", "csv", "avro", "orc", "text", "binaryfile", "xml"],
-                                    "description": "File format"
+                                    "description": "File format",
+                                    "anyOf": [
+                                        {
+                                            "enum": [
+                                                "json",
+                                                "parquet",
+                                                "csv",
+                                                "avro",
+                                                "orc",
+                                                "text",
+                                                "binaryfile",
+                                                "xml"
+                                            ]
+                                        },
+                                        {
+                                            "pattern": "\\{\\{[\\s\\S]*\\}\\}"
+                                        }
+                                    ]
                                 },
                                 "database": {
                                     "type": "string",
@@ -170,7 +219,9 @@
                                             "type": "object",
                                             "additionalProperties": true
                                         },
-                                        {"type": "string"}
+                                        {
+                                            "type": "string"
+                                        }
                                     ],
                                     "description": "Parameters for Python source (can use template parameters with {{ }})"
                                 },
@@ -180,7 +231,9 @@
                                             "type": "object",
                                             "additionalProperties": true
                                         },
-                                        {"type": "string"}
+                                        {
+                                            "type": "string"
+                                        }
                                     ],
                                     "description": "Reader options (can use template parameters with {{ }})"
                                 },
@@ -199,8 +252,18 @@
                                 },
                                 "readMode": {
                                     "type": "string",
-                                    "enum": ["batch", "stream"],
-                                    "description": "Read mode"
+                                    "description": "Read mode",
+                                    "anyOf": [
+                                        {
+                                            "enum": [
+                                                "batch",
+                                                "stream"
+                                            ]
+                                        },
+                                        {
+                                            "pattern": "\\{\\{[\\s\\S]*\\}\\}"
+                                        }
+                                    ]
                                 },
                                 "schema_location": {
                                     "type": "string",
@@ -208,8 +271,12 @@
                                 },
                                 "schema_infer_column_types": {
                                     "oneOf": [
-                                        {"type": "boolean"},
-                                        {"type": "string"}
+                                        {
+                                            "type": "boolean"
+                                        },
+                                        {
+                                            "type": "string"
+                                        }
                                     ],
                                     "description": "Whether to infer column types (can use template parameters with {{ }})"
                                 },
@@ -219,8 +286,19 @@
                                 },
                                 "schema_evolution_mode": {
                                     "type": "string",
-                                    "enum": ["addNewColumns", "rescue", "failOnNewColumns"],
-                                    "description": "Schema evolution mode"
+                                    "description": "Schema evolution mode",
+                                    "anyOf": [
+                                        {
+                                            "enum": [
+                                                "addNewColumns",
+                                                "rescue",
+                                                "failOnNewColumns"
+                                            ]
+                                        },
+                                        {
+                                            "pattern": "\\{\\{[\\s\\S]*\\}\\}"
+                                        }
+                                    ]
                                 },
                                 "rescue_data_column": {
                                     "type": "string",
@@ -234,9 +312,13 @@
                                     "oneOf": [
                                         {
                                             "type": "array",
-                                            "items": {"type": "string"}
+                                            "items": {
+                                                "type": "string"
+                                            }
                                         },
-                                        {"type": "string"}
+                                        {
+                                            "type": "string"
+                                        }
                                     ],
                                     "description": "Columns to select (can use template parameters with {{ }})"
                                 }
@@ -255,17 +337,48 @@
                 },
                 "readMode": {
                     "type": "string",
-                    "enum": ["batch", "stream"],
-                    "description": "Read mode: 'batch' or 'stream'"
+                    "description": "Read mode: 'batch' or 'stream'",
+                    "anyOf": [
+                        {
+                            "enum": [
+                                "batch",
+                                "stream"
+                            ]
+                        },
+                        {
+                            "pattern": "\\{\\{[\\s\\S]*\\}\\}"
+                        }
+                    ]
                 },
                 "write_target": {
-                    "$ref": "#/definitions/WriteTarget",
-                    "description": "Write target configuration"
+                    "description": "Write target configuration",
+                    "anyOf": [
+                        {
+                            "$ref": "#/definitions/WriteTarget"
+                        },
+                        {
+                            "type": "string",
+                            "pattern": "\\{\\{[\\s\\S]*\\}\\}"
+                        }
+                    ]
                 },
                 "transform_type": {
                     "type": "string",
-                    "enum": ["sql", "python", "data_quality", "temp_table", "schema"],
-                    "description": "Type of transformation"
+                    "description": "Type of transformation",
+                    "anyOf": [
+                        {
+                            "enum": [
+                                "sql",
+                                "python",
+                                "data_quality",
+                                "temp_table",
+                                "schema"
+                            ]
+                        },
+                        {
+                            "pattern": "\\{\\{[\\s\\S]*\\}\\}"
+                        }
+                    ]
                 },
                 "sql": {
                     "type": "string",
@@ -277,12 +390,18 @@
                 },
                 "operational_metadata": {
                     "oneOf": [
-                        {"type": "boolean"},
+                        {
+                            "type": "boolean"
+                        },
                         {
                             "type": "array",
-                            "items": {"type": "string"}
+                            "items": {
+                                "type": "string"
+                            }
                         },
-                        {"type": "string"}
+                        {
+                            "type": "string"
+                        }
                     ],
                     "description": "Operational metadata configuration (can use template parameters with {{ }} - use true/false for boolean or array for column list)"
                 },
@@ -296,7 +415,7 @@
                 },
                 "schema_file": {
                     "type": "string",
-                    "description": "Path to external schema file for schema transforms (can use template parameters with {{ }})"
+                    "description": "Path to schema file for schema transforms (can use template parameters with {{ }})"
                 },
                 "enforcement": {
                     "type": "string",
@@ -304,8 +423,12 @@
                 },
                 "once": {
                     "oneOf": [
-                        {"type": "boolean"},
-                        {"type": "string"}
+                        {
+                            "type": "boolean"
+                        },
+                        {
+                            "type": "string"
+                        }
                     ],
                     "description": "Whether this is a one-time flow/backfill (can use template parameters with {{ }})"
                 },
@@ -323,28 +446,39 @@
                             "type": "object",
                             "additionalProperties": true
                         },
-                        {"type": "string"}
+                        {
+                            "type": "string"
+                        }
                     ],
                     "description": "Parameters for Python transforms (can use template parameters with {{ }})"
                 },
                 "custom_datasource_class": {
                     "type": "string",
                     "description": "Name of the custom DataSource class for custom_datasource load actions (can use template parameters with {{ }})"
-                },
-                "schema_file": {
-                    "type": "string",
-                    "description": "Path to schema file for schema transforms (can use template parameters with {{ }})"
                 }
             }
         },
         "WriteTarget": {
             "type": "object",
-            "required": ["type"],
+            "required": [
+                "type"
+            ],
             "properties": {
                 "type": {
                     "type": "string",
-                    "enum": ["streaming_table", "materialized_view", "sink"],
-                    "description": "Type of write target"
+                    "description": "Type of write target",
+                    "anyOf": [
+                        {
+                            "enum": [
+                                "streaming_table",
+                                "materialized_view",
+                                "sink"
+                            ]
+                        },
+                        {
+                            "pattern": "\\{\\{[\\s\\S]*\\}\\}"
+                        }
+                    ]
                 },
                 "database": {
                     "type": "string",
@@ -356,8 +490,12 @@
                 },
                 "create_table": {
                     "oneOf": [
-                        {"type": "boolean"},
-                        {"type": "string"}
+                        {
+                            "type": "boolean"
+                        },
+                        {
+                            "type": "string"
+                        }
                     ],
                     "description": "Whether to create the table (can use template parameters with {{ }})"
                 },
@@ -371,7 +509,9 @@
                             "type": "object",
                             "additionalProperties": true
                         },
-                        {"type": "string"}
+                        {
+                            "type": "string"
+                        }
                     ],
                     "description": "Delta table properties (can use template parameters with {{ }})"
                 },
@@ -379,9 +519,13 @@
                     "oneOf": [
                         {
                             "type": "array",
-                            "items": {"type": "string"}
+                            "items": {
+                                "type": "string"
+                            }
                         },
-                        {"type": "string"}
+                        {
+                            "type": "string"
+                        }
                     ],
                     "description": "Partition columns (can use template parameters with {{ }})"
                 },
@@ -389,16 +533,24 @@
                     "oneOf": [
                         {
                             "type": "array",
-                            "items": {"type": "string"}
+                            "items": {
+                                "type": "string"
+                            }
                         },
-                        {"type": "string"}
+                        {
+                            "type": "string"
+                        }
                     ],
                     "description": "Cluster columns (can use template parameters with {{ }})"
                 },
                 "cluster_by_auto": {
                     "oneOf": [
-                        {"type": "boolean"},
-                        {"type": "string"}
+                        {
+                            "type": "boolean"
+                        },
+                        {
+                            "type": "string"
+                        }
                     ],
                     "description": "Enable automatic liquid clustering (can use template parameters with {{ }})"
                 },
@@ -408,7 +560,9 @@
                             "type": "object",
                             "additionalProperties": true
                         },
-                        {"type": "string"}
+                        {
+                            "type": "string"
+                        }
                     ],
                     "description": "Spark configuration (can use template parameters with {{ }})"
                 },
@@ -419,9 +573,12 @@
                 "tags": {
                     "type": "object",
                     "additionalProperties": {
-                        "type": ["string", "null"]
+                        "type": [
+                            "string",
+                            "null"
+                        ]
                     },
-                    "description": "UC tags; applied during the run via the tagging hook. Table-level tags only — column-level tags require an external tags file ('tags_file')."
+                    "description": "UC tags; applied during the run via the tagging hook. Table-level tags only \u2014 column-level tags require an external tags file ('tags_file')."
                 },
                 "tags_file": {
                     "type": "string",
@@ -437,8 +594,12 @@
                 },
                 "temporary": {
                     "oneOf": [
-                        {"type": "boolean"},
-                        {"type": "string"}
+                        {
+                            "type": "boolean"
+                        },
+                        {
+                            "type": "string"
+                        }
                     ],
                     "description": "Whether the table is temporary (can use template parameters with {{ }})"
                 },
@@ -464,8 +625,20 @@
                 },
                 "sink_type": {
                     "type": "string",
-                    "enum": ["delta", "kafka", "custom", "foreachbatch"],
-                    "description": "Type of sink (delta, kafka, custom, foreachbatch)"
+                    "description": "Type of sink (delta, kafka, custom, foreachbatch)",
+                    "anyOf": [
+                        {
+                            "enum": [
+                                "delta",
+                                "kafka",
+                                "custom",
+                                "foreachbatch"
+                            ]
+                        },
+                        {
+                            "pattern": "\\{\\{[\\s\\S]*\\}\\}"
+                        }
+                    ]
                 },
                 "sink_name": {
                     "type": "string",
@@ -498,8 +671,18 @@
                 },
                 "mode": {
                     "type": "string",
-                    "enum": ["cdc", "snapshot_cdc"],
-                    "description": "Table mode for CDC operations"
+                    "description": "Table mode for CDC operations",
+                    "anyOf": [
+                        {
+                            "enum": [
+                                "cdc",
+                                "snapshot_cdc"
+                            ]
+                        },
+                        {
+                            "pattern": "\\{\\{[\\s\\S]*\\}\\}"
+                        }
+                    ]
                 },
                 "cdc_config": {
                     "oneOf": [
@@ -507,7 +690,9 @@
                             "type": "object",
                             "additionalProperties": true
                         },
-                        {"type": "string"}
+                        {
+                            "type": "string"
+                        }
                     ],
                     "description": "CDC configuration for change data capture (can use template parameters with {{ }})"
                 },
@@ -517,11 +702,13 @@
                             "type": "object",
                             "additionalProperties": true
                         },
-                        {"type": "string"}
+                        {
+                            "type": "string"
+                        }
                     ],
                     "description": "Snapshot CDC configuration (can use template parameters with {{ }})"
                 }
             }
         }
     }
-} 
+}

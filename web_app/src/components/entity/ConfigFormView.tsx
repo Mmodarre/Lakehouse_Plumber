@@ -1,9 +1,14 @@
-import { useEffect, useMemo } from 'react'
+import { ConfigEditingContext } from '../config/shared/configEditingContext'
+import { Button } from '@/components/ui/button'
+import { loadBufferContent } from '../workspace/flowgroupBuffers'
+import { ConfigChangeReview } from '../config/ConfigChangeReview'
+import { useEffect, useLayoutEffect, useMemo, useRef } from 'react'
+import { useConfigViewStore } from '../config/shared/configViewState'
 import { TriangleAlert } from 'lucide-react'
 import type { ConfigFileHandle } from '../../lib/yaml-doc'
 import { useDocumentStore, useEntityDocument } from '../../store/documentStore'
 import type { ConfigKind, DocKind } from '../../store/workspaceStore'
-import { useWorkspaceStore } from '../../store/workspaceStore'
+import { isReadOnlyPath, useWorkspaceStore } from '../../store/workspaceStore'
 import { JobConfigEditor } from '../config/job/JobConfigEditor'
 import { PipelineConfigEditor } from '../config/pipeline/PipelineConfigEditor'
 import { ProjectConfigForm } from '../config/project/ProjectConfigForm'
@@ -45,6 +50,7 @@ export interface ConfigFormViewProps {
 }
 
 export function ConfigFormView({ tabId, path, configKind }: ConfigFormViewProps) {
+  const scrollRef = useRef<HTMLDivElement>(null)
   const docKind = CONFIG_KIND_TO_DOC_KIND[configKind]
 
   // Parse the current buffer into a documentStore handle. Idempotent: `open`
@@ -55,6 +61,11 @@ export function ConfigFormView({ tabId, path, configKind }: ConfigFormViewProps)
   }, [path, docKind])
 
   const entity = useEntityDocument(path)
+  const hasDocument = entity.handle !== null
+  useLayoutEffect(() => {
+    if (hasDocument && scrollRef.current)
+      scrollRef.current.scrollTop = useConfigViewStore.getState().views[path]?.scrollTop ?? 0
+  }, [path, hasDocument])
   const buffer = useWorkspaceStore((s) => s.buffers.find((b) => b.path === path) ?? null)
 
   // The ConfigDocSource the section editors read. Rebuilt on `version` (the
@@ -87,10 +98,15 @@ export function ConfigFormView({ tabId, path, configKind }: ConfigFormViewProps)
       <JobConfigEditor file={source} />
     )
 
+  const formReadOnly = entity.readOnly || isReadOnlyPath(path)
   const degraded = entity.readOnlyReason === 'parse-error'
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col" data-testid="config-form-view" data-tab-id={tabId}>
+    <div
+      className="flex min-h-0 flex-1 flex-col"
+      data-testid="config-form-view"
+      data-tab-id={tabId}
+    >
       {degraded && (
         <div
           role="alert"
@@ -99,19 +115,47 @@ export function ConfigFormView({ tabId, path, configKind }: ConfigFormViewProps)
         >
           <TriangleAlert className="size-3.5 shrink-0" aria-hidden="true" />
           <span>
-            This file has YAML errors — form editing is paused and your last valid state is
-            kept. Switch to the YAML view to fix it.
+            This file has YAML errors — form editing is paused and your last valid state is kept.
+            Switch to the YAML view to fix it.
           </span>
         </div>
       )}
-      <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
+      {buffer?.loadFailed && (
+        <div
+          role="alert"
+          className="flex items-center justify-between gap-2 border-b border-destructive/30 px-4 py-2 text-xs"
+        >
+          <span>Could not load {path}.</span>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              void loadBufferContent(path)
+            }}
+          >
+            Retry file
+          </Button>
+        </div>
+      )}
+      <div
+        ref={scrollRef}
+        onScroll={(event) => {
+          if (hasDocument)
+            useConfigViewStore.getState().update(path, { scrollTop: event.currentTarget.scrollTop })
+        }}
+        className="min-h-0 flex-1 overflow-y-auto px-4 py-4"
+      >
         <div
           className="mx-auto w-full min-w-0 max-w-3xl space-y-4 aria-disabled:opacity-60"
-          inert={entity.readOnly ? true : undefined}
-          aria-disabled={entity.readOnly || undefined}
           data-viewer={entity.readOnlyReason === 'viewer' || undefined}
         >
-          {editor}
+          {buffer?.isDirty && (
+            <ConfigChangeReview original={buffer.originalContent} modified={buffer.content} />
+          )}
+          <ConfigEditingContext.Provider value={formReadOnly}>
+            {editor}
+          </ConfigEditingContext.Provider>
         </div>
       </div>
     </div>

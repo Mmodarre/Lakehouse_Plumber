@@ -303,3 +303,38 @@ top-level `custom_python_functions` package, so every copied descendant
 (`custom_python_functions.helpers.*`) is pickled by value with no change to the registration
 line — which is why helpers are mirrored under `custom_python_functions/` rather than placed
 elsewhere on `sys.path`.
+
+## Job field guidance
+
+The job configuration editor changes explicit YAML. Omitted per-job settings
+inherit project defaults. LHP's built-ins include `max_concurrent_runs: 1`,
+`performance_target: STANDARD`, and enabled queuing. An omitted timeout is not
+written when no default supplies it. Maps merge by key; lists such as notification
+recipients and permissions replace inherited lists.
+
+- `queue.enabled` allows excess runs to wait when the concurrency limit is reached.
+- `performance_target: PERFORMANCE_OPTIMIZED` favors faster compute startup at
+  higher cost; `STANDARD` is the built-in target.
+- `timeout_seconds` measures job duration, not an individual data test's duration.
+- `schedule` combines Quartz cron (including seconds), an IANA timezone and
+  `PAUSED` or `UNPAUSED`. For example, `0 0 8 * * ?` means daily at 08:00 in the
+  selected timezone. It is not a five-field Unix cron expression.
+- `email_notifications` has separate start/success/failure recipient lists.
+  `webhook_notifications` references configured notification destination IDs.
+- `permissions` entries have a resource permission level and one identity:
+  `user_name`, `group_name` or `service_principal_name`. A service principal is
+  identified by its application ID. The current job template emits only user/group
+  permission entries; service-principal entries remain in YAML but are not emitted.
+  `run_as` separately determines execution
+  identity.
+- `trigger`, `continuous`, `git_source` and `health` are passed into the generated
+  job YAML. The continuous job block differs from a pipeline's continuous flag;
+  health rules differ from flowgroup data tests. Git source settings do not
+  change the local checkout.
+- `generate_master_job` and `master_job_name` are LHP control settings read only
+  from job-config project defaults. Per-job and monitoring-job values are ignored;
+  neither key is emitted into the job resource. Master generation defaults to on,
+  with a name derived from the project.
+
+For monitoring compute use `notebook_cluster.new_cluster` or
+`notebook_cluster.existing_cluster_id` as documented in `monitoring.md`.

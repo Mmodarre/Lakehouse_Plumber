@@ -1,7 +1,8 @@
 import type { ReactNode } from 'react'
 import type { SchemaPath } from '@/lib/schema-help'
 import { FieldLabel } from './FieldLabel'
-import { issueId } from './fieldSupport'
+import { issueId, hintId } from './fieldSupport'
+import { useResolvedFieldHelp } from '@/components/common/SchemaKindContext'
 
 // ── FieldChrome — shared frame of the config field primitives ─
 //
@@ -37,9 +38,12 @@ export function FieldChrome({
   issueSeverity = 'error',
   children,
 }: FieldChromeProps) {
+  const resolved = useResolvedFieldHelp(helpPath, help)
+  const hint = resolved?.summary ?? description
   return (
     <div className="space-y-1.5">
-      <FieldLabel htmlFor={id} label={label} helpPath={helpPath} help={help ?? description} />
+      <FieldLabel htmlFor={id} label={label} helpPath={helpPath} help={help ?? (resolved ? undefined : description)} />
+      <p id={hintId(id)} className="text-xs leading-relaxed text-muted-foreground">{hint}</p>
       {children}
       <p
         id={issueId(id)}

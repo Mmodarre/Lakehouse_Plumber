@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { ArrowLeft, ArrowRight } from 'lucide-react'
-import { useUIStore } from '../../../store/uiStore'
+import { useWorkspaceStore } from '../../../store/workspaceStore'
 import type { ExternalConnection } from '../../../types/graph'
 
 export function ExternalBadge({ connections }: { connections: ExternalConnection[] }) {
@@ -12,7 +12,7 @@ export function ExternalBadge({ connections }: { connections: ExternalConnection
   // render stays free of ref reads.
   const [rect, setRect] = useState<DOMRect | null>(null)
   const buttonRef = useRef<HTMLButtonElement>(null)
-  const { openPipelineModal } = useUIStore()
+  const openPipelineDag = useWorkspaceStore((s) => s.openPipelineDag)
 
   // Escape closes the dropdown. Registered on `window` in the capture phase
   // so it runs BEFORE Radix's document-capture dismiss listener — the
@@ -46,7 +46,7 @@ export function ExternalBadge({ connections }: { connections: ExternalConnection
     // external sources (an existing table, another flowgroup's view) have no
     // pipeline — opening the drill modal with an empty id would show the full
     // unfiltered graph under a blank title, so skip it.
-    if (conn.targetPipeline !== '') openPipelineModal(conn.targetPipeline)
+    if (conn.targetPipeline !== '') openPipelineDag(conn.targetPipeline)
     setDropdownOpen(false)
   }
 

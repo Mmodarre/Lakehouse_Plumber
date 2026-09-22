@@ -127,6 +127,14 @@ function terminalBanner(
   errorTitle: string | null,
   warningCount: number,
 ): { text: string; className: string; icon: LucideIcon; iconClassName: string } {
+  if (terminal === 'stopped' || terminal === 'incomplete') {
+    return {
+      text: terminal === 'stopped' ? `${kind} stopped — results may be partial` : `${kind} incomplete — the stream ended without a result. Retry the run.`,
+      className: 'border-warning/25 bg-warning/12',
+      icon: TriangleAlert,
+      iconClassName: 'text-warning',
+    }
+  }
   if (terminal === 'success') {
     if (warningCount > 0) {
       return {

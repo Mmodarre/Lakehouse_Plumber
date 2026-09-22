@@ -119,7 +119,7 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 "lhp" = ["py.typed"]
-"lhp.schemas" = ["*.json", "*.md"]
+"lhp.schemas" = ["*.json", "*.md", "help/*.json"]
 "lhp.templates" = ["*.j2"]
 "lhp.templates.bundle" = ["*.j2"]
 # triple glob defends against historical setuptools dotfile inclusion bug

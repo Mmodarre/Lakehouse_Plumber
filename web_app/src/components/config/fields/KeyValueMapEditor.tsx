@@ -1,3 +1,5 @@
+import { useConfigReadOnly } from '@/components/config/shared/configEditingContext'
+import { FieldHint } from './FieldHint'
 import { useState } from 'react'
 import { Pencil, Plus, X } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
@@ -6,7 +8,7 @@ import { Input } from '@/components/ui/input'
 import type { SchemaPath } from '@/lib/schema-help'
 import { DraftInput } from './DraftInput'
 import { FieldLabel } from './FieldLabel'
-import { displayString, issueId } from './fieldSupport'
+import { displayString, issueId, descriptionIds } from './fieldSupport'
 
 // ── KeyValueMapEditor — str→str map editor ───────────────────
 //
@@ -62,6 +64,8 @@ export function KeyValueMapEditor({
   issueSeverity = 'error',
   disabled,
 }: KeyValueMapEditorProps) {
+  const configReadOnly = useConfigReadOnly()
+
   const [unlocked, setUnlocked] = useState<ReadonlySet<string>>(new Set())
   const [addKey, setAddKey] = useState('')
   const [addValue, setAddValue] = useState('')
@@ -102,8 +106,9 @@ export function KeyValueMapEditor({
         htmlFor={`${id}-add-key`}
         label={label}
         helpPath={helpPath}
-        help={help ?? description}
+        help={help}
       />
+      <FieldHint id={id} helpPath={helpPath} help={help} fallback={description} />
 
       {entries === undefined ? (
         <p className="text-2xs text-muted-foreground">Not set</p>
@@ -121,8 +126,9 @@ export function KeyValueMapEditor({
                   onCommit={(next) => commitRename(key, next)}
                   monospace
                   readOnly={locked}
-                  disabled={disabled}
+                  disabled={configReadOnly || (disabled)}
                   aria-label={`${key} key`}
+                  aria-describedby={descriptionIds(id)}
                   className="max-w-48"
                 />
                 <DraftInput
@@ -130,8 +136,9 @@ export function KeyValueMapEditor({
                   onCommit={(next) => onSetEntry(key, next)}
                   monospace
                   readOnly={locked}
-                  disabled={disabled}
+                  disabled={configReadOnly || (disabled)}
                   aria-label={`${key} value`}
+                  aria-describedby={descriptionIds(id)}
                 />
                 {!isString && (
                   <Badge
@@ -147,7 +154,7 @@ export function KeyValueMapEditor({
                     variant="ghost"
                     size="icon-sm"
                     onClick={() => setUnlocked((prev) => new Set(prev).add(key))}
-                    disabled={disabled}
+                    disabled={configReadOnly || (disabled)}
                     aria-label={`Edit ${key} as text`}
                     title="Unlock to edit — the value becomes a plain string"
                   >
@@ -159,7 +166,7 @@ export function KeyValueMapEditor({
                   variant="ghost"
                   size="icon-sm"
                   onClick={() => removeRow(key)}
-                  disabled={disabled}
+                  disabled={configReadOnly || (disabled)}
                   aria-label={`Remove ${key}`}
                 >
                   <X aria-hidden="true" />
@@ -178,9 +185,10 @@ export function KeyValueMapEditor({
           placeholder="key"
           spellCheck={false}
           autoComplete="off"
-          disabled={disabled}
+          disabled={configReadOnly || (disabled)}
           className="max-w-48 font-mono text-xs"
           aria-label={`New ${label} key`}
+                  aria-describedby={descriptionIds(id)}
         />
         <Input
           value={addValue}
@@ -194,16 +202,17 @@ export function KeyValueMapEditor({
           placeholder="value"
           spellCheck={false}
           autoComplete="off"
-          disabled={disabled}
+          disabled={configReadOnly || (disabled)}
           className="font-mono text-xs"
           aria-label={`New ${label} value`}
+                  aria-describedby={descriptionIds(id)}
         />
         <Button
           type="button"
           variant="outline"
           size="icon-sm"
           onClick={commitAdd}
-          disabled={disabled || addKey.trim() === ''}
+          disabled={configReadOnly || (disabled || addKey.trim() === '')}
           aria-label={`Add ${label} entry`}
         >
           <Plus aria-hidden="true" />

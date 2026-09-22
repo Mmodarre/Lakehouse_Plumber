@@ -1,6 +1,8 @@
 import { create } from 'zustand'
 import { useCallback } from 'react'
-import { useEventStream } from '../hooks/useEventStream'
+import { useQueryClient, type QueryClient } from '@tanstack/react-query'
+import { abortActiveStream, startEventStream, type StartOptions } from '../hooks/useEventStream'
+import { useLayoutStore } from './layoutStore'
 import { useUIStore } from './uiStore'
 import { ApiError } from '../api/client'
 import type {
@@ -30,7 +32,7 @@ import type {
 export type RunKind = 'validate' | 'generate'
 /** What started a run: a user action, or the editor acting on its own. */
 export type RunTrigger = 'manual' | 'auto'
-export type RunTerminal = 'success' | 'failed' | 'error'
+export type RunTerminal = 'success' | 'failed' | 'error' | 'stopped' | 'incomplete'
 
 export interface RunProgress {
   total: number
@@ -76,6 +78,11 @@ interface RunState {
    * validation" note. Cleared by `begin`/`reset`. */
   hydratedFrom: HydratedRunMeta | null
 
+  /** Monotonic session identity prevents a prior stream/hydration overwriting a newer run. */
+  runId: number
+  inputs: StartOptions | null
+  validationQueued: boolean
+
   // Actions
   /** Mark a run as started; clears prior run state. `sandbox` records whether
    * the run was launched in developer-sandbox mode. */
@@ -84,8 +91,8 @@ interface RunState {
   applyFrame: (frame: StreamFrame) => void
   /** Record an out-of-band failure (HTTP/transport error from the hook). */
   fail: (error: Error | ErrorFrame) => void
-  /** Mark the stream as finished (clean end). */
-  finish: () => void
+  /** Finish with an explicit result, stopped state, or incomplete outcome. */
+  finish: (info?: { aborted: boolean }) => void
   /** Reset everything to idle. */
   reset: () => void
   /**
@@ -124,6 +131,9 @@ const initialState = {
   errorFrame: null as ErrorFrame | null,
   infoLog: [] as string[],
   hydratedFrom: null as HydratedRunMeta | null,
+  runId: 0,
+  inputs: null as StartOptions | null,
+  validationQueued: false,
 }
 
 /** A non-error `ErrorFrame` shape coerced from an `ApiError`/`Error`. */
@@ -176,12 +186,15 @@ function collectGenerationIssues(
   return all
 }
 
+let nextRunId = 0
+
 export const useRunStore = create<RunState>((set) => ({
   ...initialState,
 
   begin: (kind, sandbox = false) =>
     set({
       ...initialState,
+      runId: ++nextRunId,
       runKind: kind,
       sandbox,
       isRunning: true,
@@ -287,13 +300,10 @@ export const useRunStore = create<RunState>((set) => ({
       terminal: s.terminal ?? 'error',
     })),
 
-  finish: () =>
+  finish: (info) =>
     set((s) => ({
       isRunning: false,
-      // If the stream ended without an explicit terminal frame, treat it
-      // as a clean success (validate/generate streams normally emit a
-      // *Completed frame, but guard against a silent close).
-      terminal: s.terminal ?? 'success',
+      terminal: s.terminal ?? (info?.aborted ? 'stopped' : 'incomplete'),
     })),
 
   reset: () => set({ ...initialState }),
@@ -302,7 +312,7 @@ export const useRunStore = create<RunState>((set) => ({
     set((s) =>
       // A live/finished run this session owns the Problems list; never clobber
       // it with history. Only phase/running-untouched fields change here.
-      s.isRunning ? {} : { issues, hydratedFrom: meta },
+      s.runKind !== null || s.isRunning ? {} : { issues, hydratedFrom: meta },
     ),
 
   setSyntheticSyntaxIssue: (filePath, issue) =>
@@ -333,104 +343,93 @@ export const useRunStore = create<RunState>((set) => ({
     }),
 }))
 
-// ── useRunController — wires useEventStream → runStore ──────────
-//
-// A thin controller hook. It must be called from a mounted component
-// (it owns the transport hook's state/effects); the Header is the
-// natural host since it is always mounted in the layout. It reads the
-// selected env / pipeline filter from `uiStore` (the same selectors the
-// Header renders) so callers only pass overrides when they have them.
-
+// One persistent coordinator. Calling views only request operations; unmounting
+// those views never cancels the operation. Auto-validation waits behind active work.
 export interface RunController {
   isRunning: boolean
   startValidate: (env?: string, pipeline?: string, trigger?: RunTrigger) => void
   startGenerate: (env?: string, pipeline?: string) => void
+  queueValidate: (env?: string, pipeline?: string, trigger?: RunTrigger) => void
   abort: () => void
 }
 
-export function useRunController(): RunController {
-  const stream = useEventStream()
-  const begin = useRunStore((s) => s.begin)
-  const applyFrame = useRunStore((s) => s.applyFrame)
-  const fail = useRunStore((s) => s.fail)
-  const finish = useRunStore((s) => s.finish)
+let queuedValidation: { options: StartOptions; queryClient: QueryClient } | null = null
 
-  const startRun = useCallback(
-    (
-      kind: RunKind,
-      path: '/api/validate/stream' | '/api/generate/stream',
-      env: string,
-      pipeline?: string,
-      sandbox = false,
-      trigger: RunTrigger = 'manual',
-    ) => {
-      if (stream.isRunning) return
-      // The run-config binding (set by the pipeline tab's "Use for runs"
-      // toggle, shown in the header chip) applies to BOTH run kinds.
-      const { selectedPipelineConfig } = useUIStore.getState()
-      begin(kind, sandbox)
-      stream.start(
-        {
-          path,
-          env,
-          // Sandbox mode takes its scope from .lhp/profile.yaml and is mutually
-          // exclusive with a single-pipeline filter, so drop the pipeline when
-          // it is on (the backend 422s if both are sent).
-          pipeline: sandbox ? undefined : pipeline,
-          pipeline_config: selectedPipelineConfig ?? undefined,
-          ...(sandbox ? { sandbox: true } : {}),
-          // Spread only for the non-default value: a user-initiated run
-          // carries no `trigger` key and the backend applies its `manual`
-          // default, so the manual wire body stays free of telemetry fields.
-          ...(trigger === 'auto' ? { trigger: 'auto' as const } : {}),
-        },
-        {
-          onFrame: (frame) => applyFrame(frame),
-          onError: (error) => fail(error),
-          onDone: () => finish(),
-        },
-      )
-    },
-    [stream, begin, applyFrame, fail, finish],
-  )
+export function abortCurrentRun(): void {
+  queuedValidation = null
+  useRunStore.setState({ validationQueued: false })
+  abortActiveStream()
+}
 
-  const startValidate = useCallback(
-    (env?: string, pipeline?: string, trigger: RunTrigger = 'manual') => {
-      const { selectedEnv, pipelineFilter, sandboxEnabled } = useUIStore.getState()
-      // An explicit pipeline (e.g. the designer validating one flowgroup)
-      // stays pipeline-scoped and ignores the global sandbox toggle.
-      const sandbox = sandboxEnabled && pipeline === undefined
-      startRun(
-        'validate',
-        '/api/validate/stream',
-        env ?? selectedEnv,
-        pipeline ?? pipelineFilter ?? undefined,
-        sandbox,
-        trigger,
-      )
-    },
-    [startRun],
-  )
-
-  const startGenerate = useCallback(
-    (env?: string, pipeline?: string) => {
-      const { selectedEnv, pipelineFilter, sandboxEnabled } = useUIStore.getState()
-      const sandbox = sandboxEnabled && pipeline === undefined
-      startRun(
-        'generate',
-        '/api/generate/stream',
-        env ?? selectedEnv,
-        pipeline ?? pipelineFilter ?? undefined,
-        sandbox,
-      )
-    },
-    [startRun],
-  )
-
+export function captureRunInputs(
+  kind: RunKind,
+  env?: string,
+  pipeline?: string,
+  trigger: RunTrigger = 'manual',
+): StartOptions {
+  const ui = useUIStore.getState()
+  const sandbox = ui.sandboxEnabled && pipeline === undefined
   return {
-    isRunning: stream.isRunning,
-    startValidate,
-    startGenerate,
-    abort: stream.abort,
+    path: kind === 'validate' ? '/api/validate/stream' : '/api/generate/stream',
+    env: env ?? ui.selectedEnv,
+    pipeline: sandbox ? undefined : pipeline ?? ui.pipelineFilter ?? undefined,
+    pipeline_config: ui.selectedPipelineConfig ?? undefined,
+    ...(sandbox ? { sandbox: true } : {}),
+    // Spread only for the non-default value: a user-initiated run carries no
+    // `trigger` key and the backend applies its `manual` default, so the
+    // manual wire body stays free of telemetry fields.
+    ...(trigger === 'auto' ? { trigger: 'auto' as const } : {}),
   }
+}
+
+export function startRunWithInputs(options: StartOptions, queryClient: QueryClient): void {
+  if (useRunStore.getState().isRunning || !options.env) return
+  if (options.path === '/api/generate/stream' && useLayoutStore.getState().viewerMode) return
+  const kind = options.path === '/api/validate/stream' ? 'validate' : 'generate'
+  useRunStore.getState().begin(kind, options.sandbox)
+  useRunStore.setState({ inputs: options })
+  const runId = useRunStore.getState().runId
+  const isCurrent = () => useRunStore.getState().runId === runId
+  const controller = startEventStream(options, {
+    onFrame: (frame) => { if (isCurrent()) useRunStore.getState().applyFrame(frame) },
+    onError: (error) => { if (isCurrent()) useRunStore.getState().fail(error) },
+    onDone: (info) => {
+      if (!isCurrent()) return
+      useRunStore.getState().finish(info)
+      const next = queuedValidation
+      queuedValidation = null
+      useRunStore.setState({ validationQueued: false })
+      if (next && !info.aborted) startRunWithInputs(next.options, next.queryClient)
+    },
+  }, queryClient)
+  if (!controller) {
+    useRunStore.getState().fail(new Error('Another operation is still finishing. Try again.'))
+    useRunStore.getState().finish()
+  }
+}
+
+export function useRunController(): RunController {
+  const queryClient = useQueryClient()
+  const isRunning = useRunStore((s) => s.isRunning)
+  const startValidate = useCallback((env?: string, pipeline?: string, trigger?: RunTrigger) => {
+    startRunWithInputs(captureRunInputs('validate', env, pipeline, trigger), queryClient)
+  }, [queryClient])
+  const startGenerate = useCallback((env?: string, pipeline?: string) => {
+    startRunWithInputs(captureRunInputs('generate', env, pipeline), queryClient)
+  }, [queryClient])
+  const queueValidate = useCallback((env?: string, pipeline?: string, trigger?: RunTrigger) => {
+    const options = captureRunInputs('validate', env, pipeline, trigger)
+    if (!useRunStore.getState().isRunning) {
+      startRunWithInputs(options, queryClient)
+      return
+    }
+    // Multiple saved pipelines require project-wide validation. Keep the
+    // latest environment/config snapshot, and never discard an earlier scope.
+    if (queuedValidation && queuedValidation.options.pipeline !== options.pipeline) {
+      options.pipeline = undefined
+    }
+    queuedValidation = { options, queryClient }
+    useRunStore.setState({ validationQueued: true })
+  }, [queryClient])
+  return { isRunning, startValidate, startGenerate, queueValidate, abort: abortCurrentRun }
 }

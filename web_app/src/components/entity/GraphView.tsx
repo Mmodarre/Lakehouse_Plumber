@@ -1,3 +1,9 @@
+import { useDocumentHistoryStore } from '@/store/documentHistoryStore'
+import { loadBufferContent } from '@/components/workspace/flowgroupBuffers'
+import { EntityDetails } from './EntityDetails'
+import { deleteAction, duplicateAction, renameAction } from '@/lib/flowgroup-doc'
+import { DraftInput } from '@/components/config/fields/DraftInput'
+import { toast } from 'sonner'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Background,
@@ -10,11 +16,13 @@ import {
   type EdgeTypes,
   type Node,
   type NodeTypes,
+  type Viewport,
 } from '@xyflow/react'
 import { FileWarning, LayoutTemplate, Plus, TriangleAlert, Waypoints } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { EmptyState, type EmptyStateAction } from '@/components/common/EmptyState'
@@ -73,6 +81,9 @@ export interface GraphViewProps {
   /** Project-relative path of the flowgroup/template YAML. */
   filePath: string
   docKind: DocKind
+  hideDetails?: boolean
+  actionSaveMode?: 'persist' | 'apply'
+  presentation?: 'graph' | 'list'
 }
 
 const nodeTypes: NodeTypes = {
@@ -87,6 +98,8 @@ const nodeTypes: NodeTypes = {
 const edgeTypes: EdgeTypes = {
   dependency: DesignerEdge,
 }
+
+const graphViewports = new Map<string, Viewport>()
 
 const NO_WARNINGS: readonly string[] = []
 
@@ -120,20 +133,24 @@ export function GraphView(props: GraphViewProps) {
   )
 }
 
-function GraphViewInner({ tabId, filePath, docKind }: GraphViewProps) {
-  const { doc, meta, actions, graph, commit, readOnly, readOnlyReason } = useFlowgroupDoc(
+function GraphViewInner({ tabId, filePath, docKind, hideDetails = false, actionSaveMode = 'persist', presentation = 'graph' }: GraphViewProps) {
+  const { doc, meta, actions, params, graph, commit, readOnly, readOnlyReason, multipleFlowgroups } = useFlowgroupDoc(
     filePath,
     docKind,
   )
   const { fitView } = useReactFlow()
+  const [initialViewport] = useState(() => graphViewports.get(filePath))
+  const buffer = useWorkspaceStore((s) => s.buffers.find((b) => b.path === filePath))
+  const history = useDocumentHistoryStore((s) => s.histories[filePath])
+  const [modalDirty, setModalDirty] = useState(false)
+  const [confirmDiscard, setConfirmDiscard] = useState(false)
 
   const [selectedId, setSelectedId] = useState<string | null>(null)
   // Double-click opens the field editor in a modal (Fix #3); single-click still
   // only selects (ring + structural toolbar). `null` = closed.
   const [modalNodeId, setModalNodeId] = useState<string | null>(null)
-  // useDesignerCanvasWiring's Enter handler focuses this ref. The Form view is
-  // gone (selection now drives the Inspector's Action tab), so the ref stays a
-  // never-focused sink kept only to satisfy the hook's signature.
+  const closeModal = useCallback(() => { if (modalDirty) setConfirmDiscard(true); else setModalNodeId(null) }, [modalDirty])
+  // Legacy focus fallback; this view supplies onEditSelected for Enter.
   const inspectorRef = useRef<HTMLElement | null>(null)
 
   const degraded = readOnlyReason === 'parse-error'
@@ -155,6 +172,8 @@ function GraphViewInner({ tabId, filePath, docKind }: GraphViewProps) {
     selectedId,
     setSelectedId,
     inspectorRef,
+    preserveInitialViewport: initialViewport !== undefined,
+    onEditSelected: (id) => { if (!id.startsWith('ext:')) setModalNodeId(id) },
     isLayouting,
     fitView,
   })
@@ -284,7 +303,9 @@ function GraphViewInner({ tabId, filePath, docKind }: GraphViewProps) {
       // the view and masks the "double-click to edit" gesture. The sibling
       // FlowgroupMiniGraph disables it for the same reason.
       zoomOnDoubleClick={false}
-      fitView
+      fitView={initialViewport === undefined}
+      defaultViewport={initialViewport}
+      onMoveEnd={(_, viewport) => graphViewports.set(filePath, viewport)}
       minZoom={0.1}
       maxZoom={2}
       proOptions={{ hideAttribution: true }}
@@ -318,8 +339,17 @@ function GraphViewInner({ tabId, filePath, docKind }: GraphViewProps) {
   )
 
   let body: React.ReactNode
-  if (readOnlyReason === 'loading') {
+  if (buffer?.loadFailed) {
+    body = <CanvasNotice icon={FileWarning} title="Could not load source file" message={filePath} action={{ label: 'Retry', onClick: () => { void loadBufferContent(filePath) }, variant: 'outline' }} />
+  } else if (readOnlyReason === 'loading') {
     body = <LoadingSpinner className="h-full" />
+  } else if (multipleFlowgroups) {
+    body = <CanvasNotice
+      icon={FileWarning}
+      title="This file contains multiple flowgroups"
+      message="Edit this shared YAML in Code view. Structured editing is available for files containing one flowgroup, so changes cannot target the wrong entity."
+      action={{ label: 'Open Code view', onClick: jumpToCode, variant: 'outline' }}
+    />
   } else if (doc === null) {
     body = degraded ? (
       <CanvasNotice
@@ -366,6 +396,16 @@ function GraphViewInner({ tabId, filePath, docKind }: GraphViewProps) {
         </Button>
       </CanvasNotice>
     )
+  } else if (presentation === 'list') {
+    body = <div className="h-full overflow-auto p-4"><div className="mb-3 flex justify-end"><Button size="sm" disabled={!compose.canCompose} onClick={() => compose.openPalette()}><Plus aria-hidden="true" />Add action</Button></div><ol className="space-y-3">{actions.map((action) => {
+      const node = graph?.nodes.find((item) => item.actionIndex === action.index)
+      if (!node) return null
+      return <li key={node.id} className="space-y-3 rounded-md border border-border bg-card p-4">
+        <div className="flex flex-wrap items-center gap-2"><span className="text-xs text-muted-foreground">{action.index + 1}. {action.kind} · {action.subType}</span><div className="ml-auto flex flex-wrap gap-1"><Button size="xs" variant="outline" onClick={() => openActionModal(node.id)}>Edit action</Button><Button size="xs" variant="ghost" disabled={readOnly} onClick={() => commit((body) => duplicateAction(body, node.id))}>Duplicate</Button><Button size="xs" variant="ghost" disabled={readOnly} onClick={() => commit((body) => deleteAction(body, node.id))}>Delete</Button></div></div>
+        <label className="block space-y-1 text-xs">Action name<DraftInput initial={action.name} aria-label={`Action ${action.index + 1} name`} monospace disabled={readOnly} onCommit={(name) => { if (!commit((body) => renameAction(body, node.id, name))) toast.error('Choose a nonempty, unique action name.') }} /></label>
+        <p className="break-all text-xs text-muted-foreground">{action.sources.length ? `Inputs: ${action.sources.join(', ')}` : 'No input view'}{action.target ? ` → ${action.target}` : ''}</p>
+      </li>
+    })}</ol></div>
   } else if (isLayouting) {
     body = <LoadingSpinner className="h-full" />
   } else {
@@ -374,6 +414,11 @@ function GraphViewInner({ tabId, filePath, docKind }: GraphViewProps) {
 
   return (
     <div className="flex h-full min-h-0 flex-1 flex-col">
+      {doc !== null && !hideDetails && <EntityDetails filePath={filePath} docKind={docKind} meta={meta} params={params} commit={commit} readOnly={readOnly} />}
+      {doc !== null && <div className="flex shrink-0 items-center gap-2 border-b border-border px-3 py-1">
+        <Button size="xs" variant="ghost" disabled={readOnly || buffer?.isSaving || !history?.undo.length || history.undo.at(-1)?.after !== buffer?.content} onClick={() => useDocumentHistoryStore.getState().apply(filePath, 'undo')}>Undo graph change</Button>
+        <Button size="xs" variant="ghost" disabled={readOnly || buffer?.isSaving || !history?.redo.length || history.redo.at(-1)?.before !== buffer?.content} onClick={() => useDocumentHistoryStore.getState().apply(filePath, 'redo')}>Redo</Button>
+      </div>}
       {degraded && (
         <div className="flex items-center gap-2 border-b border-warning/30 bg-warning/10 px-4 py-2 text-xs text-foreground">
           <TriangleAlert className="size-3.5 shrink-0 text-warning" aria-hidden="true" />
@@ -415,10 +460,10 @@ function GraphViewInner({ tabId, filePath, docKind }: GraphViewProps) {
       <Dialog
         open={modalAction !== null}
         onOpenChange={(open) => {
-          if (!open) setModalNodeId(null)
+          if (!open) closeModal()
         }}
       >
-        <DialogContent className="max-h-[85vh] gap-0 overflow-y-auto p-0 sm:max-w-3xl">
+        <DialogContent onChangeCapture={() => setModalDirty(true)} className="max-h-[85vh] gap-0 overflow-y-auto p-0 sm:max-w-3xl">
           <DialogHeader className="border-b border-border px-4 py-3">
             <DialogTitle className="text-sm">Edit action</DialogTitle>
           </DialogHeader>
@@ -433,10 +478,13 @@ function GraphViewInner({ tabId, filePath, docKind }: GraphViewProps) {
               actionId={modalNodeId}
               filePath={filePath}
               docKind={docKind}
-              onSaved={() => setModalNodeId(null)}
+              saveMode={actionSaveMode}
+              onApplied={() => { setModalDirty(false); setModalNodeId(null) }}
+              onDirtyChange={setModalDirty}
+              onSaved={() => { setModalDirty(false); setModalNodeId(null) }}
               // Cancel discards the staged edits and closes — the same close as
               // the Dialog's X / Escape (both null out modalNodeId).
-              onCancel={() => setModalNodeId(null)}
+              onCancel={closeModal}
               // Failed persist (412 / yaml_error): close the modal and jump to
               // the Code view where the ConflictDialog / syntax fix lives (Fix
               // #2) — the staged edits are dropped with the modal.
@@ -448,6 +496,10 @@ function GraphViewInner({ tabId, filePath, docKind }: GraphViewProps) {
           )}
         </DialogContent>
       </Dialog>
+      <AlertDialog open={confirmDiscard} onOpenChange={setConfirmDiscard}><AlertDialogContent>
+        <AlertDialogHeader><AlertDialogTitle>Discard action edits?</AlertDialogTitle><AlertDialogDescription>Your unfinished changes in this action dialog will be discarded.</AlertDialogDescription></AlertDialogHeader>
+        <AlertDialogFooter><AlertDialogCancel>Keep editing</AlertDialogCancel><AlertDialogAction onClick={() => { setModalDirty(false); setModalNodeId(null); setConfirmDiscard(false) }}>Discard edits</AlertDialogAction></AlertDialogFooter>
+      </AlertDialogContent></AlertDialog>
     </div>
   )
 }

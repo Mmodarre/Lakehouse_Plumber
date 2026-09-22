@@ -9,8 +9,8 @@ import { crossPipelineSummaryToMap } from '../../utils/externalConnections'
 import { ExternalBadge } from '../../components/graph/badges/ExternalBadge'
 import type { CrossPipelineSummary } from '../../types/api'
 
-const { openPipelineModal } = vi.hoisted(() => ({ openPipelineModal: vi.fn() }))
-vi.mock('@/store/uiStore', () => ({ useUIStore: () => ({ openPipelineModal }) }))
+const { openPipelineDag } = vi.hoisted(() => ({ openPipelineDag: vi.fn() }))
+vi.mock('@/store/workspaceStore', () => ({ useWorkspaceStore: (select: (state: { openPipelineDag: typeof openPipelineDag }) => unknown) => select({ openPipelineDag }) }))
 
 // ── fetch-level mocking ──────────────────────────────────────
 // Stub global fetch below the real api/client + api/dependencies modules so
@@ -38,7 +38,7 @@ beforeEach(() => {
   fetchMock.mockReset()
   fetchMock.mockResolvedValue(new Response(JSON.stringify(SUMMARY), { status: 200 }))
   vi.stubGlobal('fetch', fetchMock)
-  openPipelineModal.mockClear()
+  openPipelineDag.mockClear()
 })
 
 afterEach(() => {
@@ -87,6 +87,6 @@ describe('useCrossPipelineConnections', () => {
     await user.click(screen.getByRole('button', { name: /external connection/i }))
     expect(screen.getByRole('menuitem')).toHaveTextContent('silver')
     await user.click(screen.getByRole('menuitem'))
-    expect(openPipelineModal).toHaveBeenCalledWith('silver')
+    expect(openPipelineDag).toHaveBeenCalledWith('silver')
   })
 })

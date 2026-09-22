@@ -283,6 +283,8 @@ export default function AssistantPanel() {
         <>
           {isClaude && <SessionTabs />}
           <ChatThread
+            key={activeTabKey}
+            conversationKey={activeTabKey ?? undefined}
             parts={parts}
             streaming={streaming}
             statusState={statusState}
@@ -296,6 +298,8 @@ export default function AssistantPanel() {
             onSetPricing={() => setShowSetup(true)}
           />
           <ChatComposer
+            conversationKey={activeTabKey ?? undefined}
+            disabled={activeTabKey === null}
             streaming={streaming}
             onSend={(message) => {
               if (activeTabKey !== null) stream.send(activeTabKey, message)

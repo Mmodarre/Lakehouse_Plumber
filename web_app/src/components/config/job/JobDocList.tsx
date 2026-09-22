@@ -1,3 +1,4 @@
+import { DocumentSelector } from '../shared/DocumentSelector'
 import { Briefcase, Boxes, FileQuestion, Layers, SlidersHorizontal } from 'lucide-react'
 import { AddButton, Connector, RailRow } from '../shared/Rail'
 import type { RailSelection } from '../shared/docFormSupport'
@@ -18,6 +19,7 @@ import type { JobRailDoc } from './jobFormSupport'
 // flat files show the convert banner instead.
 
 export interface JobDocListProps {
+  compact?: boolean
   rail: JobRailDoc[]
   selected: RailSelection
   onSelect: (selection: RailSelection) => void
@@ -29,6 +31,7 @@ export interface JobDocListProps {
 }
 
 export function JobDocList({
+  compact = false,
   rail,
   selected,
   onSelect,
@@ -39,6 +42,20 @@ export function JobDocList({
 }: JobDocListProps) {
   const defaultsDocs = rail.filter((doc) => doc.kind === 'defaults')
   const otherDocs = rail.filter((doc) => doc.kind !== 'defaults')
+
+  if (compact)
+    return (
+      <DocumentSelector
+        kind="job"
+        rail={rail}
+        selected={selected}
+        onSelect={onSelect}
+        canEdit={canEdit}
+        onAddSingle={onAddSingle}
+        onAddGroup={onAddGroup}
+        onAddDefaults={defaultsDocs.length === 0 ? onAddDefaults : undefined}
+      />
+    )
 
   return (
     <nav aria-label="Configuration documents" className="w-60 shrink-0">
@@ -88,8 +105,8 @@ export function JobDocList({
       {/* Tier 3: per-job documents — PEERS on one spine (fan-out). */}
       <div className="ml-4 border-l border-border pl-2">
         <p className="px-2 pb-1 text-2xs text-muted-foreground">
-          Per-job documents — one tier: each job merges built-in → project
-          defaults → its own document.
+          Per-job documents — one tier: each job merges built-in → project defaults → its own
+          document.
         </p>
         <div className="space-y-0.5">
           {otherDocs.map((doc) => (

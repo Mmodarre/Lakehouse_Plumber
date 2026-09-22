@@ -417,6 +417,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/configuration/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Configuration Preview */
+        get: operations["get_configuration_preview_api_configuration_preview_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/dependencies": {
         parameters: {
             query?: never;
@@ -926,6 +943,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/help/{kind}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Field Help
+         * @description Read one small category of reviewed field guidance from package data.
+         */
+        get: operations["get_field_help_api_help__kind__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/lineage": {
         parameters: {
             query?: never;
@@ -1311,6 +1348,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/templates/catalog": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Template Catalog */
+        get: operations["get_template_catalog_api_templates_catalog_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/templates/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Post Template Preview */
+        post: operations["post_template_preview_api_templates_preview_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/templates/source": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Template Source */
+        get: operations["get_template_source_api_templates_source_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/templates/{name}": {
         parameters: {
             query?: never;
@@ -1520,6 +1608,38 @@ export interface components {
             has_circular: boolean;
             /** Total Cycles */
             total_cycles: number;
+        };
+        /** ConfigurationPreviewResponse */
+        ConfigurationPreviewResponse: {
+            /** Env */
+            env: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "pipeline" | "job";
+            /** Path */
+            path: string;
+            /**
+             * Source
+             * @constant
+             */
+            source: "saved";
+            /** Target */
+            target: string;
+            /** Targets */
+            targets: string[];
+            /** Tiers */
+            tiers: string[];
+            /**
+             * Values
+             * @description Resolved saved settings from LHP's production resolvers
+             */
+            values: {
+                [key: string]: unknown;
+            };
+            /** Warnings */
+            warnings: string[];
         };
         /**
          * CrossPipelineConnection
@@ -2624,6 +2744,54 @@ export interface components {
             /** Write Mode */
             write_mode?: string | null;
         };
+        /** TemplateAuthoringParameter */
+        TemplateAuthoringParameter: {
+            /** Declared Type */
+            declared_type?: string | null;
+            /** Default */
+            default?: unknown;
+            /** Description */
+            description?: string | null;
+            /** Has Default */
+            has_default: boolean;
+            /** Name */
+            name: string;
+            /** Required */
+            required: boolean;
+        };
+        /** TemplateCatalogEntry */
+        TemplateCatalogEntry: {
+            /** Action Count */
+            action_count: number | null;
+            /** Declared Name */
+            declared_name: string | null;
+            /** Description */
+            description: string | null;
+            /** Diagnostics */
+            diagnostics: components["schemas"]["TemplateDiagnostic"][];
+            /** Parameters */
+            parameters: components["schemas"]["TemplateAuthoringParameter"][];
+            /** Presets */
+            presets: string[];
+            /** Reference */
+            reference: string | null;
+            /** Source Path */
+            source_path: string;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "ready" | "invalid" | "unsupported_extension";
+            /** Version */
+            version: string | null;
+        };
+        /** TemplateCatalogResponse */
+        TemplateCatalogResponse: {
+            /** Templates */
+            templates: components["schemas"]["TemplateCatalogEntry"][];
+            /** Total */
+            total: number;
+        };
         /**
          * TemplateDetailResponse
          * @description Single template with full metadata.
@@ -2632,6 +2800,33 @@ export interface components {
             /** Name */
             name: string;
             template: components["schemas"]["TemplateInfoResponse"];
+        };
+        /** TemplateDiagnostic */
+        TemplateDiagnostic: {
+            /** Code */
+            code: string;
+            /** Column */
+            column?: number | null;
+            /** Field Path */
+            field_path?: (string | number)[] | null;
+            /** Line */
+            line?: number | null;
+            /** Message */
+            message: string;
+            /**
+             * Severity
+             * @enum {string}
+             */
+            severity: "error" | "warning" | "info";
+            /** Source Path */
+            source_path: string;
+            /**
+             * Stage
+             * @enum {string}
+             */
+            stage: "inspect" | "expanded" | "resolved";
+            /** Suggestion */
+            suggestion?: string | null;
         };
         /**
          * TemplateInfoResponse
@@ -2670,6 +2865,95 @@ export interface components {
             templates: string[];
             /** Total */
             total: number;
+        };
+        /** TemplatePreviewContext */
+        TemplatePreviewContext: {
+            /**
+             * Environment
+             * @default
+             */
+            environment: string;
+            /**
+             * Flowgroup
+             * @default
+             */
+            flowgroup: string;
+            /**
+             * Pipeline
+             * @default
+             */
+            pipeline: string;
+            /** Presets */
+            presets?: string[];
+            /** Variables */
+            variables?: {
+                [key: string]: string;
+            };
+        };
+        /** TemplatePreviewRequest */
+        TemplatePreviewRequest: {
+            context?: components["schemas"]["TemplatePreviewContext"] | null;
+            /** Request Revision */
+            request_revision: string;
+            /** Sample Parameters */
+            sample_parameters?: {
+                [key: string]: unknown;
+            };
+            /** Source Path */
+            source_path: string;
+            /** Source Yaml */
+            source_yaml: string;
+            /**
+             * Stage
+             * @enum {string}
+             */
+            stage: "inspect" | "expanded" | "resolved";
+        };
+        /** TemplatePreviewResponse */
+        TemplatePreviewResponse: {
+            /** Diagnostics */
+            diagnostics: components["schemas"]["TemplateDiagnostic"][];
+            /** Effective Parameters */
+            effective_parameters?: {
+                [key: string]: unknown;
+            } | null;
+            /** Expanded Actions */
+            expanded_actions?: {
+                [key: string]: unknown;
+            }[] | null;
+            /** Missing Parameters */
+            missing_parameters: string[];
+            /** Request Revision */
+            request_revision: string;
+            /** Resolved Flowgroup */
+            resolved_flowgroup?: {
+                [key: string]: unknown;
+            } | null;
+            /** Saved Dependencies */
+            saved_dependencies: components["schemas"]["TemplateSavedDependency"][];
+            /** Source Hash */
+            source_hash: string;
+            /**
+             * Stage
+             * @enum {string}
+             */
+            stage: "inspect" | "expanded" | "resolved";
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "ready" | "needs_parameters" | "needs_context" | "invalid" | "stale";
+        };
+        /** TemplateSavedDependency */
+        TemplateSavedDependency: {
+            /** Fingerprint */
+            fingerprint: string | null;
+            /** Path */
+            path: string;
+        };
+        /** TemplateSourceResponse */
+        TemplateSourceResponse: {
+            template: components["schemas"]["TemplateCatalogEntry"];
         };
         /**
          * TemplateSummary
@@ -3276,6 +3560,40 @@ export interface operations {
                 };
                 content: {
                     "text/plain": string;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_configuration_preview_api_configuration_preview_get: {
+        parameters: {
+            query: {
+                path: string;
+                kind: "pipeline" | "job";
+                env: string;
+                target?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConfigurationPreviewResponse"];
                 };
             };
             /** @description Validation Error */
@@ -3982,6 +4300,37 @@ export interface operations {
             };
         };
     };
+    get_field_help_api_help__kind__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                kind: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_lineage_api_lineage_get: {
         parameters: {
             query: {
@@ -4467,6 +4816,90 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TemplateListResponse"] | components["schemas"]["TemplateListDetailResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_template_catalog_api_templates_catalog_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TemplateCatalogResponse"];
+                };
+            };
+        };
+    };
+    post_template_preview_api_templates_preview_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TemplatePreviewRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TemplatePreviewResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_template_source_api_templates_source_get: {
+        parameters: {
+            query: {
+                path: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TemplateSourceResponse"];
                 };
             };
             /** @description Validation Error */
