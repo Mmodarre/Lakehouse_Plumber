@@ -101,8 +101,8 @@ def test_resolution_touches_no_filesystem(tmp_path: Path) -> None:
 
 
 @pytest.mark.unit
-def test_default_endpoint_is_the_placeholder_hostname() -> None:
-    assert DEFAULT_ENDPOINT == "https://telemetry.lakehouse-plumber.invalid/v1/events"
+def test_default_endpoint_is_the_lhp_receiver() -> None:
+    assert DEFAULT_ENDPOINT == "https://telemetry.lakehouse-plumber.dev/v1/events"
 
 
 @pytest.mark.unit

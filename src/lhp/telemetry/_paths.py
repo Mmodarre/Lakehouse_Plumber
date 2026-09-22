@@ -16,10 +16,12 @@ from urllib.parse import urlsplit
 
 logger = logging.getLogger(__name__)
 
-# Placeholder until the LHP-owned hostname exists, tracked by the merge-blocker
-# issue "replace placeholder telemetry hostname". The ``.invalid`` TLD never
-# resolves, so a build that ships with it fails closed into the spool.
-DEFAULT_ENDPOINT = "https://telemetry.lakehouse-plumber.invalid/v1/events"
+# The LHP-owned receiver. It never redirects, so the sender can drop any batch
+# whose upload was redirected: ``urllib`` re-sends a redirected POST without its
+# body, and the reply then says nothing about the batch.
+# ``LHP_TELEMETRY_ENDPOINT`` overrides it (see ``resolve_endpoint``), which is
+# how a local receiver is used for testing.
+DEFAULT_ENDPOINT = "https://telemetry.lakehouse-plumber.dev/v1/events"
 
 _DIR_NAME = "lhp"
 _STATE_FILE = "telemetry.json"

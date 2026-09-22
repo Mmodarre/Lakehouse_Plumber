@@ -1,21 +1,28 @@
-"""The Worker's key contract (DESIGN §D6), checked against emitted props.
+"""The receiver's key contract, checked against emitted props.
 
-The Worker rejects a whole batch when one event's props break the request
-schema: a prop name outside ``^[a-z][a-z0-9_]{0,40}$``, or a key of a nested
-object outside ``^[A-Za-z][A-Za-z0-9_.:-]{0,95}$``. Counter keys are the only
-props whose names come from data rather than from a dataclass, so each event
-is built here through the code path that emits it, fed every key that path
-can produce plus the most hostile codes it accepts, JSON round-tripped, and
-checked key by key.
+The receiver rejects an event only for an envelope fault. Inside ``props`` it
+drops, without any error, whatever breaks its rules: a nested-map key outside
+``^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$``, keys past 128 in one map (16 in a
+``files_*`` map), an ``error_code`` outside ``^[A-Za-z0-9._-]{1,24}$``, and a
+``command`` outside ``^[a-z][a-z0-9._-]{0,63}$``. A drift therefore loses data
+silently rather than failing a request, and this module is where it shows.
+
+Counter keys are the only props whose names come from data rather than from a
+dataclass, so each event is built here through the code path that emits it,
+fed every key that path can produce plus the most hostile codes it accepts,
+JSON round-tripped, and checked key by key. Prop names and value shapes are
+held to the client's own, stricter wire schema.
 """
 
 from __future__ import annotations
 
+import inspect
 import json
 import re
+import uuid
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Iterator, List, Optional, Tuple
 
 import click
 import pytest
@@ -23,6 +30,7 @@ import pytest
 from lhp import telemetry
 from lhp.cli import _telemetry_hook
 from lhp.cli._app_context import build_facade
+from lhp.cli.main import cli
 from lhp.cli.presenters.event_stream._model import FailureLine, RunOutcome, WarningLine
 from lhp.errors import codes
 from lhp.webapp.middleware.telemetry_session import (
@@ -41,7 +49,11 @@ from lhp.webapp.services.telemetry_sessions import WebSessionRegistry
 pytestmark = pytest.mark.unit
 
 _PROP_NAME = re.compile(r"^[a-z][a-z0-9_]{0,40}$")
-_OBJECT_KEY = re.compile(r"^[A-Za-z][A-Za-z0-9_.:-]{0,95}$")
+_OBJECT_KEY = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$")
+_ERROR_CODE = re.compile(r"^[A-Za-z0-9._-]{1,24}$")
+_COMMAND = re.compile(r"^[a-z][a-z0-9._-]{0,63}$")
+_MAP_KEYS = 128
+_FILES_MAP_KEYS = 16
 _ENVELOPE_PREFIX = '{"schema_version"'
 _SID = "0f1e2d3c-4b5a-4978-8a9b-0c1d2e3f4a5b"
 
@@ -74,17 +86,24 @@ actions:
 """
 
 
-def _assert_d6_props(props: Dict[str, Any]) -> None:
-    """Assert every name and nested key of ``props`` survives a JSON round trip
-    in the §D6 spelling, and every value keeps a §D6 type."""
+def _assert_wire_props(props: Dict[str, Any]) -> None:
+    """Assert ``props`` survives a JSON round trip inside the receiver's rules:
+    every name, nested key, map size, ``error_code`` and ``command``, and every
+    value keeps a type the wire schema allows."""
     for name, value in props.items():
         if isinstance(value, dict):
             assert all(isinstance(key, str) for key in value), (name, list(value))
     wire = json.loads(json.dumps(props))
     assert len(wire) <= 64
+    if wire.get("error_code") is not None:
+        assert _ERROR_CODE.fullmatch(wire["error_code"]), wire["error_code"]
+    if "command" in wire:
+        assert _COMMAND.fullmatch(wire["command"]), wire["command"]
     for name, value in wire.items():
         assert _PROP_NAME.fullmatch(name), name
         if isinstance(value, dict):
+            cap = _FILES_MAP_KEYS if name.startswith("files_") else _MAP_KEYS
+            assert len(value) <= cap, (name, len(value))
             for key, inner in value.items():
                 assert _OBJECT_KEY.fullmatch(key), (name, key)
                 assert inner is None or isinstance(inner, (bool, int, str)), key
@@ -109,9 +128,51 @@ def project(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 
 def test_every_registered_error_code_passes_the_shared_filter() -> None:
     rejected = [
-        code.code for code in codes.ALL_CODES if not telemetry.is_lhp_code(code.code)
+        code.code
+        for code in codes.ALL_CODES
+        if not (telemetry.is_lhp_code(code.code) and _ERROR_CODE.fullmatch(code.code))
     ]
     assert rejected == []
+
+
+def _leaf_commands(
+    command: click.Command, path: Tuple[str, ...] = ()
+) -> Iterator[Tuple[Tuple[str, ...], click.Command]]:
+    """Every runnable command under ``command``, with the words that invoke it."""
+    if not isinstance(command, click.Group):
+        yield path, command
+        return
+    ctx = click.Context(command)
+    for name in command.list_commands(ctx):
+        sub = command.get_command(ctx, name)
+        if sub is not None:
+            yield from _leaf_commands(sub, (*path, name))
+
+
+def _boundary_operation(callback: Any) -> Optional[str]:
+    """The operation name ``cli_error_boundary`` closed over, if it wraps ``callback``."""
+    fn = callback
+    while fn is not None:
+        operation = inspect.getclosurevars(fn).nonlocals.get("operation")
+        if isinstance(operation, str):
+            return operation
+        fn = getattr(fn, "__wrapped__", None)
+    return None
+
+
+def test_every_cli_command_name_meets_the_command_pattern() -> None:
+    # A command records its boundary's operation with spaces turned into dots,
+    # and an alias with no boundary of its own records the name it was invoked by.
+    invoked, recorded = set(), set()
+    for path, command in _leaf_commands(cli):
+        invoked.add(".".join(path))
+        operation = _boundary_operation(command.callback)
+        if operation is not None:
+            recorded.add(operation.replace(" ", "."))
+    assert {"generate", "deps", "telemetry.status"} <= invoked
+    assert {"generate", "telemetry.status"} <= recorded
+    names = sorted(invoked | recorded)
+    assert [name for name in names if not _COMMAND.fullmatch(name)] == []
 
 
 def test_cli_command_props_meet_the_key_contract(
@@ -139,7 +200,7 @@ def test_cli_command_props_meet_the_key_contract(
         if line.startswith(_ENVELOPE_PREFIX)
     ]
     props = json.loads(lines[-1])["props"]
-    _assert_d6_props(props)
+    _assert_wire_props(props)
     assert props["error_code"] is None
     assert props["warning_codes"] == {
         **dict.fromkeys(_REAL_CODES, 1),
@@ -185,16 +246,22 @@ def test_web_session_props_meet_the_key_contract() -> None:
         ("generate", "manual"),
     ):
         registry.count_run(_SID, kind, trigger, sandbox=True)
-    labels = _every_ui_label()
-    for label in labels:
-        registry.count_ui(_SID, label)
     provider, modes = next(iter(_PROVIDER_MODES.items()))
     registry.mark_assistant(_SID, provider, next(iter(modes)))
+    # The router admits more distinct labels than the receiver keeps in one
+    # map, and the registry does not bound ``ui``, so the labels are spread
+    # over sessions that each stay within the receiver's limit.
+    labels = _every_ui_label()
+    chunks = [labels[i : i + _MAP_KEYS] for i in range(0, len(labels), _MAP_KEYS)]
+    sids = [_SID, *(str(uuid.UUID(int=n, version=4)) for n in range(1, len(chunks)))]
+    for sid, chunk in zip(sids, chunks, strict=True):
+        for label in chunk:
+            registry.count_ui(sid, label)
 
-    assert registry.emit_all("shutdown") == 1
-    (props,) = delivered
-    _assert_d6_props(props)
-    assert set(props["ui"]) == set(labels)
+    assert registry.emit_all("shutdown") == len(sids)
+    for props in delivered:
+        _assert_wire_props(props)
+    assert {label for props in delivered for label in props["ui"]} == set(labels)
 
 
 @pytest.mark.parametrize("code", [*_REAL_CODES, *_HOSTILE_CODES])
@@ -213,5 +280,5 @@ def test_web_run_props_meet_the_key_contract(code: Optional[str]) -> None:
 
     props = _telemetry_events.build_web_run_props(ctx, "generate", "none", outcome, 5)
 
-    _assert_d6_props(props)
+    _assert_wire_props(props)
     assert props["error_code"] == (code if code in _REAL_CODES else None)
