@@ -80,10 +80,6 @@ The "as is" disclaimer, warranty disclaimer, and liability cap reduce ordinary c
 
 We may update these Terms from time to time. Continued use after an update means you accept the updated Terms. The sections concerning warranty disclaimers, responsibility, third-party services, limitation of liability, indemnification, and governing law survive termination.
 
-## 11. Contact
-
-Questions about these Terms may be sent to [contact email].
-
-## 12. Governing law
+## 11. Governing law
 
 These Terms are governed by the laws of Commonwealth of Australia, without regard to its conflict-of-law rules. You and we submit to the exclusive jurisdiction of the courts located in Australia.
