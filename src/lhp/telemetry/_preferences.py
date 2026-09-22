@@ -2,8 +2,8 @@
 
 ``set_user_enabled`` is the write behind ``lhp telemetry on|off`` and the
 package's ONE entry point allowed to raise. The rest read the state file or
-the spool for ``status``/``show`` and the update hint, and never raise.
-State-file writes take the recording lock from ``_client`` — as do the
+the pending envelopes for ``status``/``show`` and the update hint, and never
+raise. State-file writes take the recording lock from ``_client`` — as do the
 recording path and the sender thread's settle step — so no read-modify-write
 can lose the user's choice.
 """
@@ -25,7 +25,7 @@ from lhp.telemetry._environment import (
     lhp_version,
     resolve_environ,
 )
-from lhp.telemetry._paths import config_dir, spool_path, state_path
+from lhp.telemetry._paths import config_dir, state_path
 from lhp.telemetry._update_check import (
     is_newer,
     pending_update_hint,
@@ -117,14 +117,14 @@ def due_update_hint(environ: Environ = None) -> Optional[str]:
 
 @_inert(int)
 def spool_count(environ: Environ = None) -> int:
-    """How many envelopes wait in the spool."""
+    """How many envelopes are pending, spooled or claimed by a send."""
     return _spool.spool_count(config_dir(resolve_environ(environ)))
 
 
 @_inert(list)
 def spooled_events(limit: int, environ: Environ = None) -> List[Dict[str, Any]]:
-    """The newest ``limit`` spooled envelopes; non-envelope lines are skipped."""
-    lines = _spool.read_lines(spool_path(config_dir(resolve_environ(environ))))
+    """The newest ``limit`` pending envelopes; non-envelope lines are skipped."""
+    lines = _spool.pending_lines(config_dir(resolve_environ(environ)))
     events: List[Dict[str, Any]] = []
     for line in lines[-limit:] if limit > 0 else []:
         try:

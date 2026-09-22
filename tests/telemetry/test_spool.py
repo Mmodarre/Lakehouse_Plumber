@@ -25,6 +25,7 @@ from lhp.telemetry._spool import (
     STALE_INFLIGHT_S,
     append_spool,
     discard_inflight,
+    pending_lines,
     read_lines,
     restore_inflight,
     spool_count,
@@ -160,6 +161,19 @@ def test_read_lines_skips_blank_lines(cfg: Path) -> None:
     assert read_lines(spool_path(cfg)) == ['{"a":1}', '{"b":2}']
 
 
+@pytest.mark.unit
+def test_pending_lines_lists_claims_oldest_first_then_the_spool_unmarked(
+    cfg: Path,
+) -> None:
+    append_spool(cfg, _marked('{"n":3}'))
+    folder = spool_path(cfg).parent
+    # Creation order and name order are both the reverse of claim order.
+    (folder / "spool.inflight-1-2000.jsonl").write_text('{"n":2}\n', "utf-8")
+    oldest = _marked('{"n":1}')
+    (folder / "spool.inflight-9-1000.jsonl").write_text(f"{oldest}\n", "utf-8")
+    assert pending_lines(cfg) == ['{"n":1}', '{"n":2}', '{"n":3}']
+
+
 # inflight hand-off
 
 
@@ -179,7 +193,7 @@ def test_take_inflight_moves_the_spool_aside(cfg: Path) -> None:
     assert inflight.suffix == ".jsonl"
     assert read_lines(inflight) == ['{"n":1}']
     assert not spool_path(cfg).exists()
-    assert spool_count(cfg) == 0
+    assert spool_count(cfg) == 1
 
 
 @pytest.mark.unit

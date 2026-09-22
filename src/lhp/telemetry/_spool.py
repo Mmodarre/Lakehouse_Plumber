@@ -103,9 +103,17 @@ def append_spool(cfg: Path, line: str) -> bool:
     return True
 
 
+def pending_lines(cfg: Path) -> List[str]:
+    """Every envelope not yet settled, unmarked: the inflight batches, oldest
+    claim first, then the spool."""
+    spool = spool_path(cfg)
+    claims = sorted(spool.parent.glob(_INFLIGHT_GLOB), key=_claimed_at)
+    return [line for path in (*claims, spool) for line in unmarked_lines(path)]
+
+
 def spool_count(cfg: Path) -> int:
-    """How many envelopes wait in the spool (inflight batches excluded)."""
-    return len(read_lines(spool_path(cfg)))
+    """How many envelopes are pending, in the spool or in an inflight batch."""
+    return len(pending_lines(cfg))
 
 
 def take_inflight(cfg: Path) -> Optional[Path]:
