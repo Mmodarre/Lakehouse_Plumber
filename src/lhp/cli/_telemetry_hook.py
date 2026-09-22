@@ -159,8 +159,13 @@ def note_run(
     """Add what only the command knows: the project shape and the run's counters.
 
     Called once the facade exists and the run has ended, before the command
-    exits. Nothing is read when consent is off, so an opted-out run pays for
-    no facade reads at all. Never raises.
+    exits — including a run its stream aborted, whose outcome ``render``
+    passes through ``on_abort``. Nothing is read when consent is off, so an
+    opted-out run pays for no facade reads at all. An aborted outcome with
+    neither a terminal response nor a failure may come from a failed
+    discovery, which leaves ``compute_stats`` unmemoised: its shape would
+    re-run discovery in one read the shape's budget cannot cut short, so it
+    is recorded as ``None``. Never raises.
     """
     try:
         ctx = click.get_current_context(silent=True)
@@ -174,7 +179,14 @@ def note_run(
         from lhp.api._telemetry_shape import build_project_shape
 
         root = _project_root(ctx)
-        run["project"] = None if root is None else build_project_shape(facade, root)
+        discovered = (
+            outcome is None or outcome.response is not None or bool(outcome.failures)
+        )
+        run["project"] = (
+            build_project_shape(facade, root)
+            if root is not None and discovered
+            else None
+        )
         run["warning_codes"] = _code_counts(outcome.warnings) if outcome else {}
         run["failure_codes"] = _code_counts(outcome.failures) if outcome else {}
         written = (

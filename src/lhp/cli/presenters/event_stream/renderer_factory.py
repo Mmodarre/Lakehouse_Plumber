@@ -10,14 +10,16 @@ the renderer, drains the stream via
 :func:`...event_stream._event_dispatch.drive`, and returns the accumulated
 :class:`RunOutcome` on success. If the stream raises — the generate/plan
 failure-rendezvous yields ``ErrorEmitted`` and then raises the underlying
-``LHPError`` — this function tears the renderer down cleanly and re-raises the
-SAME exception so the CLI's ``error_boundary`` can render the panel on a clean
+``LHPError`` — this function tears the renderer down cleanly, hands the
+caller's ``on_abort`` the outcome accumulated so far, and re-raises the SAME
+exception so the CLI's ``error_boundary`` can render the panel on a clean
 stderr.
 
 Sole-bridge invariant (constitution §9.5): this module renders rich but MUST
-NOT import ``lhp.errors``. The teardown path catches :class:`BaseException`
-and re-raises the opaque exception untouched — the error code is read
-duck-typed inside the renderers, and the rich panel is single-sourced in
+NOT import ``lhp.errors``. The teardown path never inspects the propagating
+exception: ``on_abort`` receives the renderer's outcome, not the error, and
+the exception is re-raised untouched — the error code is read duck-typed
+inside the renderers, and the rich panel is single-sourced in
 ``cli/error_panel.py``.
 """
 
@@ -25,7 +27,8 @@ from __future__ import annotations
 
 import logging
 import os
-from typing import TYPE_CHECKING, Iterator, Optional, Union
+from dataclasses import replace
+from typing import TYPE_CHECKING, Callable, Iterator, Optional, Union
 
 from lhp.cli.presenters.event_stream._event_dispatch import EventSink, drive
 from lhp.cli.presenters.event_stream._model import RunOutcome
@@ -110,6 +113,7 @@ def render(
     progress: "Optional[ProgressSink]" = None,
     console: Optional["Console"] = None,
     err_console: Optional["Console"] = None,
+    on_abort: Optional[Callable[[RunOutcome], None]] = None,
 ) -> RunOutcome:
     """Drive one event stream through the selected renderer.
 
@@ -130,10 +134,13 @@ def render(
 
     On the generate/plan failure-rendezvous the stream raises the
     underlying ``LHPError`` after yielding ``ErrorEmitted``; this function
-    tears the renderer down cleanly THEN re-raises the SAME exception so
-    ``error_boundary`` renders the panel on a clean stderr. Per §9.5 the
-    propagating exception is treated opaquely (caught as
-    :class:`BaseException`, re-raised untouched) — ``lhp.errors`` is never
+    tears the renderer down cleanly, passes ``on_abort`` the outcome the
+    renderer accumulated (see :func:`_report_abort`), THEN re-raises the
+    SAME exception so ``error_boundary`` renders the panel on a clean
+    stderr. A ``KeyboardInterrupt`` or ``SystemExit`` is torn down and
+    re-raised without calling ``on_abort``. Per §9.5 the propagating
+    exception is treated opaquely — never inspected, re-raised untouched,
+    never replaced by a failing ``on_abort`` — and ``lhp.errors`` is never
     imported here.
     """
     if console is None or err_console is None:
@@ -159,11 +166,18 @@ def render(
         # renderer) to avoid a blank screen during discovery.
         renderer.begin()
         drive(events, renderer)
-    except BaseException:
+    except Exception:
         # §9.5: never inspect or import the error type. Tear the renderer
-        # down (idempotent — the renderer may already have torn its Live
-        # down inside on_error) and re-raise the SAME exception so the
-        # CLI error boundary renders the panel on a clean stderr.
+        # down first (idempotent — the renderer may already have torn its
+        # Live down inside on_error) so no live display outlasts the stream
+        # while the caller's report runs, then re-raise the SAME exception
+        # for the CLI error boundary to render on a clean stderr.
+        _teardown(renderer)
+        _report_abort(on_abort, renderer.outcome)
+        raise
+    except BaseException:
+        # Ctrl-C and SystemExit must exit promptly: restore the terminal and
+        # propagate without running the caller's report.
         _teardown(renderer)
         raise
     # Validate folds its (fully attributed) issues into the terminal
@@ -173,6 +187,27 @@ def render(
     # double-counting. Generate / plan terminals pass through unchanged — their
     # failures arrive as in-stream events.
     return merge_terminal_validation(renderer.outcome, renderer.outcome.response)
+
+
+def _report_abort(
+    on_abort: Optional[Callable[[RunOutcome], None]], outcome: RunOutcome
+) -> None:
+    """Hand an aborted run's outcome to ``on_abort``, keeping per-pipeline failures.
+
+    Only failure lines that name a pipeline are passed on. The log renderer
+    also records the stream's ``ErrorEmitted`` as a failure with an empty
+    pipeline, which the live renderer does not; dropping it makes both
+    renderers report the same failures, and the error itself still reaches
+    the caller as the propagating exception. The callback runs while that
+    exception is propagating, so its own failure is logged, never raised.
+    """
+    if on_abort is None:
+        return
+    try:
+        failures = tuple(line for line in outcome.failures if line.pipeline)
+        on_abort(replace(outcome, failures=failures))
+    except Exception:  # the stream's exception must be the one that propagates
+        logger.debug("renderer-factory: on_abort callback failed", exc_info=True)
 
 
 def _teardown(renderer: EventSink) -> None:

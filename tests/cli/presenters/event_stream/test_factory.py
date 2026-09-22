@@ -1,9 +1,9 @@
 """Tests for :mod:`...event_stream.renderer_factory`.
 
 Covers the renderer-selection matrix (decided once on ``console.is_terminal``,
-overridable by ``no_progress`` / ``CI`` / ``LHP_NO_PROGRESS``) and the
+overridable by ``no_progress`` / ``CI`` / ``LHP_NO_PROGRESS``), the
 ``render`` entry point on both the clean-success and failure-rendezvous
-streams.
+streams, and the ``on_abort`` report of an aborted run's outcome.
 
 This is a test module (not under ``cli/presenters/**``), so it MAY import
 ``lhp.errors`` to narrow the expected propagating exception — the factory
@@ -13,6 +13,7 @@ under test never does (sole-bridge invariant, §9.5).
 from __future__ import annotations
 
 import io
+import logging
 from collections import Counter
 
 import pytest
@@ -39,6 +40,8 @@ from lhp.errors import LHPError
 from tests.cli.presenters.event_stream._fixtures import (
     clean_generate_stream,
     error_raise_stream,
+    gate_failure_error,
+    gate_failure_stream,
 )
 
 
@@ -239,6 +242,132 @@ def test_render_error_stream_reraises_after_teardown(monkeypatch):
     # clean stderr.
     assert renderer._started is False
     assert renderer._live.is_started is False
+
+
+# ---------------------------------------------------------------------------
+# render(): on_abort receives the outcome of a run the stream aborted
+# ---------------------------------------------------------------------------
+def _capture_selected_renderer(monkeypatch) -> dict:
+    """Record the renderer ``render`` selects; it is not returned on a raise."""
+    captured: dict = {}
+    real_select = select_renderer
+
+    def _spy(header, **kwargs):
+        captured["renderer"] = real_select(header, **kwargs)
+        return captured["renderer"]
+
+    monkeypatch.setattr(factory, "select_renderer", _spy)
+    return captured
+
+
+def _render_with_abort(events, *, terminal: bool, on_abort) -> RunOutcome:
+    return render(
+        events,
+        _header(),
+        options=RenderOptions(),
+        console=_console(terminal=terminal),
+        err_console=_console(terminal=False),
+        on_abort=on_abort,
+    )
+
+
+@pytest.mark.parametrize("terminal", [True, False], ids=["live", "log"])
+def test_render_abort_reports_exactly_the_pipeline_failures(terminal):
+    received: list[RunOutcome] = []
+
+    with pytest.raises(LHPError):
+        _render_with_abort(
+            gate_failure_stream(), terminal=terminal, on_abort=received.append
+        )
+
+    assert len(received) == 1
+    assert [(f.pipeline, f.code) for f in received[0].failures] == [
+        ("bronze", "LHP-IO-001"),
+        ("silver", "LHP-VAL-007"),
+    ]
+
+
+def test_render_abort_reraises_the_same_exception_object():
+    error = gate_failure_error()
+
+    with pytest.raises(LHPError) as raised:
+        _render_with_abort(
+            gate_failure_stream(error), terminal=True, on_abort=lambda outcome: None
+        )
+
+    assert raised.value is error
+
+
+def test_render_abort_stops_the_live_display_before_the_callback(monkeypatch):
+    # The live renderer stops its own display on ErrorEmitted, so only a
+    # stream that raises without one shows the factory's teardown ordering.
+    captured = _capture_selected_renderer(monkeypatch)
+    live_during_callback: list[bool] = []
+
+    def _broken_stream():
+        yield OperationStarted(operation_name="generate", env="dev")
+        yield PhaseStarted(phase="generate")
+        yield PipelineStarted(pipeline="bronze")
+        yield PipelineFailed(pipeline="bronze", code="LHP-IO-001", message="m")
+        raise RuntimeError("stream broke")
+
+    def _on_abort(outcome: RunOutcome) -> None:
+        live_during_callback.append(captured["renderer"]._live.is_started)
+
+    with pytest.raises(RuntimeError, match="stream broke"):
+        _render_with_abort(_broken_stream(), terminal=True, on_abort=_on_abort)
+
+    assert isinstance(captured["renderer"], LiveRenderer)
+    assert live_during_callback == [False]
+
+
+@pytest.mark.parametrize("terminal", [True, False], ids=["live", "log"])
+def test_render_success_does_not_call_on_abort(terminal):
+    received: list[RunOutcome] = []
+
+    _render_with_abort(
+        iter(clean_generate_stream()), terminal=terminal, on_abort=received.append
+    )
+
+    assert received == []
+
+
+def test_render_keyboard_interrupt_does_not_call_on_abort(monkeypatch):
+    captured = _capture_selected_renderer(monkeypatch)
+    received: list[RunOutcome] = []
+
+    def _interrupted_stream():
+        yield OperationStarted(operation_name="generate", env="dev")
+        yield PhaseStarted(phase="generate")
+        yield PipelineStarted(pipeline="bronze")
+        yield PipelineFailed(pipeline="bronze", code="LHP-IO-001", message="m")
+        raise KeyboardInterrupt
+
+    with pytest.raises(KeyboardInterrupt):
+        _render_with_abort(
+            _interrupted_stream(), terminal=True, on_abort=received.append
+        )
+
+    assert received == []
+    assert captured["renderer"]._live.is_started is False
+
+
+def test_render_abort_callback_error_does_not_replace_the_exception(caplog):
+    error = gate_failure_error()
+
+    def _explode(outcome: RunOutcome) -> None:
+        raise RuntimeError("callback broke")
+
+    with caplog.at_level(logging.DEBUG, logger=factory.__name__):
+        with pytest.raises(LHPError) as raised:
+            _render_with_abort(
+                gate_failure_stream(error), terminal=False, on_abort=_explode
+            )
+
+    assert raised.value is error
+    logged = [r for r in caplog.records if r.name == factory.__name__ and r.exc_info]
+    assert [r.levelno for r in logged] == [logging.DEBUG]
+    assert isinstance(logged[0].exc_info[1], RuntimeError)
 
 
 # ---------------------------------------------------------------------------

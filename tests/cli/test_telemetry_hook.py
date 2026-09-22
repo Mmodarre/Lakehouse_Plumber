@@ -458,6 +458,53 @@ def test_note_run_without_an_outcome_records_empty_counters(
     assert run["cache_used"] is False
 
 
+def _aborted_outcome(*failures: FailureLine) -> RunOutcome:
+    """The outcome ``render`` hands ``on_abort``: no terminal response."""
+    return RunOutcome(
+        response=None,
+        warnings=(WarningLine("LHP-DEP-002", "m", None),),
+        failures=failures,
+        errored=True,
+    )
+
+
+def test_note_run_stores_the_shape_and_codes_of_an_aborted_run_with_failures(
+    telemetry_log_mode: Path, minimal_project: Path
+) -> None:
+    outcome = _aborted_outcome(
+        FailureLine("p", "LHP-IO-001", "m"), FailureLine("q", "LHP-VAL-007", "m")
+    )
+    facade = build_facade(minimal_project)
+    with click.Context(click.Command("generate")) as ctx:
+        _telemetry_hook.begin("generate")
+        _telemetry_hook.note_run(facade, outcome, bundle_enabled=False, no_cache=False)
+        run = ctx.obj["telemetry"]
+
+    assert run["project"]["flowgroups"] == 1
+    assert run["failure_codes"] == {"LHP-IO-001": 1, "LHP-VAL-007": 1}
+    assert run["warning_codes"] == {"LHP-DEP-002": 1}
+    assert run["files_written"] is None
+
+
+def test_note_run_leaves_out_the_shape_of_an_aborted_run_without_failures(
+    telemetry_log_mode: Path, minimal_project: Path
+) -> None:
+    facade = build_facade(minimal_project)
+    with click.Context(click.Command("generate")) as ctx:
+        _telemetry_hook.begin("generate")
+        _telemetry_hook.note_run(
+            facade, _aborted_outcome(), bundle_enabled=False, no_cache=False
+        )
+        run = ctx.obj["telemetry"]
+
+    assert run["project"] is None
+    assert run["warning_codes"] == {"LHP-DEP-002": 1}
+    assert run["failure_codes"] == {}
+    assert run["files_written"] is None
+    assert run["bundle_enabled"] is False
+    assert run["cache_used"] is True
+
+
 def test_note_run_reports_the_cache_unused_under_lhp_no_cache(
     telemetry_log_mode: Path, minimal_project: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

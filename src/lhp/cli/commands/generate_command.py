@@ -9,6 +9,7 @@ phases run behind the facade. Status/summary to stderr; stdout stays empty.
 from __future__ import annotations
 
 import logging
+from functools import partial
 from time import perf_counter
 from typing import Optional
 
@@ -124,8 +125,14 @@ def generate(
 
     options = RenderOptions(show_details=show_details, strict=strict)
     start = perf_counter()
+    note = partial(note_run, facade, bundle_enabled=bundle_enabled, no_cache=no_cache)
     outcome = render(
-        events, header, options=options, no_progress=no_progress, progress=progress
+        events,
+        header,
+        options=options,
+        no_progress=no_progress,
+        progress=progress,
+        on_abort=note,
     )
     print_run_summary(
         outcome,
@@ -134,5 +141,5 @@ def generate(
         options=options,
         err_console=_console_module.err_console,
     )
-    note_run(facade, outcome, bundle_enabled=bundle_enabled, no_cache=no_cache)
+    note(outcome)
     exit_for_outcome(outcome, strict=strict)

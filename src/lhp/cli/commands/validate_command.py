@@ -13,6 +13,7 @@ yields a clean ``ValidationCompleted`` and exits 0.
 from __future__ import annotations
 
 import logging
+from functools import partial
 from time import perf_counter
 
 import click
@@ -122,8 +123,14 @@ def validate_command(
     )
     options = RenderOptions(show_details=show_details, strict=strict)
     started = perf_counter()
+    note = partial(note_run, facade, bundle_enabled=bundle_enabled, no_cache=no_cache)
     outcome = render(
-        events, header, options=options, no_progress=no_progress, progress=progress
+        events,
+        header,
+        options=options,
+        no_progress=no_progress,
+        progress=progress,
+        on_abort=note,
     )
     print_run_summary(
         outcome,
@@ -132,5 +139,5 @@ def validate_command(
         options=options,
         err_console=_console_module.err_console,
     )
-    note_run(facade, outcome, bundle_enabled=bundle_enabled, no_cache=no_cache)
+    note(outcome)
     exit_for_outcome(outcome, strict=strict)
