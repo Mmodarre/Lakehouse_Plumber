@@ -5,7 +5,7 @@ All notable changes to Lakehouse Plumber are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.9.2] — 2026-08-05
+## [0.9.2] — 2026-09-22
 
 ### Added
 
@@ -26,7 +26,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `LHP_TELEMETRY=off`, `DO_NOT_TRACK=1`, `LHP_DISABLE_ANALYTICS=1` or
   `lhp telemetry off` — any one of them wins. `LHP_TELEMETRY=log` prints the event to
   stderr instead of sending it. Everything that is sent is listed in the telemetry
-  reference.
+  reference. The events are named `cli.command`, `web.session` and `web.run`.
+  Telemetry is also on in CI, where events carry no install id.
 - **`lhp telemetry status|show|on|off`.** Inspect the resolved state (on/off, the layer
   that decided it, the config directory, the install id, the endpoint and the count of
   events not yet delivered, in-flight batches included), print the event this run would
@@ -40,7 +41,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `ProjectConfigView.project_id` (provisional) exposes it to API and web-IDE consumers.
 - **Update hint.** When the telemetry response names a newer release, the next
   successful interactive run prints one line suggesting
-  `pip install -U lakehouse-plumber`, at most once every 24 hours. Silence it with
+  `pip install -U lakehouse-plumber`, at most once every 24 hours, and `lhp web`
+  shows the newer version in its status bar. Silence it with
   `LHP_UPDATE_CHECK=off`. The check never makes a request of its own, so it works only
   while telemetry is on.
 - **Template authoring in `lhp web`.** Templates open in a shared Builder / Code /
@@ -77,6 +79,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `private=True` on `dp.create_streaming_table(...)` and `@dp.materialized_view(...)`,
   so the table persists for the pipeline's lifetime but is not published to the
   metastore — it is visible only inside the pipeline.
+- **Telemetry and dependency-analysis reference pages.** New
+  `docs/reference/telemetry.rst` and `docs/reference/dependency-analysis.rst`; the
+  latter covers the action-level `depends_on` field, table and view matching,
+  warning suppression and trust-depends-on mode. The write-action reference gains a
+  UC tagging error-handling section, and its description of hook disabling now
+  matches the Databricks documentation.
+- **Terms of use, contributing guide and README disclaimer.** New `TERMS_OF_USE.md`
+  and `CONTRIBUTING.md` files. The README links the terms of use and adds a
+  Disclaimer section: LHP is provided "as is", and the pipeline code it generates
+  belongs to the user.
 
 ### Changed
 
@@ -111,6 +123,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `DependencyStalenessResult.fingerprint` (provisional) gains a fourth
   component, the sqlglot version. Its format was never a stable contract; treat
   it as opaque and compare only for equality.
+- **CI guards `uv.lock` and isolates the test suite.** `packaging-check` fails when
+  `uv.lock` contains `pypi-proxy.dev.databricks.com` URLs, and the lock no longer
+  carries them. Tests run with telemetry off and cannot open a connection to a
+  non-loopback host.
 
 ### Fixed
 
@@ -196,6 +212,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `(mtime_ns, size)`, so `lhp dag` could serve edges parsed by the previous
   version. The cache version tag now includes the sqlglot version, and
   `CACHE_SCHEMA_VERSION` is bumped to 2 to force one clean sweep.
+- **CDC validation reads a file-based `table_schema` before checking for
+  `__START_AT`/`__END_AT`.** An SCD Type 2 streaming-table target whose
+  `table_schema` pointed at a file failed `lhp validate` and `lhp generate` with
+  false "CDC schema must include '__START_AT' column" and `'__END_AT'` errors,
+  because the check searched the file path instead of the file's content. The
+  validator now resolves the file through the same resolver the generators use,
+  and leaves a missing or invalid file for the generator to report.
+- **SCD Type 1 CDC targets no longer have to declare `__START_AT`/`__END_AT`.**
+  Those validity columns exist only on SCD Type 2 tables and the Lakeflow runtime
+  rejects them on Type 1, so a Type 1 target that set `table_schema` — the only way
+  to declare a `PRIMARY KEY` on a pipeline-managed table — could never pass
+  validation. The check now applies only to `scd_type: 2`.
+- **The generated UC tagging hook's comment describes the configurable failure
+  budget.** The comment above `@dp.on_event_hook` in `_uc_tagging_hook.py` now
+  says that `None` means no limit and that an integer lets SDP disable the hook
+  after that many consecutive failures.
+
+### Removed
+
+- **The tracked `.claude/skills/lhp/` copy of the `lhp` skill and its
+  `sync-claude-skill` pre-commit hook.** The packaged skill under
+  `src/lhp/resources/skills/lhp/` is the single source; `lhp skill install` writes
+  it into a project on demand.
+- **The Dependabot auto-merge workflow**
+  (`.github/workflows/dependabot-automerge.yml`).
+
+### Dependencies
+
+- Bump `pydantic` to `==2.13.5` (was `==2.13.4`).
+- Add `pytest-socket>=0.7` as a dev dep (the test suite's network guard).
+- Dependabot bumps for Python dev and docs requirements, `web_app` npm packages and
+  GitHub Actions; the lock moves `cryptography` to 50.0.0. `ruff` is excluded from
+  Dependabot because it is the exact-pinned formatter for generated code.
 
 ## [0.9.1] — 2026-06-10
 
