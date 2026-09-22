@@ -245,7 +245,10 @@ def test_help_documents_sandbox_flag() -> None:
 
 
 def test_validate_records_one_cli_command_event_in_log_mode(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, telemetry_log_mode: Path
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    telemetry_log_mode: Path,
+    generous_shape_budget: None,
 ) -> None:
     """A clean validate emits exactly one ``cli.command`` envelope and no names.
 

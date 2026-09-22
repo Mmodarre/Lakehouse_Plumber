@@ -389,7 +389,7 @@ def test_begin_creates_the_context_object_when_a_command_runs_alone() -> None:
 
 
 def test_note_run_stores_the_project_shape_and_outcome_counters(
-    telemetry_log_mode: Path, fixture_project: Path
+    telemetry_log_mode: Path, fixture_project: Path, generous_shape_budget: None
 ) -> None:
     facade = build_facade(fixture_project)
     with click.Context(click.Command("generate")) as ctx:

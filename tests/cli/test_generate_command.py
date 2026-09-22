@@ -194,7 +194,10 @@ def test_help_documents_sandbox_flag() -> None:
 
 
 def test_generate_records_one_cli_command_event_in_log_mode(
-    project_dir: Path, monkeypatch: pytest.MonkeyPatch, telemetry_log_mode: Path
+    project_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    telemetry_log_mode: Path,
+    generous_shape_budget: None,
 ) -> None:
     """A clean generate emits exactly one ``cli.command`` envelope and no names.
 
@@ -249,7 +252,10 @@ def _generate_props(project_dir: Path, monkeypatch: pytest.MonkeyPatch) -> dict:
 
 
 def test_generate_stopped_by_failed_pipelines_keeps_their_codes_and_shape(
-    project_dir: Path, monkeypatch: pytest.MonkeyPatch, telemetry_log_mode: Path
+    project_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    telemetry_log_mode: Path,
+    generous_shape_budget: None,
 ) -> None:
     """Two pipelines failing in the gate end the run on the ``LHP-VAL-902``
     aggregate, and the event still counts both failures and describes the
@@ -265,7 +271,10 @@ def test_generate_stopped_by_failed_pipelines_keeps_their_codes_and_shape(
 
 
 def test_generate_stopped_by_one_failed_pipeline_keeps_its_code_and_shape(
-    project_dir: Path, monkeypatch: pytest.MonkeyPatch, telemetry_log_mode: Path
+    project_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    telemetry_log_mode: Path,
+    generous_shape_budget: None,
 ) -> None:
     """A sole gate failure ends the run on that pipeline's own error."""
     _point_at_missing_modules(project_dir, _PYTHON_LOAD)

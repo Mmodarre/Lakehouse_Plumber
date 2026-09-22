@@ -165,6 +165,27 @@ def telemetry_log_mode(monkeypatch, tmp_path):
     yield config_dir
 
 
+@pytest.fixture
+def generous_shape_budget(monkeypatch):
+    """Let the telemetry project shape compose however slowly the runner reads.
+
+    The production shape budget is a wall-clock bound, so a test that asserts
+    on the shape's content through the real CLI path would lose it on a loaded
+    runner or under coverage tracing. The budget itself is pinned by the
+    injected-clock tests in ``tests/api/test_telemetry_shape.py``. The import
+    is deferred so the ``packaging-check`` job never loads ``lhp``.
+    """
+    import functools
+
+    from lhp.api import _telemetry_shape
+
+    monkeypatch.setattr(
+        _telemetry_shape,
+        "build_project_shape",
+        functools.partial(_telemetry_shape.build_project_shape, budget_s=30.0),
+    )
+
+
 @pytest.hookimpl(wrapper=True)
 def pytest_pyfunc_call(pyfuncitem):
     """Hide ``PYTEST_CURRENT_TEST`` from the body of a ``telemetry_log_mode`` test.
