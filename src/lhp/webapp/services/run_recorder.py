@@ -16,6 +16,8 @@ unchanged while:
     ``error`` view / ``error_message`` for generation),
   - no terminal seen (client disconnect, upstream crash) → ``failed``,
 
+* tallying ``PipelineFailed`` and ``WarningEmitted`` frames onto the terminal
+  outcome for telemetry, leaving the persisted summary untouched,
 * publishing ``run-updated`` bus events at start and at terminal,
 * pruning old history after each run, and
 * delivering one ``web.run`` telemetry event when the router supplied a
@@ -38,6 +40,7 @@ so it decodes each line for recording and re-encodes with the identical
 from __future__ import annotations
 
 import asyncio
+import dataclasses
 import json
 import logging
 import time
@@ -59,14 +62,28 @@ _FLUSH_BATCH_SIZE = 25
 #: Terminal success event frame types (the adapter's ``{"type": <ClassName>}``).
 _COMPLETED_FRAME_TYPES = ("ValidationCompleted", "GenerationCompleted")
 
+#: Non-terminal event frame types tallied onto the terminal outcome. The
+#: adapter renders a soft-cap ``WarningEmitted`` as an ``info`` frame, so an
+#: internal buffer notice never counts as a warning.
+_PIPELINE_FAILED_FRAME_TYPE = "PipelineFailed"
+_WARNING_FRAME_TYPE = "WarningEmitted"
+
 
 @dataclass(frozen=True)
 class _TerminalOutcome:
-    """Classified terminal frame: run status, compact summary, extracted issues."""
+    """Classified terminal frame plus the stream's failure and warning tallies.
+
+    ``summary`` is persisted on the run row and served by the runs API, so it
+    holds only what the terminal frame reported. ``failed_pipelines`` and
+    ``warnings_seen`` count the ``PipelineFailed`` and ``WarningEmitted``
+    frames that preceded the terminal; they feed telemetry only.
+    """
 
     status: str
     summary: dict[str, Any]
     issues: tuple[IssueRecord, ...]
+    failed_pipelines: int = 0
+    warnings_seen: int = 0
 
 
 def _run_updated(run_id: str, kind: str, status: str) -> dict[str, Any]:
@@ -232,15 +249,26 @@ async def record(
 
     buffer: list[tuple[int, str]] = []
     seq = 0
+    failed_pipelines = 0
+    warnings_seen = 0
     outcome: Optional[_TerminalOutcome] = None
     started = time.monotonic()
     try:
         async for frame in frames:
             seq += 1
             buffer.append((seq, json.dumps(frame, separators=(",", ":"))))
+            frame_type = frame.get("type")
+            if frame_type == _PIPELINE_FAILED_FRAME_TYPE:
+                failed_pipelines += 1
+            elif frame_type == _WARNING_FRAME_TYPE:
+                warnings_seen += 1
             terminal = _classify_terminal(frame)
             if terminal is not None:
-                outcome = terminal
+                outcome = dataclasses.replace(
+                    terminal,
+                    failed_pipelines=failed_pipelines,
+                    warnings_seen=warnings_seen,
+                )
             if len(buffer) >= _FLUSH_BATCH_SIZE:
                 batch, buffer = buffer, []
                 await asyncio.to_thread(

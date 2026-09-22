@@ -103,9 +103,14 @@ def build_web_run_props(
     """Render one run as ``web.run`` props through the frozen wire type.
 
     ``outcome is None`` means the stream ended without a terminal frame
-    (client disconnect or upstream crash) and is reported as ``aborted``.
+    (client disconnect or upstream crash) and is reported as ``aborted`` with
+    zero counts. Otherwise a total the terminal reported wins; a terminal
+    without one (a generate result, an error frame) falls back to the
+    stream's ``PipelineFailed`` / ``WarningEmitted`` tallies, and a failed
+    run with no tallied failure counts as one error.
     """
     summary: Mapping[str, Any] = {} if outcome is None else outcome.summary
+    success = bool(summary.get("success", False))
     props = WebRunProps(
         session_id=ctx.session_id,
         kind=kind,
@@ -115,11 +120,11 @@ def build_web_run_props(
         pipeline_filter=ctx.pipeline_filter,
         bundle_enabled=ctx.bundle_enabled,
         duration_ms=duration_ms,
-        success=bool(summary.get("success", False)),
+        success=success,
         aborted=outcome is None,
         error_code=_lhp_error_code(summary.get("error_code")),
-        error_count=_count(summary.get("total_errors")),
-        warning_count=_count(summary.get("total_warnings")),
+        error_count=_error_count(summary, outcome, success),
+        warning_count=_warning_count(summary, outcome),
         files_written=_optional_count(summary.get("total_files_written")),
     )
     return dataclasses.asdict(props)
@@ -136,9 +141,28 @@ def _optional_count(value: object) -> Optional[int]:
     return None
 
 
-def _count(value: object) -> int:
-    counted = _optional_count(value)
-    return 0 if counted is None else counted
+def _error_count(
+    summary: Mapping[str, Any], outcome: Optional[_TerminalOutcome], success: bool
+) -> int:
+    # An absent, ``None`` or non-integer total is no report at all; it must
+    # not mask the tallied count.
+    total = _optional_count(summary.get("total_errors"))
+    if total is not None:
+        return total
+    if outcome is None:
+        return 0
+    if outcome.failed_pipelines:
+        return outcome.failed_pipelines
+    return 0 if success else 1
+
+
+def _warning_count(
+    summary: Mapping[str, Any], outcome: Optional[_TerminalOutcome]
+) -> int:
+    total = _optional_count(summary.get("total_warnings"))
+    if total is not None:
+        return total
+    return 0 if outcome is None else outcome.warnings_seen
 
 
 # -- request attribution ------------------------------------------------------

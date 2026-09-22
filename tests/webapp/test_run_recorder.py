@@ -111,6 +111,53 @@ GENERATION_OK = {
         "error_code": None,
     },
 }
+PIPELINE_FAILED_P1 = {
+    "type": "PipelineFailed",
+    "pipeline": "p1",
+    "code": "LHP-VAL-021",
+    "message": "table does not exist",
+}
+PIPELINE_FAILED_P2 = {**PIPELINE_FAILED_P1, "pipeline": "p2"}
+WARNING_EMITTED = {
+    "type": "WarningEmitted",
+    "message": "deprecated field",
+    "code": "",
+    "category": "",
+    "file": None,
+    "flowgroup": None,
+}
+SOFT_CAP_INFO = {
+    "type": "info",
+    "code": "LHP-EVT-SOFT-CAP",
+    "message": "event buffer near limit",
+}
+GENERATE_GATE_ERROR = {
+    "type": "error",
+    "code": "LHP-VAL-902",
+    "title": "2 pipeline(s) failed",
+    "details": "2 of 2 pipelines failed during generation.",
+    "suggestions": [],
+    "context": {},
+    "doc_link": None,
+}
+
+
+def _validation_failed(
+    total_errors: int | None, total_warnings: int | None
+) -> dict[str, Any]:
+    """A failed ``ValidationCompleted`` terminal reporting the given totals."""
+    return {
+        "type": "ValidationCompleted",
+        "response": {
+            "success": False,
+            "pipeline_responses": {},
+            "total_errors": total_errors,
+            "total_warnings": total_warnings,
+            "validated_pipelines": [],
+            "error_message": None,
+            "error_code": None,
+        },
+    }
 
 
 @pytest.fixture
@@ -563,6 +610,124 @@ def test_error_terminal_reports_the_code_and_failure(project: Path) -> None:
     assert props["error_code"] == "LHP-ACT-001"
     assert props["success"] is False
     assert props["aborted"] is False
+
+
+def test_failed_generate_counts_its_failed_pipelines_and_warnings(
+    project: Path,
+) -> None:
+    """A generate terminal reports no totals, so the stream's frames are counted.
+
+    The soft-cap ``info`` frame is an internal buffer notice, not a warning,
+    and the persisted run summary keeps only what the terminal reported.
+    """
+    events: list[dict[str, Any]] = []
+    ctx = _armed_context(events)
+
+    _drive(
+        project,
+        EventBus(),
+        [
+            OP_STARTED,
+            PIPELINE_FAILED_P1,
+            WARNING_EMITTED,
+            SOFT_CAP_INFO,
+            PIPELINE_FAILED_P2,
+            GENERATE_GATE_ERROR,
+        ],
+        kind="generate",
+        telemetry=ctx,
+    )
+
+    props = _one_web_run(events)
+    assert props["error_count"] == 2
+    assert props["warning_count"] == 1
+    assert props["error_code"] == "LHP-VAL-902"
+    assert _single_run(project)["summary"] == {
+        "success": False,
+        "error_code": "LHP-VAL-902",
+    }
+
+
+def test_an_error_frame_alone_counts_as_one_error(project: Path) -> None:
+    events: list[dict[str, Any]] = []
+    ctx = _armed_context(events)
+
+    _drive(project, EventBus(), [OP_STARTED, ERROR_FRAME], telemetry=ctx)
+
+    props = _one_web_run(events)
+    assert props["error_count"] == 1
+    assert props["warning_count"] == 0
+
+
+def test_validate_totals_win_over_the_stream_frames(project: Path) -> None:
+    events: list[dict[str, Any]] = []
+    ctx = _armed_context(events)
+
+    _drive(
+        project,
+        EventBus(),
+        [
+            OP_STARTED,
+            PIPELINE_FAILED_P1,
+            PIPELINE_FAILED_P2,
+            WARNING_EMITTED,
+            _validation_failed(total_errors=5, total_warnings=3),
+        ],
+        telemetry=ctx,
+    )
+
+    props = _one_web_run(events)
+    assert props["error_count"] == 5
+    assert props["warning_count"] == 3
+
+
+def test_a_missing_validate_total_falls_back_to_the_stream_frames(
+    project: Path,
+) -> None:
+    events: list[dict[str, Any]] = []
+    ctx = _armed_context(events)
+
+    _drive(
+        project,
+        EventBus(),
+        [
+            OP_STARTED,
+            PIPELINE_FAILED_P1,
+            WARNING_EMITTED,
+            _validation_failed(total_errors=None, total_warnings=None),
+        ],
+        telemetry=ctx,
+    )
+
+    props = _one_web_run(events)
+    assert props["error_count"] == 1
+    assert props["warning_count"] == 1
+
+
+def test_an_aborted_run_reports_no_counts(project: Path) -> None:
+    """Without a terminal frame the run reported nothing; ``aborted`` says why."""
+    events: list[dict[str, Any]] = []
+    ctx = _armed_context(events)
+
+    async def scenario() -> None:
+        recorder = record(
+            _frames([OP_STARTED, PIPELINE_FAILED_P1, WARNING_EMITTED, ERROR_FRAME]),
+            project_root=project,
+            event_bus=EventBus(),
+            kind="generate",
+            env="dev",
+            telemetry=ctx,
+        )
+        for _ in range(3):
+            await recorder.__anext__()
+        await recorder.aclose()
+
+    asyncio.run(scenario())
+
+    props = _one_web_run(events)
+    assert props["aborted"] is True
+    assert props["error_count"] == 0
+    assert props["warning_count"] == 0
 
 
 def test_run_without_a_terminal_frame_is_reported_aborted(project: Path) -> None:
