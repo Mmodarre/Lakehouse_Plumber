@@ -28,7 +28,7 @@
       ]
     },
     "docs/reference/config/bundle.rst": {
-      "sha256": "5ee9ba7758fc297df2a08c87c7089ca92b0f48b4a2d23976300085f656820f9a",
+      "sha256": "c33e2f3be8c419f97be0af18f978f30ce6a7e685be4f99c4359f6a18659be154",
       "entryIds": [
         "pipeline.catalog",
         "pipeline.channel",
@@ -662,7 +662,7 @@
       ]
     },
     "src/lhp/resources/skills/lhp/references/project-config.md": {
-      "sha256": "5dc94b341990dc4f79d7a482f1b4a8c428aa2608ed73cb93c87e25264d6f79b5",
+      "sha256": "0f14ebec1435a6b027b73b8617cf8ee00c84f1a5e5ba15d1f63e8d5657dad60a",
       "entryIds": [
         "project.apply_formatting",
         "project.author",

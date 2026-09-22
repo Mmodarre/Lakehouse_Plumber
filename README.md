@@ -261,6 +261,10 @@ The full [changelog](https://lakehouse-plumber.readthedocs.io/en/latest/changelo
 
 [Issues](https://github.com/Mmodarre/Lakehouse_Plumber/issues) for bugs and feature requests. [Discussions](https://github.com/Mmodarre/Lakehouse_Plumber/discussions) for design questions and best-practice exchange.
 
+## Anonymous usage telemetry
+
+Anonymous usage telemetry is **on by default**: LHP reports which command ran, whether it succeeded, how long it took, and coarse environment facts, so the project can see which features are actually used. Names (project, pipeline, flowgroup, action, table, catalog, schema), file paths, YAML/SQL/Python content, generated code and error messages are never collected. Turn it off with `LHP_TELEMETRY=off`, `DO_NOT_TRACK=1`, or `lhp telemetry off` — the [telemetry reference](https://lakehouse-plumber.readthedocs.io/en/latest/reference/telemetry.html) lists everything that is sent and every off switch.
+
 ## License
 
 Apache 2.0 — see [LICENSE](LICENSE).

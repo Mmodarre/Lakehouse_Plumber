@@ -7,6 +7,7 @@ independently.
 
 from __future__ import annotations
 
+import re
 import shutil
 from pathlib import Path
 
@@ -15,6 +16,34 @@ from click.testing import CliRunner
 from conftest import strip_ansi
 
 from lhp.cli.commands.init_command import init
+
+# A scaffolded project is born with one UUID v4 identity, written to
+# ``lhp.yaml`` as ``project_id`` and to ``databricks.yml`` as ``bundle.uuid``.
+PROJECT_ID_RE = re.compile(
+    r"^project_id: "
+    r"([0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$",
+    re.MULTILINE,
+)
+BUNDLE_UUID_RE = re.compile(r"^\s*uuid: (\S+)$", re.MULTILINE)
+
+
+def _assert_single_identity(scaffold_root: Path) -> None:
+    """``lhp.yaml``'s ``project_id`` is a UUID v4 equal to ``bundle.uuid``."""
+    lhp_yaml = (scaffold_root / "lhp.yaml").read_text(encoding="utf-8")
+    project_id_match = PROJECT_ID_RE.search(lhp_yaml)
+    assert project_id_match is not None, (
+        f"lhp.yaml must carry a top-level UUID v4 project_id. Got:\n{lhp_yaml[:400]}"
+    )
+
+    databricks_yml = (scaffold_root / "databricks.yml").read_text(encoding="utf-8")
+    bundle_uuid_match = BUNDLE_UUID_RE.search(databricks_yml)
+    assert bundle_uuid_match is not None, (
+        f"databricks.yml must carry a bundle uuid. Got:\n{databricks_yml[:400]}"
+    )
+
+    assert project_id_match.group(1) == bundle_uuid_match.group(1), (
+        "project_id and bundle.uuid must be the same minted identity"
+    )
 
 
 def test_init_fresh_dir_succeeds_and_shows_tree() -> None:
@@ -190,3 +219,27 @@ def test_init_plain_does_not_initialize_git() -> None:
             f"exit {result.exit_code}; stderr:\n{result.stderr}"
         )
         assert not Path(".git").exists()
+
+
+def test_init_writes_a_project_id_matching_the_bundle_uuid() -> None:
+    """Plain (bundle) init -> lhp.yaml project_id == databricks.yml bundle uuid."""
+    runner = CliRunner()
+    with runner.isolated_filesystem():
+        result = runner.invoke(init, ["demo_project"])
+
+        assert result.exit_code == 0, (
+            f"exit {result.exit_code}; stderr:\n{result.stderr}"
+        )
+        _assert_single_identity(Path("."))
+
+
+def test_init_sample_writes_a_project_id_matching_the_bundle_uuid() -> None:
+    """--sample -> the sample lhp.yaml carries the same minted identity."""
+    runner = CliRunner()
+    with runner.isolated_filesystem():
+        result = runner.invoke(init, ["--sample", "demo_project"])
+
+        assert result.exit_code == 0, (
+            f"exit {result.exit_code}; stderr:\n{result.stderr}"
+        )
+        _assert_single_identity(Path("."))

@@ -1,4 +1,5 @@
 import type { ErrorDetail } from '../types/api'
+import { getSessionId } from '../lib/session-id'
 import { getToken } from '../lib/session-token'
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '/api'
@@ -17,13 +18,19 @@ export class ApiError extends Error {
   }
 }
 
-// When the server was launched with a token it is stored in sessionStorage
-// (see lib/session-token). Every /api call then carries it as X-LHP-Token.
-// Returns {} when no token is present, so this is a no-op against a tokenless
-// (older) backend.
-function authHeaders(): Record<string, string> {
+// Headers that attribute a request to this tab. `X-LHP-Session` (see
+// lib/session-id) is always present so the backend can count the call
+// against the tab's telemetry session. `X-LHP-Token` is added only when the
+// server was launched with a token (stored by lib/session-token), so a
+// tokenless (older) backend sees no token header at all. Shared with the run
+// and assistant streams (./stream, ./assistant) so every /api call carries
+// the same pair.
+export function authHeaders(): Record<string, string> {
   const token = getToken()
-  return token ? { 'X-LHP-Token': token } : {}
+  return {
+    'X-LHP-Session': getSessionId(),
+    ...(token ? { 'X-LHP-Token': token } : {}),
+  }
 }
 
 // Shared non-2xx handler for the JSON/text fetch helpers and the run-stream

@@ -362,6 +362,9 @@ Input/output errors (LHP-IO)
    * - LHP-IO-027
      - The ``lhp web`` port is already in use.
      - Choose another port with ``--port``.
+   * - LHP-IO-028
+     - ``lhp telemetry on|off`` could not write the telemetry state file.
+     - Point ``LHP_CONFIG_DIR`` at a writable directory.
 
 Action errors (LHP-ACT)
 =======================

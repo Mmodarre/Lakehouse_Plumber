@@ -52,6 +52,10 @@ export interface paths {
          *     provider has no daemon). Past the gates, the whole turn — session
          *     provisioning included — is relayed by the provider's ``chat_turn``,
          *     whose frame protocol is pinned in its module docstring.
+         *
+         *     A turn that reaches a configured executor marks the requesting tab's
+         *     anonymous session with the executor's provider and mode, both collapsed
+         *     to a bounded vocabulary; nothing the user typed is ever recorded.
          */
         post: operations["chat_api_assistant_chat_post"];
         delete?: never;
@@ -1298,6 +1302,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/telemetry/ui": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Record Ui Events
+         * @description Count a batch of UI-surface observations on the posting tab's session.
+         *
+         *     Deliberately silent: there is no logger in this module, so no posted
+         *     value can reach a log line even at DEBUG level.
+         */
+        post: operations["record_ui_events_api_telemetry_ui_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/templates": {
         parameters: {
             query?: never;
@@ -2043,6 +2070,8 @@ export interface components {
         };
         /** HealthResponse */
         HealthResponse: {
+            /** Latest Version */
+            latest_version?: string | null;
             /**
              * Project State
              * @default ok
@@ -2058,6 +2087,11 @@ export interface components {
              * @default healthy
              */
             status: string;
+            /**
+             * Telemetry Enabled
+             * @default false
+             */
+            telemetry_enabled: boolean;
             /** Version */
             version: string;
         };
@@ -2614,6 +2648,8 @@ export interface components {
          *     ``databricks.yml`` detection. ``sandbox`` (default ``false``) switches the
          *     run to developer-sandbox mode — scope and namespace come from
          *     ``.lhp/profile.yaml`` — and is mutually exclusive with ``pipeline``.
+         *     ``trigger`` distinguishes a run the user asked for from one the editor
+         *     fired on its own; it affects nothing but usage counting.
          */
         StreamRunRequest: {
             /**
@@ -2637,6 +2673,13 @@ export interface components {
              * @default false
              */
             sandbox: boolean;
+            /**
+             * Trigger
+             * @description What started the run: 'manual' (the default) for a user action, 'auto' for one the editor fired itself, such as the scoped validate after a save.
+             * @default manual
+             * @enum {string}
+             */
+            trigger: "manual" | "auto";
         };
         /**
          * SubstitutionResolvedResponse
@@ -2927,6 +2970,36 @@ export interface components {
             name: string;
             /** Parameter Count */
             parameter_count: number;
+        };
+        /**
+         * UiEvent
+         * @description One observation of a UI surface, rendered as ``surface.action[.via]``.
+         *
+         *     The fields are plain bounded strings rather than enums so that a value
+         *     the server does not know costs the event, not the request.
+         */
+        UiEvent: {
+            /** Action */
+            action: string;
+            /** Surface */
+            surface: string;
+            /** Via */
+            via?: string | null;
+        };
+        /**
+         * UiEventsRequest
+         * @description Body of ``POST /api/telemetry/ui``.
+         *
+         *     ``session_id`` is the tab's own id in the same lowercase-uuid spelling
+         *     the ``X-LHP-Session`` header uses. Carrying it in the body as well makes
+         *     a batch self-describing, so it can still be attributed to its tab when
+         *     the request itself presents no usable header.
+         */
+        UiEventsRequest: {
+            /** Events */
+            events: components["schemas"]["UiEvent"][];
+            /** Session Id */
+            session_id: string;
         };
         /**
          * UsageTotals
@@ -4681,6 +4754,37 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["TableListResponse"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    record_ui_events_api_telemetry_ui_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UiEventsRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {

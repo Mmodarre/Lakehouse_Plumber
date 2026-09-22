@@ -6,7 +6,13 @@ import type { ReactNode } from 'react'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { SandboxControl } from '../SandboxControl'
 import { useUIStore } from '../../../store/uiStore'
+import { track } from '../../../lib/telemetry-shim'
 import type { SandboxScope } from '../../../types/api'
+
+// Usage telemetry reports only that the control was toggled or the picker
+// opened — never the scope, the profile or the pipelines.
+vi.mock('../../../lib/telemetry-shim', () => ({ track: vi.fn() }))
+const trackMock = vi.mocked(track)
 
 // Never resolves: keeps every query pending so the seeded cache alone
 // controls what the control sees (mirrors RunConfigChip's test transport).
@@ -94,5 +100,38 @@ describe('SandboxControl', () => {
     // no profile, the control must reconcile the toggle back off.
     renderControl({ profile_exists: false }, true)
     await waitFor(() => expect(useUIStore.getState().sandboxEnabled).toBe(false))
+  })
+})
+
+describe('SandboxControl telemetry', () => {
+  it('reports a toggle as sandbox_control.toggled', async () => {
+    renderControl({ profile_exists: true, resolved_pipelines: ['bronze'] }, false)
+    await userEvent.setup().click(screen.getByRole('switch'))
+    expect(trackMock.mock.calls).toEqual([['sandbox_control', 'toggled']])
+  })
+
+  it('reports the pill opening the picker as sandbox_picker.opened', async () => {
+    renderControl({ profile_exists: true, resolved_pipelines: ['bronze'] }, true)
+    await userEvent.setup().click(screen.getByText('1 pipeline'))
+    expect(screen.getByText('Sandbox scope')).toBeInTheDocument()
+    expect(trackMock.mock.calls).toEqual([['sandbox_picker', 'opened']])
+  })
+
+  it('reports a profileless toggle-on as the picker opening, not as a toggle', async () => {
+    renderControl({ profile_exists: false }, false)
+    await userEvent.setup().click(screen.getByRole('switch'))
+    expect(trackMock.mock.calls).toEqual([['sandbox_picker', 'opened']])
+  })
+
+  it('does not report the automatic reconciliation of a stale toggle', async () => {
+    renderControl({ profile_exists: false }, true)
+    await waitFor(() => expect(useUIStore.getState().sandboxEnabled).toBe(false))
+    expect(trackMock).not.toHaveBeenCalled()
+  })
+
+  it('never passes a pipeline name through', async () => {
+    renderControl({ profile_exists: true, resolved_pipelines: ['bronze'] }, true)
+    await userEvent.setup().click(screen.getByText('1 pipeline'))
+    expect(JSON.stringify(trackMock.mock.calls)).not.toContain('bronze')
   })
 })

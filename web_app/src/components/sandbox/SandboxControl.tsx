@@ -6,6 +6,7 @@ import { FieldHelp } from '../common/FieldHelp'
 import { Switch } from '../ui/switch'
 import { SandboxPickerDialog } from './SandboxPickerDialog'
 import { cn } from '../../lib/utils'
+import { track } from '../../lib/telemetry-shim'
 
 /**
  * Header control for developer-sandbox mode: a toggle plus, when on, a scope
@@ -22,13 +23,19 @@ export function SandboxControl() {
   const hasError = Boolean(data?.error)
   const count = data?.resolved_pipelines?.length ?? 0
 
+  const openPicker = () => {
+    setPickerOpen(true)
+    track('sandbox_picker', 'opened')
+  }
+
   const onToggle = (next: boolean) => {
     // Scoping needs a profile; send the developer to the picker to make one.
     if (next && !profileExists) {
-      setPickerOpen(true)
+      openPicker()
       return
     }
     setEnabled(next)
+    track('sandbox_control', 'toggled')
   }
 
   const pill = pillState(enabled, profileExists, hasError, count)
@@ -78,7 +85,7 @@ export function SandboxControl() {
       {pill && (
         <button
           type="button"
-          onClick={() => setPickerOpen(true)}
+          onClick={openPicker}
           title={hasError ? (data?.error ?? undefined) : 'Edit sandbox scope'}
           className={cn(
             'inline-flex h-6 items-center gap-1 rounded-sm border px-1.5 text-2xs transition-colors',

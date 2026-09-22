@@ -29,6 +29,9 @@ That gives you the ``lhp`` command. Check it:
 
    lhp --version
 
+LHP reports anonymous usage telemetry, on by default; see
+:doc:`/reference/telemetry` for everything it sends and how to turn it off.
+
 Scaffold the sample project
 ===========================
 

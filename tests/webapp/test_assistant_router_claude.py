@@ -23,6 +23,7 @@ from lhp.webapp.routers import assistant as assistant_router
 from lhp.webapp.services import assistant_store, omnigent_lifecycle
 from lhp.webapp.services.claude_sdk_bridge import get_claude_turns
 from lhp.webapp.services.omnigent_client import OmnigentClient
+from lhp.webapp.services.telemetry_sessions import SESSION_HEADER, WebSessionRegistry
 
 from ._omnigent_stub import BASE_URL
 
@@ -325,6 +326,158 @@ def test_chat_stored_config_without_provider_takes_omnigent_path(
 
     assert response.status_code == 409
     assert response.json()["error"]["code"] == "LHP-WEB-003"  # daemon gate
+
+
+# ---------------------------------------------------------------------------
+# /chat session attribution
+# ---------------------------------------------------------------------------
+#
+# A chat turn marks the requesting tab's telemetry session as having used the
+# assistant, carrying only the bounded provider/mode vocabulary — never the
+# message, the session id the engine uses or anything the turn produced.
+
+_SID = "0f4a2c6e-1b3d-4e5f-8a9b-0c1d2e3f4a5b"
+
+
+def _arm_telemetry(client: TestClient) -> tuple[WebSessionRegistry, list[dict]]:
+    """Point the app at a registry whose ``web.session`` props land in a list."""
+    events: list[dict] = []
+
+    def sink(name: str, *, project_root: Path | None, props: dict) -> None:
+        events.append({"name": name, **props})
+
+    registry = WebSessionRegistry(sink=sink, flush=lambda: None)
+    client.app.state.telemetry_enabled = True  # type: ignore[attr-defined]
+    client.app.state.web_sessions = registry  # type: ignore[attr-defined]
+    return registry, events
+
+
+def _one_session(registry: WebSessionRegistry, events: list[dict]) -> dict:
+    assert registry.emit_all("test") == 1
+    (props,) = events
+    assert props["name"] == "web.session"
+    return props
+
+
+def test_chat_marks_the_session_with_provider_and_mode(
+    mutable_client: TestClient,
+    mutable_project: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _which_missing(monkeypatch)
+    monkeypatch.setattr(assistant_router, "claude_chat_turn", _fake_turn({}))
+    _put_config(mutable_client, _CLAUDE_CFG)
+    _write_marker(mutable_project)
+    registry, events = _arm_telemetry(mutable_client)
+
+    response = mutable_client.post(
+        _CHAT_URL, json={"message": "hello"}, headers={SESSION_HEADER: _SID}
+    )
+    assert response.status_code == 200
+
+    props = _one_session(registry, events)
+    assert props["assistant_used"] is True
+    assert props["assistant_provider"] == "claude_sdk"
+    assert props["assistant_mode"] == "claude_subscription"
+
+
+def test_chat_collapses_an_unknown_provider_and_mode_to_other(
+    mutable_client: TestClient,
+    mutable_project: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A hand-edited config can never put a free-form string on the wire."""
+    _which_missing(monkeypatch)
+
+    def _refuse(request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError("connection refused", request=request)
+
+    mutable_client.app.state.omnigent_client = OmnigentClient(
+        BASE_URL,
+        http_client=httpx.AsyncClient(
+            transport=httpx.MockTransport(_refuse), base_url=BASE_URL
+        ),
+    )
+    # Bypass PUT validation: only the store can hold an off-vocabulary config.
+    assistant_store.put_config(
+        mutable_project, "executor", {"provider": "weird", "mode": "strange"}
+    )
+    _write_marker(mutable_project)
+    registry, events = _arm_telemetry(mutable_client)
+
+    response = mutable_client.post(
+        _CHAT_URL, json={"message": "x"}, headers={SESSION_HEADER: _SID}
+    )
+    assert response.status_code == 409  # the daemon gate, past the marking hook
+
+    props = _one_session(registry, events)
+    assert props["assistant_used"] is True
+    assert props["assistant_provider"] == "other"
+    assert props["assistant_mode"] == "other"
+
+
+def test_chat_collapses_a_non_string_mode_to_other(
+    mutable_client: TestClient,
+    mutable_project: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _which_missing(monkeypatch)
+    monkeypatch.setattr(assistant_router, "claude_chat_turn", _fake_turn({}))
+    # Bypass PUT validation: only the store can hold a mode that is not a string.
+    assistant_store.put_config(
+        mutable_project, "executor", {"provider": "claude_sdk", "mode": ["x", "y"]}
+    )
+    _write_marker(mutable_project)
+    registry, events = _arm_telemetry(mutable_client)
+
+    response = mutable_client.post(
+        _CHAT_URL, json={"message": "hello"}, headers={SESSION_HEADER: _SID}
+    )
+    assert response.status_code == 200
+
+    props = _one_session(registry, events)
+    assert props["assistant_provider"] == "claude_sdk"
+    assert props["assistant_mode"] == "other"
+
+
+def test_a_failing_telemetry_hook_never_reaches_the_chat_request(
+    mutable_client: TestClient,
+    mutable_project: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def explode(*args: Any, **kwargs: Any) -> None:
+        raise RuntimeError("telemetry")
+
+    _which_missing(monkeypatch)
+    monkeypatch.setattr(assistant_router, "claude_chat_turn", _fake_turn({}))
+    monkeypatch.setattr(assistant_router, "mark_assistant", explode)
+    _put_config(mutable_client, _CLAUDE_CFG)
+    _write_marker(mutable_project)
+    _arm_telemetry(mutable_client)
+
+    response = mutable_client.post(
+        _CHAT_URL, json={"message": "hello"}, headers={SESSION_HEADER: _SID}
+    )
+
+    assert response.status_code == 200
+    assert _ndjson(response.text)[-1] == {"type": "turn.completed"}
+
+
+def test_chat_without_a_session_header_marks_nothing(
+    mutable_client: TestClient,
+    mutable_project: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _which_missing(monkeypatch)
+    monkeypatch.setattr(assistant_router, "claude_chat_turn", _fake_turn({}))
+    _put_config(mutable_client, _CLAUDE_CFG)
+    _write_marker(mutable_project)
+    registry, events = _arm_telemetry(mutable_client)
+
+    assert mutable_client.post(_CHAT_URL, json={"message": "hello"}).status_code == 200
+
+    assert registry.emit_all("test") == 0
+    assert events == []
 
 
 # ---------------------------------------------------------------------------

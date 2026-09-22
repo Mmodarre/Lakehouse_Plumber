@@ -1,5 +1,6 @@
 # LakehousePlumber Project Configuration — sample quickstart (TPC-H)
 name: sample_lakehouse
+project_id: 5bf55550-e950-4270-a425-dfa06459ec3f
 version: "1.0"
 description: "LHP sample quickstart: TPC-H medallion demo against samples.tpch"
 author: ""

@@ -34,6 +34,15 @@ import { useLayoutStore } from '../../store/layoutStore'
 // and the Toaster. Region bodies are filled by the explorer/center/inspector/
 // assistant/bottom surfaces.
 
+// Usage telemetry is loaded only after health confirms this server process
+// has it on: the client, its store bindings and the post helper stay out of
+// the eager app chunk, and a tab against an opted-out server never fetches
+// them. Until then components report through lib/telemetry-shim, which holds
+// their calls for the client.
+function loadTelemetry() {
+  return Promise.all([import('../../lib/telemetry'), import('../../lib/telemetry-bindings')])
+}
+
 export function AppShell() {
   const { data: health, isError: healthError, refetch } = useHealth()
 
@@ -87,6 +96,30 @@ export function AppShell() {
     if (previousRoot && previousRoot !== projectRoot) useNavigationStore.getState().reset()
     ensureProjectScope(projectRoot)
   }, [projectRoot, ensureProjectScope])
+
+  // A telemetry chunk that fails to load (offline, a redeployed bundle) is
+  // swallowed: the workspace never depends on it.
+  const telemetryEnabled = health?.telemetry_enabled === true
+  useEffect(() => {
+    if (!telemetryEnabled) return
+    let cancelled = false
+    let unbind: (() => void) | undefined
+    void loadTelemetry()
+      .then(([client, bindings]) => {
+        if (cancelled) return
+        client.setTelemetryEnabled(true)
+        client.installTelemetry()
+        unbind = bindings.installTelemetryBindings()
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+      unbind?.()
+      void loadTelemetry()
+        .then(([client]) => client.setTelemetryEnabled(false))
+        .catch(() => {})
+    }
+  }, [telemetryEnabled])
 
   // Health gate (verbatim from the old Layout): while the server reports no
   // project, the first-run wizard fills the main area in place of the

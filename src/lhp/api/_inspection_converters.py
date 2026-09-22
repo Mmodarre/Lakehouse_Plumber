@@ -7,11 +7,12 @@ Holds the per-type DTO projections used by the inspection / listing
 facades (:class:`FlowgroupView`, :class:`ActionView`,
 :class:`ProjectConfigView`, :class:`BlueprintView`, :class:`PresetView`,
 :class:`TemplateView`, :class:`ProcessedFlowgroupView`,
-:class:`DependencyAnalysisResult`, :class:`StatsResult`) plus the
-inspection helpers (``_locate_flowgroup_by_name``,
-``_build_substitution_manager_for_env``, ``_flowgroup_file_paths``,
-``_duplicates_to_validation_response``). Bundle-specific converters live
-in :mod:`lhp.api._bundle_facade`.
+:class:`DependencyAnalysisResult`) plus the inspection helpers
+(``_locate_flowgroup_by_name``, ``_build_substitution_manager_for_env``,
+``_flowgroup_file_paths``, ``_duplicates_to_validation_response``).
+Bundle-specific converters live in :mod:`lhp.api._bundle_facade`;
+project-wide statistics aggregation in :mod:`lhp.api._stats_builder`,
+which reuses the write-target helpers defined here.
 
 :stability: internal
 """
@@ -25,7 +26,6 @@ from lhp.api.responses import (
     AffectedActionView,
     DependencyAnalysisResult,
     DependencyWarningView,
-    StatsResult,
     ValidationResponse,
 )
 from lhp.api.views import (
@@ -33,7 +33,6 @@ from lhp.api.views import (
     BlueprintInstanceView,
     BlueprintView,
     FlowgroupView,
-    PipelineStats,
     PresetView,
     ProcessedFlowgroupView,
     ProjectConfigView,
@@ -217,6 +216,7 @@ def _project_config_to_view(
     return ProjectConfigView(
         name=project_config.name,
         version=project_config.version,
+        project_id=project_config.project_id,
         description=project_config.description,
         author=project_config.author,
         created_date=project_config.created_date,
@@ -228,6 +228,10 @@ def _project_config_to_view(
         has_event_log=project_config.event_log is not None,
         has_monitoring=project_config.monitoring is not None,
         has_test_reporting=project_config.test_reporting is not None,
+        has_uc_tagging=project_config.uc_tagging is not None,
+        has_wheel=project_config.wheel is not None,
+        has_sandbox=project_config.sandbox is not None,
+        apply_formatting=project_config.apply_formatting,
     )
 
 
@@ -287,62 +291,6 @@ def _template_to_view(template: "Template", file_path: Path) -> TemplateView:
         required_parameter_count=required_count,
         action_count=len(template.actions),
         parameters=parameter_views,
-    )
-
-
-def _build_stats_result(flowgroups: Sequence["FlowGroup"]) -> StatsResult:
-    """Aggregate a list of flowgroups into a :class:`StatsResult`.
-
-    Walks every action exactly once. ``action_counts_by_type`` keys are
-    the lowercase :class:`ActionType` enum values (``"load"``,
-    ``"transform"``, ``"write"``, ``"test"``) plus the sub-keys the
-    legacy CLI tracks for load source types and transform subtypes
-    (e.g. ``"load_cloudfiles"``, ``"transform_sql"``).
-    """
-    pipelines: Dict[str, Dict[str, int]] = {}
-    action_counts: Dict[str, int] = {}
-    templates_used: set[str] = set()
-    presets_used: set[str] = set()
-    total_actions = 0
-
-    for fg in flowgroups:
-        pipeline_row = pipelines.setdefault(
-            fg.pipeline, {"flowgroups": 0, "actions": 0}
-        )
-        pipeline_row["flowgroups"] += 1
-        if fg.use_template:
-            templates_used.add(fg.use_template)
-        for preset in fg.presets or ():
-            presets_used.add(preset)
-        for action in fg.actions:
-            type_value = action.type.value
-            action_counts[type_value] = action_counts.get(type_value, 0) + 1
-            pipeline_row["actions"] += 1
-            total_actions += 1
-            if type_value == "load" and isinstance(action.source, dict):
-                subtype = str(action.source.get("type", "unknown"))
-                key = f"load_{subtype}"
-                action_counts[key] = action_counts.get(key, 0) + 1
-            elif type_value == "transform" and action.transform_type:
-                key = f"transform_{action.transform_type}"
-                action_counts[key] = action_counts.get(key, 0) + 1
-
-    breakdown = tuple(
-        PipelineStats(
-            pipeline_name=name,
-            flowgroup_count=row["flowgroups"],
-            total_actions=row["actions"],
-        )
-        for name, row in sorted(pipelines.items())
-    )
-    return StatsResult(
-        pipeline_count=len(pipelines),
-        flowgroup_count=sum(row["flowgroups"] for row in pipelines.values()),
-        total_actions=total_actions,
-        action_counts_by_type=action_counts,
-        pipeline_breakdown=breakdown,
-        templates_used=tuple(sorted(templates_used)),
-        presets_used=tuple(sorted(presets_used)),
     )
 
 

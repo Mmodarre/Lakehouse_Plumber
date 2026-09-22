@@ -1,6 +1,6 @@
 """Synthetic event-stream fixtures for the event-stream renderers.
 
-Builders here return lists (or, for the failure-rendezvous case, a
+Builders here return lists (or, for the failure-rendezvous cases, a
 generator) of :class:`lhp.api.events.LHPEvent` in constitution §5.7
 order: exactly one ``OperationStarted`` first, phase pairs and
 per-pipeline pairs in the middle, and exactly one terminal
@@ -9,7 +9,7 @@ per-pipeline pairs in the middle, and exactly one terminal
 This is a TEST helper module living under ``tests/`` — not under
 ``cli/presenters/`` — so it is exempt from the sole-bridge invariant
 (§9.5) and MAY import :mod:`lhp.errors` to mint a real
-:class:`~lhp.errors.LHPError` for the failure-rendezvous fixture.
+:class:`~lhp.errors.LHPError` for the failure-rendezvous fixtures.
 
 Importable as::
 
@@ -42,8 +42,8 @@ from lhp.api import (
     WarningEmitted,
 )
 from lhp.api.events import ErrorEmitted, GenerationPlanCompleted
-from lhp.errors import ErrorFactory
-from lhp.errors.codes import VAL_021
+from lhp.errors import ErrorFactory, LHPError
+from lhp.errors.codes import VAL_021, VAL_902
 
 
 # ---------------------------------------------------------------------------
@@ -276,6 +276,39 @@ def error_raise_stream() -> Iterator[LHPEvent]:
     yield PhaseStarted(phase="generate")
     yield ErrorEmitted(lhp_error=error)
     raise error
+
+
+def gate_failure_error() -> LHPError:
+    """The ``LHP-VAL-902`` aggregate the generate gate raises for two failures."""
+    return ErrorFactory.validation_error(
+        VAL_902,
+        title="2 pipeline(s) failed",
+        details="2 of 2 pipelines failed during generation.",
+    )
+
+
+def gate_failure_stream(error: LHPError | None = None) -> Iterator[LHPEvent]:
+    """A GENERATOR modelling the generate gate stopping on two failed pipelines.
+
+    Yields a ``PipelineStarted`` + ``PipelineFailed`` pair for ``bronze`` and
+    for ``silver``, then ``ErrorEmitted`` carrying the aggregate, then raises
+    that same aggregate. ``error`` replaces the default
+    :func:`gate_failure_error` so a test can hold the object it expects to see
+    propagate.
+    """
+    aggregate = error if error is not None else gate_failure_error()
+    yield OperationStarted(operation_name="generate", env="dev")
+    yield PhaseStarted(phase="generate")
+    yield PipelineStarted(pipeline="bronze")
+    yield PipelineFailed(
+        pipeline="bronze", code="LHP-IO-001", message="module file not found"
+    )
+    yield PipelineStarted(pipeline="silver")
+    yield PipelineFailed(
+        pipeline="silver", code="LHP-VAL-007", message="FlowGroup validation failed"
+    )
+    yield ErrorEmitted(lhp_error=aggregate)
+    raise aggregate
 
 
 # ---------------------------------------------------------------------------

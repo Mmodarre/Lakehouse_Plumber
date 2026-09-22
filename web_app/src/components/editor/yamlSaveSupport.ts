@@ -15,18 +15,22 @@
 /** The subset of the run controller this module needs. */
 interface ValidateRunController {
   isRunning: boolean
-  startValidate: (env?: string, pipeline?: string) => void
+  startValidate: (env?: string, pipeline?: string, trigger?: 'manual' | 'auto') => void
   abort: () => void
-  queueValidate?: (env?: string, pipeline?: string) => void
+  queueValidate?: (env?: string, pipeline?: string, trigger?: 'manual' | 'auto') => void
 }
 
-/** Request validation without interrupting an operation already in progress. */
+/**
+ * Request validation without interrupting an operation already in progress.
+ *
+ * The run is tagged `auto`: the editor starts it, not the user.
+ */
 export function startScopedValidate(
   controller: ValidateRunController,
   pipeline: string | undefined,
 ): void {
-  if (controller.queueValidate) controller.queueValidate(undefined, pipeline)
-  else if (!controller.isRunning) controller.startValidate(undefined, pipeline)
+  if (controller.queueValidate) controller.queueValidate(undefined, pipeline, 'auto')
+  else if (!controller.isRunning) controller.startValidate(undefined, pipeline, 'auto')
 }
 
 /** True for `.yaml` / `.yml` files (case-insensitive). */

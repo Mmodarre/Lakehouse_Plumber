@@ -44,6 +44,7 @@ def _write_minimal_project(root: Path) -> None:
     (root / "lhp.yaml").write_text(
         textwrap.dedent("""\
             name: orphan_behaviour_project
+            project_id: 9f8c1d2e-3a4b-4c5d-8e6f-0a1b2c3d4e5f
             version: "1.0"
             description: "Orphan behaviour fixture"
             author: "Test Author"
@@ -159,6 +160,18 @@ class TestGetProjectConfig:
         assert config.has_event_log is False
         assert config.has_monitoring is False
         assert config.has_test_reporting is False
+        assert config.has_uc_tagging is False
+        assert config.has_wheel is False
+        assert config.has_sandbox is False
+
+    def test_projects_the_project_identity_and_formatting_default(
+        self, facade: LakehousePlumberApplicationFacade
+    ) -> None:
+        config = facade.inspection.get_project_config()
+
+        assert config.project_id == "9f8c1d2e-3a4b-4c5d-8e6f-0a1b2c3d4e5f"
+        # apply_formatting is absent from the fixture -> the model default.
+        assert config.apply_formatting is True
 
 
 class TestProcessFlowgroup:

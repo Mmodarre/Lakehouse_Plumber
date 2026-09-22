@@ -38,8 +38,11 @@ import logging
 from collections.abc import AsyncIterator
 from typing import Any
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, FastAPI, Request
 from fastapi.responses import StreamingResponse
+
+from lhp.webapp.services._telemetry_events import on_sse_disconnect, session_for
+from lhp.webapp.services.telemetry_sessions import WebSessionRegistry
 
 router = APIRouter(tags=["events"])
 
@@ -68,9 +71,19 @@ async def _event_stream(request: Request) -> AsyncIterator[str]:
 
     The subscription is released in ``finally`` — Starlette closes this
     generator when the client disconnects, so no queue is ever leaked.
+
+    The connection also bounds the tab's telemetry session: opening it marks
+    the session live (cancelling any grace timer a reconnect is racing), and
+    the last close starts the grace timer that ends the session unless the
+    tab comes back. Both hooks are no-ops when telemetry is off or the
+    ``session`` query parameter is absent or malformed.
     """
     event_bus = request.app.state.event_bus
     queue = event_bus.subscribe()
+    attributed = session_for(request)
+    if attributed is not None:
+        registry, sid = attributed
+        registry.sse_connected(sid)
     logger.debug("SSE client connected")
     try:
         while True:
@@ -82,7 +95,27 @@ async def _event_stream(request: Request) -> AsyncIterator[str]:
             yield _format_frame(event)
     finally:
         event_bus.unsubscribe(queue)
+        if attributed is not None:
+            _schedule_grace(request.app, *attributed)
         logger.debug("SSE client disconnected")
+
+
+def _schedule_grace(app: FastAPI, registry: WebSessionRegistry, sid: str) -> None:
+    """Start the grace timer once the tab's LAST SSE connection has closed.
+
+    ``sse_disconnected`` is ``True`` only for the last connection, so a tab
+    holding two streams keeps its session on the first close. The task is
+    created on the loop running this handler and registered at once so a
+    reconnect or the lifespan shutdown can cancel it before it fires.
+    """
+    try:
+        if registry.sse_disconnected(sid):
+            task = asyncio.create_task(
+                on_sse_disconnect(app, sid), name="lhp-telemetry-grace"
+            )
+            registry.grace_started(sid, task)
+    except Exception:  # telemetry never reaches the stream that triggered it
+        logger.debug("telemetry: SSE grace task not scheduled", exc_info=True)
 
 
 @router.get("/events")

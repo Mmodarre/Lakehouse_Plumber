@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { ReactNode } from 'react'
 import { usePushChannel } from '../usePushChannel'
 import { useGraphStalenessStore } from '../../store/graphStalenessStore'
+import { getSessionId } from '../../lib/session-id'
 
 // jsdom has no EventSource; install a controllable stub. The hook reads the
 // static CLOSED constant off the global, so the stub must carry the
@@ -101,7 +102,7 @@ describe('usePushChannel', () => {
   it('opens a single push source against /api/events', () => {
     mount()
     expect(MockEventSource.instances).toHaveLength(1)
-    expect(latestSource().url).toBe('/api/events')
+    expect(latestSource().url).toBe(`/api/events?session=${getSessionId()}`)
   })
 
   it('file-changed invalidates every file-derived query key except dep-graph', () => {

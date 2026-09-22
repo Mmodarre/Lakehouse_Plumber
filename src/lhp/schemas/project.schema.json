@@ -11,6 +11,10 @@
             "type": "string",
             "description": "Identify this LHP project in generated resources and monitoring. Choose a stable project name. This is project metadata, not the name of an individual pipeline or flowgroup."
         },
+        "project_id": {
+            "type": "string",
+            "description": "Opaque per-project identifier (UUID v4) written by 'lhp init'. Used only in hashed form by anonymous usage telemetry so runs from many developers and CI roll up to one project. Safe to commit; LHP never edits it."
+        },
         "version": {
             "type": "string",
             "default": "1.0",

@@ -21,7 +21,7 @@ jobs:
         python-version: ["3.12"]
 
     env:
-      LHP_DISABLE_ANALYTICS: 1
+      LHP_DISABLE_ANALYTICS: 1  # honoured by lhp.telemetry (permanent alias of LHP_TELEMETRY=off)
 
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1

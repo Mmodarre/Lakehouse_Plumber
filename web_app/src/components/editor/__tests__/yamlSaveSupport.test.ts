@@ -94,13 +94,13 @@ describe('startScopedValidate', () => {
     const ctl = controller(false)
     startScopedValidate(ctl, 'raw')
     expect(ctl.abort).not.toHaveBeenCalled()
-    expect(ctl.startValidate).toHaveBeenCalledExactlyOnceWith(undefined, 'raw')
+    expect(ctl.startValidate).toHaveBeenCalledExactlyOnceWith(undefined, 'raw', 'auto')
   })
 
   it('passes an undefined pipeline through for an unscoped validate', () => {
     const ctl = controller(false)
     startScopedValidate(ctl, undefined)
-    expect(ctl.startValidate).toHaveBeenCalledExactlyOnceWith(undefined, undefined)
+    expect(ctl.startValidate).toHaveBeenCalledExactlyOnceWith(undefined, undefined, 'auto')
   })
 
   it('queues validation without aborting the current run', () => {
@@ -108,6 +108,6 @@ describe('startScopedValidate', () => {
     startScopedValidate(ctl, 'raw')
     expect(ctl.abort).not.toHaveBeenCalled()
     expect(ctl.startValidate).not.toHaveBeenCalled()
-    expect(ctl.queueValidate).toHaveBeenCalledExactlyOnceWith(undefined, 'raw')
+    expect(ctl.queueValidate).toHaveBeenCalledExactlyOnceWith(undefined, 'raw', 'auto')
   })
 })

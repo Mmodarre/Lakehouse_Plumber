@@ -26,7 +26,6 @@ from typing import (
 )
 
 from lhp.api._inspection_converters import (
-    _build_stats_result,
     _build_substitution_manager_for_env,
     _duplicates_to_validation_response,
     _flowgroup_file_paths,
@@ -39,6 +38,7 @@ from lhp.api._inspection_converters import (
 )
 from lhp.api._listings import _build_blueprint_views
 from lhp.api._operational_metadata_converter import _operational_metadata_to_view
+from lhp.api._stats_builder import _build_stats_result
 from lhp.api.responses import (
     StatsResult,
     ValidationResponse,

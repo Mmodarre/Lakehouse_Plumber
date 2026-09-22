@@ -47,4 +47,5 @@ and the reasoning behind it, see the :doc:`guides </guides/index>` and
 
    Errors <errors>
    Glossary <glossary>
+   Telemetry <telemetry>
    Changelog <changelog>

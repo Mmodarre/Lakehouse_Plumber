@@ -30,6 +30,8 @@ import type {
 //     (across all pipelines) to avoid double-counting.
 
 export type RunKind = 'validate' | 'generate'
+/** What started a run: a user action, or the editor acting on its own. */
+export type RunTrigger = 'manual' | 'auto'
 export type RunTerminal = 'success' | 'failed' | 'error' | 'stopped' | 'incomplete'
 
 export interface RunProgress {
@@ -345,9 +347,9 @@ export const useRunStore = create<RunState>((set) => ({
 // those views never cancels the operation. Auto-validation waits behind active work.
 export interface RunController {
   isRunning: boolean
-  startValidate: (env?: string, pipeline?: string) => void
+  startValidate: (env?: string, pipeline?: string, trigger?: RunTrigger) => void
   startGenerate: (env?: string, pipeline?: string) => void
-  queueValidate: (env?: string, pipeline?: string) => void
+  queueValidate: (env?: string, pipeline?: string, trigger?: RunTrigger) => void
   abort: () => void
 }
 
@@ -359,7 +361,12 @@ export function abortCurrentRun(): void {
   abortActiveStream()
 }
 
-export function captureRunInputs(kind: RunKind, env?: string, pipeline?: string): StartOptions {
+export function captureRunInputs(
+  kind: RunKind,
+  env?: string,
+  pipeline?: string,
+  trigger: RunTrigger = 'manual',
+): StartOptions {
   const ui = useUIStore.getState()
   const sandbox = ui.sandboxEnabled && pipeline === undefined
   return {
@@ -368,6 +375,10 @@ export function captureRunInputs(kind: RunKind, env?: string, pipeline?: string)
     pipeline: sandbox ? undefined : pipeline ?? ui.pipelineFilter ?? undefined,
     pipeline_config: ui.selectedPipelineConfig ?? undefined,
     ...(sandbox ? { sandbox: true } : {}),
+    // Spread only for the non-default value: a user-initiated run carries no
+    // `trigger` key and the backend applies its `manual` default, so the
+    // manual wire body stays free of telemetry fields.
+    ...(trigger === 'auto' ? { trigger: 'auto' as const } : {}),
   }
 }
 
@@ -400,14 +411,14 @@ export function startRunWithInputs(options: StartOptions, queryClient: QueryClie
 export function useRunController(): RunController {
   const queryClient = useQueryClient()
   const isRunning = useRunStore((s) => s.isRunning)
-  const startValidate = useCallback((env?: string, pipeline?: string) => {
-    startRunWithInputs(captureRunInputs('validate', env, pipeline), queryClient)
+  const startValidate = useCallback((env?: string, pipeline?: string, trigger?: RunTrigger) => {
+    startRunWithInputs(captureRunInputs('validate', env, pipeline, trigger), queryClient)
   }, [queryClient])
   const startGenerate = useCallback((env?: string, pipeline?: string) => {
     startRunWithInputs(captureRunInputs('generate', env, pipeline), queryClient)
   }, [queryClient])
-  const queueValidate = useCallback((env?: string, pipeline?: string) => {
-    const options = captureRunInputs('validate', env, pipeline)
+  const queueValidate = useCallback((env?: string, pipeline?: string, trigger?: RunTrigger) => {
+    const options = captureRunInputs('validate', env, pipeline, trigger)
     if (!useRunStore.getState().isRunning) {
       startRunWithInputs(options, queryClient)
       return
