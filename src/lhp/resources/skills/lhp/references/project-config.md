@@ -408,7 +408,7 @@ and are posted on a daemon thread to the HTTPS endpoint fixed at release time,
 one this build uses; a build whose endpoint is unreachable keeps events in the spool
 until the caps drop them); ≤1 s is the whole exit latency it may add. Response
 handling: 2xx accepts the batch (a non-JSON 2xx body, i.e. a proxy or portal page,
-keeps it); 429/5xx or a connection failure before the request went out keeps it for the
+keeps it); 429/5xx or a connection failure before the request was fully sent keeps it for the
 next command, with no resend limit beyond the spool caps; a request sent but unanswered
 (read timeout, dropped connection) or still in flight at exit (its in-flight file is
 merged back by the first upload more than 60 s after the claim) is resent, but an event
@@ -446,7 +446,9 @@ redirects; reads neither `Content-Type` nor `User-Agent`.
 | `lhp telemetry off` | run once | this user on this machine |
 
 The stored preference is read only after every env switch passes, so an opted-out
-environment never touches the config dir.
+environment never touches the config dir when recording. Exception, whatever the
+switches say: `lhp telemetry status` reads `telemetry.json` + the spool, `show` reads
+the spool, and `on|off` write `telemetry.json`.
 
 ### Environment variables
 
@@ -465,9 +467,11 @@ when it holds an absolute path, otherwise `~/.config/lhp`. Files: `telemetry.jso
 version stamps), `telemetry/spool.jsonl` (cap 500 events / 512 KB, oldest dropped; an
 event sent without an answer carries a trailing `"_unconfirmed":true` key, stripped
 before sending and from `lhp telemetry show`) and `telemetry/spool.inflight-<pid>-<ms>.jsonl`
-(a batch claimed by an upload; deleted when settled), all owner-only. Nothing is written
-in `log` mode or when off; `telemetry.json` is additionally never written in CI, so
-`install_id` is null there (the spool is still used).
+(a batch claimed by an upload; deleted when settled), all owner-only. Recording writes
+nothing in `log` mode or when off and never writes `telemetry.json` in CI; `lhp telemetry
+on|off` write `telemetry.json` in any mode, env or CI, never minting an install id.
+`install_id` is never minted or sent in CI, so it is null there (the spool is still used).
+`install.first_seen` is recorded when the install id is minted.
 
 ### Never collected
 
@@ -478,10 +482,13 @@ or stored by the receiver — see [Receiver](#receiver)), assistant prompts/resp
 arguments, token counts. Failures are the `LHP-XXX-NNN` code + exception class name
 only; a value that is not a recognised LHP error code is counted as `other` in
 `warning_codes`/`failure_codes` and sent as null in `error_code`. `failure_codes` holds
-one code per failed pipeline for `generate` and one per error for `validate`. When
-`generate` stops on failed pipelines, `error_code` is the sole failed pipeline's code, or
-`LHP-VAL-902` when several failed; a run that completes and reports its failures itself
-(e.g. `validate` with errors) sends null `error_code`.
+one code per failed pipeline for `generate` and one per error for `validate` — except a
+`validate` stopped by its project-level checks, which counts one code (the first
+finding's). When `generate` stops on failures, `error_code` is the sole failure's code,
+or `LHP-VAL-902` for several; a Python function naming conflict (`LHP-VAL-019`) counts
+as one failure but has no pipeline, so it adds nothing to `failure_codes`. A run that
+completes and reports its failures itself (e.g. `validate` with errors) sends null
+`error_code`.
 
 The project **name** is never sent either: with no `project_id`/`bundle.uuid`, a salted
 hash of the name is sent and is **pseudonymous, not anonymous** (the salt is a public

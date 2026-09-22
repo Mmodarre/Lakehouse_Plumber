@@ -141,7 +141,7 @@ One event per command run, including failed runs.
      - ``0`` success, ``1`` domain error, ``2`` usage error, ``3`` internal error, ``130`` interrupted.
    * - ``error_code``
      - string or null
-     - The ``LHP-<CATEGORY>-<NUMBER>`` code of the error that ended the command, or ``LHP-GEN-902`` for an unexpected one. When ``generate`` stops because pipelines failed, this is the failed pipeline's own code, or ``LHP-VAL-902`` when more than one failed. A run that completes and reports its failures itself, such as a ``validate`` run that finds errors, sends null here; their codes are in ``failure_codes``. A value that is not a recognized LHP error code is sent as null. See the :doc:`error code catalog </reference/errors>`.
+     - The ``LHP-<CATEGORY>-<NUMBER>`` code of the error that ended the command, or ``LHP-GEN-902`` for an unexpected one. When ``generate`` stops on failures, this is the sole failure's own code, or ``LHP-VAL-902`` when it found more than one; a Python function naming conflict (``LHP-VAL-019``) counts as one failure alongside the failed pipelines. A run that completes and reports its failures itself, such as a ``validate`` run that finds errors, sends null here; their codes are in ``failure_codes``. A value that is not a recognized LHP error code is sent as null. See the :doc:`error code catalog </reference/errors>`.
    * - ``exception_class``
      - string or null
      - The exception's class name only. No message, no stack trace.
@@ -150,7 +150,7 @@ One event per command run, including failed runs.
      - Error codes counted, for example ``{"LHP-DEP-002": 3}``. Codes only, never messages. A warning without a recognized LHP error code is counted as ``other``.
    * - ``failure_codes``
      - object
-     - The same shape for failures, with the same ``other`` count: one code per failed pipeline for ``generate``, and one per error found for ``validate``.
+     - The same shape for failures, with the same ``other`` count: one code per failed pipeline for ``generate``, and one per error found for ``validate``, except that a ``validate`` run stopped by its project-level checks counts a single code, the first one they found.
    * - ``files_written``
      - integer or null
      - How many files the run wrote.
@@ -162,7 +162,7 @@ One event per command run, including failed runs.
      - Whether the run used the discovery cache.
    * - ``project``
      - object or null
-     - The project shape below. Present for ``generate``, ``validate`` and ``dag`` (including its ``deps`` alias) only, and only when reading it stays inside a 250 ms budget. Null when a ``generate`` or ``validate`` run stops on an error before any pipeline has failed, for example a configuration error or an empty project.
+     - The project shape below. Present for ``generate``, ``validate`` and ``dag`` (including its ``deps`` alias) only, and only when reading it stays inside a 250 ms budget. Null when a ``generate`` run stops on an error before any pipeline has failed (for example a configuration error or an empty project), when a ``validate`` run is aborted by an exception before any pipeline has failed, or when you interrupt the run. A ``validate`` run on an empty project, or one stopped by its project-level checks, still carries the shape.
 
 Project shape
 ~~~~~~~~~~~~~
@@ -223,7 +223,7 @@ sending it.
      - A UUID v4 the tab mints for itself and keeps in ``sessionStorage``. It joins this session's runs to it and identifies nothing else.
    * - ``duration_s``
      - integer
-     - Seconds from the tab's first recorded activity — an API call, a run, its event stream opening — to its last, or to the close of its event stream when that is later. A tab still connected when the server shuts down counts up to the shutdown. The waits that end a session — 30 seconds after the event stream closes, or 30 minutes without activity — are not counted.
+     - Seconds from the tab's first recorded activity to its last, or to the close of its event stream when that is later. Activity is any application programming interface (API) request the tab makes other than the health check, including opening the event stream, plus the end of each run the tab starts. A tab still connected when the server shuts down counts up to the shutdown. LHP does not count the waits that end a session: 30 seconds after the event stream closes, or 30 minutes without activity.
    * - ``end_reason``
      - string
      - ``disconnect``, ``idle`` or ``shutdown``.
@@ -302,7 +302,7 @@ One event per validate or generate run started from the web IDE.
      - An LHP error code such as ``LHP-ACT-001``, and only such a code. Any other value is sent as null.
    * - ``error_count``, ``warning_count``
      - integer
-     - The error and warning totals the run reported, as a completed ``validate`` run does. A run that reports no totals, such as ``generate``, counts the pipelines that failed — or ``1`` when the run failed with no failed pipeline — and the warnings it emitted. An aborted run reports ``0`` for both.
+     - For a run that reports totals, such as a completed ``validate`` run, those totals. For a run that reports none, such as ``generate``, the number of failed pipelines (``1`` when the run failed with no failed pipeline) and the number of warnings it emitted. ``0`` for both when the run was aborted.
    * - ``files_written``
      - integer or null
      - How many files a generate run wrote.
@@ -310,10 +310,10 @@ One event per validate or generate run started from the web IDE.
 Install events
 ~~~~~~~~~~~~~~
 
-LHP records ``install.first_seen`` once, when it creates the state file; the
-event carries no fields. It records ``install.upgraded``, which carries
+LHP records ``install.first_seen`` when it mints the install id; the event
+carries no fields. It records ``install.upgraded``, which carries
 ``previous_version``, on the first run after the installed version changes. It
-records neither in CI, because a CI run writes no state file.
+records neither in CI, where it never mints an install id.
 
 Never collected
 ---------------
@@ -450,7 +450,7 @@ cookies. LHP uses the default ``urllib`` opener, so ``HTTPS_PROXY`` and
    * - Property
      - Value
    * - Attempts
-     - One per command (the web IDE attempts once per event it emits). There is no retry loop inside a run; a batch that was not accepted waits for the next command.
+     - At most one per command, and at most one per event the web IDE emits; sessions that end together share one attempt. LHP starts no attempt while another from the same process is still in flight. There is no retry loop inside a run: a batch kept after a failed upload is offered again by a later upload (see the response rows below).
    * - Timeout
      - 3 seconds.
    * - Added exit latency
@@ -462,15 +462,15 @@ cookies. LHP uses the default ``urllib`` opener, so ``HTTPS_PROXY`` and
    * - Per-event cap
      - 8 KB; an event larger than that is dropped rather than spooled.
    * - 2xx response
-     - The batch is accepted and removed from the spool. An empty body is a plain success; a non-empty body that is not JSON came from a proxy or a captive portal rather than the receiver, so the batch is kept.
+     - The receiver accepted the batch, so LHP removes it from the spool. An empty body is a plain success; a non-empty body that is not JSON came from a proxy or a captive portal rather than the receiver, so LHP keeps the batch.
    * - 400, 413 and any other 4xx except 429
-     - The batch is discarded. The receiver does not accept it however often it is offered.
+     - LHP discards the batch. The receiver does not accept it however often LHP offers it.
    * - 3xx redirect
-     - The batch is discarded. The endpoint must not redirect: the HTTP client re-sends a redirected upload as a request without its body, so the reply says nothing about the batch.
-   * - 429, 5xx, or a connection that failed before the request was sent
-     - The receiver has not accepted the batch, so it is kept and offered again on the next command, with no limit other than the spool caps.
+     - LHP discards the batch. The endpoint must not redirect: the HTTP client re-sends a redirected upload as a request without its body, so the reply says nothing about the batch.
+   * - 429, 5xx, or a connection that failed before the request was fully sent
+     - The receiver has not accepted the batch, so LHP keeps it and offers it again on the next command, with no limit other than the spool caps.
    * - Sent but unanswered, or cut off at exit
-     - The receiver may already hold the batch, so the repeats are limited: the batch is offered again, and an event whose send goes unanswered a second time is discarded. A request that times out waiting for the reply, or whose connection drops, is unanswered. So is a batch still in flight when the command exits: after the one-second exit wait it stays on disk, and the first upload attempted more than a minute after the batch was claimed puts it back in the spool. A resent event keeps its ``event_id``, which identifies the copies.
+     - The receiver may already hold the batch, so LHP limits the resends: it offers the batch again and discards an event whose send goes unanswered a second time. A request that times out waiting for the reply, or whose connection drops, is unanswered. So is a batch still in flight when the command exits: LHP leaves it on disk after the one-second exit wait, and the first upload it attempts more than a minute after claiming the batch puts it back in the spool. A resent event keeps its ``event_id``, which identifies the copies.
    * - Remote pause
      - A 2xx response may carry ``{"disabled": true}``, which silences this installation for 24 hours (where a state file exists — never in CI).
    * - Receiver
@@ -522,7 +522,10 @@ Off switches
 Any off wins. The switches are checked in the order above and the first one
 that says off decides; ``lhp telemetry status`` names it. The stored
 preference is read only after every environment switch has passed, so an
-opted-out environment never touches the config directory at all.
+opted-out environment never touches the config directory when LHP records an
+event. The ``lhp telemetry`` commands are the exception: ``status`` reads the
+state file and the spool, ``show`` reads the spool, and ``on`` and ``off``
+write the state file, whatever the switches say.
 
 Blocking ``telemetry.lakehouse-plumber.dev`` at the network level also stops
 anything leaving the machine, but it is not an off switch: events are still
@@ -597,17 +600,20 @@ absolute path, otherwise ``~/.config/lhp``.
 
    * - Path
      - Contents
-   * - ``<config dir>/telemetry.json``
+   * - ``<config-dir>/telemetry.json``
      - Its own ``schema_version``, the install id, your on/off preference, when the file was created, the version last seen, the latest version and hint timestamps behind the update hint, and the expiry of a remote pause (``server_disabled_until``).
-   * - ``<config dir>/telemetry/spool.jsonl``
+   * - ``<config-dir>/telemetry/spool.jsonl``
      - Events waiting to be sent, one JSON object per line. An event whose send went unanswered ends with an extra ``"_unconfirmed":true`` key, which is how LHP counts its unanswered sends. LHP strips the key before sending the event, and ``lhp telemetry show`` does not print it.
-   * - ``<config dir>/telemetry/spool.inflight-<pid>-<ms>.jsonl``
+   * - ``<config-dir>/telemetry/spool.inflight-<pid>-<ms>.jsonl``
      - A batch an upload has claimed from the spool, named after the claiming process's id and the claim time in milliseconds. LHP deletes it once the upload is settled. One left behind by a process that exited mid-upload goes back into the spool at the first upload attempted more than a minute after the claim.
 
 LHP creates these files, and the directories holding them, with owner-only
-permissions. It creates none of them in ``LHP_TELEMETRY=log`` mode or on a run
-where telemetry is off, and it never creates the state file in CI, which is
-why ``install_id`` is always null there. The spool is still used in CI,
+permissions. Apart from ``lhp telemetry on`` and ``lhp telemetry off``, which
+write the state file whatever the mode, the switches or CI and never mint an
+install id, LHP creates none of them in ``LHP_TELEMETRY=log`` mode or on a run
+where telemetry is off, and never creates the state file in CI.
+``install_id`` is always null in CI, because LHP neither mints nor sends it
+there. The spool is still used in CI,
 because that is how a CI run's events reach the endpoint.
 
 Deleting any of them is safe: the install id is minted again on the next
