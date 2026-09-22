@@ -91,10 +91,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   token counts are never collected. Events spool to a local JSONL file and are posted on
   a daemon thread with a 3 s timeout, so telemetry never blocks a command, never changes
   an exit code and adds at most 1 s to exit; when the endpoint is unreachable nothing
-  leaves the machine. Turn it off with `LHP_TELEMETRY=off`, `DO_NOT_TRACK=1`,
-  `LHP_DISABLE_ANALYTICS=1` or `lhp telemetry off` — any one of them wins.
-  `LHP_TELEMETRY=log` prints the event to stderr instead of sending it. Everything that
-  is sent is listed in the telemetry reference.
+  leaves the machine. Events go to `https://telemetry.lakehouse-plumber.dev/v1/events`,
+  a receiver that never reads or stores the sender's IP address, and are stored in a
+  Databricks workspace in Azure West US 2 (United States). Turn it off with
+  `LHP_TELEMETRY=off`, `DO_NOT_TRACK=1`, `LHP_DISABLE_ANALYTICS=1` or
+  `lhp telemetry off` — any one of them wins. `LHP_TELEMETRY=log` prints the event to
+  stderr instead of sending it. Everything that is sent is listed in the telemetry
+  reference.
 - **`lhp telemetry status|show|on|off`.** Inspect the resolved state (on/off, the layer
   that decided it, the config directory, the install id, the endpoint and the spooled
   count), print the event this run would send plus the newest spooled events, or change

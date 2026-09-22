@@ -403,14 +403,33 @@ run (including failures); `lhp web` adds `web.session` per browser tab and `web.
 validate/generate. The recording path never blocks a command, never changes an exit
 code and never raises; `lhp telemetry on|off` are the exception and fail with
 `LHP-IO-028` when the state file cannot be written. Events spool to a local JSONL file
-and are posted on a daemon thread to the HTTPS endpoint fixed at release time (`lhp
-telemetry status` prints the one this build uses; a build whose endpoint is unreachable
-keeps events in the spool until the caps drop them); ≤1 s is the whole exit latency it
-may add. Response handling: 2xx accepts the batch (a non-JSON 2xx body, i.e. a proxy or
-portal page, keeps it); 429/5xx/timeout keeps it for the next command; any other 4xx and
-any 3xx redirect discard it (the endpoint must not redirect).
+and are posted on a daemon thread to the HTTPS endpoint fixed at release time,
+`https://telemetry.lakehouse-plumber.dev/v1/events` (`lhp telemetry status` prints the
+one this build uses; a build whose endpoint is unreachable keeps events in the spool
+until the caps drop them); ≤1 s is the whole exit latency it may add. Response
+handling: 2xx accepts the batch (a non-JSON 2xx body, i.e. a proxy or portal page,
+keeps it); 429/5xx/timeout keeps it for the next command; any other 4xx and any 3xx
+redirect discard it (the endpoint must not redirect; the receiver never does).
 Full field tables:
 <https://lakehouse-plumber.readthedocs.io/en/latest/reference/telemetry.html>.
+
+### Receiver
+
+Operated by the LHP project on Cloudflare at `telemetry.lakehouse-plumber.dev`; never
+redirects; reads neither `Content-Type` nor `User-Agent`.
+
+- **200** = the batch's events are durably queued; the receiver retries the write into
+  storage itself, so a storage outage never reaches the client. A malformed event is
+  rejected alone and the rest of the batch is accepted. Delivery is at-least-once;
+  `event_id` identifies the copies.
+- **Rate limit:** 10 requests / 10 s per IP address, applied by Cloudflare → 429, batch
+  kept for the next command. CI runners behind one NAT gateway share the limit, which
+  delays delivery; a runner discarded after its job discards what is still spooled.
+- **IP address:** never read or stored by the receiver, no location derived from it;
+  Cloudflare's network sees it to deliver the request and apply the rate limit.
+- **Storage:** Databricks workspace on Azure West US 2 (United States).
+- **Retention:** no automatic deletion yet. A 12-month raw-event deletion job and
+  published monthly aggregates without identifiers are **planned, not in place**.
 
 ### Off switches (any off wins, checked in this order)
 
@@ -448,11 +467,13 @@ there (the spool is still used).
 
 Any name (project, pipeline, flowgroup, action, table, catalog, schema, env), paths,
 YAML/SQL/Python content, generated code, error/warning **messages**, env-var values,
-secrets, usernames, hostnames, emails, git remotes, machine identifiers, IPs (discarded
-at ingest), assistant prompts/responses/tool arguments, token counts. Failures are the
-`LHP-XXX-NNN` code + exception class name only; a value that is not a recognised LHP
-error code is counted as `other` in `warning_codes`/`failure_codes` and sent as null in
-`error_code`.
+secrets, usernames, hostnames, emails, git remotes, machine identifiers, IPs (never read
+or stored by the receiver — see [Receiver](#receiver)), assistant prompts/responses/tool
+arguments, token counts. Failures are the `LHP-XXX-NNN` code + exception class name
+only; a value that is not a recognised LHP error code is counted as `other` in
+`warning_codes`/`failure_codes` and sent as null in `error_code`. `error_code` is also
+null when a `validate`/`generate` run reports its failures per pipeline; their codes are
+counted in `failure_codes`.
 
 The project **name** is never sent either: with no `project_id`/`bundle.uuid`, a salted
 hash of the name is sent and is **pseudonymous, not anonymous** (the salt is a public

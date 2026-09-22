@@ -43,7 +43,7 @@ Every event carries the same envelope.
      - ``1``.
    * - ``event_id``
      - string
-     - A fresh UUID v4 per event, used to discard duplicates.
+     - A fresh UUID v4 per event. The receiver can store an event more than once, and ``event_id`` identifies the copies.
    * - ``event``
      - string
      - ``cli.command``, ``web.session``, ``web.run``, ``install.first_seen`` or ``install.upgraded``.
@@ -141,7 +141,7 @@ One event per command run, including failed runs.
      - ``0`` success, ``1`` domain error, ``2`` usage error, ``3`` internal error, ``130`` interrupted.
    * - ``error_code``
      - string or null
-     - The ``LHP-<CATEGORY>-<NUMBER>`` code of the failure, or ``LHP-GEN-902`` for an unexpected one. A value that is not a recognized LHP error code is sent as null. See the :doc:`error code catalog </reference/errors>`.
+     - The ``LHP-<CATEGORY>-<NUMBER>`` code of the error that ended the command, or ``LHP-GEN-902`` for an unexpected one. A ``validate`` or ``generate`` run that reports its failures per pipeline sends null here and counts their codes in ``failure_codes``. A value that is not a recognized LHP error code is sent as null. See the :doc:`error code catalog </reference/errors>`.
    * - ``exception_class``
      - string or null
      - The exception's class name only. No message, no stack trace.
@@ -171,6 +171,12 @@ Project shape
 describe a project's size and which features it configures. A value LHP does
 not recognize folds into its family's ``*_other`` key, so the number of keys
 that reach the wire is a property of LHP, not of your project.
+
+The counts come from project discovery, which expands blueprint instances but
+not templates: actions that a template supplies are missing from ``actions``
+and from every per-type counter. The pipeline LHP generates when
+:doc:`monitoring </reference/config/monitoring>` is enabled is counted, with
+its flowgroup and actions.
 
 .. list-table::
    :header-rows: 1
@@ -247,7 +253,7 @@ sending it.
      - ``claude_subscription``, ``databricks``, ``omnigent_defaults``, ``api_key_env`` or ``other``.
    * - ``ui``
      - object
-     - Counts keyed ``<surface>.<action>`` (plus ``.<via>`` for a creation), for example ``{"pipeline_dag.opened": 4}``. ``surface`` names a part of the IDE such as ``file_editor`` or ``problems``, and ``action`` is ``opened``, ``toggled`` or ``created``. A value the server does not recognize is dropped.
+     - Counts keyed ``<surface>.<action>`` (plus ``.<via>`` for a creation), for example ``{"pipeline_dag.opened": 4}``. ``surface`` names a part of the IDE such as ``file_editor`` or ``problems``, and ``action`` is ``opened``, ``toggled`` or ``created``. A value the ``lhp web`` server does not recognize is dropped.
 
 ``web.run``
 ~~~~~~~~~~~
@@ -315,7 +321,9 @@ Never collected
 LHP never collects any of the following.
 
 - **Identity** — usernames, hostnames, email addresses, machine identifiers, IP
-  addresses. The receiver discards IP addresses at ingest.
+  addresses. The receiver never reads or stores the IP address a request comes
+  from. It runs on Cloudflare, whose network sees that address to deliver the
+  request and to apply a rate limit (see :ref:`telemetry-endpoint`).
 - **Project content** — the names of projects, pipelines, flowgroups, actions,
   tables, catalogs, schemas and environments; paths; YAML, SQL or Python
   content; generated code.
@@ -420,17 +428,20 @@ before 0.9.2 keeps working and resolves to source 2 or source 3 above; adding
 the key yourself changes the project's identifier once, after which it is
 stable.
 
+.. _telemetry-endpoint:
+
 Endpoint, transport and retention
 ---------------------------------
 
-LHP posts events as one ``POST`` request with a JSON body to the HTTPS
-endpoint fixed at release time; ``lhp telemetry status`` prints the endpoint
-this build uses. A build whose endpoint is unreachable keeps events in the
-local spool until the caps drop them. The request carries
-``Content-Type: application/json`` and a ``User-Agent: lhp/<version>`` header,
-and nothing else — no authentication, no cookies. LHP uses the default
-``urllib`` opener, so ``HTTPS_PROXY`` and ``NO_PROXY`` are honored like every
-other Python HTTP client.
+LHP posts events as one ``POST`` request with a JSON body to
+``https://telemetry.lakehouse-plumber.dev/v1/events``, a receiver that the LHP
+project operates on Cloudflare. The endpoint is fixed at release time, and
+``lhp telemetry status`` prints the one this build uses. A build whose endpoint
+is unreachable keeps events in the local spool until the caps drop them. The
+request carries ``Content-Type: application/json`` and a
+``User-Agent: lhp/<version>`` header, and nothing else — no authentication, no
+cookies. LHP uses the default ``urllib`` opener, so ``HTTPS_PROXY`` and
+``NO_PROXY`` are honored like every other Python HTTP client.
 
 .. list-table::
    :header-rows: 1
@@ -460,10 +471,18 @@ other Python HTTP client.
      - The batch is kept and offered again on the next command.
    * - Remote pause
      - A 2xx response may carry ``{"disabled": true}``, which silences this installation for 24 hours (where a state file exists — never in CI).
+   * - Receiver
+     - ``telemetry.lakehouse-plumber.dev``. It never redirects, and it reads neither the ``Content-Type`` nor the ``User-Agent`` header.
+   * - Delivery
+     - A 200 reply means the receiver has queued the batch's events durably. It then writes them to storage and retries on failure, so a storage outage never reaches LHP. It rejects a malformed event on its own and accepts the rest of the batch. Delivery is at least once, so an event can be stored more than once; ``event_id`` identifies the copies.
+   * - Rate limit
+     - 10 requests per 10 seconds from one IP address, applied by Cloudflare. A request over the limit gets 429 and its batch waits for the next command. CI runners behind one network address translation (NAT) gateway share its IP address and can reach the limit together, which delays their events; a runner discarded at the end of its job discards whatever is still in its spool.
+   * - Storage
+     - A Databricks workspace on Azure, in the West US 2 region (United States).
    * - IP addresses
-     - The receiver discards them at ingest. It never logs or stores them, and derives no region or other location from them.
+     - The receiver never reads the IP address a request comes from, never stores it, and derives no location from it. Cloudflare's network sees the address to deliver the request and to apply the rate limit.
    * - Retention
-     - The receiver deletes raw events after 12 months. It keeps a monthly aggregate that carries no identifiers indefinitely, and the project publishes those aggregates in the release notes.
+     - Stored events are kept: no automatic deletion is in place yet. Two things are planned but not in place: a job that deletes raw events after 12 months, and published monthly aggregates that carry no identifiers.
 
 .. note::
 
@@ -503,9 +522,9 @@ that says off decides; ``lhp telemetry status`` names it. The stored
 preference is read only after every environment switch has passed, so an
 opted-out environment never touches the config directory at all.
 
-Blocking the endpoint's hostname at the network level also stops anything
-leaving the machine, but it is not an off switch: events are still recorded
-and still accumulate in the spool, up to the caps above.
+Blocking ``telemetry.lakehouse-plumber.dev`` at the network level also stops
+anything leaving the machine, but it is not an off switch: events are still
+recorded and still accumulate in the spool, up to the caps above.
 
 Environment variables
 ---------------------
@@ -548,8 +567,8 @@ debug level and ignored.
 Update hint
 -----------
 
-The receiver's reply to a telemetry upload may name the latest released
-version. LHP stores it and, on a later run, prints one line:
+The receiver's reply to a telemetry upload may name the newest final release
+of LHP on PyPI. LHP stores it and, on a later run, prints one line:
 
 .. code-block:: text
 
