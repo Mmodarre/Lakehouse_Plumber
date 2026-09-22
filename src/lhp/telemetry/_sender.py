@@ -2,13 +2,15 @@
 
 The endpoint is pinned to ``https://`` or loopback ``http://`` before any
 request is built, which is what makes the ``urlopen`` call below safe. One
-attempt, a three-second timeout, and every failure — network, TLS, HTTP or
-a bug — is logged at DEBUG without the payload and classified as ``drop``
-(the Worker refused the batch for good) or ``retry`` (it may accept it
-later). A redirect is a ``drop``: ``urllib`` re-issues a redirected POST as a
-bodiless GET, so its 2xx is not the Worker's verdict, and a permanent
-redirect must not re-send every batch. The default opener honours
-``HTTPS_PROXY`` and ``NO_PROXY`` like every other ``urllib`` client.
+attempt, a three-second timeout, and every failure is logged at DEBUG without
+the payload and classified: ``drop`` (the Worker refused the batch for good),
+``retry`` (the batch never reached it, or it answered 429 or 5xx) or
+``unconfirmed`` (the request went out but no answer came back, so the Worker
+may hold the batch and the spool caps its resends). A redirect is a
+``drop``: ``urllib`` re-issues a redirected POST as a bodiless GET, so its
+2xx is not the Worker's verdict, and a permanent redirect must not re-send
+every batch. The default opener honours ``HTTPS_PROXY`` and ``NO_PROXY`` like
+every other ``urllib`` client.
 """
 
 from __future__ import annotations
@@ -40,7 +42,7 @@ _MAX_LATEST_CHARS = 32
 _SERVER_DISABLE_PERIOD = timedelta(hours=24)
 
 Opener = Callable[..., Any]
-StatusClass = Literal["ok", "drop", "retry"]
+StatusClass = Literal["ok", "drop", "retry", "unconfirmed"]
 
 
 @dataclass(frozen=True)
@@ -127,9 +129,12 @@ def send_batch(
     except urllib.error.HTTPError as error:  # a verdict from the Worker, not a fault
         logger.debug(f"Telemetry upload rejected with HTTP {error.code}")
         return _status_result(error.code)
-    except Exception:  # network, TLS, timeout or a bug: the batch waits
-        logger.debug("Telemetry upload failed", exc_info=True)
+    except urllib.error.URLError:  # never fully sent: the Worker has not seen it
+        logger.debug("Telemetry upload could not be sent", exc_info=True)
         return SendResult("retry", None, False)
+    except Exception:  # sent but unanswered (timeout, reset, a bug): may have landed
+        logger.debug("Telemetry upload went unanswered", exc_info=True)
+        return SendResult("unconfirmed", None, False)
     if answered_by != request.full_url:
         logger.debug("Telemetry upload was redirected; dropping the batch")
         return SendResult("drop", None, False)
@@ -142,8 +147,9 @@ def _settle(cfg: Path, inflight: Path, result: SendResult) -> None:
     The state file is never created here: CI runs and ``log`` mode leave none
     behind, and a ``latest`` hint is worthless without an install to show it to.
     """
-    if result.status_class == "retry":
-        _spool.restore_inflight(cfg, inflight)
+    if result.status_class in ("retry", "unconfirmed"):
+        unconfirmed = result.status_class == "unconfirmed"
+        _spool.restore_inflight(cfg, inflight, unconfirmed=unconfirmed)
         return
     _spool.discard_inflight(inflight)
     state = _store.read_state(cfg)
@@ -179,7 +185,7 @@ def start_sender(
 
     def _run() -> None:
         try:
-            lines = _spool.read_lines(inflight)
+            lines = _spool.unmarked_lines(inflight)
             sent = send_batch(lines, endpoint=endpoint, version=version, opener=opener)
             with lock or nullcontext():
                 _settle(cfg, inflight, sent)

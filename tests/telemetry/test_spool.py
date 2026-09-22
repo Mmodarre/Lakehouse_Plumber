@@ -5,11 +5,15 @@ spool is inert: a failure leaves a DEBUG record and a falsy return, never an
 exception, and no call leaves a file handle open behind it.
 """
 
+import json
 import logging
 import os
 import stat
 import time
+import uuid
+from collections import Counter
 from pathlib import Path
+from typing import List
 
 import pytest
 
@@ -18,12 +22,14 @@ from lhp.telemetry._spool import (
     MAX_LINE_BYTES,
     MAX_SPOOL_BYTES,
     MAX_SPOOL_LINES,
+    STALE_INFLIGHT_S,
     append_spool,
     discard_inflight,
     read_lines,
     restore_inflight,
     spool_count,
     take_inflight,
+    unmarked_lines,
 )
 from lhp.telemetry._store import StateFile, read_state, write_state
 
@@ -41,6 +47,32 @@ def unwritable_cfg(tmp_path: Path) -> Path:
     blocker = tmp_path / "blocker"
     blocker.write_text("not a directory")
     return blocker / "cfg"
+
+
+def _marked(line: str) -> str:
+    """``line`` as the spool stores it after a send that went unanswered."""
+    return line[:-1] + ',"_unconfirmed":true}'
+
+
+def _age_claim(inflight: Path, seconds: float) -> Path:
+    """Rename a claimed batch as if it had been claimed ``seconds`` ago."""
+    stamp = int((time.time() - seconds) * 1000)
+    return inflight.rename(
+        inflight.with_name(f"spool.inflight-{os.getpid()}-{stamp}.jsonl")
+    )
+
+
+class _Clock:
+    """A hand-cranked stand-in for the ``time`` module as ``_spool`` uses it."""
+
+    def __init__(self, now: float) -> None:
+        self.now = now
+
+    def time(self) -> float:
+        return self.now
+
+    def time_ns(self) -> int:
+        return int(self.now * 1_000_000_000)
 
 
 def _next_fd(tmp_path: Path) -> int:
@@ -166,13 +198,12 @@ def test_take_inflight_merges_a_stale_inflight_file_back_first(cfg: Path) -> Non
     append_spool(cfg, '{"n":1}')
     stale = take_inflight(cfg)
     assert stale is not None
-    old = time.time() - 120
-    os.utime(stale, (old, old))
+    _age_claim(stale, 120)
     append_spool(cfg, '{"n":2}')
     merged = take_inflight(cfg)
     assert merged is not None
     assert list(spool_path(cfg).parent.glob("spool.inflight-*")) == [merged]
-    assert read_lines(merged) == ['{"n":1}', '{"n":2}']
+    assert read_lines(merged) == [_marked('{"n":1}'), '{"n":2}']
 
 
 @pytest.mark.unit
@@ -180,10 +211,57 @@ def test_a_stale_inflight_file_alone_is_enough_to_send(cfg: Path) -> None:
     append_spool(cfg, '{"n":1}')
     stale = take_inflight(cfg)
     assert stale is not None
-    old = time.time() - 120
-    os.utime(stale, (old, old))
+    _age_claim(stale, 120)
     merged = take_inflight(cfg)
-    assert merged is not None and read_lines(merged) == ['{"n":1}']
+    assert merged is not None and read_lines(merged) == [_marked('{"n":1}')]
+
+
+@pytest.mark.unit
+def test_a_live_claim_with_an_old_mtime_is_not_stolen(cfg: Path) -> None:
+    # ``os.replace`` keeps the spool's mtime, so it dates the last append,
+    # not the claim.
+    append_spool(cfg, '{"n":1}')
+    live = take_inflight(cfg)
+    assert live is not None
+    old = time.time() - 120
+    os.utime(live, (old, old))
+    append_spool(cfg, '{"n":2}')
+    second = take_inflight(cfg)
+    assert second is not None
+    assert read_lines(live) == ['{"n":1}']
+    assert read_lines(second) == ['{"n":2}']
+
+
+@pytest.mark.unit
+def test_an_inflight_file_with_an_unparseable_name_is_stale(cfg: Path) -> None:
+    append_spool(cfg, '{"n":1}')
+    claimed = take_inflight(cfg)
+    assert claimed is not None
+    odd = claimed.rename(claimed.with_name("spool.inflight-unparseable.jsonl"))
+    merged = take_inflight(cfg)
+    assert merged is not None and not odd.exists()
+    assert read_lines(merged) == [_marked('{"n":1}')]
+
+
+@pytest.mark.unit
+def test_orphaned_sends_claim_each_event_at_most_twice(
+    cfg: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    clock = _Clock(time.time())
+    monkeypatch.setattr("lhp.telemetry._spool.time", clock)
+    claims: List[List[str]] = []
+    for _ in range(10):
+        envelope = {"event_id": str(uuid.uuid4()), "event": "cli.command"}
+        append_spool(cfg, json.dumps(envelope, separators=(",", ":")))
+        inflight = take_inflight(cfg)
+        assert inflight is not None
+        lines = unmarked_lines(inflight)
+        claims.append([json.loads(line)["event_id"] for line in lines])
+        clock.now += STALE_INFLIGHT_S + 1
+    claimed = Counter(event_id for claim in claims for event_id in claim)
+    assert len(claimed) == 10
+    assert max(claimed.values()) <= 2
+    assert max(len(claim) for claim in claims) <= 2
 
 
 @pytest.mark.unit
@@ -210,6 +288,46 @@ def test_restore_inflight_enforces_the_line_cap(cfg: Path) -> None:
     assert len(lines) == MAX_SPOOL_LINES
     assert lines[0] == '{"n":3}'
     assert lines[-3:] == ['{"new":0}', '{"new":1}', '{"new":2}']
+
+
+@pytest.mark.unit
+def test_an_unconfirmed_restore_marks_drops_marked_lines_and_goes_first(
+    cfg: Path,
+) -> None:
+    append_spool(cfg, '{"n":1}')
+    append_spool(cfg, _marked('{"n":2}'))
+    inflight = take_inflight(cfg)
+    assert inflight is not None
+    append_spool(cfg, '{"n":3}')
+    restore_inflight(cfg, inflight, unconfirmed=True)
+    assert not inflight.exists()
+    assert read_lines(spool_path(cfg)) == [_marked('{"n":1}'), '{"n":3}']
+
+
+@pytest.mark.unit
+def test_a_definitive_restore_keeps_marks_byte_for_byte(cfg: Path) -> None:
+    append_spool(cfg, _marked('{"n":1}'))
+    append_spool(cfg, '{"n":2}')
+    inflight = take_inflight(cfg)
+    assert inflight is not None
+    batch = inflight.read_bytes()
+    append_spool(cfg, '{"n":3}')
+    current = spool_path(cfg).read_bytes()
+    restore_inflight(cfg, inflight)
+    assert spool_path(cfg).read_bytes() == batch + current
+
+
+@pytest.mark.unit
+def test_a_non_ascii_envelope_strips_back_to_its_exact_bytes(cfg: Path) -> None:
+    props = {"command": "g\u00e9n\u00e9rer \u2713 \u65e5\u672c"}
+    envelope = json.dumps({"props": props}, ensure_ascii=False, separators=(",", ":"))
+    append_spool(cfg, envelope)
+    inflight = take_inflight(cfg)
+    assert inflight is not None
+    restore_inflight(cfg, inflight, unconfirmed=True)
+    assert read_lines(spool_path(cfg)) == [_marked(envelope)]
+    (stripped,) = unmarked_lines(spool_path(cfg))
+    assert stripped.encode("utf-8") == envelope.encode("utf-8")
 
 
 @pytest.mark.unit

@@ -6,6 +6,7 @@ be produced on demand. The opener records the request it was given so the
 headers and body can be asserted without any socket.
 """
 
+import http.client
 import http.server
 import io
 import json
@@ -27,7 +28,7 @@ from lhp.telemetry._sender import (
     send_batch,
     start_sender,
 )
-from lhp.telemetry._spool import append_spool, read_lines, spool_count
+from lhp.telemetry._spool import append_spool, read_lines, spool_count, unmarked_lines
 from lhp.telemetry._store import StateFile, read_state, write_state
 
 ENDPOINT = "https://telemetry.example.invalid/v1/events"
@@ -80,6 +81,11 @@ def _opener_raising(exc: BaseException) -> Callable[..., _Response]:
 
 def _http_error(code: int) -> urllib.error.HTTPError:
     return urllib.error.HTTPError(ENDPOINT, code, "status", {}, io.BytesIO(b""))
+
+
+def _marked(line: str) -> str:
+    """``line`` as the spool stores it after a send that went unanswered."""
+    return line[:-1] + ',"_unconfirmed":true}'
 
 
 def _send(opener: Callable[..., Any], events: Optional[List[str]] = None) -> SendResult:
@@ -265,6 +271,54 @@ def test_a_real_redirect_is_detected_through_urllib(status: int) -> None:
 
 
 @pytest.mark.unit
+def test_a_real_request_left_unanswered_is_unconfirmed() -> None:
+    received: List[bytes] = []
+    got_body, release = threading.Event(), threading.Event()
+
+    class _Handler(http.server.BaseHTTPRequestHandler):
+        def do_POST(self) -> None:
+            received.append(self.rfile.read(int(self.headers["Content-Length"])))
+            got_body.set()
+            release.wait(5.0)
+
+        def log_message(self, format: str, *args: Any) -> None:
+            return None
+
+    server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), _Handler)
+    serving = threading.Thread(target=server.serve_forever, daemon=True)
+    serving.start()
+    try:
+        result = send_batch(
+            [EVENT_A],
+            endpoint=f"http://127.0.0.1:{server.server_address[1]}/v1/events",
+            version=VERSION,
+            timeout_s=0.2,
+        )
+        assert got_body.wait(5.0)
+    finally:
+        release.set()
+        server.shutdown()
+        server.server_close()
+    assert result == SendResult("unconfirmed", None, False)
+    assert json.loads(received[0])["events"] == [json.loads(EVENT_A)]
+
+
+@pytest.mark.unit
+def test_a_real_refused_connection_is_a_retry() -> None:
+    probe = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    probe.bind(("127.0.0.1", 0))
+    port = probe.getsockname()[1]
+    probe.close()
+    result = send_batch(
+        [EVENT_A],
+        endpoint=f"http://127.0.0.1:{port}/v1/events",
+        version=VERSION,
+        timeout_s=0.2,
+    )
+    assert result == SendResult("retry", None, False)
+
+
+@pytest.mark.unit
 @pytest.mark.parametrize("status", [202, 204])
 def test_other_2xx_statuses_are_ok(status: int) -> None:
     assert _send(_opener_returning(status)).status_class == "ok"
@@ -284,18 +338,35 @@ def test_throttling_and_server_errors_keep_the_batch(code: int) -> None:
 
 @pytest.mark.unit
 @pytest.mark.parametrize(
-    "exc",
+    "reason",
     [
-        urllib.error.URLError("name resolution failed"),
+        "name resolution failed",
         socket.timeout("timed out"),
-        TimeoutError("timed out"),
         ConnectionRefusedError(),
         OSError("tls handshake"),
-        ValueError("unknown url type"),
+        "unknown url type: ftp",
     ],
 )
-def test_transport_failures_keep_the_batch(exc: BaseException) -> None:
+def test_transport_failures_keep_the_batch(reason: Any) -> None:
+    # urllib wraps a failure to send the request in URLError: nothing arrived.
+    exc = urllib.error.URLError(reason)
     assert _send(_opener_raising(exc)) == SendResult("retry", None, False)
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "exc",
+    [
+        TimeoutError("timed out"),
+        ConnectionResetError(),
+        http.client.RemoteDisconnected("closed without a reply"),
+        http.client.BadStatusLine("garbage"),
+        http.client.IncompleteRead(b"{"),
+    ],
+)
+def test_a_sent_request_without_an_answer_is_unconfirmed(exc: BaseException) -> None:
+    # urllib lets reply-side failures through raw: the request was sent.
+    assert _send(_opener_raising(exc)) == SendResult("unconfirmed", None, False)
 
 
 @pytest.mark.unit
@@ -441,6 +512,36 @@ def test_retry_restores_the_batch_to_the_spool(cfg: Path) -> None:
 
 
 @pytest.mark.unit
+def test_a_second_unconfirmed_outcome_empties_the_spool(cfg: Path) -> None:
+    _spool(cfg, EVENT_A, EVENT_B)
+    _run(cfg, _opener_raising(TimeoutError("timed out")))
+    assert read_lines(spool_path(cfg)) == [_marked(EVENT_A), _marked(EVENT_B)]
+    _run(cfg, _opener_raising(TimeoutError("timed out")))
+    assert spool_count(cfg) == 0
+    assert list(spool_path(cfg).parent.glob("spool.inflight-*")) == []
+
+
+@pytest.mark.unit
+def test_a_marked_batch_is_posted_unmarked(cfg: Path) -> None:
+    _spool(cfg, EVENT_A)
+    _run(cfg, _opener_raising(ConnectionResetError()))
+    seen: List[Any] = []
+    _run(cfg, _opener_returning(200, {"accepted": 1}, seen))
+    body = seen[0][0].data
+    assert json.loads(body)["events"] == [json.loads(EVENT_A)]
+    assert b"_unconfirmed" not in body
+    assert spool_count(cfg) == 0
+
+
+@pytest.mark.unit
+def test_a_503_after_an_unconfirmed_outcome_keeps_the_mark(cfg: Path) -> None:
+    _spool(cfg, EVENT_A)
+    _run(cfg, _opener_raising(ConnectionResetError()))
+    _run(cfg, _opener_raising(_http_error(503)))
+    assert read_lines(spool_path(cfg)) == [_marked(EVENT_A)]
+
+
+@pytest.mark.unit
 def test_ok_stores_latest_in_an_existing_state_file(cfg: Path) -> None:
     write_state(cfg, StateFile(install_id="x", created_at="2026-09-21T00:00:00.000Z"))
     _spool(cfg, EVENT_A)
@@ -492,6 +593,7 @@ def test_an_opener_that_blows_up_is_contained_in_the_thread(
     _spool(cfg, event)
     with caplog.at_level(logging.DEBUG, logger="lhp.telemetry"):
         _run(cfg, _opener_raising(RuntimeError("unexpected")))
-    assert read_lines(spool_path(cfg)) == [event]
+    assert read_lines(spool_path(cfg)) == [_marked(event)]
+    assert unmarked_lines(spool_path(cfg)) == [event]
     assert all(record.levelno == logging.DEBUG for record in caplog.records)
     assert SECRET_MARKER not in caplog.text

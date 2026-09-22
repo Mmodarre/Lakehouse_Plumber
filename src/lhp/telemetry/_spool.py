@@ -4,8 +4,12 @@ One envelope per line, appended with ``O_APPEND`` in a single write so lines
 from concurrent recorders never interleave. The caps (lines and bytes) are
 enforced after every write by rewriting the file with only the newest lines.
 A send claims the whole spool by renaming it to an inflight file; the sender
-then discards or restores that file. Every handle is opened and closed inside
-the call, and every failure is logged at DEBUG and swallowed.
+then discards or restores that file. A batch sent without an answer, or
+orphaned mid-send, is restored marked unconfirmed, and a marked envelope
+unanswered again is dropped: none is transmitted more than twice without a
+verdict. The mark is plain text in place of the closing brace, so stripping
+it restores the recorded bytes. Every handle is opened and closed inside the
+call, and every failure is logged at DEBUG and swallowed.
 """
 
 from __future__ import annotations
@@ -24,10 +28,12 @@ logger = logging.getLogger(__name__)
 MAX_LINE_BYTES = 8 * 1024
 MAX_SPOOL_LINES = 500
 MAX_SPOOL_BYTES = 512 * 1024
-# An inflight file older than this was left by a sender that never finished.
+# A claim older than this was left by a sender that never finished.
 STALE_INFLIGHT_S = 60.0
 
 _INFLIGHT_GLOB = "spool.inflight-*.jsonl"
+# Replaces an envelope's closing brace once a send of it went unanswered.
+_UNCONFIRMED = ',"_unconfirmed":true}'
 
 
 def read_lines(path: Path) -> List[str]:
@@ -40,6 +46,34 @@ def read_lines(path: Path) -> List[str]:
         logger.debug("Could not read a telemetry spool file", exc_info=True)
         return []
     return [line for line in text.splitlines() if line.strip()]
+
+
+def unmarked_lines(path: Path) -> List[str]:
+    """``read_lines`` with each unconfirmed mark stripped: the recorded envelopes."""
+    cut = len(_UNCONFIRMED)
+    return [
+        line[:-cut] + "}" if line.endswith(_UNCONFIRMED) else line
+        for line in read_lines(path)
+    ]
+
+
+def _mark_unconfirmed(batch: bytes) -> bytes:
+    """Mark each unmarked envelope and drop each marked one; bytes, so a line
+    that is not valid UTF-8 survives."""
+    mark = _UNCONFIRMED.encode("ascii")
+    return b"".join(
+        (line[:-1] + mark if line.endswith(b"}") else line) + b"\n"
+        for line in batch.splitlines()
+        if not line.endswith(mark)
+    )
+
+
+def _claimed_at(path: Path) -> float:
+    """Epoch seconds from the ``{epoch_ms}`` in an inflight file's name."""
+    try:
+        return int(path.stem.rsplit("-", 1)[-1]) / 1000
+    except (ValueError, OverflowError):  # not a name this module wrote: stale
+        return 0.0
 
 
 def _trim(cfg: Path, path: Path) -> None:
@@ -78,16 +112,17 @@ def take_inflight(cfg: Path) -> Optional[Path]:
     """Claim the spool for one send by renaming it; ``None`` when it is empty.
 
     The rename is atomic, so a concurrent append lands either in the claimed
-    batch or in a fresh spool, never in both. Inflight files older than
-    ``STALE_INFLIGHT_S`` were left by a sender that never finished and are
-    merged back first so their events get another chance.
+    batch or in a fresh spool, never in both. Inflight files claimed more than
+    ``STALE_INFLIGHT_S`` ago, per the stamp in their name (``os.replace`` keeps
+    the spool's mtime, which dates its last append), were left by a sender
+    that never finished and are merged back first, unconfirmed.
     """
     spool = spool_path(cfg)
     try:
         cutoff = time.time() - STALE_INFLIGHT_S
         for stale in spool.parent.glob(_INFLIGHT_GLOB):
-            if stale.stat().st_mtime < cutoff:
-                restore_inflight(cfg, stale)
+            if _claimed_at(stale) < cutoff:
+                restore_inflight(cfg, stale, unconfirmed=True)
         if not read_lines(spool):
             return None
         pid, stamp = os.getpid(), time.time_ns() // 1_000_000
@@ -103,15 +138,17 @@ def take_inflight(cfg: Path) -> Optional[Path]:
     return inflight
 
 
-def restore_inflight(cfg: Path, inflight: Path) -> None:
+def restore_inflight(cfg: Path, inflight: Path, *, unconfirmed: bool = False) -> None:
     """Return a claimed batch to the spool and remove the file.
 
     The batch is older than anything spooled since, so it goes in FRONT: the
-    caps then drop what is genuinely oldest.
+    caps then drop what is genuinely oldest. ``unconfirmed`` marks each
+    envelope and drops those already marked; otherwise the bytes return as-is.
     """
     spool = spool_path(cfg)
     try:
         batch = inflight.read_bytes() if inflight.is_file() else b""
+        batch = _mark_unconfirmed(batch) if unconfirmed else batch
         current = spool.read_bytes() if spool.is_file() else b""
         if batch:
             write_private(cfg, spool, batch + current)
