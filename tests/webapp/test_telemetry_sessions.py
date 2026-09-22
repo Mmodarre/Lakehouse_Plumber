@@ -264,10 +264,11 @@ def test_short_sessions_without_activity_are_dropped() -> None:
 
 def test_a_session_older_than_five_seconds_is_emitted_even_without_activity() -> None:
     registry, sink, clock = _registry()
-    registry.touch(SID)
+    assert registry.sse_connected(SID) is True
     clock.advance(5)
+    assert registry.sse_disconnected(SID) is True
 
-    assert registry.emit(SID, "idle") is True
+    assert registry.emit(SID, "disconnect") is True
 
     props = sink.events[0][2]
     assert props["duration_s"] == 5
@@ -385,6 +386,88 @@ def test_activity_resets_the_idle_clock() -> None:
     clock.advance(2)
 
     assert registry.sweep_idle() == 0
+
+
+def test_an_sse_close_does_not_reset_the_idle_clock() -> None:
+    registry, sink, clock = _registry()
+    registry.sse_connected(SID)
+    registry.count_request(SID, "project.read")
+    clock.advance(sessions.IDLE_SECONDS + 1)
+    assert registry.sse_disconnected(SID) is True
+
+    assert registry.sweep_idle() == 1
+
+    props = sink.events[0][2]
+    assert props["end_reason"] == "idle"
+    assert props["duration_s"] == sessions.IDLE_SECONDS + 1
+
+
+# --- session duration ----------------------------------------------------------
+
+
+def test_duration_stops_at_the_last_disconnect_not_after_the_grace_wait() -> None:
+    registry, sink, clock = _registry()
+    registry.sse_connected(SID)
+    registry.count_request(SID, "project.read")
+    clock.advance(8)
+    assert registry.sse_disconnected(SID) is True
+    clock.advance(sessions.SSE_GRACE_SECONDS)
+
+    assert registry.emit(SID, "disconnect") is True
+
+    assert sink.events[0][2]["duration_s"] == 8
+
+
+def test_duration_of_an_idle_session_stops_at_its_last_activity() -> None:
+    registry, sink, clock = _registry()
+    registry.touch(SID)
+    clock.advance(10)
+    registry.count_request(SID, "project.read")
+    clock.advance(sessions.IDLE_SECONDS + 1)
+
+    assert registry.sweep_idle() == 1
+
+    props = sink.events[0][2]
+    assert props["end_reason"] == "idle"
+    assert props["duration_s"] == 10
+
+
+def test_a_session_still_connected_at_shutdown_counts_to_shutdown() -> None:
+    registry, sink, clock = _registry()
+    registry.sse_connected(SID)
+    registry.count_request(SID, "project.read")
+    clock.advance(120)
+
+    assert registry.emit_all("shutdown") == 1
+
+    assert sink.events[0][2]["duration_s"] == 120
+
+
+def test_a_request_after_the_last_disconnect_extends_the_session() -> None:
+    registry, sink, clock = _registry()
+    registry.sse_connected(SID)
+    clock.advance(5)
+    assert registry.sse_disconnected(SID) is True
+    clock.advance(7)
+    registry.count_request(SID, "project.read")
+    clock.advance(sessions.SSE_GRACE_SECONDS)
+
+    assert registry.emit(SID, "disconnect") is True
+
+    assert sink.events[0][2]["duration_s"] == 12
+
+
+def test_a_two_second_open_and_close_tab_is_dropped() -> None:
+    registry, sink, clock = _registry()
+    registry.sse_connected(SID)
+    clock.advance(2)
+    assert registry.sse_disconnected(SID) is True
+    clock.advance(sessions.SSE_GRACE_SECONDS)
+
+    assert registry.emit(SID, "disconnect") is False
+
+    assert sink.events == []
+    assert sink.flushes == 0
 
 
 # --- capacity and validation ---------------------------------------------------

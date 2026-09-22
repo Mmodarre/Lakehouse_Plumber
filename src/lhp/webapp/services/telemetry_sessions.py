@@ -116,12 +116,14 @@ class WebSession:
     record is the frozen ``WebSessionProps`` that
     :func:`build_web_session_props` renders when the session ends. Timestamps
     are in the registry clock's timebase (monotonic seconds), never wall
-    clock.
+    clock. ``last_activity`` alone drives the idle sweep; ``last_sse_close``
+    only bounds ``duration_s``, so closing a tab never restarts its idle clock.
     """
 
     session_id: str
     started: float
     last_activity: float
+    last_sse_close: Optional[float] = None
     sse_connections: int = 0
     sse_seen: bool = False
     grace_task: Optional[asyncio.Task[None]] = None
@@ -336,14 +338,18 @@ class WebSessionRegistry:
     def sse_disconnected(self, sid: str) -> bool:
         """Count one SSE connection gone; ``True`` when it was the last one.
 
-        ``True`` is the caller's cue to schedule the grace task.
+        ``True`` is the caller's cue to schedule the grace task. The last close
+        is stamped so the session's duration ends there, not after the grace wait.
         """
         with self._lock:
             session = self._sessions.get(sid)
             if session is None or session.sse_connections == 0:
                 return False
             session.sse_connections -= 1
-            return session.sse_connections == 0
+            if session.sse_connections:
+                return False
+            session.last_sse_close = self._clock()
+            return True
 
     def grace_started(self, sid: str, task: asyncio.Task[None]) -> None:
         """Remember the grace task so a reconnect or shutdown can cancel it."""
@@ -429,8 +435,15 @@ class WebSessionRegistry:
         return session
 
     def _render(self, session: WebSession, reason: str) -> Optional[dict[str, Any]]:
-        """Props for an ended session, or ``None`` when it is dropped as empty."""
-        duration_s = int(self._clock() - session.started)
+        """Props for an ended session, or ``None`` when it is dropped as empty.
+
+        Duration runs to now for a live session, otherwise to its last activity
+        or last SSE close — the grace and idle waits that follow are not usage.
+        """
+        ended = self._clock() if session.sse_connections else session.last_activity
+        if session.last_sse_close is not None:
+            ended = max(ended, session.last_sse_close)
+        duration_s = int(ended - session.started)
         if duration_s < _EMPTY_SESSION_SECONDS and not session.has_activity():
             logger.debug(f"telemetry: dropping an empty web session ({reason})")
             return None
