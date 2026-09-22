@@ -33,6 +33,7 @@ from lhp.telemetry._spool import (
     unmarked_lines,
 )
 from lhp.telemetry._store import StateFile, read_state, write_state
+from tests.helpers.telemetry import marked
 
 POSIX_ONLY = pytest.mark.skipif(os.name == "nt", reason="POSIX file modes")
 
@@ -48,11 +49,6 @@ def unwritable_cfg(tmp_path: Path) -> Path:
     blocker = tmp_path / "blocker"
     blocker.write_text("not a directory")
     return blocker / "cfg"
-
-
-def _marked(line: str) -> str:
-    """``line`` as the spool stores it after a send that went unanswered."""
-    return line[:-1] + ',"_unconfirmed":true}'
 
 
 def _age_claim(inflight: Path, seconds: float) -> Path:
@@ -165,11 +161,11 @@ def test_read_lines_skips_blank_lines(cfg: Path) -> None:
 def test_pending_lines_lists_claims_oldest_first_then_the_spool_unmarked(
     cfg: Path,
 ) -> None:
-    append_spool(cfg, _marked('{"n":3}'))
+    append_spool(cfg, marked('{"n":3}'))
     folder = spool_path(cfg).parent
     # Creation order and name order are both the reverse of claim order.
     (folder / "spool.inflight-1-2000.jsonl").write_text('{"n":2}\n', "utf-8")
-    oldest = _marked('{"n":1}')
+    oldest = marked('{"n":1}')
     (folder / "spool.inflight-9-1000.jsonl").write_text(f"{oldest}\n", "utf-8")
     assert pending_lines(cfg) == ['{"n":1}', '{"n":2}', '{"n":3}']
 
@@ -217,7 +213,7 @@ def test_take_inflight_merges_a_stale_inflight_file_back_first(cfg: Path) -> Non
     merged = take_inflight(cfg)
     assert merged is not None
     assert list(spool_path(cfg).parent.glob("spool.inflight-*")) == [merged]
-    assert read_lines(merged) == [_marked('{"n":1}'), '{"n":2}']
+    assert read_lines(merged) == [marked('{"n":1}'), '{"n":2}']
 
 
 @pytest.mark.unit
@@ -227,7 +223,7 @@ def test_a_stale_inflight_file_alone_is_enough_to_send(cfg: Path) -> None:
     assert stale is not None
     _age_claim(stale, 120)
     merged = take_inflight(cfg)
-    assert merged is not None and read_lines(merged) == [_marked('{"n":1}')]
+    assert merged is not None and read_lines(merged) == [marked('{"n":1}')]
 
 
 @pytest.mark.unit
@@ -254,7 +250,7 @@ def test_an_inflight_file_with_an_unparseable_name_is_stale(cfg: Path) -> None:
     odd = claimed.rename(claimed.with_name("spool.inflight-unparseable.jsonl"))
     merged = take_inflight(cfg)
     assert merged is not None and not odd.exists()
-    assert read_lines(merged) == [_marked('{"n":1}')]
+    assert read_lines(merged) == [marked('{"n":1}')]
 
 
 @pytest.mark.unit
@@ -309,18 +305,18 @@ def test_an_unconfirmed_restore_marks_drops_marked_lines_and_goes_first(
     cfg: Path,
 ) -> None:
     append_spool(cfg, '{"n":1}')
-    append_spool(cfg, _marked('{"n":2}'))
+    append_spool(cfg, marked('{"n":2}'))
     inflight = take_inflight(cfg)
     assert inflight is not None
     append_spool(cfg, '{"n":3}')
     restore_inflight(cfg, inflight, unconfirmed=True)
     assert not inflight.exists()
-    assert read_lines(spool_path(cfg)) == [_marked('{"n":1}'), '{"n":3}']
+    assert read_lines(spool_path(cfg)) == [marked('{"n":1}'), '{"n":3}']
 
 
 @pytest.mark.unit
 def test_a_definitive_restore_keeps_marks_byte_for_byte(cfg: Path) -> None:
-    append_spool(cfg, _marked('{"n":1}'))
+    append_spool(cfg, marked('{"n":1}'))
     append_spool(cfg, '{"n":2}')
     inflight = take_inflight(cfg)
     assert inflight is not None
@@ -339,7 +335,7 @@ def test_a_non_ascii_envelope_strips_back_to_its_exact_bytes(cfg: Path) -> None:
     inflight = take_inflight(cfg)
     assert inflight is not None
     restore_inflight(cfg, inflight, unconfirmed=True)
-    assert read_lines(spool_path(cfg)) == [_marked(envelope)]
+    assert read_lines(spool_path(cfg)) == [marked(envelope)]
     (stripped,) = unmarked_lines(spool_path(cfg))
     assert stripped.encode("utf-8") == envelope.encode("utf-8")
 

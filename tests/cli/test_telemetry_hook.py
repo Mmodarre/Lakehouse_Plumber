@@ -39,8 +39,9 @@ from lhp.errors import ErrorCategory, LHPError
 from lhp.telemetry import _client
 from lhp.telemetry._environment import lhp_version
 from lhp.telemetry._paths import spool_path
-from lhp.telemetry._spool import read_lines
+from lhp.telemetry._spool import read_lines, unmarked_lines
 from lhp.telemetry._store import StateFile, read_state, write_state
+from tests.helpers.telemetry import marked
 
 pytestmark = pytest.mark.unit
 
@@ -625,7 +626,8 @@ def test_finish_returns_within_the_join_budget_against_a_black_holed_endpoint(
     assert events[-1]["props"]["command"] == "probe"
     returned = read_lines(spool_path(telemetry_log_mode))
     assert len(returned) == 2
-    assert all(line.endswith(',"_unconfirmed":true}') for line in returned)
+    recorded = unmarked_lines(spool_path(telemetry_log_mode))
+    assert returned == [marked(line) for line in recorded]
 
 
 def _state_with_latest(cfg: Path, latest: str) -> None:

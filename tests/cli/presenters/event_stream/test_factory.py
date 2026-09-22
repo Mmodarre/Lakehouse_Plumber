@@ -61,6 +61,30 @@ def _header() -> RunHeader:
     return RunHeader(command="generate", env="dev")
 
 
+def _capture_selected_renderer(monkeypatch) -> dict:
+    """Record the renderer ``render`` selects; it is not returned on a raise."""
+    captured: dict = {}
+    real_select = select_renderer
+
+    def _spy(header, **kwargs):
+        captured["renderer"] = real_select(header, **kwargs)
+        return captured["renderer"]
+
+    monkeypatch.setattr(factory, "select_renderer", _spy)
+    return captured
+
+
+def _clear_forced_terminal_env(monkeypatch) -> None:
+    """Let a non-terminal console stay non-terminal whatever the host exports.
+
+    Rich reads ``FORCE_COLOR`` and ``TTY_COMPATIBLE`` from the environment, and
+    either can make a console built without ``force_terminal`` report
+    ``is_terminal``, which selects the LiveRenderer.
+    """
+    monkeypatch.delenv("FORCE_COLOR", raising=False)
+    monkeypatch.delenv("TTY_COMPATIBLE", raising=False)
+
+
 @pytest.fixture(autouse=True)
 def _clear_progress_env(monkeypatch):
     """Neutralise CI / LHP_NO_PROGRESS so the matrix controls them explicitly.
@@ -213,18 +237,7 @@ def test_render_calls_begin_before_pulling_first_event(monkeypatch):
 def test_render_error_stream_reraises_after_teardown(monkeypatch):
     console = _console(terminal=True)
     err_console = _console(terminal=False)
-
-    # Capture the renderer the factory selects so teardown can be asserted:
-    # render() does not return it on the raising path.
-    captured: dict[str, LiveRenderer] = {}
-    real_select = select_renderer
-
-    def _spy(header, **kwargs):
-        renderer = real_select(header, **kwargs)
-        captured["renderer"] = renderer  # type: ignore[assignment]
-        return renderer
-
-    monkeypatch.setattr(factory, "select_renderer", _spy)
+    captured = _capture_selected_renderer(monkeypatch)
 
     with pytest.raises(LHPError):
         render(
@@ -247,19 +260,6 @@ def test_render_error_stream_reraises_after_teardown(monkeypatch):
 # ---------------------------------------------------------------------------
 # render(): on_abort receives the outcome of a run the stream aborted
 # ---------------------------------------------------------------------------
-def _capture_selected_renderer(monkeypatch) -> dict:
-    """Record the renderer ``render`` selects; it is not returned on a raise."""
-    captured: dict = {}
-    real_select = select_renderer
-
-    def _spy(header, **kwargs):
-        captured["renderer"] = real_select(header, **kwargs)
-        return captured["renderer"]
-
-    monkeypatch.setattr(factory, "select_renderer", _spy)
-    return captured
-
-
 def _render_with_abort(events, *, terminal: bool, on_abort) -> RunOutcome:
     return render(
         events,
@@ -272,7 +272,9 @@ def _render_with_abort(events, *, terminal: bool, on_abort) -> RunOutcome:
 
 
 @pytest.mark.parametrize("terminal", [True, False], ids=["live", "log"])
-def test_render_abort_reports_exactly_the_pipeline_failures(terminal):
+def test_render_abort_reports_exactly_the_pipeline_failures(terminal, monkeypatch):
+    _clear_forced_terminal_env(monkeypatch)
+    captured = _capture_selected_renderer(monkeypatch)
     received: list[RunOutcome] = []
 
     with pytest.raises(LHPError):
@@ -280,6 +282,7 @@ def test_render_abort_reports_exactly_the_pipeline_failures(terminal):
             gate_failure_stream(), terminal=terminal, on_abort=received.append
         )
 
+    assert isinstance(captured["renderer"], LiveRenderer if terminal else LogRenderer)
     assert len(received) == 1
     assert [(f.pipeline, f.code) for f in received[0].failures] == [
         ("bronze", "LHP-IO-001"),
@@ -322,13 +325,16 @@ def test_render_abort_stops_the_live_display_before_the_callback(monkeypatch):
 
 
 @pytest.mark.parametrize("terminal", [True, False], ids=["live", "log"])
-def test_render_success_does_not_call_on_abort(terminal):
+def test_render_success_does_not_call_on_abort(terminal, monkeypatch):
+    _clear_forced_terminal_env(monkeypatch)
+    captured = _capture_selected_renderer(monkeypatch)
     received: list[RunOutcome] = []
 
     _render_with_abort(
         iter(clean_generate_stream()), terminal=terminal, on_abort=received.append
     )
 
+    assert isinstance(captured["renderer"], LiveRenderer if terminal else LogRenderer)
     assert received == []
 
 

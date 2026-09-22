@@ -1,9 +1,11 @@
 """Tests for :mod:`lhp.telemetry._sender`.
 
-``send_batch`` always receives a fake opener here: the suite's network guard
-would refuse a real connection anyway, and the fake lets each response class
-be produced on demand. The opener records the request it was given so the
-headers and body can be asserted without any socket.
+Most cases hand ``send_batch`` a fake opener, which produces each response
+class on demand and records the request it was given so the headers and body
+can be asserted without a socket. The ``test_a_real_*`` cases instead drive
+the default ``urllib`` opener against a loopback server or a closed loopback
+port, which the suite's network guard allows, to pin how real redirects,
+unanswered requests and refused connections are classified.
 """
 
 import http.client
@@ -30,6 +32,7 @@ from lhp.telemetry._sender import (
 )
 from lhp.telemetry._spool import append_spool, read_lines, spool_count, unmarked_lines
 from lhp.telemetry._store import StateFile, read_state, write_state
+from tests.helpers.telemetry import marked
 
 ENDPOINT = "https://telemetry.example.invalid/v1/events"
 VERSION = "0.9.2"
@@ -81,11 +84,6 @@ def _opener_raising(exc: BaseException) -> Callable[..., _Response]:
 
 def _http_error(code: int) -> urllib.error.HTTPError:
     return urllib.error.HTTPError(ENDPOINT, code, "status", {}, io.BytesIO(b""))
-
-
-def _marked(line: str) -> str:
-    """``line`` as the spool stores it after a send that went unanswered."""
-    return line[:-1] + ',"_unconfirmed":true}'
 
 
 def _send(opener: Callable[..., Any], events: Optional[List[str]] = None) -> SendResult:
@@ -515,7 +513,7 @@ def test_retry_restores_the_batch_to_the_spool(cfg: Path) -> None:
 def test_a_second_unconfirmed_outcome_empties_the_spool(cfg: Path) -> None:
     _spool(cfg, EVENT_A, EVENT_B)
     _run(cfg, _opener_raising(TimeoutError("timed out")))
-    assert read_lines(spool_path(cfg)) == [_marked(EVENT_A), _marked(EVENT_B)]
+    assert read_lines(spool_path(cfg)) == [marked(EVENT_A), marked(EVENT_B)]
     _run(cfg, _opener_raising(TimeoutError("timed out")))
     assert spool_count(cfg) == 0
     assert list(spool_path(cfg).parent.glob("spool.inflight-*")) == []
@@ -538,7 +536,7 @@ def test_a_503_after_an_unconfirmed_outcome_keeps_the_mark(cfg: Path) -> None:
     _spool(cfg, EVENT_A)
     _run(cfg, _opener_raising(ConnectionResetError()))
     _run(cfg, _opener_raising(_http_error(503)))
-    assert read_lines(spool_path(cfg)) == [_marked(EVENT_A)]
+    assert read_lines(spool_path(cfg)) == [marked(EVENT_A)]
 
 
 @pytest.mark.unit
@@ -593,7 +591,7 @@ def test_an_opener_that_blows_up_is_contained_in_the_thread(
     _spool(cfg, event)
     with caplog.at_level(logging.DEBUG, logger="lhp.telemetry"):
         _run(cfg, _opener_raising(RuntimeError("unexpected")))
-    assert read_lines(spool_path(cfg)) == [_marked(event)]
+    assert read_lines(spool_path(cfg)) == [marked(event)]
     assert unmarked_lines(spool_path(cfg)) == [event]
     assert all(record.levelno == logging.DEBUG for record in caplog.records)
     assert SECRET_MARKER not in caplog.text

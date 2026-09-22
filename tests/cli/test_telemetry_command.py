@@ -24,14 +24,13 @@ from lhp.cli.commands.telemetry_command import telemetry
 from lhp.telemetry import DEFAULT_ENDPOINT
 from lhp.telemetry._client import _reset_for_tests
 from lhp.telemetry._environment import _CI_VENDORS
-from lhp.telemetry._spool import (
-    append_spool,
-    restore_inflight,
-    spool_count,
-    take_inflight,
-)
+from lhp.telemetry._spool import append_spool, spool_count
 from lhp.telemetry._store import StateFile, read_state, write_state
-from tests.helpers.telemetry import ENVELOPE_PREFIX, assert_allowlisted_cli_command
+from tests.helpers.telemetry import (
+    ENVELOPE_PREFIX,
+    assert_allowlisted_cli_command,
+    claim_unanswered,
+)
 
 pytestmark = pytest.mark.unit
 
@@ -110,15 +109,6 @@ def _seed(cfg: Path, *lines: str) -> None:
         assert append_spool(cfg, line)
 
 
-def _claim_unanswered(cfg: Path, *lines: str) -> None:
-    """Leave ``lines`` claimed by a send, as the resend of an unanswered batch."""
-    _seed(cfg, *lines)
-    unanswered = take_inflight(cfg)
-    assert unanswered is not None
-    restore_inflight(cfg, unanswered, unconfirmed=True)
-    assert take_inflight(cfg) is not None
-
-
 def _stored_state(cfg: Path, **overrides: Any) -> None:
     write_state(
         cfg,
@@ -183,7 +173,7 @@ def test_status_counts_a_batch_claimed_by_a_send(
     runner: CliRunner, neutral_env: None, config_dir: Path
 ) -> None:
     """An event is pending until a send settles it, so a claimed batch still counts."""
-    _claim_unanswered(config_dir, _compact(_event("a")), _compact(_event("b")))
+    claim_unanswered(config_dir, _compact(_event("a")), _compact(_event("b")))
     _seed(config_dir, _compact(_event("c")))
 
     result = runner.invoke(telemetry, ["status"])
@@ -294,7 +284,7 @@ def test_show_lists_a_claimed_batch_as_it_was_recorded(
     runner: CliRunner, neutral_env: None, config_dir: Path
 ) -> None:
     """The unconfirmed mark is bookkeeping, never part of the listed envelope."""
-    _claim_unanswered(config_dir, _compact(_event("a")))
+    claim_unanswered(config_dir, _compact(_event("a")))
 
     result = runner.invoke(telemetry, ["show"])
 

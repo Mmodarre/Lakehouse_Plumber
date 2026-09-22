@@ -1,9 +1,11 @@
-"""Helpers for CLI tests that read the ``cli.command`` envelope from stderr.
+"""Shared helpers for tests that observe what telemetry records.
 
 In ``log`` mode the telemetry client prints one compact JSON envelope per
-recorded event to stderr. These helpers find that line, check that its props
-are exactly the allowlisted keys, and gather the names a fixture project
-contains so a test can prove none of them leaked into the line.
+recorded event to stderr. The envelope helpers find that line, check that its
+props are exactly the allowlisted keys, and gather the names a fixture project
+contains so a test can prove none of them leaked into the line. The spool
+helpers build the on-disk state a send leaves behind when it goes unanswered;
+the unconfirmed mark's on-disk spelling is pinned here and nowhere else in tests.
 """
 
 from __future__ import annotations
@@ -15,6 +17,7 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List, Set
 
 from lhp.telemetry import PROJECT_SHAPE_KEYS, CliCommandProps
+from lhp.telemetry._spool import append_spool, restore_inflight, take_inflight
 
 ENVELOPE_PREFIX = '{"schema_version"'
 _NAME_LINE = re.compile(
@@ -75,3 +78,18 @@ def parse_last_cli_command(stderr: str) -> Dict[str, Any]:
     envelope = json.loads(last_cli_command_line(stderr))
     assert_allowlisted_cli_command(envelope)
     return envelope
+
+
+def marked(line: str) -> str:
+    """``line`` as the spool stores it after a send that went unanswered."""
+    return line[:-1] + ',"_unconfirmed":true}'
+
+
+def claim_unanswered(cfg: Path, *lines: str) -> None:
+    """Leave ``lines`` claimed by a send, as the resend of an unanswered batch."""
+    for line in lines:
+        assert append_spool(cfg, line)
+    unanswered = take_inflight(cfg)
+    assert unanswered is not None
+    restore_inflight(cfg, unanswered, unconfirmed=True)
+    assert take_inflight(cfg) is not None

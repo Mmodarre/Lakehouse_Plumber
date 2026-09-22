@@ -5,8 +5,8 @@ request is built, which is what makes the ``urlopen`` call below safe. One
 attempt, a three-second timeout, and every failure is logged at DEBUG without
 the payload and classified: ``drop`` (the Worker refused the batch for good),
 ``retry`` (the batch never reached it, or it answered 429 or 5xx) or
-``unconfirmed`` (the request went out but no answer came back, so the Worker
-may hold the batch and the spool caps its resends). A redirect is a
+``unconfirmed`` (anything else, typically a request sent but unanswered: the
+Worker may hold the batch, so the spool caps its resends). A redirect is a
 ``drop``: ``urllib`` re-issues a redirected POST as a bodiless GET, so its
 2xx is not the Worker's verdict, and a permanent redirect must not re-send
 every batch. The default opener honours ``HTTPS_PROXY`` and ``NO_PROXY`` like
@@ -132,7 +132,7 @@ def send_batch(
     except urllib.error.URLError:  # never fully sent: the Worker has not seen it
         logger.debug("Telemetry upload could not be sent", exc_info=True)
         return SendResult("retry", None, False)
-    except Exception:  # sent but unanswered (timeout, reset, a bug): may have landed
+    except Exception:  # anything else, typically sent but unanswered: may have landed
         logger.debug("Telemetry upload went unanswered", exc_info=True)
         return SendResult("unconfirmed", None, False)
     if answered_by != request.full_url:

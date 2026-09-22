@@ -17,13 +17,9 @@ import pytest
 from lhp import telemetry
 from lhp.telemetry._environment import lhp_version
 from lhp.telemetry._paths import spool_path, state_path
-from lhp.telemetry._spool import (
-    append_spool,
-    read_lines,
-    restore_inflight,
-    take_inflight,
-)
+from lhp.telemetry._spool import append_spool, read_lines
 from lhp.telemetry._store import StateFile, read_state, utc_now_iso, write_state
+from tests.helpers.telemetry import claim_unanswered
 
 TS = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$")
 PROPS = {"command": "generate", "exit_code": 0}
@@ -188,11 +184,7 @@ def test_spool_count_and_spooled_events(cfg: Path, send_env: Dict[str, str]) -> 
 def test_spool_count_and_spooled_events_include_a_claimed_batch(
     cfg: Path, send_env: Dict[str, str]
 ) -> None:
-    append_spool(cfg, '{"n":1}')
-    unanswered = take_inflight(cfg)
-    assert unanswered is not None
-    restore_inflight(cfg, unanswered, unconfirmed=True)
-    assert take_inflight(cfg) is not None
+    claim_unanswered(cfg, '{"n":1}')
     append_spool(cfg, '{"n":2}')
     assert telemetry.spool_count(environ=send_env) == 2
     assert telemetry.spooled_events(10, environ=send_env) == [{"n": 1}, {"n": 2}]

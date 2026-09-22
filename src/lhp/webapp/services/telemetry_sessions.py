@@ -437,8 +437,9 @@ class WebSessionRegistry:
     def _render(self, session: WebSession, reason: str) -> Optional[dict[str, Any]]:
         """Props for an ended session, or ``None`` when it is dropped as empty.
 
-        Duration runs to now for a live session, otherwise to its last activity
-        or last SSE close — the grace and idle waits that follow are not usage.
+        Duration runs to now for a live session, otherwise to the later of its
+        last activity and its last SSE close — the grace and idle waits that
+        follow are not usage.
         """
         ended = self._clock() if session.sse_connections else session.last_activity
         if session.last_sse_close is not None:

@@ -17,9 +17,10 @@ stderr.
 
 Sole-bridge invariant (constitution §9.5): this module renders rich but MUST
 NOT import ``lhp.errors``. The teardown path never inspects the propagating
-exception: ``on_abort`` receives the renderer's outcome, not the error, and
-the exception is re-raised untouched — the error code is read duck-typed
-inside the renderers, and the rich panel is single-sourced in
+exception beyond Python's ``Exception`` / ``BaseException`` split (interrupts
+skip ``on_abort``): ``on_abort`` receives the renderer's outcome, not the
+error, and the exception is re-raised untouched — the error code is read
+duck-typed inside the renderers, and the rich panel is single-sourced in
 ``cli/error_panel.py``.
 """
 
@@ -139,9 +140,10 @@ def render(
     SAME exception so ``error_boundary`` renders the panel on a clean
     stderr. A ``KeyboardInterrupt`` or ``SystemExit`` is torn down and
     re-raised without calling ``on_abort``. Per §9.5 the propagating
-    exception is treated opaquely — never inspected, re-raised untouched,
-    never replaced by a failing ``on_abort`` — and ``lhp.errors`` is never
-    imported here.
+    exception is treated opaquely — never inspected beyond Python's
+    ``Exception`` / ``BaseException`` split, re-raised untouched, never
+    replaced by a failing ``on_abort`` — and ``lhp.errors`` is never imported
+    here.
     """
     if console is None or err_console is None:
         from lhp.cli import console as _console_module
