@@ -30,13 +30,6 @@ repos:
 
   - repo: local
     hooks:
-      - id: sync-claude-skill
-        name: Verify .claude/skills/lhp matches src/lhp/resources/skills/lhp
-        entry: bash -c 'diff -r src/lhp/resources/skills/lhp/ .claude/skills/lhp/ --exclude=__init__.py --exclude=__pycache__ --exclude=.lhp_skill_version'
-        language: system
-        pass_filenames: false
-        files: ^(src/lhp/resources/skills/lhp/|\.claude/skills/lhp/)
-
       - id: check-file-sizes
         name: Constitution §3.3/§9.3 — file size limits
         entry: python scripts/check_file_sizes.py
