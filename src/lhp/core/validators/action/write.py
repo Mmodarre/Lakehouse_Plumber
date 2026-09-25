@@ -9,6 +9,7 @@ from ..compatibility import (
     CdcConfigValidator,
     CdcSchemaValidator,
     DltTableOptionsValidator,
+    ReplaceFlowConfigValidator,
     SnapshotCdcConfigValidator,
 )
 from ._write_sinks import validate_sink
@@ -22,6 +23,7 @@ class WriteActionValidator(BaseActionValidator):
         self.dlt_validator = DltTableOptionsValidator()
         self.cdc_validator = CdcConfigValidator()
         self.snapshot_cdc_validator = SnapshotCdcConfigValidator()
+        self.replace_validator = ReplaceFlowConfigValidator()
         self.cdc_schema_validator = CdcSchemaValidator(project_root)
 
     def validate(self, action: Action, prefix: str) -> List[ValidationError]:
@@ -148,6 +150,25 @@ class WriteActionValidator(BaseActionValidator):
                     f"each with compatible cdc_config, targeting the same "
                     f"catalog.schema.table."
                 )
+            elif (
+                mode == "replace"
+                and isinstance(action.source, list)
+                and len(action.source) > 1
+            ):
+                errors.append(
+                    f"{prefix}: replace mode does not support multiple source views "
+                    f"in a single action. A REPLACE USING target must be served by a "
+                    f"single flow reading one streaming source."
+                )
+
+        # REPLACE USING requires a streaming source (spark.readStream); a batch
+        # read is rejected by the Databricks runtime.
+        if mode == "replace" and action.readMode == "batch":
+            errors.append(
+                f"{prefix}: replace mode requires a streaming source; readMode "
+                f"'batch' is not supported (REPLACE USING reads via "
+                f"spark.readStream)."
+            )
 
         return errors
 
@@ -182,5 +203,7 @@ class WriteActionValidator(BaseActionValidator):
                 "schema"
             ):
                 errors.extend(self.cdc_schema_validator.validate(action, prefix))
+        elif mode == "replace":
+            errors.extend(self.replace_validator.validate(action, prefix))
 
         return errors

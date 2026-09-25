@@ -8,6 +8,7 @@
 # isort: skip_file
 from ._base import BaseActionValidator
 from .compatibility.cdc_fanin import CdcFanInCompatibilityValidator
+from .compatibility.replace_fanin import ReplaceFanInCompatibilityValidator
 from .action.load import LoadActionValidator
 from .action.transform import TransformActionValidator
 from .action.write import WriteActionValidator
@@ -39,6 +40,7 @@ __all__ = [
     "DltTableOptionsValidator",
     "KafkaOptionsValidator",
     "LoadActionValidator",
+    "ReplaceFanInCompatibilityValidator",
     "SecretValidator",
     "SnapshotCdcConfigValidator",
     "TableCreationValidator",

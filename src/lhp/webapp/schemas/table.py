@@ -10,7 +10,7 @@ class TableSummary(BaseModel):
     target_type: str  # "streaming_table" | "materialized_view" | "sink"
     pipeline: str
     flowgroup: str
-    write_mode: str | None = None  # "cdc" | "snapshot_cdc" | None
+    write_mode: str | None = None  # "cdc" | "snapshot_cdc" | "replace" | None
     scd_type: int | None = None  # 1 | 2 | None
     source_file: str  # Relative path to YAML source
 

@@ -5,6 +5,23 @@ All notable changes to Lakehouse Plumber are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **`mode: replace` for streaming-table writes (Databricks REPLACE USING).** A new
+  streaming-table write mode that generates `@dp.replace_flow`: on each update it
+  replaces every target row whose `replace_using` key columns match an incoming batch,
+  keeping the highest `sequence_by` value, and leaves unmatched keys untouched — the
+  declarative form of a keyed partial-snapshot overwrite. Configure it with a
+  `replace_config` block (`replace_using: [...]`, `sequence_by: "..."`); field names
+  match the Databricks API. The target table is always created by the flow
+  (`create_table` is forced `true`), the source must be a streaming read
+  (`readMode: batch` is rejected), and the target must be served by this single flow
+  (it cannot share its table with any other write action). Sits alongside `cdc` and
+  `snapshot_cdc`; a batch-read sibling `mode: replace_where` is planned. See the write
+  action reference and the "Keep a current-state table with a REPLACE USING flow" guide.
+
 ## [0.9.2] — 2026-09-22
 
 ### Added

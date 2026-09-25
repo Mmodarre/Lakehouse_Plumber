@@ -2034,7 +2034,7 @@
     },
     {
       "id": "action.write.streaming_table.write_target.mode",
-      "summary": "Choose append, change-feed CDC or snapshot CDC writes.",
+      "summary": "Choose append, change-feed CDC, snapshot CDC or replace-using writes.",
       "sources": [
         {
           "file": "src/lhp/resources/skills/lhp/references/actions-write-streaming-table-standard.md"
@@ -2044,6 +2044,9 @@
         },
         {
           "file": "src/lhp/resources/skills/lhp/references/actions-write-streaming-table-snapshot-cdc.md"
+        },
+        {
+          "file": "src/lhp/resources/skills/lhp/references/actions-write-streaming-table-replace.md"
         }
       ],
       "bindings": [
@@ -2056,7 +2059,7 @@
         }
       ],
       "details": [
-        "standard appends rows; cdc applies ordered changes using keys and sequence information; snapshot_cdc compares full snapshots. Switching mode changes which configuration block is used."
+        "standard appends rows; cdc applies ordered changes using keys and sequence information; snapshot_cdc compares full snapshots; replace runs a REPLACE USING flow that overwrites rows matching replace_using keys. Switching mode changes which configuration block is used."
       ],
       "unsetBehavior": "When the resolved action omits this field, the default is standard. A preset may supply a value before generation."
     },
@@ -2858,6 +2861,65 @@
         {
           "label": "YAML example",
           "yaml": "track_history_except_column_list: [last_modified_dt]"
+        }
+      ]
+    },
+    {
+      "id": "action.write.streaming_table.write_target.replace_config.replace_using",
+      "summary": "Identify the key columns whose matching rows a batch replaces.",
+      "sources": [
+        {
+          "file": "src/lhp/resources/skills/lhp/references/actions-write-streaming-table-replace.md"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "write_target",
+            "replace_config",
+            "replace_using"
+          ],
+          "subtype": "write:streaming_table"
+        }
+      ],
+      "details": [
+        "Provide a nonempty list of key columns. Every incoming row whose keys match replaces the corresponding target rows; keys absent from a batch are left untouched. Matches the Databricks replace_using= parameter."
+      ],
+      "examples": [
+        {
+          "label": "YAML example",
+          "yaml": "replace_using: [order_id]"
+        }
+      ],
+      "constraints": [
+        "Provide this value for the selected action form. Validate the resolved flowgroup after applying templates, presets and substitutions."
+      ]
+    },
+    {
+      "id": "action.write.streaming_table.write_target.replace_config.sequence_by",
+      "summary": "Order competing versions of a key; the highest value wins.",
+      "sources": [
+        {
+          "file": "src/lhp/resources/skills/lhp/references/actions-write-streaming-table-replace.md"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "write_target",
+            "replace_config",
+            "sequence_by"
+          ],
+          "subtype": "write:streaming_table"
+        }
+      ],
+      "details": [
+        "Choose exactly one ordering column so a late, stale batch never overwrites newer data. Unlike cdc_config.sequence_by, a list is not allowed here."
+      ],
+      "examples": [
+        {
+          "label": "YAML example",
+          "yaml": "sequence_by: updated_at"
         }
       ]
     },
