@@ -50,13 +50,14 @@ class StreamingTableWriteGenerator(BaseActionGenerator):
 
         mode = target_config.get(
             "mode", "standard"
-        )  # Valid modes: "standard" (default), "cdc", "snapshot_cdc"
+        )  # Valid modes: "standard" (default), "cdc", "snapshot_cdc", "replace"
         catalog = target_config.get("catalog")
         schema = target_config.get("schema")
         table = target_config.get("table")
 
-        # Snapshot CDC still requires a dedicated table; other modes honor the flag.
-        if mode == "snapshot_cdc":
+        # snapshot_cdc and replace both require a dedicated table served by a
+        # single flow; other modes honor the flag.
+        if mode in ("snapshot_cdc", "replace"):
             create_table = True
         else:
             create_table = target_config.get("create_table", True)
@@ -101,6 +102,10 @@ class StreamingTableWriteGenerator(BaseActionGenerator):
             target_config.get("snapshot_cdc_config", {})
             if mode == "snapshot_cdc"
             else {}
+        )
+
+        replace_config = (
+            target_config.get("replace_config", {}) if mode == "replace" else {}
         )
 
         # Process source function for snapshot_cdc mode. The function body is
@@ -214,14 +219,23 @@ class StreamingTableWriteGenerator(BaseActionGenerator):
 
             flow_name = flow_names[0] if flow_names else base_flow_name
 
+        # Mode-aware fallback for the flow comment/docstring when the action has
+        # no explicit description (replace emits @dp.replace_flow, not append).
+        if action.description:
+            flow_description = action.description
+        elif mode == "replace":
+            flow_description = f"Replace-using flow to {full_table_name}"
+        else:
+            flow_description = f"Append flow to {full_table_name}"
+
         template_context = {
             "action_name": action.name,
             "table_name": table.replace(".", "_"),
             "full_table_name": full_table_name,
             "source_views": source_views,
             "source_view": (
-                source_views[0] if source_views and mode == "cdc" else None
-            ),  # CDC only supports single source
+                source_views[0] if source_views and mode in ("cdc", "replace") else None
+            ),  # cdc and replace only support a single source
             "flow_name": flow_name,
             "mode": mode,
             "create_table": create_table,
@@ -238,6 +252,7 @@ class StreamingTableWriteGenerator(BaseActionGenerator):
             "table_path": target_config.get("path"),
             "cdc_config": cdc_config,
             "snapshot_cdc_config": snapshot_cdc_config,
+            "replace_config": replace_config,
             "source_expression": source_expression,
             "expect_all": expect_all,
             "expect_all_or_drop": expect_all_or_drop,
@@ -245,7 +260,7 @@ class StreamingTableWriteGenerator(BaseActionGenerator):
             "add_operational_metadata": bool(metadata_columns),
             "metadata_columns": metadata_columns,
             "flowgroup": flowgroup,
-            "description": action.description or f"Append flow to {full_table_name}",
+            "description": flow_description,
             "once": action.once or False,
             "action_metadata": action_metadata,
             "readMode": readMode,

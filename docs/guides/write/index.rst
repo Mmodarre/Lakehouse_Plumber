@@ -24,6 +24,9 @@ depends on how the data changes and what shape you need downstream.
    * - Build a dimension from periodic full **snapshots** instead of a change feed
      - **Snapshot CDC** (``mode: snapshot_cdc``)
      - :doc:`streaming-table-snapshot-cdc`
+   * - Keep a current-state table from **partial snapshots** (replace all rows for each grouping key)
+     - **Replace** (``mode: replace``)
+     - :doc:`streaming-table-replace`
    * - Serve a query result that Databricks keeps fresh (an aggregate, a join)
      - A **materialized view**
      - :doc:`materialized-view`
@@ -46,5 +49,6 @@ depends on how the data changes and what shape you need downstream.
    Streaming table <streaming-table-standard>
    CDC (change feed) <streaming-table-cdc>
    CDC (snapshots) <streaming-table-snapshot-cdc>
+   Replace (replace using) <streaming-table-replace>
    Materialized view <materialized-view>
    External sinks <sinks>

@@ -1,0 +1,34 @@
+# Golden fixture: private streaming table, replace mode (REPLACE USING / @dp.replace_flow).
+# Expected generated form:
+#   dp.create_streaming_table(name=..., private=True, ...)  # create_table forced True
+#   @dp.replace_flow(target=..., replace_using=["customer_id"], sequence_by="last_modified_dt")
+#   def f_private_customer_replace_dim(): return spark.readStream.table(...)
+pipeline: private_datasets
+flowgroup: st_replace_private
+#job_name: j_private
+
+actions:
+  - name: private_replace_load
+    type: load
+    readMode: stream
+    source:
+      type: delta
+      database: "${catalog}.${bronze_schema}"
+      table: customer
+    target: v_private_replace_src
+    description: "Load source rows for the private replace-using streaming table"
+
+  - name: write_private_customer_replace_dim
+    type: write
+    source: v_private_replace_src
+    write_target:
+      type: streaming_table
+      database: "${catalog}.${silver_schema}"
+      table: "private_customer_replace_dim"
+      comment: "Private streaming table (replace mode); not published to metastore"
+      private: true
+      mode: "replace"
+      replace_config:
+        replace_using: ["customer_id"]
+        sequence_by: "last_modified_dt"
+    description: "Write private replace-using streaming table"
