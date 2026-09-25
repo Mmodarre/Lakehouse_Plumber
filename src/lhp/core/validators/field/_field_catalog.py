@@ -78,6 +78,7 @@ WRITE_TARGET_FIELDS = {
         "mode",
         "cdc_config",
         "snapshot_cdc_config",
+        "replace_config",
     },
     "materialized_view": {
         "type",

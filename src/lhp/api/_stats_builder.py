@@ -41,7 +41,7 @@ if TYPE_CHECKING:
 # runtime, and ``tests/api/test_stats_builder.py`` asserts the two sets
 # stay in step with their enums.
 _WRITE_TARGET_TYPES = frozenset({"streaming_table", "materialized_view", "sink"})
-_WRITE_MODES = frozenset({"standard", "cdc", "snapshot_cdc"})
+_WRITE_MODES = frozenset({"standard", "cdc", "snapshot_cdc", "replace"})
 _TEST_TYPES = frozenset(
     {
         "row_count",

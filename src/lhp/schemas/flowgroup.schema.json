@@ -779,9 +779,10 @@
                     "type": "string",
                     "enum": [
                         "cdc",
-                        "snapshot_cdc"
+                        "snapshot_cdc",
+                        "replace"
                     ],
-                    "description": "Table mode for CDC operations"
+                    "description": "Table mode: 'cdc' / 'snapshot_cdc' for change data capture, 'replace' for REPLACE USING flows"
                 },
                 "cdc_config": {
                     "type": "object",
@@ -911,6 +912,23 @@
                                 "type": "string"
                             },
                             "description": "Columns to exclude from history tracking"
+                        }
+                    }
+                },
+                "replace_config": {
+                    "type": "object",
+                    "description": "REPLACE USING configuration (mode: replace)",
+                    "properties": {
+                        "replace_using": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            },
+                            "description": "Key columns identifying the rows to replace"
+                        },
+                        "sequence_by": {
+                            "type": "string",
+                            "description": "Single ordering column; highest value wins"
                         }
                     }
                 }

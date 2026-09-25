@@ -36,6 +36,7 @@ from lhp.core.validators import (
     CdcFanInCompatibilityValidator,
     ConfigValidator,
     LoadActionValidator,
+    ReplaceFanInCompatibilityValidator,
     TableCreationValidator,
     TestActionValidator,
     TransformActionValidator,
@@ -109,6 +110,7 @@ class ValidationService(BaseValidationService):
         # Cross-flowgroup validators — single composition site (§9.24).
         self._table_creation_validator = TableCreationValidator()
         self._fanin_validator = CdcFanInCompatibilityValidator()
+        self._replace_fanin_validator = ReplaceFanInCompatibilityValidator()
 
     def build_duplicate_issue(
         self, flowgroups: Sequence[FlowGroup]
@@ -190,7 +192,11 @@ class ValidationService(BaseValidationService):
         )
 
         table_errors = list(self._table_creation_validator.validate(target_flowgroups))
-        cdc_errors = list(self._fanin_validator.validate(target_flowgroups))
+        # Replace fan-in errors fold into the same LHP-VAL-010 family as CDC
+        # fan-in — both are "this target's flows are incompatible" diagnostics.
+        cdc_errors = list(self._fanin_validator.validate(target_flowgroups)) + list(
+            self._replace_fanin_validator.validate(target_flowgroups)
+        )
 
         return CrossFlowgroupCheckResult(
             table_creation_errors=table_errors,
