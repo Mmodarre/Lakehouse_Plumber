@@ -14,12 +14,12 @@ governed by ``TableCreationValidator`` alone.
 """
 
 import logging
-from collections import defaultdict
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple
 
-from lhp.models import Action, ActionType, FlowGroup
+from lhp.models import Action, FlowGroup
 
 from ._cdc_fanin_messages import mismatch_error, mode_mix_message
+from ._fanin_common import group_write_actions_by_table
 
 logger = logging.getLogger(__name__)
 
@@ -75,14 +75,7 @@ class CdcFanInCompatibilityValidator:
         )
         errors: List[str] = []
 
-        by_table: Dict[str, List[Tuple[FlowGroup, Action]]] = defaultdict(list)
-        for fg in flowgroups:
-            for action in fg.actions:
-                if action.type != ActionType.WRITE or not action.write_target:
-                    continue
-                name = self._full_name(action.write_target)
-                if name:
-                    by_table[name].append((fg, action))
+        by_table = group_write_actions_by_table(flowgroups)
 
         for table_name, contributors in by_table.items():
             cdc_contribs = [(fg, a) for fg, a in contributors if self._is_cdc(a)]
@@ -114,19 +107,6 @@ class CdcFanInCompatibilityValidator:
         if isinstance(wt, dict):
             return wt.get("mode") == "cdc"
         return getattr(wt, "mode", None) == "cdc"
-
-    def _full_name(self, write_target: Union[Dict[str, Any], Any]) -> Optional[str]:
-        if isinstance(write_target, dict):
-            catalog = write_target.get("catalog")
-            schema = write_target.get("schema")
-            table = write_target.get("table") or write_target.get("name")
-        else:
-            catalog = getattr(write_target, "catalog", None)
-            schema = getattr(write_target, "schema", None)
-            table = getattr(write_target, "table", None)
-        if not catalog or not schema or not table:
-            return None
-        return f"{catalog}.{schema}.{table}"
 
     def _get_field_value(self, action: Action, scope: str, field: str) -> Any:
         """Extract a field from either cdc_config or the flat write_target.

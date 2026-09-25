@@ -22,7 +22,7 @@
       ]
     },
     "docs/reference/actions/write.rst": {
-      "sha256": "bf9ccae07031ecfb58547ddbb3f4157a1b24126ae345d95de5c8feffb926bf85",
+      "sha256": "b9fe7cab365c1c33de92199703d14ef816d16562632b1aa5b17c335299741f5b",
       "entryIds": [
         "action.write.streaming_table.once"
       ]
@@ -506,6 +506,14 @@
         "action.write.streaming_table.write_target.tags",
         "action.write.streaming_table.write_target.tags_file",
         "action.write.streaming_table.write_target.temporary"
+      ]
+    },
+    "src/lhp/resources/skills/lhp/references/actions-write-streaming-table-replace.md": {
+      "sha256": "7b3a550af0495dab7afe525a6fce23a48b863ffdafdf657a15064f95cd1f193e",
+      "entryIds": [
+        "action.write.streaming_table.write_target.mode",
+        "action.write.streaming_table.write_target.replace_config.replace_using",
+        "action.write.streaming_table.write_target.replace_config.sequence_by"
       ]
     },
     "src/lhp/resources/skills/lhp/references/actions-write-streaming-table-snapshot-cdc.md": {

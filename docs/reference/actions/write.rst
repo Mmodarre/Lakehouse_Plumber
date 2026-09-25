@@ -364,7 +364,7 @@ Streaming table
    * - ``mode``
      - string
      - ``standard``
-     - One of ``standard``, ``cdc``, ``snapshot_cdc``.
+     - One of ``standard``, ``cdc``, ``snapshot_cdc``, ``replace``.
 
 ``source`` may be a single view or a list of views (multi-source append flow
 into one table).
@@ -391,6 +391,9 @@ Emitted constructs
   plus ``dp.create_auto_cdc_flow(...)``.
 - ``snapshot_cdc``: ``dp.create_streaming_table(...)`` (always) plus
   ``dp.create_auto_cdc_from_snapshot_flow(...)``.
+- ``replace``: ``dp.create_streaming_table(...)`` (always) plus a single
+  ``@dp.replace_flow(target=, name=, replace_using=, sequence_by=, comment=)``
+  decorator.
 
 mode: cdc
 ---------
@@ -521,6 +524,63 @@ the generated pipeline and resolved relative to project root.
          source: "${catalog}.${bronze_schema}.customer_snapshot"
          keys: ["customer_id"]
          stored_as_scd_type: 2
+
+mode: replace
+-------------
+
+``mode: replace`` generates a Databricks REPLACE USING flow
+(``@dp.replace_flow``). For each ``replace_using`` key value present in a batch
+it *replaces* that key's target rows with the batch's rows for that key —
+a replace, **not** a merge. ``replace_using`` is a **grouping key, not a unique
+primary key**: one key may own many rows, and every row the source sends for it
+is kept (appended, never collapsed into one). This is the opposite of
+``mode: cdc``, which merges change events onto a unique key into a single row.
+``sequence_by`` orders competing batches for a key (highest wins). It requires a
+``replace_config`` block, forces ``create_table: true``, and reads its ``source``
+as a **streaming** query (``readMode: batch`` is rejected). A REPLACE USING
+target must be served by this single flow — it cannot share its table with any
+other write action. Fields under ``write_target.replace_config``:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 28 18 10 44
+
+   * - Key
+     - Type
+     - Default
+     - Notes
+   * - ``replace_using``
+     - list[string]
+     - required
+     - Non-empty grouping-key columns whose rows a batch replaces; need not be
+       unique (many rows per key are kept). Emitted as ``replace_using=``.
+   * - ``sequence_by``
+     - string
+     - required
+     - Exactly one ordering column (highest value wins); emitted as
+       ``sequence_by=``. Unlike ``cdc_config``, a list is **not** allowed.
+
+.. code-block:: yaml
+
+   - name: write_orders_current
+     type: write
+     source: v_order_updates
+     write_target:
+       type: streaming_table
+       mode: replace
+       catalog: "${catalog}"
+       schema: "${silver_schema}"
+       table: orders_current
+       replace_config:
+         replace_using: ["order_id"]
+         sequence_by: "updated_at"
+
+.. note::
+
+   A batch-read sibling ``mode: replace_where`` (a ``replace_where_config`` block
+   for Databricks' FLOW REPLACE WHERE) is a planned future extension — mirroring
+   ``cdc`` → ``snapshot_cdc``, split by streaming vs batch source read. It is not
+   yet implemented.
 
 Materialized view
 =================
