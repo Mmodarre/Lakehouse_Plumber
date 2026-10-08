@@ -1,6 +1,6 @@
 // Keep the current page in view inside the long, fully expanded menu.
 document.addEventListener("DOMContentLoaded", () => {
-  const scroller = document.querySelector(".sidebar-scroll");
+  const scroller = document.querySelector(".sidebar-scroll, .sidebar-sticky");
   const current = document.querySelector(".sidebar-tree .current-page > a");
   if (!scroller || !current) return;
 
@@ -9,12 +9,18 @@ document.addEventListener("DOMContentLoaded", () => {
     const viewport = scroller.getBoundingClientRect();
     const item = current.getBoundingClientRect();
     if (item.top < viewport.top || item.bottom > viewport.bottom) {
-      scroller.scrollTop += item.top - viewport.top - Math.min(120, scroller.clientHeight / 3);
+      scroller.scrollTop +=
+        item.top - viewport.top - Math.min(120, scroller.clientHeight / 3);
     }
   };
 
   requestAnimationFrame(revealCurrentPage);
-  document.querySelector("#__navigation")?.addEventListener("change", (event) => {
-    if (event.target.checked) revealCurrentPage();
-  });
+  document
+    .querySelector(".lhp-menu")
+    ?.addEventListener("click", () => requestAnimationFrame(revealCurrentPage));
+  document
+    .querySelector("#__navigation")
+    ?.addEventListener("change", (event) => {
+      if (event.target.checked) revealCurrentPage();
+    });
 });

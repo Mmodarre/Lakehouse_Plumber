@@ -5,4 +5,4 @@ Claude, Codex, Gemini, and GitHub Copilot SVG artwork is sourced from
 
 `genie-code.svg` is the exact, unmodified “Sparkle genie code icon” embedded in the official [Databricks Genie Code navigation documentation](https://docs.databricks.com/aws/en/genie-code/navigate-genie-code). Its native colour treatment is part of that artwork. It is Databricks artwork, separate from the four MIT-licensed SVGs above.
 
-These marks identify the user's choice of coding agent; they do not imply a partnership or an account connection. Exact source and uploaded design URLs are recorded in `.superdesign/agent-assets.json` at the repository root.
+These marks identify the user's choice of coding agent; they do not imply a partnership or an account connection.

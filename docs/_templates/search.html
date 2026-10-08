@@ -1,0 +1,10 @@
+{% extends "!search.html" %}
+{% block content %}
+<h1>Search documentation</h1>
+<form class="lhp-page-search" action="{{ pathto('search') }}" method="get" role="search">
+  <label class="lhp-sr-only" for="lhp-page-query">Search documentation</label>
+  <input id="lhp-page-query" type="search" name="q" placeholder="Search documentation…" autocomplete="off">
+  <button type="submit">Search</button>
+</form>
+{{ super() }}
+{% endblock %}
