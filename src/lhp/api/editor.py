@@ -9,6 +9,7 @@ unsaved inputs are confined to a temporary project mirror.
 
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
 from typing import Any, Iterator, Literal, Mapping, Optional, Tuple
 
@@ -19,6 +20,7 @@ from lhp.api._composition import build_api_service_graph
 from lhp.api._editor_event_paths import visible_editor_event
 from lhp.api._editor_overlay import _checked_overlay_path, mirrored_project
 from lhp.api._editor_projection import editor_catalog_from_facade, project_view
+from lhp.api._editor_sandbox import _stale_sandbox_scope, _with_sandbox_scope
 from lhp.api.editor_views import (
     EditorCatalogView,
     EditorDiagnosticView,
@@ -99,12 +101,15 @@ def inspect_editor_project(
     env: str = "dev",
     overlays: Tuple[EditorDocumentOverlay, ...] = (),
     pipeline_config_path: Optional[str] = None,
+    sandbox: bool = False,
 ) -> EditorProjectView:
     """Discover, resolve and locate a project without writing user files.
 
     Invalid unsaved YAML retains the saved graph and adds a source diagnostic;
     ``stale=True`` tells callers that the displayed graph does not include the
     invalid overlay. Complete overlays are resolved in an isolated mirror.
+    Sandbox metadata is returned even while off; the full graph stays visible.
+    Only exact ``.lhp/profile.yaml`` is an allowed private overlay.
 
     :stability: provisional
     :raises lhp.errors.LHPError: ``LHP-CFG-*``/``LHP-VAL-*`` for an invalid
@@ -114,7 +119,9 @@ def inspect_editor_project(
     root = _safe_project_root(project_root)
     if not overlays:
         facade, graph = _runtime(root, pipeline_config_path)
-        return project_view(root, env, facade, graph)
+        return _with_sandbox_scope(
+            project_view(root, env, facade, graph), facade, root, sandbox
+        )
     from lhp.core.discovery import EditorYamlIndex
 
     syntax_diagnostics: list[EditorDiagnosticView] = []
@@ -128,27 +135,33 @@ def inspect_editor_project(
             syntax_diagnostics.append(_syntax_diagnostic(overlay, exc))
     if syntax_diagnostics:
         facade, graph = _runtime(root, pipeline_config_path)
-        saved = project_view(root, env, facade, graph)
-        return EditorProjectView(
-            project=saved.project,
-            environment=saved.environment,
-            environments=saved.environments,
-            flowgroups=saved.flowgroups,
-            catalog=saved.catalog,
-            dependencies=saved.dependencies,
-            diagnostics=(*saved.diagnostics, *syntax_diagnostics),
-            stale=True,
+        saved = _with_sandbox_scope(
+            project_view(root, env, facade, graph), facade, root, sandbox
+        )
+        return _stale_sandbox_scope(
+            replace(
+                saved, diagnostics=(*saved.diagnostics, *syntax_diagnostics), stale=True
+            ),
+            profile_exists=(root / ".lhp/profile.yaml").exists()
+            or any(item.path == ".lhp/profile.yaml" for item in overlays),
         )
     try:
         with mirrored_project(root, overlays) as mirror:
             facade, graph = _runtime(mirror, pipeline_config_path)
-            return project_view(mirror, env, facade, graph, visible_root=root)
+            return _with_sandbox_scope(
+                project_view(mirror, env, facade, graph, visible_root=root),
+                facade,
+                mirror,
+                sandbox,
+            )
     except (yaml.YAMLError, LHPError, ValidationError) as exc:
         # Preserve partial authoring context on a malformed draft. The saved
         # project can itself be invalid, in which case its original exception
         # propagates rather than returning an invented empty graph.
         facade, graph = _runtime(root, pipeline_config_path)
-        saved = project_view(root, env, facade, graph)
+        saved = _with_sandbox_scope(
+            project_view(root, env, facade, graph), facade, root, sandbox
+        )
         # A domain failure may come from any included project document.
         # Without a reliable path in its context, keep it project-level.
         source = None
@@ -166,15 +179,10 @@ def inspect_editor_project(
             source=source,
             code=getattr(exc, "code", None),
         )
-        return EditorProjectView(
-            project=saved.project,
-            environment=saved.environment,
-            environments=saved.environments,
-            flowgroups=saved.flowgroups,
-            catalog=saved.catalog,
-            dependencies=saved.dependencies,
-            diagnostics=(*saved.diagnostics, diagnostic),
-            stale=True,
+        return _stale_sandbox_scope(
+            replace(saved, diagnostics=(*saved.diagnostics, diagnostic), stale=True),
+            profile_exists=(root / ".lhp/profile.yaml").exists()
+            or any(item.path == ".lhp/profile.yaml" for item in overlays),
         )
 
 
@@ -244,6 +252,7 @@ def validate_editor_project(
     overlays: Tuple[EditorDocumentOverlay, ...] = (),
     pipeline_config_path: Optional[str] = None,
     include_tests: bool = True,
+    sandbox: bool = False,
 ) -> Iterator[LHPEvent]:
     """Run canonical validation over saved files or isolated unsaved drafts.
 
@@ -252,7 +261,8 @@ def validate_editor_project(
 
     :stability: provisional
     :raises ValueError: unsafe or oversized overlay paths/content.
-    :raises lhp.errors.LHPError: ``LHP-CFG-*`` project-load failures.
+    :raises lhp.errors.LHPError: ``LHP-CFG-*`` project/profile failures,
+        ``LHP-IO-025`` for missing sandbox profile, ``LHP-VAL-064`` for bad scope.
     """
     yield OperationStarted(operation_name="validate_editor_project", env=env)
     error_emitted = False
@@ -265,6 +275,7 @@ def validate_editor_project(
                 env=env,
                 include_tests=include_tests,
                 bundle_enabled=False,
+                sandbox=sandbox,
             )
 
         with mirrored_project(root, overlays) as mirror:
@@ -285,17 +296,21 @@ def preview_editor_project(
     env: str,
     overlays: Tuple[EditorDocumentOverlay, ...] = (),
     pipeline_config_path: Optional[str] = None,
+    include_tests: bool = False,
+    sandbox: bool = False,
 ) -> Iterator[LHPEvent]:
     """Render source-mode generated text from a saved or unsaved project.
 
     This is the canonical generation plan in a temporary project mirror. It
-    excludes bundle resources, monitoring finalisation, sandbox rewrites and
-    wheel artifacts. No claim of full generation parity is made.
+    includes canonical sandbox rewrites when requested, including copied Python
+    modules and runtime shims. Bundle resources, monitoring finalisation and wheel
+    artifacts are outside this source-only preview.
 
     :stability: provisional
     :raises ValueError: wheel projects or unsafe/oversized overlays.
     :raises lhp.errors.LHPError: ``LHP-VAL-*``/``LHP-CFG-*`` on generation
-        preflight or action failures, after the event stream reports the error.
+        preflight or action failures, or ``LHP-IO-025`` for missing sandbox
+        profile, after the event stream reports the error.
     """
     yield OperationStarted(operation_name="preview_editor_project", env=env)
     error_emitted = False
@@ -308,6 +323,10 @@ def preview_editor_project(
             pipeline_names = sorted(
                 {item.pipeline for item in facade.inspection.list_flowgroups()}
             )
+            if sandbox:
+                pipeline_names = list(
+                    facade.sandbox.describe_scope(env=env).resolved_pipelines
+                )
             modes = PipelineConfigLoader(
                 mirror, pipeline_config_path
             ).resolve_packaging_modes(pipeline_names)
@@ -315,7 +334,9 @@ def preview_editor_project(
                 raise ValueError(
                     "Wheel projects are not supported by text-only editor preview"
                 )
-            for event in facade.generation.plan_generation(env=env):
+            for event in facade.generation.plan_generation(
+                env=env, include_tests=include_tests, sandbox=sandbox
+            ):
                 if isinstance(event, OperationStarted):
                     continue
                 error_emitted |= isinstance(event, ErrorEmitted)

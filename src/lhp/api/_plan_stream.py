@@ -36,6 +36,7 @@ from typing import (
 
 from lhp.api._converters_common import (
     _derive_worklist_fields,
+    _emit_warning_records,
     _issue_view_to_lhp_error,
 )
 from lhp.api._generation_converters import (
@@ -101,6 +102,7 @@ def _stream_plan_generation(
     pipeline_filter: Optional[str] = None,
     pipeline_fields: Sequence[str] = (),
     include_tests: bool = False,
+    sandbox: bool = False,
     progress: ProgressSink | None = None,
 ) -> Iterator[LHPEvent]:
     """Yield the full §5.7 progress stream for plan-only generation.
@@ -146,10 +148,28 @@ def _stream_plan_generation(
     # ``build_generation_plan`` so discovery runs exactly once (memoized).
     discover_start = time.perf_counter()
     yield PhaseStarted(phase="discover")
-    resolved_flowgroups = orchestrator.bootstrap.discover_all_flowgroups()
-    effective_pipeline_fields = _derive_worklist_fields(
-        pipeline_filter, pipeline_fields, resolved_flowgroups
-    )
+    sandbox_plan = None
+    try:
+        resolved_flowgroups = orchestrator.bootstrap.discover_all_flowgroups()
+        if sandbox:
+            from lhp.api._sandbox_run import _resolve_sandbox_run
+
+            run = _resolve_sandbox_run(orchestrator, env, resolved_flowgroups)
+            pipeline_fields = run.pipelines
+            sandbox_plan = orchestrator.build_sandbox_rewrite_plan(
+                env, run, list(resolved_flowgroups)
+            )
+        effective_pipeline_fields = _derive_worklist_fields(
+            pipeline_filter, pipeline_fields, resolved_flowgroups
+        )
+    except LHPError as exc:
+        yield PhaseCompleted(
+            phase="discover",
+            duration_s=time.perf_counter() - discover_start,
+            success=False,
+        )
+        yield ErrorEmitted(lhp_error=exc)
+        raise
     yield PhaseCompleted(
         phase="discover",
         duration_s=time.perf_counter() - discover_start,
@@ -166,7 +186,7 @@ def _stream_plan_generation(
         env=env,
         bundle_enabled=False,
         include_tests=include_tests,
-        pre_discovered_all_flowgroups=None,
+        pre_discovered_all_flowgroups=resolved_flowgroups,
     )
     if preflight_issues:
         yield PhaseCompleted(
@@ -205,6 +225,7 @@ def _stream_plan_generation(
                     list(effective_pipeline_fields) if pipeline_filter is None else None
                 ),
                 include_tests=include_tests,
+                sandbox_plan=sandbox_plan,
                 pre_discovered_all_flowgroups=resolved_flowgroups,
                 on_pipeline_complete=collected_deltas.append,
                 on_total=None if progress is None else progress.on_total,
@@ -214,10 +235,15 @@ def _stream_plan_generation(
         # §1.4 rendezvous: the gate raised after forwarding every failure delta
         # to the sink. Emit the paired per-pipeline events, then exactly one
         # ErrorEmitted, then re-raise (bare ``raise`` keeps the cause chain,
-        # B904). No PhaseCompleted/terminal follows (the raise closes the
-        # stream). Unlike the real generate there is NO non-LHP commit-time
+        # B904). Close the failed phase; no terminal success follows.
+        # Unlike the real generate there is NO non-LHP commit-time
         # degradation path: a plan never writes to ``generated/<env>``.
         yield from _emit_pipeline_events(collected_deltas)
+        yield PhaseCompleted(
+            phase="generate",
+            duration_s=time.perf_counter() - generate_start,
+            success=False,
+        )
         yield ErrorEmitted(lhp_error=exc)
         raise
 
@@ -226,6 +252,12 @@ def _stream_plan_generation(
         phase="generate",
         duration_s=time.perf_counter() - generate_start,
         success=True,
+    )
+    yield from _emit_warning_records(
+        (*sandbox_plan.warnings, *result.warnings)
+        if sandbox_plan is not None
+        else result.warnings,
+        seen=set(),
     )
     # Report where files would land even though only a discarded temp tree was written.
     output_location = orchestrator.project_root / "generated" / env

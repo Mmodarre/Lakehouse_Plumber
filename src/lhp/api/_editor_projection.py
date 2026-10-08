@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Any, Dict, Literal, Mapping, Optional, Tuple, 
 import yaml
 
 from lhp.api._editor_generated import generated_flowgroup_view
+from lhp.api._editor_template_references import _template_file_references
 from lhp.api._inspection_converters import _build_substitution_manager_for_env
 from lhp.api.editor_views import (
     EditorActionView,
@@ -149,6 +150,7 @@ def editor_catalog_from_facade(
             )
         except (OSError, ValueError, yaml.YAMLError):
             parameters[blueprint.name] = []
+    templates = facade.inspection.list_templates()
     output_root = visible_root or root
 
     def visible(path: Path) -> Path:
@@ -167,8 +169,7 @@ def editor_catalog_from_facade(
             )
         ),
         templates=tuple(
-            replace(item, file_path=visible(item.file_path))
-            for item in facade.inspection.list_templates()
+            replace(item, file_path=visible(item.file_path)) for item in templates
         ),
         presets=tuple(
             replace(item, file_path=visible(item.file_path))
@@ -189,6 +190,7 @@ def editor_catalog_from_facade(
             for item in blueprints
         ),
         blueprint_parameters=parameters,
+        template_related_files=_template_file_references(root, templates),
     )
 
 
