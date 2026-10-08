@@ -7,7 +7,7 @@ import math
 from dataclasses import replace
 from importlib.resources import files
 from pathlib import Path
-from typing import Any, Dict, Literal, Mapping, Optional, Tuple, cast
+from typing import TYPE_CHECKING, Any, Dict, Literal, Mapping, Optional, Tuple, cast
 
 import yaml
 
@@ -24,9 +24,11 @@ from lhp.api.editor_views import (
 )
 from lhp.api.facade import LakehousePlumberApplicationFacade
 from lhp.api.responses import JSONValue
-from lhp.core.discovery import EditorYamlIndex, RawSourceEntry, action_file_references
 from lhp.errors import LHPError
 from lhp.models import Action
+
+if TYPE_CHECKING:
+    from lhp.core.discovery import EditorYamlIndex, RawSourceEntry
 
 
 def _json_value(value: Any) -> JSONValue:
@@ -92,6 +94,8 @@ def _index_for(
     cache: Dict[str, Optional[EditorYamlIndex]],
     diagnostics: list[EditorDiagnosticView],
 ) -> Optional[EditorYamlIndex]:
+    from lhp.core.discovery import EditorYamlIndex
+
     if path is None:
         return None
     if path not in cache:
@@ -120,6 +124,8 @@ def editor_catalog_from_facade(
 
     :stability: provisional
     """
+    from lhp.core.discovery import EditorYamlIndex
+
     schemas: Dict[str, JSONValue] = {}
     for resource in files("lhp.schemas").iterdir():
         if resource.name.endswith(".schema.json"):
@@ -198,6 +204,8 @@ def project_view(
 
     :stability: provisional
     """
+    from lhp.core.discovery import action_file_references
+
     config = facade.inspection.get_project_config()
     catalog = editor_catalog_from_facade(root, facade, visible_root=visible_root)
     diagnostics: list[EditorDiagnosticView] = []
