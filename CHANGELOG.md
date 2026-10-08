@@ -22,6 +22,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `snapshot_cdc`; a batch-read sibling `mode: replace_where` is planned. See the write
   action reference and the "Keep a current-state table with a REPLACE USING flow" guide.
 
+### Fixed
+
+- **`cluster_columns` and `cluster_by_auto` can now be set together** on streaming-table
+  (every mode) and materialized-view write targets (#282). Validation no longer rejects
+  the combination as mutually exclusive; the generated table definition carries both
+  `cluster_by=[...]` and `cluster_by_auto=True`. Databricks uses the columns as the
+  initial clustering keys and may later change them based on the workload. The web
+  IDE's "Set only one of cluster columns / auto clustering" hint is gone too.
+
 ## [0.9.2] — 2026-09-22
 
 ### Added

@@ -23,7 +23,7 @@
 | `row_filter` | string | — | — |
 | `partition_columns` | list | — | — |
 | `cluster_columns` | list | — | — |
-| `cluster_by_auto` | bool | — | Auto liquid clustering; renders `cluster_by_auto=True`. Mutually exclusive with `cluster_columns`. Omitted when false/unset. |
+| `cluster_by_auto` | bool | — | Auto liquid clustering; renders `cluster_by_auto=True`. Can be combined with `cluster_columns` (both kwargs emitted): the columns become the initial clustering keys and Databricks may later change them based on the workload. Omitted when false/unset. |
 | `path` | string | — | — |
 
 ## Minimal YAML

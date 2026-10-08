@@ -3159,7 +3159,7 @@
         }
       ],
       "details": [
-        "Provide explicit clustering columns or enable cluster_by_auto; these options are mutually exclusive."
+        "Provide explicit clustering columns. Combined with cluster_by_auto, they become the initial clustering keys, which Databricks may later change based on the workload."
       ],
       "examples": [
         {
@@ -3192,7 +3192,7 @@
         }
       ],
       "details": [
-        "Do not also set cluster_columns. False or omission does not emit automatic clustering."
+        "Can be combined with cluster_columns, which become the initial clustering keys; Databricks may later change them based on the workload. False or omission does not emit automatic clustering."
       ],
       "unsetBehavior": "When the resolved action omits this field, the default is false. A preset may supply a value before generation."
     },
@@ -3703,7 +3703,7 @@
         }
       ],
       "details": [
-        "Provide explicit clustering columns or enable cluster_by_auto; these options are mutually exclusive."
+        "Provide explicit clustering columns. Combined with cluster_by_auto, they become the initial clustering keys, which Databricks may later change based on the workload."
       ],
       "examples": [
         {
@@ -3730,7 +3730,7 @@
         }
       ],
       "details": [
-        "Do not also set cluster_columns. False or omission does not emit automatic clustering."
+        "Can be combined with cluster_columns, which become the initial clustering keys; Databricks may later change them based on the workload. False or omission does not emit automatic clustering."
       ],
       "unsetBehavior": "When the resolved action omits this field, the default is false. A preset may supply a value before generation."
     },

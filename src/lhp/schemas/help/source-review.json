@@ -22,7 +22,7 @@
       ]
     },
     "docs/reference/actions/write.rst": {
-      "sha256": "b9fe7cab365c1c33de92199703d14ef816d16562632b1aa5b17c335299741f5b",
+      "sha256": "e93133dcf3c10e8974a476b6635e88bec3dd3f88beff118d241b2e2bfa6ab5c7",
       "entryIds": [
         "action.write.streaming_table.once"
       ]
@@ -375,7 +375,7 @@
       ]
     },
     "src/lhp/resources/skills/lhp/references/actions-write-materialized-view.md": {
-      "sha256": "536f5272374ac6688402eecfe82772dff14a9c70e3d242a5a5fe524a58f73503",
+      "sha256": "1fb3187251f670b1763cfe063dda46d18103dff7e4c697d6f80e09298f56f794",
       "entryIds": [
         "action.write.materialized_view.overview",
         "action.write.materialized_view.source",
@@ -561,7 +561,7 @@
       ]
     },
     "src/lhp/resources/skills/lhp/references/actions-write-streaming-table-standard.md": {
-      "sha256": "9d5c8512a1572d9b16de9346682c323e0172cc7413556c6abaea47d073696a7e",
+      "sha256": "ae32a2694edf693959243ff026b878acf5bf92741eb7664d92ba7442f69118f3",
       "entryIds": [
         "action.write.streaming_table.once",
         "action.write.streaming_table.overview",

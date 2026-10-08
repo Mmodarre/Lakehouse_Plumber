@@ -80,11 +80,11 @@ These ``write_target`` fields apply to ``streaming_table`` and
    * - ``cluster_columns``
      - list
      - —
-     - Liquid clustering; mutually exclusive with ``cluster_by_auto``.
+     - Liquid clustering; emitted as ``cluster_by=``. With ``cluster_by_auto``, these become the initial clustering keys.
    * - ``cluster_by_auto``
      - bool
      - —
-     - Auto liquid clustering; mutually exclusive with ``cluster_columns``.
+     - Auto liquid clustering. Can be combined with ``cluster_columns``, which become the initial clustering keys; Databricks may later change the keys based on the workload.
    * - ``spark_conf``
      - dict
      - —

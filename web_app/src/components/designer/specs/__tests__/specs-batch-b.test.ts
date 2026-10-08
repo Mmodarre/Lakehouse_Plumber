@@ -354,12 +354,13 @@ describe('batch B specs — cross-field rules', () => {
     expect(two.get(pathKey(QS))).toMatch(/only one query source/i)
   })
 
-  it('mv: cluster_columns XOR cluster_by_auto', () => {
+  it('mv: cluster_columns + cluster_by_auto may be combined (issue #282)', () => {
     const both = computeIssues(writeMaterializedViewSpec, {
       source: 'v',
       write_target: { catalog: 'c', schema: 's', table: 't', cluster_columns: ['a'], cluster_by_auto: true },
     })
-    expect(both.get(pathKey(['write_target', 'cluster_columns']))).toMatch(/only one/i)
+    expect(both.has(pathKey(['write_target', 'cluster_columns']))).toBe(false)
+    expect(both.has(pathKey(['write_target', 'cluster_by_auto']))).toBe(false)
   })
 
   it('sink/delta: options must set exactly one of tableName / path', () => {

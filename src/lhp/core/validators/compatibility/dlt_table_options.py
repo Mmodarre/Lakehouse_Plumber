@@ -149,11 +149,6 @@ class DltTableOptionsValidator:
             if not isinstance(cluster_by_auto, bool):
                 errors.append(f"{prefix}: 'cluster_by_auto' must be a boolean")
 
-        if cluster_columns and cluster_by_auto is True:
-            errors.append(
-                f"{prefix}: 'cluster_columns' and 'cluster_by_auto' are mutually exclusive"
-            )
-
         return errors
 
     def _validate_refresh_options(self, action: Action, prefix: str) -> List[str]:

@@ -31,8 +31,8 @@
 //   write_target.refresh_schedule        generators/write/materialized_view.py:83,135
 //   write_target.refresh_policy          generators/write/materialized_view.py:136; dlt_table_options.py:153-158 (auto|incremental|incremental_strict|full; no default)
 //   write_target.partition_columns       generators/write/materialized_view.py:130; dlt_table_options.py:116
-//   write_target.cluster_columns         generators/write/materialized_view.py:131; dlt_table_options.py:127 (XOR cluster_by_auto)
-//   write_target.cluster_by_auto         generators/write/materialized_view.py:132; dlt_table_options.py:138,143-145
+//   write_target.cluster_columns         generators/write/materialized_view.py:131; dlt_table_options.py:127 (combinable with cluster_by_auto)
+//   write_target.cluster_by_auto         generators/write/materialized_view.py:132; dlt_table_options.py:147-150
 //   write_target.path                    generators/write/materialized_view.py:133
 //   write_target.table_properties        generators/write/materialized_view.py:58; dlt_table_options.py:42
 //   write_target.tags                    validators/compatibility/dlt_table_options.py:79; references/actions-write-materialized-view.md:11
@@ -208,14 +208,6 @@ export const writeMaterializedViewSpec: ActionSubTypeSpec = {
       kind: 'mutuallyExclusive',
       paths: [['source'], [...WT, 'sql'], [...WT, 'sql_path']],
       message: 'Set only one query source (source / inline SQL / SQL file).',
-    },
-    {
-      kind: 'mutuallyExclusive',
-      paths: [
-        [...WT, 'cluster_columns'],
-        [...WT, 'cluster_by_auto'],
-      ],
-      message: 'Set only one of cluster columns / auto clustering.',
     },
     {
       kind: 'mutuallyExclusive',

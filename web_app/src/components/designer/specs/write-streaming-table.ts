@@ -33,7 +33,7 @@
 //   write_target.table_schema            streaming_table.py:79-98 (inline DDL OR file path; is_file_path → .yaml/.yml/.json/.sql)
 //   write_target.row_filter              streaming_table.py:100; models/_action.py:34
 //   write_target.partition_columns       streaming_table.py:244; models/_action.py:29
-//   write_target.cluster_columns         streaming_table.py:245 (XOR cluster_by_auto)
+//   write_target.cluster_columns         streaming_table.py:245 (combinable with cluster_by_auto)
 //   write_target.cluster_by_auto         streaming_table.py:246; models/_action.py:31
 //   write_target.path                    streaming_table.py:248; models/_action.py:36
 //   write_target.table_properties        streaming_table.py:76-77; models/_action.py:27
@@ -425,14 +425,6 @@ export const writeStreamingTableSpec: ActionSubTypeSpec = {
     },
   ],
   rules: [
-    {
-      kind: 'mutuallyExclusive',
-      paths: [
-        ['write_target', 'cluster_columns'],
-        ['write_target', 'cluster_by_auto'],
-      ],
-      message: 'Set only one of cluster columns / auto clustering.',
-    },
     {
       kind: 'custom',
       paths: [['write_target', 'create_table']],
