@@ -137,3 +137,8 @@ What's next
   data-quality guide.
 - For inline schemas (``schema_inline``), the ``permissive`` mode, the full arrow
   syntax, and ``readMode``, see the **Transform action reference**.
+
+Syntax and options
+------------------
+
+See :doc:`/reference/actions/transform/schema` for all supported settings and defaults.

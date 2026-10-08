@@ -44,7 +44,6 @@ You'll work through:
 7. **Where to next** — start your own project, and find the features the sample
    didn't cover.
 
-Every YAML file, command output, and generated Python snippet on these pages is
-**fixture-backed**: it comes from the real sample project and is regenerated on
-every docs build, so nothing here can drift from what Lakehouse Plumber actually
-emits.
+The examples use checked-in sample-project fixtures. A documentation build
+renders those files; it does not regenerate every fixture. Command timings
+are illustrative and will vary between runs.

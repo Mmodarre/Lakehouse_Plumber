@@ -2,34 +2,22 @@
 Parameterize a template for many tables
 ========================================
 
+.. raw:: html
+
+   <span id="before-you-start"></span>
+
+
 .. meta::
    :description: Go past a one-parameter template — declare multiple Lakehouse Plumber template parameters with defaults, override a different one per table, and layer a flowgroup preset over the template's own preset.
 
-The Get Started templates step stamped bronze tables from a template with a
-single parameter — the entity name. Real tables rarely differ by name alone.
-One lands as CSV and the next as JSON; one is high-volume and wants a bigger
-Auto Loader trigger batch; one wants Liquid clustering and the next does not.
+A template shares an action sequence across flowgroups. It declares parameters
+under ``parameters`` and uses ``{{ parameter }}`` placeholders in its actions.
+A flowgroup names it with ``use_template`` and supplies ``template_parameters``.
 
-You could copy the template's whole load-and-write shape into a fresh flowgroup
-for each table and hand-edit the format, the reader options, the clustering. Or
-you declare those differences as **parameters** once, give the common cases
-**defaults**, and let each table override only what it needs. That is the reuse
-thesis stacked on the base one: declare your ETL, don't hand-write it — and
-describe a shape once instead of copying it per table.
-
-Let's take one bronze-ingest template and stamp two tables from it — ``orders``
-as clustered CSV, ``customers`` as plain JSON — where each flowgroup overrides a
-*different* parameter and one layers on an extra preset.
-
-Before you start
-================
-
-This guide assumes you have met templates in the Get Started course — a
-``templates/`` file with ``{{ parameter }}`` holes and a flowgroup that names it
-with ``use_template:``. Here you go deeper: several parameters, defaults,
-per-table overrides, and preset composition. You need a project with
-``templates/`` and ``presets/`` directories; the Get Started project already has
-both.
+This guide builds a bronze-ingest template for two tables: orders as clustered
+CSV and customers as JSON. Start with a working :doc:`pipeline </build/first-pipeline>`
+and read :doc:`presets` if you want to share reader and table settings.
+Create ``templates/`` and ``presets/`` directories if they do not exist.
 
 Declare the parameters
 ======================

@@ -284,18 +284,17 @@ defaults:
 - `write_actions.{target_type}` -> matches `write_target.type == {target_type}`
 - No conditional logic; use separate presets for different scenarios
 
-### Merge Behavior
+### Merge behaviour and precedence
 
-- **Nested dicts**: Deep merged (preset + explicit combined)
-- **Lists**: Replaced entirely (explicit wins)
-- **Scalars**: Explicit wins on conflict
-
-### Precedence (highest to lowest)
-
-1. Flowgroup explicit config
-2. Flowgroup preset
-3. Template explicit config
-4. Template preset
+- Resolved presets override conflicting load `source` and write `write_target`
+  values. Dictionaries deep-merge; lists and scalars are replaced by preset values.
+- Parent presets resolve before children. Template presets apply before flowgroup
+  presets; later presets within each list win.
+- Example: an explicit `source.options.cloudFiles.maxFilesPerTrigger: 50` becomes
+  `200` when the applied preset sets that option to `200`.
+- Transform and flowgroup defaults use an absent-key check after model dumping.
+  Supported fields are already present, so these defaults do not fill omitted
+  model fields. Set those fields explicitly.
 
 ### Usage
 

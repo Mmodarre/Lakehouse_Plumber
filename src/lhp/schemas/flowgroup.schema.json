@@ -27,21 +27,8 @@
                     "description": "Name of the flowgroup"
                 },
                 "job_name": {
-                    "oneOf": [
-                        {
-                            "type": "string",
-                            "description": "Single job name for grouping flowgroups"
-                        },
-                        {
-                            "type": "array",
-                            "items": {
-                                "type": "string"
-                            },
-                            "minItems": 1,
-                            "description": "Multiple job names (for use in job_config.yaml, not flowgroup YAMLs)"
-                        }
-                    ],
-                    "description": "Optional job name(s) for grouping flowgroups into separate orchestration jobs"
+                    "type": "string",
+                    "description": "Orchestration job grouping for this flowgroup. Lists belong only in job configuration override documents."
                 },
                 "presets": {
                     "$ref": "#/definitions/Presets"
@@ -57,6 +44,13 @@
                 },
                 "operational_metadata": {
                     "$ref": "#/definitions/OperationalMetadata"
+                },
+                "variables": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    },
+                    "description": "Local variables referenced with %{name}."
                 }
             }
         },
@@ -310,8 +304,24 @@
                                     "additionalProperties": true
                                 },
                                 "schema": {
-                                    "type": "string",
-                                    "description": "For Delta loads, the Unity Catalog schema name. For Auto Loader, a schema-file path (not inline DDL); use source.options.cloudFiles.schemaHints for DDL hints. Schema transforms use action-level schema_inline or schema_file."
+                                    "oneOf": [
+                                        {
+                                            "type": "string"
+                                        },
+                                        {
+                                            "type": "object",
+                                            "required": [
+                                                "file"
+                                            ],
+                                            "properties": {
+                                                "file": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "additionalProperties": false
+                                        }
+                                    ],
+                                    "description": "Delta namespace schema name, or an Auto Loader schema-file path / {file: path} mapping."
                                 },
                                 "schema_file": {
                                     "type": "string",
@@ -351,8 +361,11 @@
                                     "description": "Column for rescued data"
                                 },
                                 "where_clause": {
-                                    "type": "string",
-                                    "description": "WHERE clause for filtering"
+                                    "type": "array",
+                                    "items": {
+                                        "type": "string"
+                                    },
+                                    "description": "Delta load filter expressions, applied in list order."
                                 },
                                 "select_columns": {
                                     "type": "array",
@@ -607,6 +620,29 @@
                             }
                         }
                     }
+                },
+                "test_type": {
+                    "type": "string",
+                    "enum": [
+                        "row_count",
+                        "uniqueness",
+                        "referential_integrity",
+                        "completeness",
+                        "range",
+                        "schema_match",
+                        "all_lookups_found",
+                        "custom_sql",
+                        "custom_expectations"
+                    ],
+                    "description": "Assertion type when type is test."
+                },
+                "test_id": {
+                    "type": "string",
+                    "description": "External test identifier used by the project test-reporting provider."
+                },
+                "custom_datasource_class": {
+                    "type": "string",
+                    "description": "Model compatibility field. Configure source.custom_datasource_class for a custom DataSource load."
                 }
             }
         },
@@ -778,11 +814,12 @@
                 "mode": {
                     "type": "string",
                     "enum": [
+                        "standard",
                         "cdc",
                         "snapshot_cdc",
                         "replace"
                     ],
-                    "description": "Table mode: 'cdc' / 'snapshot_cdc' for change data capture, 'replace' for REPLACE USING flows"
+                    "description": "Streaming-table mode: 'standard' append (default), 'cdc', 'snapshot_cdc', or 'replace' for REPLACE USING flows"
                 },
                 "cdc_config": {
                     "type": "object",
@@ -796,8 +833,19 @@
                             "description": "Primary key columns for CDC"
                         },
                         "sequence_by": {
-                            "type": "string",
-                            "description": "Column to sequence changes by"
+                            "description": "Ordering column or non-empty list of ordering columns",
+                            "oneOf": [
+                                {
+                                    "type": "string"
+                                },
+                                {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "string"
+                                    },
+                                    "minItems": 1
+                                }
+                            ]
                         },
                         "ignore_null_updates": {
                             "type": "boolean",
@@ -817,14 +865,6 @@
                                 "type": "string"
                             },
                             "description": "Columns to exclude from change detection"
-                        },
-                        "stored_as_scd_type": {
-                            "type": "string",
-                            "enum": [
-                                "1",
-                                "2"
-                            ],
-                            "description": "SCD type for storage"
                         },
                         "track_history_column_list": {
                             "type": "array",
@@ -892,12 +932,13 @@
                             "description": "Primary key columns"
                         },
                         "stored_as_scd_type": {
-                            "type": "string",
+                            "type": "integer",
                             "enum": [
-                                "1",
-                                "2"
+                                1,
+                                2
                             ],
-                            "description": "SCD type for storage"
+                            "description": "SCD type for storage",
+                            "default": 1
                         },
                         "track_history_column_list": {
                             "type": "array",

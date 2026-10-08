@@ -2,13 +2,13 @@
 
 `type: load` with `source.type: sql`. Materializes a SQL query into a temporary view. Handler: `SQLLoadGenerator`.
 
-`source:` may be an inline SQL string, or a dict carrying `sql` or `sql_path`.
+`source:` must be a mapping with `type: sql` and exactly one of `sql` or `sql_path`. The public validation path rejects a scalar SQL source.
 
 ## Options (under `source:`)
 
 | Key | Type | Default | Accepted / constraints |
 |-----|------|---------|------------------------|
-| `source` | string / dict | — | Inline SQL string, or a dict with `sql` or `sql_path`. |
+| `type` | string | required | Must be `sql`. |
 | `sql` | string | — | Inline SQL query (one of `sql` / `sql_path`). |
 | `sql_path` | string | — | External SQL file (one of `sql` / `sql_path`). |
 

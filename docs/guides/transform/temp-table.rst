@@ -139,3 +139,8 @@ What's next
   transform guide covers the default case and the ``stream(...)`` rule in full.
 - For every ``temp_table`` field — ``sql``, ``readMode``, and the passthrough
   form — see the **Transform action reference**.
+
+Syntax and options
+------------------
+
+See :doc:`/reference/actions/transform/temp_table` for all supported settings and defaults.

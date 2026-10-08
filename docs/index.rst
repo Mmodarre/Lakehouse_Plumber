@@ -66,8 +66,8 @@ Plumber generates from it, and the two commands that turn one into the other.
 
 The payoff compounds. Adding a data-quality check, a second table, or a CDC
 merge is a few more lines of YAML — not another fifty lines of Python each time.
-The :doc:`Get Started course <get-started/index>` grows this one example into a
-reusable, deployable project, one primitive at a time.
+The :doc:`Get Started course <get-started/index>` walks through a complete
+sample project. Then :doc:`build/first-pipeline` helps you author your own.
 
 The model
 =========
@@ -87,33 +87,35 @@ Where to next
 .. grid:: 1 1 2 2
    :gutter: 3
 
-   .. grid-item-card:: Get Started →
+   .. grid-item-card:: Get Started
       :link: get-started/index
       :link-type: doc
 
-      Run the sample project end to end — scaffold a complete medallion pipeline,
-      configure it, generate the Lakeflow code, and deploy it to Databricks.
+      Run the existing sample course from installation through deployment.
 
-   .. grid-item-card:: Guides →
-      :link: guides/index
+   .. grid-item-card:: Build pipelines
+      :link: build/index
       :link-type: doc
 
-      One task at a time, grouped by action kind: ingest from any source, choose
-      a write mode, test your data, reuse and scale, and operate.
+      Build with your own data: configure, read, transform, write and check quality.
 
-   .. grid-item-card:: Concepts →
-      :link: concepts/index
+   .. grid-item-card:: Develop and deploy
+      :link: develop/index
       :link-type: doc
 
-      The reasoning behind the design — how LHP compiles pipelines, the action
-      model, dependency inference, and the reuse ladder.
+      Develop locally, configure bundles, schedule jobs and deploy through CI.
 
-   .. grid-item-card:: Reference →
+   .. grid-item-card:: Monitor and troubleshoot
+      :link: operate/index
+      :link-type: doc
+
+      Enable monitoring, adjust its settings and diagnose problems by symptom.
+
+   .. grid-item-card:: Reference
       :link: reference/index
       :link-type: doc
 
-      CLI flags, the Python API, every action option, error codes, and
-      configuration schemas. Pure lookup, generated from the code itself.
+      Find exact action syntax and configuration options by feature or filename.
 
 .. admonition:: Coming from DLT?
    :class: tip
@@ -122,10 +124,12 @@ Where to next
    :doc:`Migrate a DLT pipeline to Lakehouse Plumber <guides/ship/migrate-from-dlt>`.
 
 .. toctree::
-   :maxdepth: 1
+   :maxdepth: 2
+   :hidden:
    :caption: Documentation
 
    get-started/index
-   guides/index
-   concepts/index
+   build/index
+   develop/index
+   operate/index
    reference/index

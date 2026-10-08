@@ -2,31 +2,24 @@
 Fan one blueprint across tenants and regions
 ============================================
 
+.. raw:: html
+
+   <span id="before-you-start"></span>
+
+
 .. meta::
    :description: Drive many Lakehouse Plumber pipelines from one multi-parameter blueprint — bind a tenant, a region, and optional config per instance, and let a single definition expand into a pipeline per tenant.
 
-The Get Started course introduces a blueprint with a single parameter: one
-``region`` fanned across three region files. Real platforms vary on more than
-one axis at once — a **tenant** and the **region** it runs in, a schema and the
-partitioning that schema needs. Bake those into copies of a pipeline and you
-maintain the same plumbing in triplicate: every schema tweak is a find-and-replace
-across tenants, and the region frozen into each copy is one more thing that drifts.
+A blueprint declares flowgroup patterns and named parameters. An instance file
+selects the blueprint and binds those parameters; LHP expands each instance into
+concrete flowgroups. Use it when the same pipeline pattern repeats across
+entities such as tenants and regions.
 
-Let's write the per-tenant bronze layer **once** as a blueprint that takes
-several parameters, then bind a tenant, its region, and its partition column per
-instance. One definition expands into a pipeline per tenant. This guide assumes
-the single-parameter intro from the Get Started course and goes deeper: multiple
-parameters per instance, required versus optional-with-default, and how specs
-times instances expand.
-
-Before you start
-================
-
-You need a Lakehouse Plumber project and the blueprint basics from the Get
-Started course — what a blueprint is, and that instance files bind its
-parameters. This guide reuses the course's shape (CSV ``cloudfiles`` loads into
-bronze streaming tables) and adds a second identity parameter and an optional
-config parameter on top.
+Start with a working :doc:`pipeline </build/first-pipeline>` and the
+:doc:`template guide <templates>`. In this example, one blueprint contains two
+flowgroup patterns and three instances bind different tenant/region values.
+The first instance is enough to generate a pipeline; add the others when that
+pattern works.
 
 Parameterize the pattern
 ========================
@@ -54,8 +47,7 @@ reference the parameters:
   write target — not just a name. Parameters bind data-shaping config, not only
   identifiers.
 
-One syntax rule carries the whole design, and it goes deeper than the course's
-single-parameter case. Identity fields — ``pipeline:`` and ``flowgroup:`` —
+Identity fields have a specific substitution rule. Identity fields — ``pipeline:`` and ``flowgroup:`` —
 accept **only** the ``%{...}`` local-variable syntax, resolved as the blueprint
 expands. The ``${...}`` environment tokens (``${catalog}``, ``${bronze_schema}``,
 ``${landing_path}``) are the opposite: they are allowed everywhere **except**

@@ -46,6 +46,12 @@ Top-level keys under ``operational_metadata`` in ``lhp.yaml``.
      - —
      - Named column groups (``<name>`` → preset definition).
 
+The project block also accepts a ``defaults`` mapping. The current selector
+uses explicit lists from the action, flowgroup and action preset; it does not
+activate columns from this project ``defaults`` mapping or expand the named
+metadata ``presets``. Select column names explicitly. These parsed fields must
+not be treated as automatic activation switches.
+
 Column definition
 -----------------
 
@@ -85,7 +91,7 @@ Each entry under ``columns.<name>``. A bare string value is shorthand for
      - bool
      - No
      - ``true``
-     - Whether the column is active.
+     - Parsed, but not consulted by the current column selector. Control emission through explicit selection and ``applies_to``.
 
 Preset definition
 -----------------
