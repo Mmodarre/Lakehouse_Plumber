@@ -112,21 +112,11 @@ class LakehousePlumberApplicationFacade:
             ``LHP-FILE-*`` for missing-path conditions discovered
             during composition.
         """
-        # Composition is delegated to an internal helper so the
-        # orchestrator class name never appears in :mod:`lhp.api`
-        # source (§1.10, §9.13). Lazy import.
-        from lhp.core.coordination.layers import build_facade_orchestrator
+        # Shared with editor-only operations so registration and service
+        # wiring cannot drift between the two public API entry points.
+        from lhp.api._composition import build_api_service_graph
 
-        # Wire the per-action generators into the core ``ActionRegistry``
-        # at this single composition point. ``core`` must not import
-        # ``generators`` (layering), so registration is pushed from
-        # ``api`` (the legal downward ``api -> generators`` edge). Lazy so
-        # bare ``import lhp`` stays light; idempotent (later calls update).
-        from lhp.generators.registration import register_all
-
-        register_all()
-
-        orchestrator = build_facade_orchestrator(
+        orchestrator = build_api_service_graph(
             project_root,
             pipeline_config_path=pipeline_config_path,
             enforce_version=enforce_version,
