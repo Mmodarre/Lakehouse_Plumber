@@ -169,7 +169,7 @@ def test_draft_scope_and_source_preview_match_real_sandbox_generation(
     )
     assert isinstance(preview[-1], GenerationPlanCompleted)
     plan = preview[-1].response
-    planned = {str(item.path): item.content for item in plan.files}
+    planned = {item.path.as_posix(): item.content for item in plan.files}
     assert plan.output_location == project / "generated/dev"
 
     actual = tmp_path / "actual"
