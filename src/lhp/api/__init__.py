@@ -28,6 +28,27 @@ from lhp.api._serialization import to_dict
 from lhp.api._skill_facade import SkillFacade
 from lhp.api.bootstrap import LakehousePlumberBootstrap
 from lhp.api.configuration import preview_configuration
+from lhp.api.editor import (
+    editor_catalog,
+    inspect_editor_document,
+    inspect_editor_project,
+    preview_editor_project,
+    scaffold_editor_bronze,
+    scaffold_editor_instance,
+    validate_editor_project,
+)
+from lhp.api.editor_views import (
+    EditorActionView,
+    EditorCatalogView,
+    EditorDiagnosticView,
+    EditorDocumentOverlay,
+    EditorDocumentView,
+    EditorFlowgroupView,
+    EditorProjectView,
+    EditorRelatedFileView,
+    EditorScaffoldResult,
+    EditorSourceView,
+)
 from lhp.api.events import (
     BundleSyncCompleted,
     ErrorEmitted,
@@ -185,6 +206,16 @@ __all__: list[str] = [
     "DependencyOutputsResult",
     "DependencyStalenessResult",
     "DependencyWarningView",
+    "EditorActionView",
+    "EditorCatalogView",
+    "EditorDiagnosticView",
+    "EditorDocumentOverlay",
+    "EditorDocumentView",
+    "EditorFlowgroupView",
+    "EditorProjectView",
+    "EditorRelatedFileView",
+    "EditorScaffoldResult",
+    "EditorSourceView",
     "ErrorEmitted",
     "FlowgroupView",
     "GeneratedCodeView",
@@ -237,10 +268,17 @@ __all__: list[str] = [
     "WheelFacade",
     "WheelModuleView",
     "collect_response",
+    "editor_catalog",
+    "inspect_editor_document",
+    "inspect_editor_project",
     "preview_configuration",
+    "preview_editor_project",
     "preview_template",
+    "scaffold_editor_bronze",
+    "scaffold_editor_instance",
     "should_enable_bundle_support",
     "template_catalog",
     "template_source",
     "to_dict",
+    "validate_editor_project",
 ]

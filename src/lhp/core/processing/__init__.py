@@ -8,7 +8,7 @@ services composed by :class:`lhp.core.coordination.orchestrator.ActionOrchestrat
 
 from typing import TYPE_CHECKING, Any
 
-from .blueprint_expander import BlueprintExpander
+from .blueprint_expander import BlueprintExpander, BlueprintProvenance
 from .dqe import DQEParser
 from .local_variables import LocalVariableResolver
 from .namespace_normalizer import normalize_namespace_fields
@@ -20,6 +20,7 @@ if TYPE_CHECKING:
 
 __all__ = [
     "BlueprintExpander",
+    "BlueprintProvenance",
     "DQEParser",
     "EnhancedSubstitutionManager",
     "FlowgroupResolutionService",
