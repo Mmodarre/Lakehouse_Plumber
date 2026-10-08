@@ -24,6 +24,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **`cluster_columns` and `cluster_by_auto` can now be set together** on streaming-table
+  (every mode) and materialized-view write targets (#282). Validation no longer rejects
+  the combination as mutually exclusive; the generated table definition carries both
+  `cluster_by=[...]` and `cluster_by_auto=True`. Databricks uses the columns as the
+  initial clustering keys and may later change them based on the workload. The web
+  IDE's "Set only one of cluster columns / auto clustering" hint is gone too.
 - **CloudFiles explicit schemas escape column names and comments (#287).** A `"`, a
   newline, a trailing backslash, or a backslash sequence such as `\U`, `\N` or `\x` in a
   schema column's `name` or `comment` no longer produces unparsable code (reported as
