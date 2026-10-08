@@ -2,6 +2,7 @@
 
 Public re-exports:
 - ActionRegistry        — registry of action types → generator classes
+- determine_action_subtype — the registry sub-type key for an action
 - BaseActionGenerator   — base class every action generator extends
 - OrchestrationDependencies — DI container for orchestrator services
 - SubstitutionFactory   — protocol for substitution factories
@@ -13,7 +14,11 @@ Public re-exports:
 # registry from the ``generators`` layer (ABOVE ``core``) via
 # ``lhp.generators.registration``. The former circular import is gone, so the
 # eager re-export here is safe.
-from .action_registry import ActionRegistry, register_generators
+from .action_registry import (
+    ActionRegistry,
+    determine_action_subtype,
+    register_generators,
+)
 from .base_generator import BaseActionGenerator
 from .factories import (
     DefaultSubstitutionFactory,
@@ -27,5 +32,6 @@ __all__ = [
     "DefaultSubstitutionFactory",
     "OrchestrationDependencies",
     "SubstitutionFactory",
+    "determine_action_subtype",
     "register_generators",
 ]

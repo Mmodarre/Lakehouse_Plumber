@@ -13,6 +13,8 @@ logger = logging.getLogger(__name__)
 class JDBCLoadGenerator(BaseActionGenerator):
     """Generate JDBC load actions with secret support."""
 
+    renders_operational_metadata = True
+
     def __init__(self):
         super().__init__()
         self.add_import("from pyspark import pipelines as dp")
@@ -37,15 +39,12 @@ class JDBCLoadGenerator(BaseActionGenerator):
                 source_config
             )
 
+        # ``${source_table}`` in metadata expressions is a context token
+        # resolved by the operational-metadata service (see
+        # ``core/codegen/operational_metadata/expression.py``).
         add_operational_metadata, metadata_columns = self._get_operational_metadata(
             action, context
         )
-
-        table_name = source_config.get("table", "unknown_table")
-        for col_name, expression in metadata_columns.items():
-            metadata_columns[col_name] = expression.replace(
-                "${source_table}", table_name
-            )
 
         jdbc_table = source_config.get("table")
         jdbc_driver = source_config.get("driver")

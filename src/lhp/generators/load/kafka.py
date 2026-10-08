@@ -13,6 +13,8 @@ from ...core.validators.field.kafka_options import KafkaOptionsValidator
 class KafkaLoadGenerator(BaseActionGenerator):
     """Generate Kafka streaming load actions."""
 
+    renders_operational_metadata = True
+
     def __init__(self):
         super().__init__()
         self.add_import("from pyspark import pipelines as dp")

@@ -68,7 +68,7 @@
       ]
     },
     "docs/reference/config/operational-metadata.rst": {
-      "sha256": "41ca829482cd697f90ea8ccf175067112fa7ab07d543fd57cc7a9005e2b5013c",
+      "sha256": "d289dc0a2ba4c02384eedfaea5aa752fbc0bd29a0e806d1bcaa0a3a156443e45",
       "entryIds": [
         "flowgroup.operational_metadata",
         "project.operational_metadata",
@@ -670,7 +670,7 @@
       ]
     },
     "src/lhp/resources/skills/lhp/references/project-config.md": {
-      "sha256": "0f14ebec1435a6b027b73b8617cf8ee00c84f1a5e5ba15d1f63e8d5657dad60a",
+      "sha256": "f66af7c987f9a7bb93d707efe147de3ece8850b57eecfc574297c57e1dbc2499",
       "entryIds": [
         "project.apply_formatting",
         "project.author",

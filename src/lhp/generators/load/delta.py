@@ -14,6 +14,8 @@ logger = logging.getLogger(__name__)
 class DeltaLoadGenerator(BaseActionGenerator):
     """Generate Delta table load actions."""
 
+    renders_operational_metadata = True
+
     def __init__(self):
         super().__init__()
         self.add_import("from pyspark import pipelines as dp")
@@ -194,14 +196,12 @@ class DeltaLoadGenerator(BaseActionGenerator):
   # or: startingTimestamp: "2024-01-01" """,
                 )
 
+        # ``${source_table}`` in metadata expressions is a context token
+        # resolved by the operational-metadata service (see
+        # ``core/codegen/operational_metadata/expression.py``).
         add_operational_metadata, metadata_columns = self._get_operational_metadata(
             action, context
         )
-
-        for col_name, expression in metadata_columns.items():
-            metadata_columns[col_name] = expression.replace(
-                "${source_table}", table_ref
-            )
 
         template_context = {
             "target": action.target,
