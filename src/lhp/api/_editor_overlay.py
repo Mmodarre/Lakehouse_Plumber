@@ -43,6 +43,8 @@ def _checked_profile_path(root: Path) -> Path:
     profile = parent / "profile.yaml"
     if parent.is_symlink() or profile.is_symlink():
         raise ValueError("Editor sandbox profile must not be a symlink")
+    if parent.resolve() != parent or profile.resolve().parent != parent:
+        raise ValueError("Editor sandbox profile must stay inside the project")
     if parent.exists() and not parent.is_dir():
         raise ValueError("Editor sandbox profile parent must be a directory")
     if profile.exists():

@@ -1,5 +1,6 @@
 """Private mirror boundary tests: only the authored profile enters private state."""
 
+import os
 from pathlib import Path
 
 import pytest
@@ -64,3 +65,23 @@ def test_overlay_bytes_count_toward_total_budget(
             project, (EditorDocumentOverlay("new.sql", "x" * 201, 1),)
         ):
             pytest.fail("Oversized aggregate reached the mirror")
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows junction semantics")
+def test_profile_parent_junction_is_rejected(
+    tmp_path: Path, tmp_path_factory: pytest.TempPathFactory
+) -> None:
+    import subprocess
+
+    project = tmp_path.resolve()
+    (project / "lhp.yaml").write_text("name: junction\nversion: '1.0'\n")
+    outside = tmp_path_factory.mktemp("junction-profile")
+    (outside / "profile.yaml").write_text("sandbox: {}")
+    subprocess.run(
+        ["cmd", "/c", "mklink", "/J", str(project / ".lhp"), str(outside)],
+        check=True,
+        capture_output=True,
+    )
+    with pytest.raises(ValueError, match=r"project|symlink"):
+        with mirrored_project(project, ()):
+            pytest.fail("A junction profile entered the mirror")
