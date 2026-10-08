@@ -35,7 +35,6 @@ from typing import (
     Tuple,
 )
 
-from lhp.core.processing import BlueprintProvenance
 from lhp.models import FlowGroup, FlowGroupContext
 
 from ..models.processing import CopiedModuleRecord, RunWarningRecord
@@ -62,6 +61,7 @@ class CrossFlowgroupCheckResult:
 
 
 if TYPE_CHECKING:
+    from lhp.core.processing import BlueprintProvenance
     from lhp.models import ProjectConfig
 
     # Annotation-only here (used solely in BaseDependencyAnalysisService's
@@ -409,6 +409,6 @@ class BaseFlowgroupBootstrapService(ABC):
     @abstractmethod
     def blueprint_provenance(
         self, pipeline: str, flowgroup: str
-    ) -> Optional[BlueprintProvenance]:
+    ) -> Optional["BlueprintProvenance"]:
         """Return the original blueprint and instance for an expanded flowgroup."""
         raise NotImplementedError

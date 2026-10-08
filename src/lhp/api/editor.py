@@ -31,8 +31,6 @@ from lhp.api.editor_views import (
 from lhp.api.events import ErrorEmitted, LHPEvent, OperationStarted
 from lhp.api.facade import LakehousePlumberApplicationFacade
 from lhp.api.responses import JSONValue
-from lhp.core.discovery import EditorYamlIndex
-from lhp.core.loaders import PipelineConfigLoader
 from lhp.errors import LHPError
 
 
@@ -117,6 +115,8 @@ def inspect_editor_project(
     if not overlays:
         facade, graph = _runtime(root, pipeline_config_path)
         return project_view(root, env, facade, graph)
+    from lhp.core.discovery import EditorYamlIndex
+
     syntax_diagnostics: list[EditorDiagnosticView] = []
     for overlay in overlays:
         _checked_overlay_path(root, overlay)
@@ -192,6 +192,8 @@ def inspect_editor_document(
     root = _safe_project_root(project_root)
     overlay = EditorDocumentOverlay(path=path, text=text, version=0)
     _checked_overlay_path(root, overlay)
+    from lhp.core.discovery import EditorYamlIndex
+
     try:
         index = EditorYamlIndex(text)
     except yaml.YAMLError as exc:
@@ -300,6 +302,8 @@ def preview_editor_project(
     try:
         root = _safe_project_root(project_root)
         with mirrored_project(root, overlays) as mirror:
+            from lhp.core.loaders import PipelineConfigLoader
+
             facade = _facade(mirror, pipeline_config_path)
             pipeline_names = sorted(
                 {item.pipeline for item in facade.inspection.list_flowgroups()}
