@@ -1,0 +1,68 @@
+{
+  "compilation": {
+    "url": "https://vgbujcuwptvheqijyjbe.supabase.co/storage/v1/object/public/hmac-uploads/projects/980a5642-d302-4758-aa0f-4289f93cd496/content-assets/docs-diagrams-compilation/compilation.png",
+    "storagePath": "projects/980a5642-d302-4758-aa0f-4289f93cd496/content-assets/docs-diagrams-compilation/compilation.png",
+    "filename": "compilation.png",
+    "mimeType": "image/png",
+    "size": 1315993,
+    "purpose": "content",
+    "contentHash": "233bb9960468128b81f6688c159a4f25b4ed441b01a93989a5ff2d8235f70e5a",
+    "nodeId": "dc41de95-708c-4bcd-b0e8-e4841d3b9975",
+    "draft": {
+      "draftId": "5185a05d-b9e3-4e6a-840a-0e72edb276fc",
+      "nodeId": "draft-variant-5185a05d-b9e3-4e6a-840a-0e72edb276fc",
+      "title": "LHP diagram: compilation",
+      "projectUrl": "https://superdesign.dev/teams/f33bcfc4-6374-42ff-ab64-c439e1720bd4/projects/980a5642-d302-4758-aa0f-4289f93cd496",
+      "nodeUrl": "https://superdesign.dev/teams/f33bcfc4-6374-42ff-ab64-c439e1720bd4/projects/980a5642-d302-4758-aa0f-4289f93cd496?node=draft-variant-5185a05d-b9e3-4e6a-840a-0e72edb276fc",
+      "previewUrl": "https://p.superdesign.dev/draft/5185a05d-b9e3-4e6a-840a-0e72edb276fc"
+    }
+  },
+  "pipeline-boundaries": {
+    "url": "https://vgbujcuwptvheqijyjbe.supabase.co/storage/v1/object/public/hmac-uploads/projects/980a5642-d302-4758-aa0f-4289f93cd496/content-assets/docs-diagrams-pipeline-boundaries/pipeline-boundaries.png",
+    "storagePath": "projects/980a5642-d302-4758-aa0f-4289f93cd496/content-assets/docs-diagrams-pipeline-boundaries/pipeline-boundaries.png",
+    "filename": "pipeline-boundaries.png",
+    "mimeType": "image/png",
+    "size": 1517735,
+    "purpose": "content",
+    "contentHash": "eff0ade23fcbb04a979a1e46159a6f3ad7e7f5e518a6ee0723bbe0912ad60d13",
+    "nodeId": "79f94c48-9788-4ec3-bd68-c593fa6c29a6",
+    "draft": {
+      "draftId": "1aebe386-b844-4cb7-a20c-00c59723e38b",
+      "nodeId": "draft-variant-1aebe386-b844-4cb7-a20c-00c59723e38b",
+      "title": "LHP diagram: pipeline-boundaries",
+      "projectUrl": "https://superdesign.dev/teams/f33bcfc4-6374-42ff-ab64-c439e1720bd4/projects/980a5642-d302-4758-aa0f-4289f93cd496",
+      "nodeUrl": "https://superdesign.dev/teams/f33bcfc4-6374-42ff-ab64-c439e1720bd4/projects/980a5642-d302-4758-aa0f-4289f93cd496?node=draft-variant-1aebe386-b844-4cb7-a20c-00c59723e38b",
+      "previewUrl": "https://p.superdesign.dev/draft/1aebe386-b844-4cb7-a20c-00c59723e38b"
+    }
+  },
+  "quarantine": {
+    "url": "https://vgbujcuwptvheqijyjbe.supabase.co/storage/v1/object/public/hmac-uploads/projects/980a5642-d302-4758-aa0f-4289f93cd496/content-assets/docs-diagrams-quarantine/quarantine.png",
+    "storagePath": "projects/980a5642-d302-4758-aa0f-4289f93cd496/content-assets/docs-diagrams-quarantine/quarantine.png",
+    "filename": "quarantine.png",
+    "mimeType": "image/png",
+    "size": 1348377,
+    "purpose": "content",
+    "contentHash": "d3648a7ab3dfcf0878d83e4c40fa15c3c750a0fc6826fda67c76306dd82f78cf",
+    "nodeId": "b37905e3-5f32-4502-b9d4-c96e0e7ff1b6",
+    "draft": {
+      "draftId": "b665b895-199a-4196-874a-c438ff9e0b0b",
+      "nodeId": "draft-variant-b665b895-199a-4196-874a-c438ff9e0b0b",
+      "title": "LHP diagram: quarantine",
+      "projectUrl": "https://superdesign.dev/teams/f33bcfc4-6374-42ff-ab64-c439e1720bd4/projects/980a5642-d302-4758-aa0f-4289f93cd496",
+      "nodeUrl": "https://superdesign.dev/teams/f33bcfc4-6374-42ff-ab64-c439e1720bd4/projects/980a5642-d302-4758-aa0f-4289f93cd496?node=draft-variant-b665b895-199a-4196-874a-c438ff9e0b0b",
+      "previewUrl": "https://p.superdesign.dev/draft/b665b895-199a-4196-874a-c438ff9e0b0b"
+    }
+  },
+  "action-model": {
+    "url": "https://vgbujcuwptvheqijyjbe.supabase.co/storage/v1/object/public/hmac-uploads/projects/980a5642-d302-4758-aa0f-4289f93cd496/content-assets/docs-diagrams-action-model/action-model.png",
+    "nodeId": "8a0641f0-bad0-4ab6-8296-bc1993bc78b8",
+    "draft": {
+      "draftId": "f5211b5c-dd55-4975-852b-f6d2919ff339",
+      "nodeId": "draft-variant-f5211b5c-dd55-4975-852b-f6d2919ff339",
+      "title": "LHP diagram: action-model",
+      "projectUrl": "https://superdesign.dev/teams/f33bcfc4-6374-42ff-ab64-c439e1720bd4/projects/980a5642-d302-4758-aa0f-4289f93cd496",
+      "nodeUrl": "https://superdesign.dev/teams/f33bcfc4-6374-42ff-ab64-c439e1720bd4/projects/980a5642-d302-4758-aa0f-4289f93cd496?node=draft-variant-f5211b5c-dd55-4975-852b-f6d2919ff339",
+      "previewUrl": "https://p.superdesign.dev/draft/f5211b5c-dd55-4975-852b-f6d2919ff339"
+    }
+  }
+}
