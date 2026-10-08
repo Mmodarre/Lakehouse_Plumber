@@ -64,6 +64,7 @@ master_doc = "index"
 exclude_patterns = [
     "_build",
     "_includes/**",
+    "_agent_guides/**",  # Published as raw Markdown, not rendered pages.
     "reviews/**",  # Internal review artifacts are not product documentation.
     "Thumbs.db",
     ".DS_Store",
@@ -161,12 +162,44 @@ redirects = {
 # -- Options for HTML output -------------------------------------------------
 html_theme = "furo"
 html_static_path = ["_static"]
-html_css_files = ["navigation.css"]
+templates_path = ["_templates"]
+html_extra_path = ["_agent_guides"]
+html_css_files = ["navigation.css", "lhp/theme.css", "lhp/agent-dialog.css"]
+html_sidebars = {"**": ["lhp/navigation.html"]}
+html_theme_options = {
+    "light_logo": "lhp/lhp-wordmark-light.svg",
+    "dark_logo": "lhp/lhp-wordmark-dark.svg",
+    "light_css_variables": {
+        "color-brand-primary": "#A73824",
+        "color-brand-content": "#A73824",
+        "color-background-primary": "#FAF8F5",
+        "color-background-secondary": "#FAF8F5",
+        "color-foreground-primary": "#202126",
+        "color-foreground-secondary": "#595A60",
+        "color-background-border": "#D8D5CF",
+    },
+    "dark_css_variables": {
+        "color-brand-primary": "#F4A261",
+        "color-brand-content": "#F4A261",
+        "color-background-primary": "#202126",
+        "color-background-secondary": "#202126",
+        "color-foreground-primary": "#FAF8F5",
+        "color-foreground-secondary": "#C1BFB9",
+        "color-background-border": "#4A4C53",
+    },
+}
+# Both entry points use the repository as the canonical guide source.
+html_context = {
+    "lhp_agent_guides_base": "https://raw.githubusercontent.com/Mmodarre/"
+    "Lakehouse_Plumber/main/docs/_agent_guides",
+}
 
 # -- Analytics: GoatCounter (privacy-respecting, no cookies, free for OSS) ---
 # Register the slug at https://www.goatcounter.com/signup before this collects data.
 html_js_files = [
     "navigation.js",
+    "lhp/theme.js",
+    "lhp/agent-dialog.js",
     (
         "https://gc.zgo.at/count.js",
         {
