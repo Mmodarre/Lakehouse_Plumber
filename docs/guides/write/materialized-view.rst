@@ -115,3 +115,8 @@ What's next
   full option set.
 - **Factor out the shared shape** — when several gold views follow this same
   pattern, a template or preset stamps them out from short per-view configs.
+
+Syntax and options
+------------------
+
+See :doc:`/reference/actions/write/materialized-view` for all supported settings and defaults.

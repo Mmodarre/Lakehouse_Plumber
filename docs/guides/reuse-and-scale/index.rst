@@ -1,26 +1,20 @@
-===============
-Reuse and scale
-===============
+Reuse patterns
+==============
 
-.. meta::
-   :description: Remove duplication from Lakehouse Plumber pipelines, then multiply them — substitutions and secrets for environments, presets and templates for patterns, blueprints for whole fleets.
+.. raw:: html
 
-Once a pattern repeats, stop copying it. Lakehouse Plumber has a **ladder of
-reuse tools**, each removing a different grain of duplication — reach for the
-smallest one that fits. The :doc:`Choosing a reuse tool </concepts/presets-templates-blueprints>`
-concept page explains the ladder; these guides are the mechanics.
+   <span id="reuse-and-scale"></span>
 
-- :doc:`substitutions-and-secrets` — one flowgroup, every environment; keep
-  credentials out of your YAML.
-- :doc:`templates` — one parametrized pattern, many tables.
-- :doc:`blueprints` — one blueprint, whole pipelines across tenants and regions.
-- :doc:`multi-flowgroup` — compose one pipeline from many flowgroups.
+
+Start with the smallest repeating part. A preset shares settings, a template
+shares an action sequence, and a blueprint expands flowgroup patterns across
+instances. For environment values, see :doc:`/build/configure`; for composing
+several flowgroups, see :doc:`/build/compose`.
 
 .. toctree::
    :maxdepth: 1
-   :hidden:
 
-   Substitutions & secrets <substitutions-and-secrets>
+   Choosing a reuse tool </concepts/presets-templates-blueprints>
+   Presets <presets>
    Templates <templates>
-   Blueprints <blueprints>
-   Multi-flowgroup pipelines <multi-flowgroup>
+   Blueprints and instances <blueprints>

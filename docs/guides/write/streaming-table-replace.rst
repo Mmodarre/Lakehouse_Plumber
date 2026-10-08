@@ -227,3 +227,8 @@ What's next
 - **See the field reference.** ``replace_using`` and ``sequence_by``, the forced
   table creation, and the single-flow and streaming-source constraints are all
   listed in the write action reference.
+
+Syntax and options
+------------------
+
+See :doc:`/reference/actions/write/streaming-table-replace` for all supported settings and defaults.

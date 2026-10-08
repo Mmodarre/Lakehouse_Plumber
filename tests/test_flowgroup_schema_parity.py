@@ -18,7 +18,7 @@ from importlib.resources import files
 
 import pytest
 
-from lhp.models import WriteTarget
+from lhp.models import Action, FlowGroup, WriteTarget
 
 pytestmark = pytest.mark.unit
 
@@ -46,3 +46,43 @@ def test_flowgroup_schema_covers_all_write_target_fields():
         f"accepted by the model must be described in the schema (it powers the "
         f"web IDE's Monaco hints and the designer field-help tooltips)."
     )
+
+
+@pytest.mark.parametrize(
+    "filename,definition,model",
+    [
+        ("flowgroup.schema.json", "SingleFlowGroup", FlowGroup),
+        ("flowgroup.schema.json", "Action", Action),
+        ("template.schema.json", "Action", Action),
+        ("template.schema.json", "WriteTarget", WriteTarget),
+    ],
+)
+def test_authoring_schemas_cover_public_model_fields(filename, definition, model):
+    """Prevent editor suggestions from losing fields documented for authoring."""
+    schema = json.loads((files("lhp.schemas") / filename).read_text())
+    documented = set(schema["definitions"][definition]["properties"])
+    accepted = {field.alias or name for name, field in model.model_fields.items()}
+    assert not (accepted - documented), (
+        f"{filename} {definition} omits accepted fields: "
+        f"{sorted(accepted - documented)}"
+    )
+
+
+@pytest.mark.parametrize("filename", ["flowgroup.schema.json", "template.schema.json"])
+def test_schema_references_resolve_after_shared_contract_updates(filename):
+    """Fields copied between authoring contracts must retain resolvable refs."""
+    schema = json.loads((files("lhp.schemas") / filename).read_text())
+
+    def walk(value):
+        if isinstance(value, dict):
+            if "$ref" in value and value["$ref"].startswith("#/"):
+                target = schema
+                for component in value["$ref"][2:].split("/"):
+                    target = target[component.replace("~1", "/").replace("~0", "~")]
+            for child in value.values():
+                walk(child)
+        elif isinstance(value, list):
+            for child in value:
+                walk(child)
+
+    walk(schema)

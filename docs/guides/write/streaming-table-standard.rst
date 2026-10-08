@@ -150,3 +150,8 @@ What's next
 - For the full option set — ``table_schema``, ``row_filter``, ``tags``,
   ``cluster_by_auto``, and the ``cdc`` / ``snapshot_cdc`` modes — see the
   **Write action reference**.
+
+Syntax and options
+------------------
+
+See :doc:`/reference/actions/write/streaming-table` for all supported settings and defaults.

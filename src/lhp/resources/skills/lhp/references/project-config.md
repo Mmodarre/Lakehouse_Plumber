@@ -349,7 +349,7 @@ actions:
 ## Operational Metadata
 
 **Usage in actions:**
-- `operational_metadata: true` — all defined columns
+- `operational_metadata: true` — accepted, but selects no columns; use an explicit list
 - `operational_metadata: ["_col1", "_col2"]` — specific columns
 - `operational_metadata: false` — disable all (overrides preset/flowgroup)
 

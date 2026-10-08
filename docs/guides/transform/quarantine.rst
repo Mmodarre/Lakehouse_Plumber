@@ -206,3 +206,9 @@ What's next
   ``source_table``, several flowgroups can point ``dlq_table`` at the same
   dead-letter table and still recycle independently. Set the shared ``dlq_table``
   in a preset and let each flowgroup supply its own ``source_table``.
+
+Syntax and options
+------------------
+
+See :doc:`/reference/actions/transform/data_quality` for action fields and
+:doc:`/reference/config/quarantine-dlq` for the quarantine subsystem.
