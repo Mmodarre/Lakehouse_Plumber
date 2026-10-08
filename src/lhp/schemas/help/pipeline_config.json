@@ -6,7 +6,7 @@
       "summary": "Choose Databricks-managed compute for this pipeline.",
       "sources": [
         {
-          "file": "docs/reference/config/bundle.rst"
+          "file": "docs/reference/config/pipeline-config.rst"
         }
       ],
       "bindings": [
@@ -36,7 +36,7 @@
       "summary": "Select the pipeline edition for classic compute.",
       "sources": [
         {
-          "file": "docs/reference/config/bundle.rst"
+          "file": "docs/reference/config/pipeline-config.rst"
         }
       ],
       "bindings": [
@@ -56,7 +56,7 @@
       "summary": "Choose the pipeline runtime release channel.",
       "sources": [
         {
-          "file": "docs/reference/config/bundle.rst"
+          "file": "docs/reference/config/pipeline-config.rst"
         }
       ],
       "bindings": [
@@ -86,7 +86,7 @@
       "summary": "Control whether the pipeline keeps running between updates.",
       "sources": [
         {
-          "file": "docs/reference/config/bundle.rst"
+          "file": "docs/reference/config/pipeline-config.rst"
         }
       ],
       "bindings": [
@@ -105,6 +105,9 @@
       "id": "pipeline.packaging",
       "summary": "Choose how the generated pipeline code is shipped.",
       "sources": [
+        {
+          "file": "docs/reference/config/pipeline-config.rst"
+        },
         {
           "file": "docs/reference/config/bundle.rst"
         }
@@ -145,7 +148,7 @@
       "summary": "Choose the Unity Catalog catalog for this pipeline’s tables.",
       "sources": [
         {
-          "file": "docs/reference/config/bundle.rst"
+          "file": "docs/reference/config/pipeline-config.rst"
         }
       ],
       "bindings": [
@@ -171,7 +174,7 @@
       "summary": "Choose the Unity Catalog schema for this pipeline’s tables.",
       "sources": [
         {
-          "file": "docs/reference/config/bundle.rst"
+          "file": "docs/reference/config/pipeline-config.rst"
         }
       ],
       "bindings": [
@@ -197,7 +200,7 @@
       "summary": "Pass named string settings to the pipeline.",
       "sources": [
         {
-          "file": "docs/reference/config/bundle.rst"
+          "file": "docs/reference/config/pipeline-config.rst"
         }
       ],
       "bindings": [
@@ -223,7 +226,7 @@
       "summary": "Declare the runtime environment used by the pipeline.",
       "sources": [
         {
-          "file": "docs/reference/config/bundle.rst"
+          "file": "docs/reference/config/pipeline-config.rst"
         }
       ],
       "bindings": [
@@ -243,7 +246,7 @@
       "summary": "Install Python requirements needed by pipeline code.",
       "sources": [
         {
-          "file": "docs/reference/config/bundle.rst"
+          "file": "docs/reference/config/pipeline-config.rst"
         }
       ],
       "bindings": [
@@ -270,7 +273,7 @@
       "summary": "Configure classic compute when serverless is disabled.",
       "sources": [
         {
-          "file": "docs/reference/config/bundle.rst"
+          "file": "docs/reference/config/pipeline-config.rst"
         }
       ],
       "bindings": [
@@ -290,7 +293,7 @@
       "summary": "Choose email recipients and pipeline events that trigger notifications.",
       "sources": [
         {
-          "file": "docs/reference/config/bundle.rst"
+          "file": "docs/reference/config/pipeline-config.rst"
         }
       ],
       "bindings": [
@@ -315,7 +318,7 @@
       "summary": "Select pipeline events that should send this notification.",
       "sources": [
         {
-          "file": "docs/reference/config/bundle.rst"
+          "file": "docs/reference/config/pipeline-config.rst"
         }
       ],
       "bindings": [
@@ -342,7 +345,7 @@
       "summary": "Choose who receives this pipeline notification.",
       "sources": [
         {
-          "file": "docs/reference/config/bundle.rst"
+          "file": "docs/reference/config/pipeline-config.rst"
         }
       ],
       "bindings": [
@@ -369,7 +372,7 @@
       "summary": "Attach compute tags to a classic pipeline.",
       "sources": [
         {
-          "file": "docs/reference/config/bundle.rst"
+          "file": "docs/reference/config/pipeline-config.rst"
         }
       ],
       "bindings": [
@@ -389,7 +392,7 @@
       "summary": "Enable Photon for classic pipeline compute.",
       "sources": [
         {
-          "file": "docs/reference/config/bundle.rst"
+          "file": "docs/reference/config/pipeline-config.rst"
         }
       ],
       "bindings": [
@@ -409,7 +412,7 @@
       "summary": "Override event-log configuration for this pipeline.",
       "sources": [
         {
-          "file": "docs/reference/config/bundle.rst"
+          "file": "docs/reference/config/pipeline-config.rst"
         }
       ],
       "bindings": [
@@ -435,7 +438,7 @@
       "summary": "Choose the identity used to execute this pipeline.",
       "sources": [
         {
-          "file": "docs/reference/config/bundle.rst"
+          "file": "docs/reference/config/pipeline-config.rst"
         }
       ],
       "bindings": [
@@ -461,7 +464,7 @@
       "summary": "Grant access to this pipeline.",
       "sources": [
         {
-          "file": "docs/reference/config/bundle.rst"
+          "file": "docs/reference/config/pipeline-config.rst"
         }
       ],
       "bindings": [
@@ -486,7 +489,7 @@
       "summary": "Choose the access level for this identity.",
       "sources": [
         {
-          "file": "docs/reference/config/bundle.rst"
+          "file": "docs/reference/config/pipeline-config.rst"
         }
       ],
       "bindings": [
@@ -507,7 +510,7 @@
       "summary": "Identify a user by their email address.",
       "sources": [
         {
-          "file": "docs/reference/config/bundle.rst"
+          "file": "docs/reference/config/pipeline-config.rst"
         }
       ],
       "bindings": [
@@ -528,7 +531,7 @@
       "summary": "Grant this permission to a workspace group.",
       "sources": [
         {
-          "file": "docs/reference/config/bundle.rst"
+          "file": "docs/reference/config/pipeline-config.rst"
         }
       ],
       "bindings": [
@@ -549,7 +552,7 @@
       "summary": "Grant this permission to a service principal.",
       "sources": [
         {
-          "file": "docs/reference/config/bundle.rst"
+          "file": "docs/reference/config/pipeline-config.rst"
         }
       ],
       "bindings": [
@@ -573,7 +576,7 @@
       ],
       "sources": [
         {
-          "file": "docs/reference/config/bundle.rst"
+          "file": "docs/reference/config/pipeline-config.rst"
         }
       ],
       "bindings": [
@@ -593,7 +596,7 @@
       ],
       "sources": [
         {
-          "file": "docs/reference/config/bundle.rst"
+          "file": "docs/reference/config/pipeline-config.rst"
         }
       ],
       "bindings": [
@@ -613,7 +616,7 @@
       ],
       "sources": [
         {
-          "file": "docs/reference/config/bundle.rst"
+          "file": "docs/reference/config/pipeline-config.rst"
         }
       ],
       "bindings": [
@@ -633,7 +636,7 @@
       ],
       "sources": [
         {
-          "file": "docs/reference/config/bundle.rst"
+          "file": "docs/reference/config/pipeline-config.rst"
         }
       ],
       "bindings": [
@@ -654,7 +657,7 @@
       ],
       "sources": [
         {
-          "file": "docs/reference/config/bundle.rst"
+          "file": "docs/reference/config/pipeline-config.rst"
         }
       ],
       "bindings": [
@@ -675,7 +678,7 @@
       ],
       "sources": [
         {
-          "file": "docs/reference/config/bundle.rst"
+          "file": "docs/reference/config/pipeline-config.rst"
         }
       ],
       "bindings": [
@@ -696,7 +699,7 @@
       ],
       "sources": [
         {
-          "file": "docs/reference/config/bundle.rst"
+          "file": "docs/reference/config/pipeline-config.rst"
         }
       ],
       "bindings": [
@@ -717,7 +720,7 @@
       ],
       "sources": [
         {
-          "file": "docs/reference/config/bundle.rst"
+          "file": "docs/reference/config/pipeline-config.rst"
         }
       ],
       "bindings": [
@@ -739,7 +742,7 @@
       ],
       "sources": [
         {
-          "file": "docs/reference/config/bundle.rst"
+          "file": "docs/reference/config/pipeline-config.rst"
         }
       ],
       "bindings": [
@@ -761,7 +764,7 @@
       ],
       "sources": [
         {
-          "file": "docs/reference/config/bundle.rst"
+          "file": "docs/reference/config/pipeline-config.rst"
         }
       ],
       "bindings": [
