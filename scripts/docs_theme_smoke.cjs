@@ -1,4 +1,4 @@
-// Browser smoke test against a built Sphinx site. See docs/reviews/lhp-theme.md.
+// Browser smoke test against a built Sphinx site. See scripts/docs-theme.md.
 const assert = require("node:assert/strict");
 const { chromium } = require("playwright");
 (async () => {
