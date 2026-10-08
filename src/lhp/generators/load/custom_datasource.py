@@ -22,6 +22,8 @@ class CustomDataSourceLoadGenerator(BaseActionGenerator):
     by name and registered on the local Spark session at module load.
     """
 
+    renders_operational_metadata = True
+
     def __init__(self):
         # Enable ImportManager for advanced import handling
         super().__init__(use_import_manager=True)

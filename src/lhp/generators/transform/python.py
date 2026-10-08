@@ -12,6 +12,8 @@ logger = logging.getLogger(__name__)
 
 
 class PythonTransformGenerator(BaseActionGenerator):
+    renders_operational_metadata = True
+
     def __init__(self):
         super().__init__(use_import_manager=True)
         self.add_import("from pyspark import pipelines as dp")

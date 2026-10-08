@@ -343,12 +343,17 @@
         }
       ],
       "details": [
-        "Use a Spark expression such as F.current_timestamp(). Declare any imports the expression needs in additional_imports."
+        "Use a Spark expression such as F.current_timestamp(). Declare any imports the expression needs in additional_imports.",
+        "${pipeline_name}, ${flowgroup_name}, ${source_table} (on delta and JDBC loads, the table the load reads) and environment ${token} values from substitutions/<env>.yaml are substituted. A ${secret:...} reference fails with LHP-CFG-070 because the result is written into table data; any token left unresolved fails with LHP-CFG-010."
       ],
       "examples": [
         {
           "label": "YAML example",
           "yaml": "expression: F.current_timestamp()"
+        },
+        {
+          "label": "Environment token",
+          "yaml": "expression: F.lit('${source_system}')"
         }
       ]
     },

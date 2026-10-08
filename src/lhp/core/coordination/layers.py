@@ -32,12 +32,18 @@ def build_facade_orchestrator(
     ``lhp.api.facade`` can call us through a single lazy import without
     pulling in the core/coordination graph at module-import time.
     """
+    from lhp.core.codegen import OperationalMetadataService
     from lhp.core.coordination.orchestrator import ActionOrchestrator
     from lhp.core.coordination.validation_service import ValidationService
     from lhp.core.loaders import ProjectConfigLoader
     from lhp.core.processing import TemplateEngine
     from lhp.core.processing.flowgroup_resolver import FlowgroupResolutionService
-    from lhp.core.validators import ConfigValidator, SecretValidator
+    from lhp.core.registry import ActionRegistry
+    from lhp.core.validators import (
+        ConfigValidator,
+        OperationalMetadataExpressionValidator,
+        SecretValidator,
+    )
     from lhp.presets.preset_manager import PresetManager
 
     project_config = ProjectConfigLoader(project_root).load_project_config()
@@ -45,6 +51,13 @@ def build_facade_orchestrator(
     preset_manager = PresetManager(project_root / "presets")
     config_validator = ConfigValidator(project_root, project_config)
     secret_validator = SecretValidator()
+    # The validator checks only what generation renders (the registry's
+    # generator declarations) via the render path's own column resolver.
+    operational_metadata_validator = OperationalMetadataExpressionValidator(
+        project_config,
+        ActionRegistry(),
+        OperationalMetadataService().resolve_selected_columns,
+    )
 
     validation_service = ValidationService(
         project_root=project_root,
@@ -56,6 +69,7 @@ def build_facade_orchestrator(
         preset_manager=preset_manager,
         config_validator=config_validator,
         secret_validator=secret_validator,
+        operational_metadata_validator=operational_metadata_validator,
     )
 
     return ActionOrchestrator(

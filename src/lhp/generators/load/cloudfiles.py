@@ -20,6 +20,8 @@ from ...parsers.schema_parser import SchemaParser
 class CloudFilesLoadGenerator(BaseActionGenerator):
     """Generate CloudFiles (Auto Loader) load actions."""
 
+    renders_operational_metadata = True
+
     def __init__(self):
         super().__init__()
         self.add_import("from pyspark import pipelines as dp")

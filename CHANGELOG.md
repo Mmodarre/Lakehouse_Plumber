@@ -22,6 +22,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `snapshot_cdc`; a batch-read sibling `mode: replace_where` is planned. See the write
   action reference and the "Keep a current-state table with a REPLACE USING flow" guide.
 
+### Fixed
+
+- **Environment `${tokens}` now resolve in operational-metadata expressions, and an
+  unresolved one fails the run (#289).** `operational_metadata.columns.<name>.expression`
+  in `lhp.yaml` substituted only `${pipeline_name}` and `${flowgroup_name}`; any other
+  `${token}` was written into the generated code literally, so every row got the text
+  `${fd_source}`, and neither `lhp validate` nor `lhp generate` reported it. Expressions
+  now resolve per flowgroup for `--env`: context tokens first (`${pipeline_name}`,
+  `${flowgroup_name}`, and `${source_table}` on delta and JDBC loads), winning over a
+  substitutions key of the same name; then environment `${token}` values from
+  `substitutions/<env>.yaml`. **Behaviour change:** where LHP used to emit `${…}`
+  literally it now fails loudly. A `${...}`, `%{...}` or `{{ ... }}` left in a rendered
+  expression fails with `LHP-CFG-010` (naming the pipeline, flowgroup, column, token and
+  environment), and a `${secret:...}` reference fails with the new `LHP-CFG-070`, because
+  the expression's result is written into table data. `lhp validate --env <env>` now
+  reports the same errors as `lhp generate --env <env>`. Only expressions actually
+  rendered into generated code are checked: a column selected only on actions that never
+  emit metadata columns (streaming-table and materialized-view writes, schema transforms,
+  test actions) is ignored, as before. Expressions without tokens generate
+  byte-identical code, and the bare `{token}` form is not applied to expressions, so
+  regex quantifiers such as `'\\d{8}'` are emitted unchanged.
+
 ## [0.9.2] — 2026-09-22
 
 ### Added
