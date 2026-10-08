@@ -1,0 +1,31 @@
+<dialog id="agent-dialog" class="agent-dialog" aria-labelledby="agent-dialog-title" aria-describedby="agent-dialog-description" data-guides-base="{{ lhp_agent_guides_base }}">
+  <div class="agent-dialog-body">
+    <div class="agent-heading">
+      <div><p class="agent-eyebrow">YOUR NEXT STEP</p><h2 id="agent-dialog-title">Start with your agent</h2><p id="agent-dialog-description">Set up a project or learn LHP. Choose your agent and copy the prompt.</p></div>
+      <button id="agent-dialog-close" type="button" aria-label="Close agent dialog">×</button>
+    </div>
+    <fieldset class="agent-goals">
+      <legend class="lhp-sr-only">What would you like to do?</legend>
+      <label class="agent-goal"><input class="lhp-sr-only" type="radio" name="agent-goal" value="onboard" checked>Set up LHP</label>
+      <label class="agent-goal"><input class="lhp-sr-only" type="radio" name="agent-goal" value="learn">Learn LHP</label>
+    </fieldset>
+    <fieldset class="agent-panel">
+      <legend class="lhp-sr-only">Choose your agent</legend>
+      <div class="agent-step" aria-hidden="true"><span>1</span>Choose your agent</div>
+      <div class="agent-choices">
+        {% for key, label in [('genie-code', 'Genie Code'), ('claude', 'Claude'), ('codex', 'Codex'), ('gemini', 'Gemini'), ('githubcopilot', 'Copilot')] %}
+        <label class="agent-choice"><input class="lhp-sr-only" type="radio" name="agent-choice" value="{{ key }}" {% if loop.first %}aria-label="Databricks Genie Code" checked{% endif %}><span class="agent-logo-frame"><img src="{{ pathto('_static/lhp/agents/' + key + '.svg', 1) }}" alt="" width="24" height="24"></span><span>{{ label }}</span></label>
+        {% endfor %}
+      </div>
+      <p id="agent-location-help">Open Genie Code in your Databricks workspace.</p>
+    </fieldset>
+    <section class="agent-panel" aria-labelledby="agent-step-two">
+      <div class="agent-step"><span aria-hidden="true">2</span><h3 id="agent-step-two">Send the instruction</h3></div>
+      <label for="agent-prompt" id="agent-prompt-label">Paste this into Genie Code</label>
+      <textarea id="agent-prompt" readonly spellcheck="false" aria-describedby="agent-prompt-help"></textarea>
+      <p id="agent-prompt-help">Your agent will ask whether you want a sample or an empty project.</p>
+      <button id="agent-copy-prompt" class="copy-button" type="button" data-copy="" data-feedback="agent-copy-feedback"><span id="agent-copy-label">Copy setup prompt</span></button>
+      <p id="agent-copy-feedback" aria-live="polite" role="status"></p>
+    </section>
+  </div>
+</dialog>
