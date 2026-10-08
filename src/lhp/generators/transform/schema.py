@@ -20,7 +20,6 @@ class SchemaTransformGenerator(BaseActionGenerator):
         super().__init__()
         self.add_import("from pyspark import pipelines as dp")
         self.add_import("from pyspark.sql import functions as F")
-        self.add_import("from pyspark.sql.types import StructType")
         self.schema_parser = SchemaTransformParser()
 
     def generate(self, action: Action, context: dict) -> str:

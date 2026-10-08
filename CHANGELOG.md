@@ -30,6 +30,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `cluster_by=[...]` and `cluster_by_auto=True`. Databricks uses the columns as the
   initial clustering keys and may later change them based on the workload. The web
   IDE's "Set only one of cluster columns / auto clustering" hint is gone too.
+- **CloudFiles explicit schemas escape column names and comments (#287).** A `"`, a
+  newline, a trailing backslash, or a backslash sequence such as `\U`, `\N` or `\x` in a
+  schema column's `name` or `comment` no longer produces unparsable code (reported as
+  `LHP-CFG-031`). Values such as `C:\temp\new` and `\\server\share` are no longer
+  silently altered. The values are emitted as JSON-escaped string literals and
+  non-ASCII text stays verbatim, so plain ASCII values generate byte-identical code.
+- **CloudFiles explicit schemas import only the types they use (#288).** The
+  generated module now imports `StructType`, `StructField` and each column's type, one
+  `from pyspark.sql.types import <Name>` line per name, instead of a fixed list of 14
+  names. The schema transform no longer adds an unused `StructType` import. Operational
+  metadata expressions now get an import for every one of those 14 types they call
+  (previously only `StringType`, `IntegerType`, `DoubleType`, `BooleanType` and
+  `TimestampType`), including `DecimalType(10, 2)` with arguments. Expressions such as
+  `.cast(LongType())` used to compile only when a schema's blanket import happened to
+  be in the same file.
+- **Two CloudFiles schema loads in one flowgroup no longer share one variable.** The
+  `StructType` variable is now named after the load's target view (`<target>_schema`)
+  instead of the schema file's `name`. Every schema file keyed by `table:` used to
+  become `schema_schema`, so the first view silently read the second view's schema; a
+  `name` such as `prices-file` produced an invalid identifier. Regenerating renames the
+  variable in existing output (for example `customer_schema` becomes
+  `v_customer_schema_raw_schema`).
 - **Environment `${tokens}` now resolve in operational-metadata expressions, and an
   unresolved one fails the run (#289).** `operational_metadata.columns.<name>.expression`
   in `lhp.yaml` substituted only `${pipeline_name}` and `${flowgroup_name}`; any other
