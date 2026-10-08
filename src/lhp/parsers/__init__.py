@@ -7,20 +7,26 @@ surface below is the only API callers should depend on; submodule paths
 direct module references.
 """
 
+from .editor_source_map import SourceSpan, YamlPath, source_spans
 from .parse_cache import PersistentParseCache
 from .schema_parser import SchemaParser
 from .schema_transform_parser import SchemaTransformParser
 from .yaml_loader import (
+    SAFE_LOADER,
     load_yaml_documents_all,
     load_yaml_file,
     safe_load_yaml_with_fallback,
 )
 
 __all__ = [
+    "SAFE_LOADER",
     "PersistentParseCache",
     "SchemaParser",
     "SchemaTransformParser",
+    "SourceSpan",
+    "YamlPath",
     "load_yaml_documents_all",
     "load_yaml_file",
     "safe_load_yaml_with_fallback",
+    "source_spans",
 ]

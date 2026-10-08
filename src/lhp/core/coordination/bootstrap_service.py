@@ -39,6 +39,7 @@ class FlowgroupBootstrapService(BaseFlowgroupBootstrapService):
         self._monitoring = monitoring
         self._logger = logger
         self._synthetic_contexts: Dict[Tuple[str, str], FlowGroupContext] = {}
+        self._blueprint_provenance: Dict[Tuple[str, str], BlueprintProvenance] = {}
         self._monitoring_result: Optional[MonitoringBuildResult] = None
         # Invocation-scoped discovery memo. Precedent in this codebase:
         # ``ActionOrchestrator._pipeline_slice_cache``. Deliberate divergence:
@@ -70,6 +71,7 @@ class FlowgroupBootstrapService(BaseFlowgroupBootstrapService):
             parent_phase="Pipeline discovery",
         ):
             blueprint_ctxs, provenance = self._expand_blueprints()
+        self._blueprint_provenance = provenance
         flowgroups.extend(ctx.flowgroup for ctx in blueprint_ctxs)
         self._synthetic_contexts = {
             (ctx.flowgroup.pipeline, ctx.flowgroup.flowgroup): ctx
@@ -107,6 +109,7 @@ class FlowgroupBootstrapService(BaseFlowgroupBootstrapService):
         """
         self._discovery_cache = None
         self._synthetic_contexts = {}
+        self._blueprint_provenance = {}
         self._monitoring_result = None
         self._discovery.reset_source_path_index()  # type: ignore[attr-defined]  # concrete-only method; ABC narrows surface to discover_flowgroups
 
@@ -124,6 +127,13 @@ class FlowgroupBootstrapService(BaseFlowgroupBootstrapService):
             if existing is not None:
                 return replace(existing, flowgroup=fg, source_yaml=source_yaml)
         return FlowGroupContext(flowgroup=fg, source_yaml=source_yaml)
+
+    def blueprint_provenance(
+        self, pipeline: str, flowgroup: str
+    ) -> Optional[BlueprintProvenance]:
+        """Return the expansion origin after discovery, if one exists."""
+        self.discover_all_flowgroups()
+        return self._blueprint_provenance.get((pipeline, flowgroup))
 
     def _expand_blueprints(
         self,

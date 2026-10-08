@@ -35,6 +35,7 @@ from typing import (
     Tuple,
 )
 
+from lhp.core.processing import BlueprintProvenance
 from lhp.models import FlowGroup, FlowGroupContext
 
 from ..models.processing import CopiedModuleRecord, RunWarningRecord
@@ -403,4 +404,11 @@ class BaseFlowgroupBootstrapService(ABC):
         accumulated by :meth:`discover_all_flowgroups`; falls back to a
         non-synthetic, empty-provenance envelope when no entry is found.
         """
+        raise NotImplementedError
+
+    @abstractmethod
+    def blueprint_provenance(
+        self, pipeline: str, flowgroup: str
+    ) -> Optional[BlueprintProvenance]:
+        """Return the original blueprint and instance for an expanded flowgroup."""
         raise NotImplementedError
