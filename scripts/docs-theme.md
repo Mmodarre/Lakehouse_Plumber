@@ -14,7 +14,7 @@ python3 -m http.server 8767 --directory docs/_build/html
 
 Open http://localhost:8767/. Check the homepage, Install and scaffold, a nested reference page and Search, in light and dark themes and on mobile.
 
-The theme uses Furo's native search index, theme preference, heading outline and page navigation. Custom code adds the header, mobile navigation and agent dialog. Logos, fonts and agent artwork are served locally; font and agent licences accompany the assets. The existing Mermaid extension and analytics configuration are retained.
+The theme uses Furo's native search index, theme preference, heading outline and page navigation. Custom code adds the header, mobile navigation and agent dialog. Logos, fonts and agent artwork are served locally; font and agent licences accompany the assets. Documentation illustrations are local PNG assets with descriptive alternative text and full-size links. The existing analytics configuration is retained.
 
 ## Browser smoke test
 
@@ -39,3 +39,15 @@ Publication order matters: merge the guides into Lakehouse_Plumber's **main** br
 ## Review scope
 
 The implementation is based on the current `release/V0.9.3`, including its merged documentation reorganisation. Existing in-progress work in the original checkout was preserved. PR creation requires the user's final confirmation.
+
+## Documentation diagrams
+
+The three former Mermaid diagrams and the quarantine recovery illustration are
+local generated PNGs. Select any diagram to open its full-resolution image;
+alternative text and adjacent prose carry the explanation without the image.
+Their warm canvas stays the same in both reading themes.
+
+See [the diagram audit](docs-diagrams/diagram-audit.md) for implementation
+evidence, the proposed visual backlog, and the page-level coverage table.
+Generation prompts and Superdesign asset/draft records are kept alongside it.
+Additional concepts and the homepage capability overview await user approval.

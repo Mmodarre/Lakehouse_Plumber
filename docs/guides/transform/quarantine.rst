@@ -28,6 +28,24 @@ rejoin the stream. Or you declare ``mode: quarantine`` with a two-field
 ``quarantine`` block, and let Lakehouse Plumber write all of it. That is the idea
 on every page: **declare your ETL, don't hand-write it.**
 
+The recovery path
+=================
+
+.. figure:: ../../_static/diagrams/quarantine.png
+   :alt: The source splits into a clean path and an inverse-filter quarantine path. Selected rows enter a DLQ inbox. An operator repairs the payload and marks it fixed. Change Data Feed selects fixed changes, a sink deduplicates them into an outbox, and reconstructed rows pass recycled expectations before joining the clean output.
+   :width: 100%
+   :figclass: lhp-diagram
+
+   Clean rows continue while quarantined rows take the repair and recycle path.
+   Select the diagram to view it full size.
+
+The dashed step is an operator's repair of the inbox; LHP does not repair the
+payload automatically. The recycle reader filters fixed changes by
+``source_table``, and the outbox stores each ``_dlq_sk`` only once. Rows
+reconstructed from the outbox are validated again before joining the output.
+The recycled rule set omits checks that reference ``_rescued_data``; rows that
+still fail are dropped, not automatically put back into the inbox.
+
 Before you start
 ================
 

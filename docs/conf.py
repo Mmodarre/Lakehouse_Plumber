@@ -31,7 +31,6 @@ extensions = [
     "sphinx.ext.intersphinx",
     "myst_parser",
     "sphinx_click",
-    "sphinxcontrib.mermaid",
     "sphinx_copybutton",
     "sphinxext.opengraph",  # Open Graph + meta description tags
     "notfound.extension",  # Custom 404 page
