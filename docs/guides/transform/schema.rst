@@ -101,7 +101,7 @@ runtime:
 .. literalinclude:: ../../_fixtures/guide_transform_schema/generated/dev/silver_orders/orders_typed.py
    :language: python
    :caption: generated/dev/silver_orders/orders_typed.py
-   :emphasize-lines: 36-59
+   :emphasize-lines: 35-58
 
 The schema transform became a ``@dp.temporary_view`` that turns each contract line
 into concrete PySpark: four ``withColumnRenamed`` calls map the cryptic names,

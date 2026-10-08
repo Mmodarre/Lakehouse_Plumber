@@ -1535,7 +1535,8 @@ def test_transform_generator_imports():
     schema_gen = SchemaTransformGenerator()
     assert "from pyspark import pipelines as dp" in schema_gen.imports
     assert "from pyspark.sql import functions as F" in schema_gen.imports
-    assert "from pyspark.sql.types import StructType" in schema_gen.imports
+    # The schema template references no pyspark.sql.types name (#288).
+    assert not any("pyspark.sql.types" in imp for imp in schema_gen.imports)
 
 
 class TestDataQualityQuarantine:
