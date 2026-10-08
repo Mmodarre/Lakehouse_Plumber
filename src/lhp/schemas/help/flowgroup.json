@@ -609,7 +609,7 @@
       "examples": [
         {
           "label": "YAML example",
-          "yaml": "source:\n  sql: \"SELECT * FROM ${catalog}.bronze.orders\""
+          "yaml": "source:\n  type: sql\n  sql: \"SELECT * FROM ${catalog}.bronze.orders\""
         }
       ]
     },
@@ -636,7 +636,7 @@
       "examples": [
         {
           "label": "YAML example",
-          "yaml": "source:\n  sql_path: sql/load_orders.sql"
+          "yaml": "source:\n  type: sql\n  sql_path: sql/load_orders.sql"
         }
       ]
     },
@@ -1449,7 +1449,8 @@
         }
       ],
       "details": [
-        "Use the target name of an earlier action. When multiple views are supported, keep their order consistent with the query or Python function."
+        "Provide the target name of an earlier action, or an ordered list of view names. The function receives one DataFrame or a list of DataFrames in that order.",
+        "A source is required. Use a Python load for a function that creates its own DataFrame from spark and parameters."
       ],
       "examples": [
         {
@@ -1580,6 +1581,9 @@
       "sources": [
         {
           "file": "src/lhp/resources/skills/lhp/references/actions-transform-python.md"
+        },
+        {
+          "file": "docs/reference/config/presets.rst"
         }
       ],
       "bindings": [
@@ -1593,7 +1597,7 @@
       "details": [
         "batch uses a nonstreaming reader; stream uses a streaming reader. This does not set the pipeline’s continuous execution mode."
       ],
-      "unsetBehavior": "When the resolved action omits this field, the default is batch. A preset may supply a value before generation."
+      "unsetBehavior": "When the resolved action omits this field, the default is batch. Set this field explicitly on the action to change it; the current preset resolver does not fill transform model fields."
     },
     {
       "id": "action.transform.data_quality.source",
@@ -1659,6 +1663,9 @@
       "sources": [
         {
           "file": "src/lhp/resources/skills/lhp/references/actions-transform-data-quality.md"
+        },
+        {
+          "file": "docs/reference/config/presets.rst"
         }
       ],
       "bindings": [
@@ -1678,7 +1685,7 @@
           "yaml": "mode: dqe"
         }
       ],
-      "unsetBehavior": "When the resolved action omits this field, the default is dqe. A preset may supply a value before generation."
+      "unsetBehavior": "When the resolved action omits this field, the default is dqe. Set this field explicitly on the action to change it; the current preset resolver does not fill transform model fields."
     },
     {
       "id": "action.transform.data_quality.quarantine.dlq_table",
@@ -1815,12 +1822,13 @@
         }
       ],
       "details": [
-        "The {source} placeholder expands to the chosen input. Without sql the action passes the source through. Use stream({source}) for streaming SQL."
+        "Use the source view name in the query, or a defined ${token}. Bare {source} is processed as a substitution token before generation; it does not automatically refer to this action’s source.",
+        "Without sql the action passes the source through. Use stream(v_orders) for streaming SQL over v_orders."
       ],
       "examples": [
         {
           "label": "YAML example",
-          "yaml": "sql: \"SELECT * FROM {source} WHERE status = 'open'\""
+          "yaml": "sql: \"SELECT * FROM v_orders WHERE status = 'open'\""
         }
       ]
     },
@@ -1859,6 +1867,9 @@
       "sources": [
         {
           "file": "src/lhp/resources/skills/lhp/references/actions-transform-temp-table.md"
+        },
+        {
+          "file": "docs/reference/config/presets.rst"
         }
       ],
       "bindings": [
@@ -1872,7 +1883,7 @@
       "details": [
         "batch uses a nonstreaming reader; stream uses a streaming reader. This does not set the pipeline’s continuous execution mode."
       ],
-      "unsetBehavior": "When the resolved action omits this field, the default is batch. A preset may supply a value before generation."
+      "unsetBehavior": "When the resolved action omits this field, the default is batch. Set this field explicitly on the action to change it; the current preset resolver does not fill transform model fields."
     },
     {
       "id": "action.transform.schema.source",
@@ -1961,6 +1972,9 @@
       "sources": [
         {
           "file": "src/lhp/resources/skills/lhp/references/actions-transform-schema.md"
+        },
+        {
+          "file": "docs/reference/config/presets.rst"
         }
       ],
       "bindings": [
@@ -1980,7 +1994,7 @@
           "yaml": "enforcement: permissive"
         }
       ],
-      "unsetBehavior": "When the resolved action omits this field, the default is permissive. A preset may supply a value before generation."
+      "unsetBehavior": "When the resolved action omits this field, the default is permissive. Set this field explicitly on the action to change it; the current preset resolver does not fill transform model fields."
     },
     {
       "id": "action.transform.schema.target",
@@ -2017,6 +2031,9 @@
       "sources": [
         {
           "file": "src/lhp/resources/skills/lhp/references/actions-transform-schema.md"
+        },
+        {
+          "file": "docs/reference/config/presets.rst"
         }
       ],
       "bindings": [
@@ -2030,7 +2047,7 @@
       "details": [
         "batch uses a nonstreaming reader; stream uses a streaming reader. This does not set the pipeline’s continuous execution mode."
       ],
-      "unsetBehavior": "When the resolved action omits this field, the default is stream. A preset may supply a value before generation."
+      "unsetBehavior": "When the resolved action omits this field, the default is stream. Set this field explicitly on the action to change it; the current preset resolver does not fill transform model fields."
     },
     {
       "id": "action.write.streaming_table.write_target.mode",
@@ -2570,7 +2587,8 @@
         }
       ],
       "details": [
-        "Snapshot CDC reads an external table or path, not a view defined by another action in the same pipeline. Choose source or source_function, not both."
+        "Snapshot CDC reads an external table or path, not a view defined by another action in the same pipeline. Choose source or source_function, not both.",
+        "With direct source, the containing flowgroup also needs a load action to pass the current relationship validator."
       ],
       "examples": [
         {
@@ -2604,7 +2622,8 @@
         }
       ],
       "details": [
-        "Supply file and function, plus optional parameters. The function runs outside SDP’s decorated context and must read its source directly."
+        "Supply file and function, plus optional parameters. The function runs outside SDP’s decorated context and must read its source directly.",
+        "This form is exempt from the normal flowgroup load-action requirement."
       ],
       "examples": [
         {
@@ -2965,7 +2984,7 @@
           "file": "src/lhp/resources/skills/lhp/references/actions-write-streaming-table-snapshot-cdc.md"
         },
         {
-          "file": "docs/reference/actions/write.rst"
+          "file": "docs/reference/actions/write/streaming-table.rst"
         }
       ],
       "bindings": [
@@ -2977,9 +2996,9 @@
         }
       ],
       "details": [
-        "Use this action-level flag for a one-time append flow. It does not set the job schedule or the pipeline’s continuous mode."
+        "Use this action-level flag for standard append or CDC flows. It is not emitted for snapshot CDC or replace flows and does not set a job schedule or pipeline continuous mode."
       ],
-      "unsetBehavior": "When the resolved action omits this field, the default is false. A preset may supply a value before generation."
+      "unsetBehavior": "When the resolved action omits this field, the default is false."
     },
     {
       "id": "action.write.streaming_table.write_target.temporary",
@@ -5881,7 +5900,9 @@
         }
       ],
       "details": [
-        "Presets and templates solve different problems: presets provide settings, while templates expand parameterized actions. Validate after both are resolved."
+        "Presets provide settings, while templates expand parameterized actions. Template presets apply before flowgroup presets; later entries win conflicts.",
+        "For loads and writes, resolved preset values override conflicting values in source and write_target. The current resolver does not fill omitted transform or flowgroup model fields; set those explicitly.",
+        "Operational metadata selections are handled separately as explicit column lists. Validate after templates, presets and substitutions are resolved."
       ],
       "examples": [
         {
@@ -5906,12 +5927,13 @@
         }
       ],
       "details": [
-        "Use the project’s metadata columns and metadata presets. This explicit selection can override the project metadata defaults."
+        "List column names explicitly. Lists from action presets, the flowgroup and the action are combined; true is accepted but adds no columns. Named metadata presets and project defaults are not expanded by the current selector.",
+        "At action level, false disables all metadata for that action, including inherited selections. Select columns on loads or supported transforms; writes do not add metadata columns."
       ],
       "examples": [
         {
           "label": "YAML example",
-          "yaml": "operational_metadata: true"
+          "yaml": "operational_metadata: [_ingestion_timestamp, _pipeline_name]"
         }
       ]
     },
@@ -6164,7 +6186,7 @@
       "examples": [
         {
           "label": "Complete action example",
-          "yaml": "name: example_temp_table\ntype: transform\nsource: v_orders\nsql: SELECT * FROM {source} WHERE amount > 0\ntarget: v_orders_temp_table\ntransform_type: temp_table"
+          "yaml": "name: example_temp_table\ntype: transform\nsource: v_orders\nsql: SELECT * FROM v_orders WHERE amount > 0\ntarget: v_orders_temp_table\ntransform_type: temp_table"
         }
       ],
       "sources": [
