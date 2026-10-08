@@ -20,7 +20,7 @@
 | `private` | bool | `false` | Emitted as `private=`. Creates the table for the pipeline's lifetime without publishing it to the metastore; visible only inside the pipeline. |
 | `partition_columns` | list | — | — |
 | `cluster_columns` | list | — | — |
-| `cluster_by_auto` | bool | — | Auto liquid clustering; renders `cluster_by_auto=True`. Mutually exclusive with `cluster_columns`. Omitted when false/unset. |
+| `cluster_by_auto` | bool | — | Auto liquid clustering; renders `cluster_by_auto=True`. Can be combined with `cluster_columns` (both kwargs emitted): the columns become the initial clustering keys and Databricks may later change them based on the workload. Omitted when false/unset. |
 | `refresh_policy` | string | — | One of `auto`, `incremental`, `incremental_strict`, `full`; any other value fails validation. Renders `refresh_policy="incremental"`. MV-only. |
 | `path` | string | — | — |
 | `comment` | string | `Materialized view: {table}` | — |
@@ -42,6 +42,6 @@
 
 - Exactly one query source: action `source` field, `sql`, or `sql_path`.
 - No action-level `source` needed when `sql`/`sql_path` is provided.
-- `cluster_columns` and `cluster_by_auto` are mutually exclusive (XOR) — setting both fails validation with `'cluster_columns' and 'cluster_by_auto' are mutually exclusive`.
+- `cluster_columns` and `cluster_by_auto` may be set together — renders `cluster_by=[...]` plus `cluster_by_auto=True`; the columns are the initial clustering keys, which Databricks may later change based on the workload.
 - UC tags apply only to the table-creating action; temporary tables and sinks are excluded. Column-level tags come from a `tags_file`'s per-column `tags:`. A schema file may carry those same tags — point BOTH `table_schema` and `tags_file` at it. A `table_schema` file that carries tags but is NOT also wired as `tags_file` has them dropped; `lhp generate` warns `LHP-CFG-069` (streaming-table + MV writes only; generate-time, since validate runs no codegen).
 - UC tagging permissions (enforced by Unity Catalog, not LHP): the pipeline's run-as identity needs `APPLY TAG` on the table and `ASSIGN` on required governed tags to write tags via the REST API, plus `USE CATALOG`, `USE SCHEMA`, and `SELECT` on `system.information_schema` to read existing tag state.

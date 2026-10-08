@@ -64,7 +64,7 @@ export function readPath(raw: Record<string, unknown>, path: YamlPath): unknown 
 /**
  * Presence for cross-field rules: `undefined` / `null` / `''` / `false` /
  * `[]` all count as ABSENT, so an omitted or falsy key never trips a rule
- * (e.g. `cluster_by_auto: false` does not conflict with `cluster_columns`).
+ * (e.g. `column_list: []` does not conflict with `except_column_list`).
  */
 export function isPresent(value: unknown): boolean {
   if (value === undefined || value === null || value === false || value === '') return false

@@ -305,13 +305,58 @@ class TestConfigValidatorDltCdc:
         errors = validator.validate_action(action, 0)
         assert not any("refresh_policy" in error for error in errors)
 
-    def test_cluster_columns_and_cluster_by_auto_mutually_exclusive(self):
+    @pytest.mark.parametrize(
+        ("source", "mode_config"),
+        [
+            pytest.param("v_test", {}, id="streaming_table_standard"),
+            pytest.param(
+                "v_test",
+                {
+                    "mode": "cdc",
+                    "cdc_config": {"keys": ["id"], "sequence_by": "updated_at"},
+                },
+                id="streaming_table_cdc",
+            ),
+            pytest.param(
+                None,
+                {
+                    "mode": "snapshot_cdc",
+                    "snapshot_cdc_config": {
+                        "source": "raw.snapshots",
+                        "keys": ["id"],
+                    },
+                },
+                id="streaming_table_snapshot_cdc",
+            ),
+            pytest.param(
+                "v_test",
+                {
+                    "mode": "replace",
+                    "replace_config": {
+                        "replace_using": ["id"],
+                        "sequence_by": "updated_at",
+                    },
+                },
+                id="streaming_table_replace",
+            ),
+            pytest.param(
+                None,
+                {"type": "materialized_view", "sql": "SELECT 1"},
+                id="materialized_view",
+            ),
+        ],
+    )
+    def test_cluster_columns_and_cluster_by_auto_can_be_combined(
+        self, source, mode_config
+    ):
+        # cluster_columns seed the initial keys; cluster_by_auto lets Databricks
+        # evolve them (issue #282), so the combination must validate cleanly.
         validator = ConfigValidator()
 
         action = Action(
-            name="test_cluster_mutual_exclusion",
+            name="test_cluster_columns_with_auto",
             type=ActionType.WRITE,
-            source="v_test",
+            source=source,
             write_target={
                 "type": "streaming_table",
                 "catalog": "test_cat",
@@ -319,18 +364,16 @@ class TestConfigValidatorDltCdc:
                 "table": "test",
                 "cluster_columns": ["column1"],
                 "cluster_by_auto": True,
+                **mode_config,
             },
         )
         errors = validator.validate_action(action, 0)
-        assert any(
-            "'cluster_columns' and 'cluster_by_auto' are mutually exclusive" in error
-            for error in errors
-        )
+        assert errors == []
 
     def test_cluster_columns_or_cluster_by_auto_alone_ok(self):
         validator = ConfigValidator()
 
-        # cluster_columns alone: no mutual-exclusivity error
+        # cluster_columns alone is valid
         action = Action(
             name="test_cluster_columns_alone",
             type=ActionType.WRITE,
@@ -344,9 +387,9 @@ class TestConfigValidatorDltCdc:
             },
         )
         errors = validator.validate_action(action, 0)
-        assert not any("mutually exclusive" in error for error in errors)
+        assert errors == []
 
-        # cluster_by_auto alone: no mutual-exclusivity error
+        # cluster_by_auto alone is valid
         action = Action(
             name="test_cluster_by_auto_alone",
             type=ActionType.WRITE,
@@ -360,7 +403,7 @@ class TestConfigValidatorDltCdc:
             },
         )
         errors = validator.validate_action(action, 0)
-        assert not any("mutually exclusive" in error for error in errors)
+        assert errors == []
 
     def test_cdc_config_validation_comprehensive(self):
         validator = ConfigValidator()
