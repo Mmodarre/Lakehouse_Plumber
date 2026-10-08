@@ -2,22 +2,12 @@
 # Pipeline: acmi_edw_raw
 # FlowGroup: source_schema_load
 
-from pyspark.sql.types import (
-    StructType,
-    StructField,
-    StringType,
-    LongType,
-    IntegerType,
-    DoubleType,
-    FloatType,
-    BooleanType,
-    DateType,
-    TimestampType,
-    DecimalType,
-    BinaryType,
-    ByteType,
-    ShortType,
-)
+from pyspark.sql.types import DecimalType
+from pyspark.sql.types import LongType
+from pyspark.sql.types import StringType
+from pyspark.sql.types import StructField
+from pyspark.sql.types import StructType
+from pyspark.sql.types import TimestampType
 from pyspark import pipelines as dp
 
 # Pipeline Configuration
@@ -30,7 +20,7 @@ FLOWGROUP_ID = "source_schema_load"
 # ============================================================================
 
 # Define schema
-customer_schema = StructType(
+v_customer_schema_raw_schema = StructType(
     [
         StructField(
             "c_custkey",
@@ -66,7 +56,7 @@ def v_customer_schema_raw():
     """Load customer CSV with explicit schema enforcement"""
     df = (
         spark.readStream.format("cloudFiles")
-        .schema(customer_schema)
+        .schema(v_customer_schema_raw_schema)
         .option("cloudFiles.format", "csv")
         .load("/data/schema_test/*.csv")
     )

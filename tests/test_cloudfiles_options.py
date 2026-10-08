@@ -129,14 +129,14 @@ class TestCloudFilesOptions:
 
         result = self.generator.generate(action, {"spec_dir": Path(self.temp_dir)})
 
-        assert "test_schema = StructType([" in result
+        assert "test_table_schema = StructType([" in result
         assert 'StructField("id", LongType(), False' in result
         assert 'StructField("name", StringType(), False' in result
         assert 'StructField("amount", DecimalType(18, 2), True' in result
         assert 'StructField("created_at", TimestampType(), False' in result
-        assert ".schema(test_schema)" in result
+        assert ".schema(test_table_schema)" in result
         assert "df = df.schema(" not in result
-        schema_pos = result.index(".schema(test_schema)")
+        schema_pos = result.index(".schema(test_table_schema)")
         load_pos = result.index(".load(")
         assert schema_pos < load_pos
 
@@ -333,10 +333,10 @@ class TestCloudFilesOptions:
 
         result = self.generator.generate(action, {"spec_dir": Path(self.temp_dir)})
 
-        assert "test_schema = StructType([" in result
-        assert ".schema(test_schema)" in result
+        assert "customers_bronze_schema = StructType([" in result
+        assert ".schema(customers_bronze_schema)" in result
         assert "df = df.schema(" not in result
-        schema_pos = result.index(".schema(test_schema)")
+        schema_pos = result.index(".schema(customers_bronze_schema)")
         load_pos = result.index(".load(")
         assert schema_pos < load_pos
 
