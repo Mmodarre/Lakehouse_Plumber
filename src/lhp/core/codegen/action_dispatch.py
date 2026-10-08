@@ -13,6 +13,7 @@ from lhp.models.processing import CopiedModuleRecord
 
 from ...errors import ErrorFactory, LHPError, codes
 from ..processing.substitution import EnhancedSubstitutionManager
+from ..registry import determine_action_subtype
 
 if TYPE_CHECKING:
     from .context import GenerationContextBuilder
@@ -362,29 +363,6 @@ class ActionDispatcher:
             ) from e
 
     def determine_action_subtype(self, action: Action) -> str:
-        if action.type == ActionType.LOAD:
-            if isinstance(action.source, dict):
-                return action.source.get("type", "sql")
-            return "sql"  # String source is SQL
-
-        if action.type == ActionType.TRANSFORM:
-            return action.transform_type or "sql"
-
-        if action.type == ActionType.WRITE:
-            if action.write_target and isinstance(action.write_target, dict):
-                return action.write_target.get("type", "streaming_table")
-            return "streaming_table"  # Default to streaming table
-
-        if action.type == ActionType.TEST:
-            return action.test_type or "row_count"  # Default to row_count test
-
-        raise ErrorFactory.validation_error(
-            codes.VAL_009,
-            title=f"Unknown action type: {action.type}",
-            details=f"Cannot determine sub-type for unknown action type '{action.type}'.",
-            suggestions=[
-                "Use a valid action type: load, transform, write, test",
-                "Check the 'type' field in your action configuration",
-            ],
-            context={"Action": action.name, "Type": str(action.type)},
-        )
+        """Forward to :func:`lhp.core.registry.determine_action_subtype`, the
+        one sub-type rule the registry's validate-path queries also use."""
+        return determine_action_subtype(action)

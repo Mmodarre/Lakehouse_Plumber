@@ -65,7 +65,7 @@ Each entry under ``columns.<name>``. A bare string value is shorthand for
      - string
      - Yes
      - —
-     - Spark expression evaluated per row (e.g. ``F.current_timestamp()``). ``${pipeline_name}`` and ``${flowgroup_name}`` are substituted.
+     - Spark expression evaluated per row (e.g. ``F.current_timestamp()``). ``${pipeline_name}``, ``${flowgroup_name}`` and environment ``${token}`` values are substituted; ``${secret:...}`` is rejected. See `Substitution in expressions`_.
    * - ``description``
      - string
      - No
@@ -147,6 +147,50 @@ Defining any project column replaces this set.
      - ``F.lit("${flowgroup_name}")``
      - view, streaming_table, materialized_view
      - FlowGroup name.
+
+Substitution in expressions
+---------------------------
+
+Each selected column's ``expression`` is resolved per flowgroup for the
+``--env`` environment, in this order:
+
+1. Context tokens are replaced first and win over a substitutions key of the
+   same name: ``${pipeline_name}``, ``${flowgroup_name}``, and, on delta and
+   JDBC loads, ``${source_table}`` (the table the load reads).
+2. A ``${secret:...}`` reference is rejected with ``LHP-CFG-070``, including
+   one reached through a token value. The expression's result is written into
+   every row of the table, so a secret would be stored as table data. Put
+   non-secret per-environment values in ``substitutions/<env>.yaml``, and
+   per-table logic in a transform action.
+3. Environment ``${token}`` values are substituted from the ``global`` and
+   ``<env>`` blocks of ``substitutions/<env>.yaml``.
+4. Any ``${...}``, ``%{...}`` or ``{{ ... }}`` still present fails with
+   ``LHP-CFG-010``, naming the column, the token and the environment. Local
+   variables and template parameters are not resolved in ``lhp.yaml``.
+
+The bare ``{token}`` form is not substituted in expressions, so a regex
+quantifier such as ``F.col("id").rlike("\\d{8}")`` is emitted unchanged.
+Only expressions that are rendered into generated code are resolved: a column
+selected on an action that does not emit operational metadata, such as a
+streaming table or materialized view write, a schema transform or a test
+action, is not checked.
+``lhp validate --env <env>`` reports the same errors as
+``lhp generate --env <env>``.
+
+.. code-block:: yaml
+
+   # lhp.yaml
+   operational_metadata:
+     columns:
+       _source_system:
+         expression: "F.lit('${source_system}')"
+         applies_to: ["view"]
+
+.. code-block:: yaml
+
+   # substitutions/dev.yaml
+   dev:
+     source_system: crm_dev
 
 Selection field
 ---------------

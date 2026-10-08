@@ -227,6 +227,14 @@ CFG_068 = ErrorCode(ErrorCategory.CONFIG, "068")
 # LHP-CFG-069 token, never raised as an error. Not emitted on the cloudfiles
 # load path (a load can never apply UC tags).
 CFG_069 = ErrorCode(ErrorCategory.CONFIG, "069")
+# CFG_070: an operational-metadata column expression in lhp.yaml references a
+# secret (``${secret:...}``, written directly or reached through an environment
+# ``${token}``). Metadata expressions are evaluated per row and their value is
+# written into table data, so a secret there would be stored in every row.
+# Raised by the shared expression resolver
+# (core/codegen/operational_metadata/expression.py) on both the validate and
+# generate paths, via ErrorFactory.config_error(codes.CFG_070, ...).
+CFG_070 = ErrorCode(ErrorCategory.CONFIG, "070")
 
 DEP_001 = ErrorCode(ErrorCategory.DEPENDENCY, "001")
 # DEP_002: dependency extraction found a recognized table-read in Python code
@@ -372,6 +380,7 @@ ALL_CODES: tuple[ErrorCode, ...] = (
     CFG_067,
     CFG_068,
     CFG_069,
+    CFG_070,
     DEP_001,
     DEP_002,
     DEP_003,
@@ -444,6 +453,7 @@ __all__ = [
     "CFG_067",
     "CFG_068",
     "CFG_069",
+    "CFG_070",
     "DEPR_001",
     "DEPR_002",
     "DEPR_003",

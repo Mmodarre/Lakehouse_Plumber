@@ -19,6 +19,9 @@ from .compatibility.table_creation import TableCreationValidator, action_creates
 # taxonomy under §9.4).
 from .field.config_field import ConfigFieldValidator
 from .field.secret_reference import SecretValidator
+from .field.operational_metadata_expression import (
+    OperationalMetadataExpressionValidator,
+)
 from .compatibility import (
     DltTableOptionsValidator,
     CdcConfigValidator,
@@ -40,6 +43,7 @@ __all__ = [
     "DltTableOptionsValidator",
     "KafkaOptionsValidator",
     "LoadActionValidator",
+    "OperationalMetadataExpressionValidator",
     "ReplaceFanInCompatibilityValidator",
     "SecretValidator",
     "SnapshotCdcConfigValidator",

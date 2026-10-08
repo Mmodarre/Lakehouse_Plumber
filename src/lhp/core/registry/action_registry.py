@@ -4,6 +4,7 @@ import logging
 from typing import Dict, Type
 
 from lhp.models import (
+    Action,
     ActionType,
     LoadSourceType,
     TestActionType,
@@ -44,6 +45,39 @@ def register_generators(
     _REGISTERED_GENERATORS[category].update(mapping)
 
 
+def determine_action_subtype(action: Action) -> str:
+    """Return the registry ``sub_type`` key that selects ``action``'s generator.
+
+    :raises LHPValidationError: ``LHP-VAL-009`` for an unknown action type.
+    """
+    if action.type == ActionType.LOAD:
+        if isinstance(action.source, dict):
+            return action.source.get("type", "sql")
+        return "sql"  # String source is SQL
+
+    if action.type == ActionType.TRANSFORM:
+        return action.transform_type or "sql"
+
+    if action.type == ActionType.WRITE:
+        if action.write_target and isinstance(action.write_target, dict):
+            return action.write_target.get("type", "streaming_table")
+        return "streaming_table"  # Default to streaming table
+
+    if action.type == ActionType.TEST:
+        return action.test_type or "row_count"  # Default to row_count test
+
+    raise ErrorFactory.validation_error(
+        codes.VAL_009,
+        title=f"Unknown action type: {action.type}",
+        details=f"Cannot determine sub-type for unknown action type '{action.type}'.",
+        suggestions=[
+            "Use a valid action type: load, transform, write, test",
+            "Check the 'type' field in your action configuration",
+        ],
+        context={"Action": action.name, "Type": str(action.type)},
+    )
+
+
 class ActionRegistry:
     """Registry for action generators."""
 
@@ -72,6 +106,27 @@ class ActionRegistry:
     def get_generator(
         self, action_type: ActionType, sub_type: str | None = None
     ) -> BaseActionGenerator:
+        return self._generator_class(action_type, sub_type)()
+
+    def renders_operational_metadata(self, action: Action) -> bool:
+        """Whether code generation emits operational-metadata columns for ``action``.
+
+        Reads the ``renders_operational_metadata`` declaration of the generator
+        class :meth:`get_generator` returns for the action, the same
+        declaration the render path enforces, so validation checks the
+        metadata expressions of exactly the actions generation decorates.
+
+        :raises LHPError: as :meth:`get_generator`, for an action type or
+            sub-type with no registered generator.
+        """
+        generator_class = self._generator_class(
+            action.type, determine_action_subtype(action)
+        )
+        return generator_class.renders_operational_metadata
+
+    def _generator_class(
+        self, action_type: ActionType, sub_type: str | None = None
+    ) -> Type[BaseActionGenerator]:
         with perf_timer(
             f"get_generator [{action_type}/{sub_type}]", category="get_generator"
         ):
@@ -141,7 +196,7 @@ class ActionRegistry:
                 logger.debug(
                     f"Resolved load generator: {self._load_generators[sub_type].__name__}"
                 )
-                return self._load_generators[sub_type]()
+                return self._load_generators[sub_type]
 
             if action_type == ActionType.TRANSFORM:
                 if not sub_type:
@@ -193,7 +248,7 @@ class ActionRegistry:
                 logger.debug(
                     f"Resolved transform generator: {self._transform_generators[sub_type].__name__}"
                 )
-                return self._transform_generators[sub_type]()
+                return self._transform_generators[sub_type]
 
             if action_type == ActionType.WRITE:
                 if not sub_type:
@@ -249,7 +304,7 @@ class ActionRegistry:
                 logger.debug(
                     f"Resolved write generator: {self._write_generators[sub_type].__name__}"
                 )
-                return self._write_generators[sub_type]()
+                return self._write_generators[sub_type]
 
             if action_type == ActionType.TEST:
                 if not sub_type:
@@ -286,7 +341,7 @@ class ActionRegistry:
                 logger.debug(
                     f"Resolved test generator: {self._test_generators[sub_type].__name__}"
                 )
-                return self._test_generators[sub_type]()
+                return self._test_generators[sub_type]
 
             raise ErrorFactory.unknown_type_with_suggestion(
                 value_type="action type",
