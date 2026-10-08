@@ -26,6 +26,7 @@ list order. A preset file has the shape::
 
 .. seealso::
 
+   Guide: :doc:`/guides/reuse-and-scale/presets`.
    Concept: :doc:`/concepts/presets-templates-blueprints`.
 
 Top-level fields
@@ -91,6 +92,29 @@ their type and sub-type.
    * - ``defaults``
      - The flowgroup itself.
      - Each key sets a flowgroup-level field default.
+
+Precedence and current limitations
+----------------------------------
+
+Parent ``extends`` settings are merged first, then the child preset. Presets
+listed on a template apply before presets listed on its flowgroup; within a
+list, later entries win conflicts. Dictionaries merge recursively, while lists
+and scalars replace earlier values.
+
+For load actions, the resolved preset overrides conflicting values in
+``source``. For writes it overrides ``write_target``. For example, an action's
+``source.options.cloudFiles.maxFilesPerTrigger: 50`` becomes ``200`` when its
+preset sets that same option to ``200``. Use a later preset to override a shared
+preset deliberately; check the generated result.
+
+The current resolver fills transform and flowgroup defaults only when a key is
+absent from the serialised model. Supported model fields are already present,
+even when their value is null, so those defaults do not fill omitted transform
+or flowgroup fields. Set those fields explicitly in the action or flowgroup.
+This differs from the merge used for load and write mappings.
+
+Preset-level ``operational_metadata`` selection is read separately; use an
+explicit list of column names. See :doc:`operational-metadata`.
 
 Example
 -------

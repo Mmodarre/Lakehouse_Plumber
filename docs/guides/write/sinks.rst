@@ -153,3 +153,8 @@ What's next
 - **See every sink option.** The full option surface for each sink kind — and
   the ``tableName`` / ``path`` rule for Delta — is in the write action
   reference, with the constraints on each.
+
+Syntax and options
+------------------
+
+See :doc:`/reference/actions/write/sink` for all supported settings and defaults.

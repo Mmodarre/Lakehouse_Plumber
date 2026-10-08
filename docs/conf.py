@@ -1,6 +1,7 @@
 # Configuration file for the Sphinx documentation builder.
 # -- Path setup --------------------------------------------------------------
 import os
+import posixpath
 import sys
 from datetime import datetime
 
@@ -62,6 +63,8 @@ master_doc = "index"
 # directories to ignore when looking for source files.
 exclude_patterns = [
     "_build",
+    "_includes/**",
+    "reviews/**",  # Internal review artifacts are not product documentation.
     "Thumbs.db",
     ".DS_Store",
     "DOCS_REORGANIZATION_PLAN.md",
@@ -107,7 +110,7 @@ redirects = {
     "dependency_analysis": "guides/ops/dependency-analysis.html",
     "actions/test_reporting": "guides/test/test-reporting.html",
     "migrate_from_dlt": "guides/ship/migrate-from-dlt.html",
-    "troubleshooting": "reference/errors.html",
+    "troubleshooting": "operate/troubleshooting.html",
     "architecture": "concepts/how-lhp-works.html",
     "skills_concept": "concepts/coding-agents-and-the-skill.html",
     "decisions": "concepts/presets-templates-blueprints.html",
@@ -141,20 +144,29 @@ redirects = {
     "guides/quality-and-ops/monitoring": "guides/ops/monitoring.html",
     "guides/quality-and-ops/dependency-analysis": "guides/ops/dependency-analysis.html",
     "guides/quality-and-ops/quarantine": "guides/transform/quarantine.html",
-    "guides/quality-and-ops/test-reporting": "guides/test/data-tests.html",
+    "guides/quality-and-ops/test-reporting": "guides/test/test-reporting.html",
     # Wheel packaging moved from Ship to its own Deploy category.
     "guides/ship/package-as-wheels": "guides/deploy/package-as-wheels.html",
     # Get Started gained an "Explore LHP Web" step; where-to-next shifted 06→07.
     "get-started/06-where-to-next": "get-started/07-where-to-next.html",
 }
 
+# Redirect targets are resolved by the browser relative to each retired URL.
+# Keep the map above relative to the documentation root for maintainability.
+redirects = {
+    source: posixpath.relpath(target, posixpath.dirname(source) or ".")
+    for source, target in redirects.items()
+}
+
 # -- Options for HTML output -------------------------------------------------
 html_theme = "furo"
 html_static_path = ["_static"]
+html_css_files = ["navigation.css"]
 
 # -- Analytics: GoatCounter (privacy-respecting, no cookies, free for OSS) ---
 # Register the slug at https://www.goatcounter.com/signup before this collects data.
 html_js_files = [
+    "navigation.js",
     (
         "https://gc.zgo.at/count.js",
         {

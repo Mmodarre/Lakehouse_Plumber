@@ -144,3 +144,8 @@ What's next
   transform guide.
 - For the full option list — ``sql_path``, multiple source views, and
   operational metadata — see the **Transform action reference**.
+
+Syntax and options
+------------------
+
+See :doc:`/reference/actions/transform/sql` for all supported settings and defaults.

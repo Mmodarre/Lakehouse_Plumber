@@ -153,3 +153,8 @@ What's next
 - For the full option list — multiple source views, ``operational_metadata``,
   and the rules for importing local helper modules — see the **Transform action
   reference**.
+
+Syntax and options
+------------------
+
+See :doc:`/reference/actions/transform/python` for all supported settings and defaults.

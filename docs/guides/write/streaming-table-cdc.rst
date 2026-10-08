@@ -164,3 +164,8 @@ What's next
 - **Fan several change sources into one dimension.** Multiple CDC write actions
   that target the same table combine into a single ``create_streaming_table``
   with one apply-changes flow per source.
+
+Syntax and options
+------------------
+
+See :doc:`/reference/actions/write/streaming-table-cdc` for all supported settings and defaults.

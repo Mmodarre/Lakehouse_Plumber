@@ -15,9 +15,33 @@ pipeline (``generated/<env>/<pipeline_name>/monitoring.py``), and a Databricks
 job (``resources/<pipeline_name>.job.yml`` — written directly under
 ``resources/``, not a ``resources/lhp/`` subdirectory).
 
+**Quick lookup:** :ref:`Concurrency <monitoring-concurrency>` ·
+:ref:`Checkpoints <monitoring-checkpoints>` ·
+:ref:`Materialized views <monitoring-materialized-views>` ·
+:doc:`Job settings <monitoring-job>`
+
 .. seealso::
 
-   How-to guide: :doc:`/guides/ops/monitoring`.
+   How-to guides: :doc:`/guides/ops/monitoring` and :doc:`/operate/adjust-monitoring`.
+
+Minimal configuration
+---------------------
+
+.. code-block:: yaml
+   :caption: lhp.yaml (add to the existing project file)
+
+   event_log:
+     catalog: "${catalog}"
+     schema: _meta
+     name_suffix: _event_log
+   monitoring:
+     checkpoint_path: "/Volumes/${catalog}/_meta/checkpoints/event_logs"
+     job_config_path: config/monitoring_job_config.yaml
+
+The referenced job file must exist; a minimal file can contain
+``max_concurrent_runs: 1``. See :doc:`monitoring-job` for its complete contract.
+Omitting both project blocks leaves monitoring unconfigured. Inside a supplied
+block, ``enabled`` defaults to ``true``.
 
 Event log fields
 ----------------
@@ -127,6 +151,8 @@ qualified name is ``{catalog}.{schema}.{streaming_table}``.
      checkpoint_path: "/Volumes/${catalog}/_meta/checkpoints/event_logs"
      job_config_path: "config/monitoring_job_config.yaml"
 
+.. _monitoring-materialized-views:
+
 Materialized views
 ------------------
 
@@ -187,56 +213,8 @@ not repeated here.
 Job-config file
 ---------------
 
-``monitoring.job_config_path`` points to a flat single-document YAML mapping.
-LHP deep-merges it over its defaults (``max_concurrent_runs: 1``,
-``queue.enabled: true``, ``performance_target: STANDARD``) and then
-token-substitutes it per environment. The job name is fixed at
-``<pipeline_name>_job`` and the ``pipeline_task`` is generated automatically.
-All fields are optional.
-
-.. list-table::
-   :header-rows: 1
-   :widths: 30 70
-
-   * - Field
-     - Description
-   * - ``max_concurrent_runs``
-     - Maximum concurrent job runs. Default ``1``.
-   * - ``performance_target``
-     - ``STANDARD`` (default) or ``PERFORMANCE_OPTIMIZED``.
-   * - ``queue``
-     - ``queue.enabled`` toggles job-run queueing.
-   * - ``notebook_cluster.new_cluster``
-     - New-cluster spec for the notebook task. Mutually exclusive with ``existing_cluster_id``; serverless when neither is set.
-   * - ``notebook_cluster.existing_cluster_id``
-     - Attach the notebook task to an existing cluster.
-   * - ``timeout_seconds``
-     - Job-level timeout in seconds.
-   * - ``tags``
-     - Free-form ``{key: value}`` mapping.
-   * - ``email_notifications``
-     - ``on_start`` / ``on_success`` / ``on_failure`` recipient lists.
-   * - ``webhook_notifications``
-     - ``on_start`` / ``on_success`` / ``on_failure`` webhook-id lists.
-   * - ``permissions``
-     - User/group permission entries (``level`` plus ``user_name`` or ``group_name``).
-   * - ``schedule``
-     - Quartz cron schedule: ``quartz_cron_expression``, ``timezone_id``, ``pause_status``.
-
-Any key not listed above is passed through verbatim into the job resource, so
-new Databricks Jobs fields work without an LHP change. A top-level
-``project_defaults:`` wrapper, a ``job_name:`` key, and ``pipeline_task``
-entries are rejected or overridden.
-
-.. code-block:: yaml
-
-   # config/monitoring_job_config.yaml
-   max_concurrent_runs: 1
-   performance_target: STANDARD
-   queue:
-     enabled: true
-   tags:
-     environment: "${bundle.target}"
+See :doc:`monitoring-job` for the flat monitoring-job mapping, schedules,
+compute, notifications and permissions.
 
 Validation errors
 -----------------
@@ -257,3 +235,31 @@ Validation errors
      - At generate time, the resolved ``job_config_path`` does not point to a readable file.
    * - ``LHP-IO-002``
      - The monitoring job-config file is not valid YAML.
+
+.. _monitoring-concurrency:
+
+Collection concurrency
+----------------------
+
+``monitoring.max_concurrent_streams`` sets the maximum number of concurrent
+event-log collection streams in the union notebook. The default is ``10``;
+accepted values are integers from ``1`` to ``20``. This is separate from
+``max_concurrent_runs`` in the monitoring job file, which limits whole job runs.
+
+.. _monitoring-checkpoints:
+
+Checkpoint storage
+------------------
+
+``monitoring.checkpoint_path`` is required when monitoring is enabled. Each
+source pipeline uses ``{checkpoint_path}/{pipeline_name}/``. Keep this path
+stable to retain collection progress. A new path starts with new checkpoint
+state; plan source retention and possible replay before changing it.
+LHP generation does not migrate existing checkpoint state.
+See :doc:`/operate/adjust-monitoring` to regenerate, review and deploy changes.
+
+.. toctree::
+   :maxdepth: 1
+   :hidden:
+
+   Monitoring job settings <monitoring-job>

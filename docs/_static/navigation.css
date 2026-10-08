@@ -1,0 +1,27 @@
+/* Keep the complete documentation tree visible, including without JavaScript. */
+.sidebar-tree .toctree-checkbox ~ ul {
+  display: block;
+}
+
+.sidebar-tree .toctree-checkbox,
+.sidebar-tree .toctree-checkbox ~ label {
+  display: none;
+}
+
+.sidebar-tree li.has-children > .reference {
+  padding-right: var(--sidebar-item-spacing-horizontal);
+}
+
+.sidebar-tree .toctree-l1 > .reference {
+  margin-top: 0.5rem;
+  font-weight: 700;
+}
+
+.sidebar-tree .toctree-l2.has-children > .reference {
+  font-weight: 600;
+}
+
+.sidebar-tree .current-page > .reference {
+  box-shadow: inset 3px 0 var(--color-brand-primary);
+  color: var(--color-brand-primary);
+}

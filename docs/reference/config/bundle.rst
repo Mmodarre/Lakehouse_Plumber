@@ -1,6 +1,11 @@
 Bundle configuration
 ====================
 
+.. raw:: html
+
+   <span id="top-level-keys"></span>
+
+
 .. meta::
    :description: Reference for LHP's Databricks bundle integration — the databricks.yml fields LHP needs, the config/pipeline_config.yaml schema (project_defaults and per-pipeline catalog, schema, serverless, packaging), the -pc requirement (LHP-CFG-023), wheel packaging keys, and the generated resources/lhp output.
 
@@ -92,88 +97,8 @@ how the Databricks CLI picks up LHP-generated resources.
 ``config/pipeline_config.yaml``
 -------------------------------
 
-A multi-document YAML file. The first document holds ``project_defaults``; each
-subsequent document targets one or more pipelines via a ``pipeline`` key (a
-single name or a list). Pass its path with ``-pc`` / ``--pipeline-config``.
-
-.. code-block:: text
-
-   project_defaults:
-     <shared keys>
-   ---
-   pipeline: <name>          # or [name1, name2]
-   <per-pipeline keys>
-
-Top-level keys
-~~~~~~~~~~~~~~
-
-Valid under both ``project_defaults`` and a per-pipeline document.
-
-.. list-table::
-   :header-rows: 1
-   :widths: 18 14 14 14 40
-
-   * - Key
-     - Type
-     - Required
-     - Default
-     - Description
-   * - ``catalog``
-     - string
-     - Yes
-     - —
-     - Unity Catalog name. Must be set with ``schema`` (both or neither) and non-empty after substitution. Supports ``${token}``.
-   * - ``schema``
-     - string
-     - Yes
-     - —
-     - Schema name. Must be set with ``catalog``. Supports ``${token}``.
-   * - ``serverless``
-     - bool
-     - No
-     - ``true``
-     - Pipeline compute mode.
-   * - ``edition``
-     - string
-     - No
-     - ``ADVANCED``
-     - One of ``CORE``, ``PRO``, ``ADVANCED``. Ignored when ``serverless: true``.
-   * - ``channel``
-     - string
-     - No
-     - ``CURRENT``
-     - One of ``CURRENT``, ``PREVIEW``.
-   * - ``continuous``
-     - bool
-     - No
-     - ``false``
-     - Streaming/continuous pipeline mode.
-   * - ``packaging``
-     - string
-     - No
-     - ``source``
-     - One of ``source``, ``wheel``. Selects how generated code ships (see `Wheel packaging`_). Consumed by LHP; never written to the resource YAML.
-
-Any other top-level key (``clusters``, ``configuration``, ``notifications``,
-``tags``, ``event_log``, ``environment``, ``permissions``, ``photon``, and any
-Databricks Pipelines API field such as ``run_as``) is passed through verbatim
-into the generated pipeline resource.
-
-Merge precedence (lowest to highest): built-in defaults → ``project_defaults``
-→ per-pipeline document. Nested mappings are deep-merged; lists are replaced
-wholesale. Token substitution from ``substitutions/<env>.yaml`` applies to every
-field.
-
-.. code-block:: yaml
-
-   project_defaults:
-     catalog: "${catalog}"
-     schema: "${bronze_schema}"
-     serverless: true
-
-   ---
-   pipeline: bronze_load
-   packaging: wheel
+See :doc:`pipeline-config` for the full file syntax, selectors, fields and merge
+rules. Use :doc:`/develop/bundles` to configure and deploy a project.
 
 Wheel packaging
 ---------------

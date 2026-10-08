@@ -178,3 +178,8 @@ What's next
 - **Compare with change-feed CDC.** When your source emits row-level change
   events with a sequence column, ``cdc`` mode and ``create_auto_cdc_flow`` fit
   better than snapshots. See the change-feed CDC guide.
+
+Syntax and options
+------------------
+
+See :doc:`/reference/actions/write/streaming-table-snapshot-cdc` for all supported settings and defaults.

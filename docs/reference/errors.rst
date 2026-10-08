@@ -36,16 +36,16 @@ Configuration errors (LHP-CFG)
      - Add flowgroup content; reference a defined column.
    * - LHP-CFG-006
      - ``event_log`` is not a mapping, or operational-metadata column references are undefined.
-     - Define ``event_log`` as a mapping; reference defined columns.
+     - Define ``event_log`` as a mapping; reference defined columns. For the title "Missing packaging dependency", install the required Python ``packaging`` dependency.
    * - LHP-CFG-007
      - ``event_log`` is missing ``catalog`` or ``schema``, or a schema file failed to parse.
-     - Provide both keys; fix the schema file.
+     - Provide both keys; fix the schema file. For "version requirement not satisfied", compare the installed LHP version with :ref:`required_lhp_version <required-lhp-version>`.
    * - LHP-CFG-008
      - Invalid ``monitoring`` config, or ``sql_path`` cannot be resolved without a project root.
-     - Fix the ``monitoring`` block per the message.
+     - Follow the full error title. For an invalid version specifier, correct :ref:`required_lhp_version <required-lhp-version>`; for monitoring, correct the named field.
    * - LHP-CFG-009
-     - YAML parsing error (bad indentation, unquoted special characters).
-     - Fix YAML syntax; quote values containing ``:`` ``{`` ``}`` ``[`` ``]``.
+     - YAML parsing error, or invalid/incomplete project ``test_reporting`` configuration.
+     - For a YAML syntax error, fix indentation and quoting. For a test-reporting title, supply a mapping with ``module_path`` and ``function_name``; see :doc:`config/test-reporting`.
    * - LHP-CFG-010
      - A removed/deprecated field name was used, or a substitution token is unresolved: a ``${token}`` in a flowgroup after substitution, or a ``${...}``, ``%{...}`` or ``{{ ... }}`` left in a selected operational-metadata ``expression`` in ``lhp.yaml``. Raised by both ``lhp validate`` and ``lhp generate``.
      - Replace the field named in the message, or add the missing key to ``substitutions/<env>.yaml``.

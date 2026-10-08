@@ -60,7 +60,7 @@ pipeline: temp_debug_pipeline
 event_log: false
 ```
 
-Project-level event logging does NOT require the `-pc` flag — it's applied automatically during `lhp generate`.
+When bundle support is enabled, both `lhp validate` and `lhp generate` require `-pc` / `--pipeline-config`. The project event-log block supplies the injection settings; it does not remove that bundle preflight requirement.
 
 ### Generated Resource Output
 

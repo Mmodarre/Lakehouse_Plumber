@@ -1,9 +1,8 @@
 {
     "$schema": "http://json-schema.org/draft-07/schema#",
     "title": "LakehousePlumber Substitution Configuration",
-    "description": "Schema for LakehousePlumber substitution files",
-    "type": "object",
     "description": "Environment-specific substitution values with environment as top-level key",
+    "type": "object",
     "additionalProperties": {
         "type": "object",
         "description": "Environment configuration (e.g., 'dev', 'staging', 'prod')",
@@ -51,23 +50,6 @@
             "env": {
                 "type": "string",
                 "description": "Environment name"
-            },
-            "secrets": {
-                "type": "object",
-                "description": "Secret configuration",
-                "properties": {
-                    "default_scope": {
-                        "type": "string",
-                        "description": "Default secret scope"
-                    },
-                    "scopes": {
-                        "type": "object",
-                        "description": "Secret scope aliases",
-                        "additionalProperties": {
-                            "type": "string"
-                        }
-                    }
-                }
             },
             "prefix_suffix_rules": {
                 "type": "object",
@@ -126,5 +108,24 @@
         "additionalProperties": {
             "description": "Additional custom substitution tokens"
         }
+    },
+    "properties": {
+        "secrets": {
+            "type": "object",
+            "description": "Root-level secret scope aliases and default scope, shared by environment substitutions.",
+            "properties": {
+                "default_scope": {
+                    "type": "string",
+                    "description": "Default secret scope"
+                },
+                "scopes": {
+                    "type": "object",
+                    "description": "Secret scope aliases",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                }
+            }
+        }
     }
-} 
+}
