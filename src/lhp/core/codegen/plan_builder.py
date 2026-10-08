@@ -66,10 +66,11 @@ from typing import (
 )
 
 if TYPE_CHECKING:
+    from lhp.core.sandbox import SandboxRewritePlan
     from lhp.models import FlowGroup
-    from lhp.models.processing import PipelineDelta
+    from lhp.models.processing import PipelineDelta, RunWarningRecord
 
-    from ..coordination.orchestrator import ActionOrchestrator
+    from ..coordination import ActionOrchestrator
 
 logger = logging.getLogger(__name__)
 
@@ -142,6 +143,7 @@ class GenerationPlanResult:
 
     artifacts: Tuple[PlannedArtifact, ...]
     pipeline_count: int
+    warnings: Tuple["RunWarningRecord", ...] = ()
 
 
 def _classify_artifact(
@@ -244,6 +246,7 @@ def build_generation_plan(
     pipeline_fields: Optional[Sequence[str]] = None,
     specific_flowgroups: Optional[List[str]] = None,
     include_tests: bool = False,
+    sandbox_plan: Optional["SandboxRewritePlan"] = None,
     apply_formatting: Optional[bool] = None,
     pre_discovered_all_flowgroups: Optional[Sequence["FlowGroup"]] = None,
     max_workers: Optional[int] = None,
@@ -284,6 +287,7 @@ def build_generation_plan(
         specific_flowgroups: Forwarded for signature parity with the real
             generate (the orchestrator does not narrow by it at this layer).
         include_tests: Emit test actions + the per-pipeline test-reporting hook.
+        sandbox_plan: Canonical sandbox transformation plan, also used by generate.
         apply_formatting: Tri-state terminal-format override forwarded verbatim
             (``None`` → use the project's ``lhp.yaml`` ``apply_formatting``;
             ``True`` / ``False`` override it) — the plan formats exactly as the
@@ -324,7 +328,7 @@ def build_generation_plan(
         # terminal ``format_generated_tree`` ruff pass is driven HERE after the
         # drain (see below), exactly as the generate event stream drives it after
         # consuming the same generator. The stream is drained completely first.
-        for delta in orchestrator.generate_pipelines(
+        stream = orchestrator.generate_pipelines(
             pipeline_filter=pipeline_filter,
             pipeline_fields=(
                 list(pipeline_fields) if pipeline_fields is not None else None
@@ -333,11 +337,19 @@ def build_generation_plan(
             output_dir=temp_root,
             specific_flowgroups=specific_flowgroups,
             include_tests=include_tests,
+            sandbox_plan=sandbox_plan,
             pre_discovered_all_flowgroups=pre_discovered_all_flowgroups,
             max_workers=max_workers,
             on_total=on_total,
             on_flowgroup_done=on_flowgroup_done,
-        ):
+        )
+        warnings: Tuple["RunWarningRecord", ...] = ()
+        while True:
+            try:
+                delta = next(stream)
+            except StopIteration as stop:
+                warnings = stop.value or ()
+                break
             # On the clean path every delta is a committed success carrying its
             # flowgroup filenames; a gate failure raises mid-stream (per §1.4 the
             # failure deltas are yielded first, then the raise). Forward each
@@ -367,4 +379,5 @@ def build_generation_plan(
     return GenerationPlanResult(
         artifacts=tuple(artifacts),
         pipeline_count=len(committed_pipelines),
+        warnings=warnings,
     )

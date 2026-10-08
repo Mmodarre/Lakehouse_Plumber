@@ -6,10 +6,10 @@ editor-specific projections form one bounded public contract.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Literal, Mapping, Optional, Tuple
 
-from lhp.api.responses import DependencyAnalysisResult, JSONValue
+from lhp.api.responses import DependencyAnalysisResult, JSONValue, SandboxScopeResult
 from lhp.api.views import BlueprintView, PresetView, ProjectConfigView, TemplateView
 
 
@@ -101,6 +101,9 @@ class EditorCatalogView:
     presets: Tuple[PresetView, ...]
     blueprints: Tuple[BlueprintView, ...]
     blueprint_parameters: Mapping[str, JSONValue]
+    template_related_files: Mapping[str, Tuple[EditorRelatedFileView, ...]] = field(
+        default_factory=dict
+    )
 
 
 @dataclass(frozen=True)
@@ -115,6 +118,8 @@ class EditorProjectView:
     dependencies: Optional[DependencyAnalysisResult] = None
     diagnostics: Tuple[EditorDiagnosticView, ...] = ()
     stale: bool = False
+    sandbox_enabled: bool = False
+    sandbox: Optional[SandboxScopeResult] = None
 
 
 @dataclass(frozen=True)
