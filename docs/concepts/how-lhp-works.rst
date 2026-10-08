@@ -115,14 +115,12 @@ How the compile works
 ``lhp generate`` moves every flowgroup it finds through four stages. Reading
 them as a compiler's front end to back end is a good mental picture:
 
-.. mermaid::
+.. figure:: ../_static/diagrams/compilation.png
+   :alt: At build time on your machine or in CI, YAML and environment settings pass through Parse, Resolve, Generate and Format to produce Lakeflow Python. After review and deployment, Databricks executes that code without an LHP runtime dependency.
+   :width: 100%
+   :figclass: lhp-diagram
 
-   graph LR
-       Y["Declarative YAML"] --> P["Parse"]
-       P --> R["Resolve"]
-       R --> G["Generate"]
-       G --> F["Format"]
-       F --> O["Plain Lakeflow Python"]
+   Generation happens before deployment. Databricks runs the generated Python. Select the diagram to view it full size.
 
 **Parse.** LHP discovers your flowgroup files, reads the YAML, and validates it
 against a strict schema. Anything malformed is rejected here, with a clear

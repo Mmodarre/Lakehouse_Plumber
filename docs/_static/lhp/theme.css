@@ -476,6 +476,10 @@ pre {
   font: 12px var(--font-stack--monospace);
   text-align: left;
 }
+.code-block-caption .caption-text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
 .code-block-caption + .highlight {
   border-radius: 0 0 8px 8px;
 }
@@ -586,17 +590,6 @@ table.docutils th {
 }
 table.docutils td p {
   font-size: 14px;
-}
-.mermaid {
-  overflow-x: auto;
-  margin: 24px 0;
-  padding: 24px;
-  border: 1px solid var(--lhp-border);
-  border-radius: 10px;
-  background: var(--lhp-panel);
-}
-.mermaid svg {
-  max-width: 100%;
 }
 .related-pages {
   border-top: 1px solid var(--lhp-border);
@@ -851,35 +844,27 @@ article .highlight button.copybtn img {
 .sd-tab-content .literal-block-wrapper {
   margin: 0;
 }
-.mermaid svg .node rect,
-.mermaid svg .node polygon,
-.mermaid svg .node circle {
-  fill: var(--lhp-active) !important;
-  stroke: var(--lhp-link) !important;
+/* Illustrations keep their warm LHP canvas in both reading themes. */
+figure.lhp-diagram {
+  margin: 24px 0 32px;
 }
-.mermaid svg .nodeLabel,
-.mermaid svg .nodeLabel p,
-.mermaid svg .label text {
-  color: var(--lhp-text) !important;
-  fill: var(--lhp-text) !important;
-  font-family: var(--font-stack) !important;
-}
-.mermaid svg .flowchart-link {
-  stroke: var(--lhp-secondary) !important;
-}
-.mermaid svg marker path {
-  fill: var(--lhp-secondary) !important;
-  stroke: var(--lhp-secondary) !important;
-}
-#the-model .mermaid {
-  padding: 24px;
-  border: 2px solid var(--lhp-strong);
-  box-shadow: 3px 3px 0 #000;
-}
-#the-model .mermaid svg {
+figure.lhp-diagram a.image-reference {
   display: block;
-  max-height: 200px;
-  margin: auto;
+  border: 1px solid var(--lhp-border);
+  border-radius: 12px;
+  overflow: hidden;
+  background: #faf8f5;
+  cursor: zoom-in;
+}
+figure.lhp-diagram img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+figure.lhp-diagram figcaption {
+  margin-top: 12px;
+  color: var(--lhp-secondary);
+  font-size: 14px;
 }
 @media print {
   .lhp-header,

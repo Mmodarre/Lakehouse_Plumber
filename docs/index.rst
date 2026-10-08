@@ -72,14 +72,15 @@ sample project. Then :doc:`build/first-pipeline` helps you author your own.
 The model
 =========
 
-Every pipeline follows the same shape: load a source, apply zero or more
-transforms, write a target.
+A common data-flow shape is to load a source, apply zero or more transforms,
+and write a target.
 
-.. mermaid::
+.. figure:: _static/diagrams/action-model.png
+   :alt: Load reads a source into a view. Optional transforms reshape or validate it before Write persists the result. A bypass connects Load directly to Write when no transform is needed.
+   :width: 100%
+   :figclass: lhp-diagram
 
-   graph LR
-       A[Load] --> B{0..N Transform}
-       B --> C[Write]
+   A transform is optional; the load can feed the write directly. Select the diagram to view it full size.
 
 Where to next
 =============
