@@ -178,7 +178,7 @@ describe('write/streaming_table — table options', () => {
 // ── kept cross-field rules ───────────────────────────────────
 
 describe('write/streaming_table — kept cross-field rules', () => {
-  it('keeps the cluster / cdc-column / track-history / snapshot-xor rules', () => {
+  it('keeps the cdc-column / track-history / snapshot-xor rules', () => {
     const kinds = (spec.rules ?? []).map((r) => r.kind)
     expect(kinds.filter((k) => k === 'mutuallyExclusive').length).toBeGreaterThanOrEqual(3)
     expect(kinds).toContain('xor') // snapshot source ⊕ source_function
