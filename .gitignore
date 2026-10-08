@@ -117,6 +117,7 @@ Example_Projects/performance_testing/resources
 
 
 Example_Projects/performance_testing/monitoring/
+Example_Projects/performance_testing/.claude/
 .claude/*
 HOW_TO_CREATE_BLUEPRINTS.md
 
