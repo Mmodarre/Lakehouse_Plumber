@@ -1,0 +1,17 @@
+{% extends "!page.html" %}
+{% block body %}
+{% include "lhp/header.html" %}
+{{ super() }}
+{% include "lhp/agent-dialog.html" %}
+{% endblock %}
+{% block content %}
+<nav class="lhp-breadcrumbs" aria-label="Breadcrumb">
+  <a href="{{ pathto(master_doc) }}">Docs</a>
+  {% for parent in parents %}{% if parent.link != pathto(master_doc) %}
+  <span aria-hidden="true">/</span><a href="{{ parent.link }}">{{ parent.title }}</a>
+  {% endif %}{% endfor %}
+  {% if pagename != master_doc %}<span aria-hidden="true">/</span><span aria-current="page">{{ title }}</span>{% endif %}
+</nav>
+{% if display_toc %}<details class="lhp-inline-toc"><summary>On this page</summary>{{ toc }}</details>{% endif %}
+{{ super() }}
+{% endblock %}

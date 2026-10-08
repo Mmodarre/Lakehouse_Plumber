@@ -1,0 +1,24 @@
+<header class="lhp-header">
+  <button class="lhp-menu lhp-icon-button" type="button" aria-label="Open navigation" aria-expanded="false" aria-controls="lhp-navigation"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
+  <a class="lhp-brand" href="{{ pathto(master_doc) }}" aria-label="Lakehouse Plumber documentation home">
+    <img class="only-light" src="{{ pathto('_static/lhp/lhp-wordmark-light.svg', 1) }}" width="123" height="32" alt="LHP">
+    <img class="only-dark" src="{{ pathto('_static/lhp/lhp-wordmark-dark.svg', 1) }}" width="123" height="32" alt="LHP">
+  </a>
+  <span class="lhp-docs-label">Documentation</span>
+  <form class="lhp-search" action="{{ pathto('search') }}" method="get" role="search">
+    <label class="lhp-sr-only" for="lhp-search-input">Search documentation</label>
+    <input id="lhp-search-input" name="q" type="search" placeholder="Search documentation…" autocomplete="off">
+    <button type="submit" aria-label="Search documentation"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10" cy="10" r="6"/><path d="m15 15 5 5"/></svg></button>
+    <kbd aria-hidden="true">/</kbd>
+  </form>
+  <a class="lhp-mobile-search lhp-icon-button" href="{{ pathto('search') }}" aria-label="Search documentation"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10" cy="10" r="6"/><path d="m15 15 5 5"/></svg></a>
+  <div class="theme-toggle-container"><button class="theme-toggle" aria-label="Toggle Light / Dark / Auto color theme">
+    <svg class="theme-icon-when-auto-light"><use href="#svg-sun-with-moon"></use></svg>
+    <svg class="theme-icon-when-auto-dark"><use href="#svg-moon-with-sun"></use></svg>
+    <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+    <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+  </button></div>
+  <a class="lhp-utility" href="https://lhp.dev">Website ↗</a>
+  <a class="lhp-utility" href="https://github.com/Mmodarre/Lakehouse_Plumber">GitHub ↗</a>
+  <button class="lhp-agent-launch" id="docs-start-agent" type="button" data-agent-dialog="onboard" aria-haspopup="dialog" aria-controls="agent-dialog" aria-label="Start with your agent"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 6 6 6-6 6M13 18h7"/></svg><span>Start with your agent</span></button>
+</header>
