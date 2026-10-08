@@ -1,6 +1,7 @@
 # Editor integration API contract
 
-Status: proposed for review on `feature/vscode-integration`.
+Status: editor integration accepted on release/V0.9.3; additive sandbox extension
+proposed on `feature/vscode-sandbox-0.9.3`.
 
 The VS Code adapter needs a stable public way to inspect an LHP project, locate
 the authored YAML behind resolved actions, and validate or preview unsaved
@@ -17,7 +18,7 @@ rendezvous. The editor's unsaved inputs are project-relative overlays applied
 to a bounded temporary project mirror. The mirror is also used for saved
 validation and preview, so an editor read does not create generated files or
 cache state in the selected project. Generation remains the canonical saved,
-full-project facade operation; this API deliberately does not change its commit
+facade operation with its existing optional sandbox scope; this API does not change its commit
 semantics or expose a filtered editor generation path.
 
 Source positions are produced by `lhp.parsers.editor_source_map` and raw-node
@@ -49,8 +50,39 @@ The resulting API is provisional. Snapshot dependency graphs are authoritative
 for discovered project sources but do not claim environment-specific SQL text
 after substitutions. Editor preview is the canonical source-mode generation
 plan and returns generated text, but it does not claim parity with bundle sync,
-monitoring finalisation, sandbox rewrites or wheel artifacts. Wheel-mode preview
+monitoring finalisation or wheel artifacts. Wheel-mode preview
 returns a clear unsupported error before attempting to decode binary files.
 Invalid unsaved YAML retains the last saved graph with a `stale` flag and an
 exact source diagnostic; an incomplete domain draft without reliable source
 context produces a project-level diagnostic instead of a fabricated location.
+
+Sandbox is an additive `sandbox: bool = False` keyword on editor inspection,
+validation, preview and `GenerationFacade.plan_generation`. Source preview
+resolves the same personal profile and team policy as generation, constructs
+the canonical sandbox rewrite plan and passes it to the same generate-to-temp
+primitive. SQL, bound Python parameters, copied module transformations, runtime
+shims, formatting and warnings therefore share the generation implementation.
+Preview also accepts `include_tests: bool = False`. Bundle and wheel output
+remain outside this source-only contract.
+
+The mirror copies only the exact `.lhp/profile.yaml` private input, including a
+new unsaved profile overlay. It never traverses or copies other `.lhp` state.
+Profile parent/file symlinks, aliases, traversal and oversized files are rejected
+before copying; the existing aggregate mirror budget includes profile and draft
+bytes. All profile, policy, environment and pipeline drafts resolve together.
+Malformed sandbox profiles do not affect normal validation or preview when
+sandbox mode is off. Unsafe profile paths are rejected in either mode.
+
+`EditorProjectView.sandbox_enabled` records the explicit mode; `sandbox` reports
+the existing provisional `SandboxScopeResult` with additive effective `strategy`
+and `table_pattern` fields even while mode is off. The snapshot retains the full
+project graph for display-only scope switching. Invalid draft fallbacks clear
+resolved sandbox pipelines and report an error instead of presenting saved scope
+as current. Validation and preview emit `ErrorEmitted` before raising structured
+sandbox failures. No missing or invalid profile falls back to ordinary generation.
+
+`EditorCatalogView.template_related_files` maps each project-relative template
+path to declared resource references, including unused definitions. References
+from resolved action instances retain their actual consuming flowgroup; declared
+parameter paths remain unresolved rather than being counted as concrete files.
+Frozen DTO, JSON and pickle contracts remain additive and provisional.

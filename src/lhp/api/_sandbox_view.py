@@ -28,6 +28,7 @@ the core stack into API import time.
 
 from __future__ import annotations
 
+from dataclasses import replace
 from typing import TYPE_CHECKING, Any, List, Optional
 
 from lhp.api.responses import SandboxScopeResult
@@ -71,16 +72,26 @@ def _describe_sandbox_scope(
         else None
     )
 
+    base = SandboxScopeResult(
+        allowed_envs=allowed_envs,
+        strategy=sandbox_config.strategy if sandbox_config is not None else "table",
+        table_pattern=(
+            sandbox_config.table_pattern
+            if sandbox_config is not None
+            else "{namespace}_{table}"
+        ),
+    )
+
     profile_path = orchestrator.project_root / ".lhp" / "profile.yaml"
     if not profile_path.exists():
-        return SandboxScopeResult(profile_exists=False, allowed_envs=allowed_envs)
+        return base
 
     try:
         profile = load_sandbox_profile(orchestrator.project_root)
     except LHPError as exc:
-        return SandboxScopeResult(
+        return replace(
+            base,
             profile_exists=True,
-            allowed_envs=allowed_envs,
             error=f"{exc.code}: {exc.details}",
         )
 
@@ -101,18 +112,18 @@ def _describe_sandbox_scope(
             resolve_config, profile, env or "", discovered, monitoring_name
         )
     except LHPError as exc:
-        return SandboxScopeResult(
+        return replace(
+            base,
             profile_exists=True,
             namespace=profile.namespace,
             patterns=patterns,
-            allowed_envs=allowed_envs,
             error=f"{exc.code}: {exc.details}",
         )
 
-    return SandboxScopeResult(
+    return replace(
+        base,
         profile_exists=True,
         namespace=profile.namespace,
         patterns=patterns,
         resolved_pipelines=run.pipelines,
-        allowed_envs=allowed_envs,
     )

@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Provisional sandbox editor APIs.** `inspect_editor_project`,
+  `validate_editor_project`, `preview_editor_project` and
+  `GenerationFacade.plan_generation` accept additive `sandbox=False` keywords.
+  Unsaved profile, policy, environment and source drafts resolve together in a
+  bounded mirror that copies only `.lhp/profile.yaml` from private state.
+  Sandbox source preview shares generation's SQL/Python/module/shim transforms
+  and warnings; preview also accepts `include_tests=False`. Snapshots keep the
+  full authored graph and report effective sandbox scope, strategy and table
+  pattern. Missing/invalid sandbox inputs cannot fall back to ordinary output.
+- **Template resource provenance.** Editor catalogues report declared resource
+  references for all templates, including unused definitions, so clients can
+  distinguish concrete file usages from unresolved parameter paths.
+
 - **`mode: replace` for streaming-table writes (Databricks REPLACE USING).** A new
   streaming-table write mode that generates `@dp.replace_flow`: on each update it
   replaces every target row whose `replace_using` key columns match an incoming batch,

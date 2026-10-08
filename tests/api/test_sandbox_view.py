@@ -40,6 +40,8 @@ def sample() -> SandboxScopeResult:
         resolved_pipelines=("p_one", "p_two"),
         allowed_envs=("dev", "tst"),
         error=None,
+        strategy="table",
+        table_pattern="{namespace}__{table}",
     )
 
 
@@ -63,6 +65,8 @@ class TestSandboxScopeResultContract:
             resolved_pipelines=tuple(payload["resolved_pipelines"]),
             allowed_envs=tuple(allowed) if allowed is not None else None,
             error=payload["error"],
+            strategy=payload["strategy"],
+            table_pattern=payload["table_pattern"],
         )
         assert reconstructed == sample
 
@@ -76,6 +80,8 @@ class TestSandboxScopeResultContract:
             "resolved_pipelines": [],
             "allowed_envs": None,
             "error": None,
+            "strategy": "table",
+            "table_pattern": "{namespace}_{table}",
         }
 
     def test_field_types(self) -> None:

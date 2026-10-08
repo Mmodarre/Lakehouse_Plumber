@@ -222,6 +222,7 @@ class GenerationFacade:
         pipeline_filter: Optional[str] = None,
         pipeline_fields: Sequence[str] = (),
         include_tests: bool = False,
+        sandbox: bool = False,
         progress: ProgressSink | None = None,
     ) -> Iterator[LHPEvent]:
         """Stream-protocol wrapper around plan-only generation (§5.7).
@@ -287,9 +288,15 @@ class GenerationFacade:
         restates the canonical signature (§4.2) and forwards via
         ``yield from``.
 
+        ``sandbox=True`` resolves the personal profile and applies the same
+        scoped SQL, Python and runtime-shim transformations as generation.
+        It cannot be combined with explicit pipeline selection.
+
         :stability: provisional
+        :raises ValueError: sandbox combined with explicit pipeline selection.
         :raises lhp.errors.LHPError: ``LHP-VAL-*`` (config/action/schema
-            validation), ``LHP-CFG-*`` (project config + substitution),
+            validation), ``LHP-CFG-*`` (project config + substitution/profile),
+            ``LHP-IO-025`` (missing sandbox profile),
             ``LHP-MULT-*`` (multi-document YAML), and ``LHP-TPL-*`` (template
             expansion) propagated from the per-pipeline workers and the
             all-or-nothing gate. An :class:`ErrorEmitted` event is yielded
@@ -299,6 +306,8 @@ class GenerationFacade:
         # stack (and jinja2 via it); the stream body is needed only at call time.
         from lhp.api._plan_stream import _stream_plan_generation
 
+        if sandbox and (pipeline_filter is not None or pipeline_fields):
+            raise ValueError("Sandbox scope cannot be combined with pipeline selection")
         yield from _cap_event_stream(
             _stream_plan_generation(
                 self._orchestrator,
@@ -306,6 +315,7 @@ class GenerationFacade:
                 pipeline_filter=pipeline_filter,
                 pipeline_fields=pipeline_fields,
                 include_tests=include_tests,
+                sandbox=sandbox,
                 progress=progress,
             )
         )
