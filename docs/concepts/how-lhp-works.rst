@@ -52,18 +52,29 @@ Compiling to code you own avoids all of that:
 - **Familiar debugging.** When something misbehaves in production, you debug
   plain Lakeflow, not a framework's internals.
 
+.. _lhp-concept-map:
+
 What you compose
 ================
 
 You author pipelines from three nested objects. Understanding how they nest is
 most of understanding LHP.
 
+.. figure:: ../_static/diagrams/concept-map.png
+   :alt: YAML describes pipelines containing flowgroups and actions. Blueprint instances expand flowgroup patterns; templates add parameterized actions; presets apply settings to matching actions. The example pipeline contains orders and customers flowgroups, each with connected Load, Transform and Write actions and a separate optional Test action. LHP combines these definitions with environment values to generate Lakeflow Python.
+   :width: 100%
+   :figclass: lhp-diagram
+
+   Containers show grouping; labelled helper arrows show expansion or settings.
+   The action counts are examples, and tests are opt-in. Select the diagram to
+   view it full size.
+
 **Pipeline** is the outermost grouping — a deployment unit. Everything that
 declares the same pipeline name is generated into one place and, when you
 package a Databricks bundle, becomes one Lakeflow pipeline resource.
 
 **FlowGroup** is a slice of a pipeline, usually one source table or one business
-entity. A flowgroup is a small YAML file: it names its pipeline, names itself,
+entity. A flowgroup is a YAML definition: it names its pipeline, names itself,
 and lists an ordered set of actions. One file can hold one flowgroup or many.
 
 **Action** is a single step. Every action has one of four kinds, and each kind

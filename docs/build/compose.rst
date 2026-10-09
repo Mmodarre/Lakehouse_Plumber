@@ -6,6 +6,9 @@ Flowgroups with the same ``pipeline`` value contribute to the same generated
 pipeline. Dependencies come from what actions read and write, with
 ``depends_on`` available for dependencies LHP cannot infer.
 
+See the :ref:`LHP concept map <lhp-concept-map>` for how pipelines, flowgroups,
+actions and reuse tools fit together.
+
 .. toctree::
    :maxdepth: 1
 

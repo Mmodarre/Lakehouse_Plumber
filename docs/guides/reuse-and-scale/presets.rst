@@ -4,6 +4,9 @@ Apply shared defaults with a preset
 Use a preset when several actions share reader options or table properties.
 Start with a working flowgroup from :doc:`/build/first-pipeline`.
 
+The :ref:`worked reuse diagram <lhp-reuse-example>` compares shared settings,
+template actions and blueprint expansion.
+
 Create the shared settings
 --------------------------
 

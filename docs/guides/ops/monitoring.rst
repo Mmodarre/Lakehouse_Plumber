@@ -17,6 +17,30 @@ lives in ``lhp.yaml`` and a separate monitoring-job file.
 For an existing installation, use :doc:`/operate/adjust-monitoring`.
 For all options and defaults, open :doc:`/reference/config/monitoring`.
 
+.. _lhp-monitoring-architecture:
+
+What runs when
+==============
+
+With the default summary view enabled, the generated monitoring job first
+collects logs, then refreshes the monitoring pipeline. Each eligible pipeline
+has an independent available-now stream and its own checkpoint. All streams
+append to the same Delta event table, which supplies the summary views.
+
+.. figure:: ../../_static/diagrams/monitoring-architecture.png
+   :alt: LHP generates a collection notebook, a monitoring view pipeline and a job. Task 1 reads bronze, silver and gold event logs through independent available-now streams with separate checkpoints into one shared Delta event table. Task 2 reads that same table to refresh the events_summary materialized view with run status, duration and row metrics. Optional Databricks SDK job correlation enriches the monitoring information.
+   :width: 100%
+   :figclass: lhp-diagram
+
+   The shared table is shown in both tasks to explain the handoff. Views are
+   configurable, and job correlation is opt-in. Select the diagram to view it
+   full size.
+
+LHP selects the event-log sources when it generates the notebook. Pipelines
+that disable event logging and the monitoring pipeline itself are excluded.
+Regenerate after changing that set. Custom materialized views replace the
+default ``events_summary``; an empty view list omits summary views.
+
 Before you start
 ================
 
