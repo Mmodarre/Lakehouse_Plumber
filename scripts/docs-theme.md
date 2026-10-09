@@ -38,7 +38,7 @@ Publication order matters: merge the guides into Lakehouse_Plumber's **main** br
 
 ## Review scope
 
-The implementation is based on the current `release/V0.9.3`, including its merged documentation reorganisation. Existing in-progress work in the original checkout was preserved. PR creation requires the user's final confirmation.
+The implementation is based on `release/V0.9.3`, including its merged documentation reorganisation and theme. Existing in-progress work in the original checkout was preserved. The approved diagram additions are reviewed separately from the already-merged theme.
 
 ## Documentation diagrams
 
@@ -50,4 +50,6 @@ Their warm canvas stays the same in both reading themes.
 See [the diagram audit](docs-diagrams/diagram-audit.md) for implementation
 evidence, the proposed visual backlog, and the page-level coverage table.
 Generation prompts and Superdesign asset/draft records are kept alongside it.
-Additional concepts and the homepage capability overview await user approval.
+The six approved additions cover the LHP concept map, a worked reuse example,
+environment and secret resolution, CDC history, the homepage capability
+overview, and monitoring architecture. Secondary candidates remain in the audit.

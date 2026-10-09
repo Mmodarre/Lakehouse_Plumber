@@ -88,4 +88,4 @@ Two wording issues surfaced while checking visual messages: the homepage's unive
 - Browser checks: eight illustrated pages at 1440, 810 and 390 pixels, in light and dark themes (48 combinations); images load, alternative text and full-size links are present, no page overflow.
 - All ten full-size diagram assets open from local file URLs. Desktop and mobile screenshots reviewed.
 - Existing theme smoke suite passes 28 responsive page checks, navigation, native search, code copy, theme persistence, all ten agent prompts, and keyboard/dialog/mobile controls.
-- Superdesign imports were fetched again and verified to retain the selected asset URLs. No PR was opened.
+- Superdesign imports were fetched again and verified to retain the selected asset URLs.
