@@ -72,15 +72,42 @@ sample project. Then :doc:`build/first-pipeline` helps you author your own.
 The model
 =========
 
-A common data-flow shape is to load a source, apply zero or more transforms,
-and write a target.
+A common data-flow shape combines one or more loads, zero or more transforms,
+and one or more writes. Actions connect through the views they read and produce.
 
 .. figure:: _static/diagrams/action-model.png
-   :alt: Load reads a source into a view. Optional transforms reshape or validate it before Write persists the result. A bypass connects Load directly to Write when no transform is needed.
+   :alt: A common flow has one or more Load actions, zero or more Transform actions and one or more Write actions. Faded, dotted cards behind Load and Write represent additional actions. A bypass connects Load directly to Write when no transform is needed.
    :width: 100%
    :figclass: lhp-diagram
 
-   A transform is optional; the load can feed the write directly. Select the diagram to view it full size.
+   Dotted cards represent additional loads and writes. Transforms are optional,
+   so a load can feed a write directly. Select the diagram to view it full size.
+
+What LHP handles for you
+========================
+
+Start with a source and a target, then enable the capabilities your project
+needs. Monitoring and quarantine extend the same declarative approach to
+operating pipelines and recovering rejected rows.
+
+.. figure:: _static/diagrams/capability-overview.png
+   :alt: Six LHP capability groups: author and reuse with presets, templates, blueprints, environment values and developer tools; read and transform multiple sources; write and publish with CDC, replacement, views, sinks and tags; check and recover with expectations, tests and quarantine recycling; develop and deliver with validation, sandboxing, jobs, bundles and CI; observe and operate with centralized event logs, summary views and optional job correlation.
+   :width: 100%
+   :figclass: lhp-diagram
+
+   LHP generates the code and configuration for the capabilities you enable.
+   Select the diagram to view it full size.
+
+- **Author and reuse:** :doc:`build/compose`,
+  :doc:`environment values and secrets <guides/reuse-and-scale/substitutions-and-secrets>`.
+- **Read and transform:** :doc:`sources <guides/ingest/index>`,
+  :doc:`transformations <guides/transform/index>`, :doc:`build/metadata`.
+- **Write and publish:** :doc:`streaming tables, views and sinks <guides/write/index>`.
+- **Check and recover:** :doc:`data quality <guides/transform/data-quality>`,
+  :doc:`quarantine and recycling <guides/transform/quarantine>`.
+- **Develop and deliver:** :doc:`develop/index`.
+- **Observe and operate:** :doc:`centralized monitoring <guides/ops/monitoring>`,
+  :doc:`dependency diagnostics <guides/ops/dependency-analysis>`.
 
 Where to next
 =============
