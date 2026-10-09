@@ -8,12 +8,15 @@ from lhp.core.codegen.imports.source_parser import (
     local_import_targets,
     parse_user_module,
 )
+from lhp.core.codegen.imports.spark_types import SPARK_TYPE_NAMES, spark_type_import
 
 __all__ = [
+    "SPARK_TYPE_NAMES",
     "ImportDetector",
     "ImportManager",
     "ImportTarget",
     "extract_future_imports",
     "local_import_targets",
     "parse_user_module",
+    "spark_type_import",
 ]

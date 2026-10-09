@@ -243,8 +243,24 @@
                                     "additionalProperties": true
                                 },
                                 "schema": {
-                                    "type": "string",
-                                    "description": "Schema definition as string (DDL, path, or template parameter with {{ }}). Note: For schema transforms, use 'schema_inline' or 'schema_file' at action level instead."
+                                    "oneOf": [
+                                        {
+                                            "type": "string"
+                                        },
+                                        {
+                                            "type": "object",
+                                            "required": [
+                                                "file"
+                                            ],
+                                            "properties": {
+                                                "file": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "additionalProperties": false
+                                        }
+                                    ],
+                                    "description": "Delta namespace schema name, or an Auto Loader schema-file path / {file: path} mapping."
                                 },
                                 "schema_file": {
                                     "type": "string",
@@ -305,8 +321,19 @@
                                     "description": "Column for rescued data (can use template parameters with {{ }})"
                                 },
                                 "where_clause": {
-                                    "type": "string",
-                                    "description": "WHERE clause for filtering (can use template parameters with {{ }})"
+                                    "description": "Delta load filter expressions, applied in list order.",
+                                    "anyOf": [
+                                        {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "string"
+                                            }
+                                        },
+                                        {
+                                            "type": "string",
+                                            "pattern": "\\{\\{[\\s\\S]*\\}\\}"
+                                        }
+                                    ]
                                 },
                                 "select_columns": {
                                     "oneOf": [
@@ -455,6 +482,262 @@
                 "custom_datasource_class": {
                     "type": "string",
                     "description": "Name of the custom DataSource class for custom_datasource load actions (can use template parameters with {{ }})"
+                },
+                "mode": {
+                    "description": "Data quality mode: 'dqe' (default expectations decorators) or 'quarantine' (DLQ dead letter queue recycling)",
+                    "anyOf": [
+                        {
+                            "type": "string",
+                            "enum": [
+                                "dqe",
+                                "quarantine"
+                            ]
+                        },
+                        {
+                            "type": "string",
+                            "pattern": "\\{\\{[\\s\\S]*\\}\\}"
+                        }
+                    ]
+                },
+                "quarantine": {
+                    "description": "Quarantine configuration for DLQ recycling (required when mode is 'quarantine')",
+                    "anyOf": [
+                        {
+                            "type": "object",
+                            "required": [
+                                "dlq_table",
+                                "source_table"
+                            ],
+                            "properties": {
+                                "dlq_table": {
+                                    "type": "string",
+                                    "description": "Fully qualified name of the pre-created DLQ table (e.g. 'catalog.schema.universal_dlq')"
+                                },
+                                "source_table": {
+                                    "type": "string",
+                                    "description": "Fully qualified name of the source table for DLQ tagging and CDF filtering (e.g. 'catalog.schema.bronze_orders')"
+                                }
+                            },
+                            "additionalProperties": false
+                        },
+                        {
+                            "type": "string",
+                            "pattern": "\\{\\{[\\s\\S]*\\}\\}"
+                        }
+                    ]
+                },
+                "depends_on": {
+                    "description": "Explicit upstream table references (catalog.schema.table or schema.table) this action depends on, for dependency-graph edges that cannot be parsed from SQL/Python sources.",
+                    "anyOf": [
+                        {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        },
+                        {
+                            "type": "string",
+                            "pattern": "\\{\\{[\\s\\S]*\\}\\}"
+                        }
+                    ]
+                },
+                "on_violation": {
+                    "type": "string",
+                    "description": "Action when the check fails (default fail)."
+                },
+                "tolerance": {
+                    "description": "Allowed absolute row-count difference.",
+                    "anyOf": [
+                        {
+                            "type": "integer"
+                        },
+                        {
+                            "type": "string",
+                            "pattern": "\\{\\{[\\s\\S]*\\}\\}"
+                        }
+                    ]
+                },
+                "columns": {
+                    "description": "Columns whose combination must be unique.",
+                    "anyOf": [
+                        {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        },
+                        {
+                            "type": "string",
+                            "pattern": "\\{\\{[\\s\\S]*\\}\\}"
+                        }
+                    ]
+                },
+                "filter": {
+                    "type": "string",
+                    "description": "Optional WHERE clause applied before the check."
+                },
+                "reference": {
+                    "type": "string",
+                    "description": "Fully-qualified three-part table name to compare against."
+                },
+                "source_columns": {
+                    "description": "Foreign-key columns in source; equal length to reference columns.",
+                    "anyOf": [
+                        {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        },
+                        {
+                            "type": "string",
+                            "pattern": "\\{\\{[\\s\\S]*\\}\\}"
+                        }
+                    ]
+                },
+                "reference_columns": {
+                    "description": "Joined positionally to source columns (equal length).",
+                    "anyOf": [
+                        {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        },
+                        {
+                            "type": "string",
+                            "pattern": "\\{\\{[\\s\\S]*\\}\\}"
+                        }
+                    ]
+                },
+                "required_columns": {
+                    "description": "Columns that must be non-null.",
+                    "anyOf": [
+                        {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        },
+                        {
+                            "type": "string",
+                            "pattern": "\\{\\{[\\s\\S]*\\}\\}"
+                        }
+                    ]
+                },
+                "column": {
+                    "type": "string",
+                    "description": "Column whose values are range-checked."
+                },
+                "min_value": {
+                    "description": "Lower bound (number, date, or token).",
+                    "anyOf": [
+                        {},
+                        {
+                            "type": "string",
+                            "pattern": "\\{\\{[\\s\\S]*\\}\\}"
+                        }
+                    ]
+                },
+                "max_value": {
+                    "description": "Upper bound (number, date, or token).",
+                    "anyOf": [
+                        {},
+                        {
+                            "type": "string",
+                            "pattern": "\\{\\{[\\s\\S]*\\}\\}"
+                        }
+                    ]
+                },
+                "lookup_table": {
+                    "type": "string",
+                    "description": "Fully-qualified three-part table name."
+                },
+                "lookup_columns": {
+                    "description": "Key columns in source; equal length to lookup result columns.",
+                    "anyOf": [
+                        {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        },
+                        {
+                            "type": "string",
+                            "pattern": "\\{\\{[\\s\\S]*\\}\\}"
+                        }
+                    ]
+                },
+                "lookup_result_columns": {
+                    "description": "Joined positionally to lookup columns (equal length).",
+                    "anyOf": [
+                        {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        },
+                        {
+                            "type": "string",
+                            "pattern": "\\{\\{[\\s\\S]*\\}\\}"
+                        }
+                    ]
+                },
+                "expectations": {
+                    "description": "Each rule: a name, a boolean expression, and its own violation action.",
+                    "anyOf": [
+                        {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "name": {
+                                        "type": "string",
+                                        "description": "Unique name for this expectation rule."
+                                    },
+                                    "expression": {
+                                        "type": "string",
+                                        "description": "Boolean SQL predicate the rows must satisfy."
+                                    },
+                                    "on_violation": {
+                                        "type": "string",
+                                        "description": "Per-rule action when the expectation fails."
+                                    }
+                                }
+                            }
+                        },
+                        {
+                            "type": "string",
+                            "pattern": "\\{\\{[\\s\\S]*\\}\\}"
+                        }
+                    ]
+                },
+                "test_type": {
+                    "description": "Assertion type when type is test.",
+                    "anyOf": [
+                        {
+                            "type": "string",
+                            "enum": [
+                                "row_count",
+                                "uniqueness",
+                                "referential_integrity",
+                                "completeness",
+                                "range",
+                                "schema_match",
+                                "all_lookups_found",
+                                "custom_sql",
+                                "custom_expectations"
+                            ]
+                        },
+                        {
+                            "type": "string",
+                            "pattern": "\\{\\{[\\s\\S]*\\}\\}"
+                        }
+                    ]
+                },
+                "test_id": {
+                    "type": "string",
+                    "description": "External test identifier used by the project test-reporting provider."
                 }
             }
         },
@@ -578,7 +861,7 @@
                             "null"
                         ]
                     },
-                    "description": "UC tags; applied during the run via the tagging hook. Table-level tags only \u2014 column-level tags require an external tags file ('tags_file')."
+                    "description": "UC tags; applied during the run via the tagging hook. Table-level tags only — column-level tags require an external tags file ('tags_file')."
                 },
                 "tags_file": {
                     "type": "string",
@@ -671,12 +954,14 @@
                 },
                 "mode": {
                     "type": "string",
-                    "description": "Table mode for CDC operations",
+                    "description": "Streaming-table mode: 'standard' append (default), 'cdc', 'snapshot_cdc', or 'replace' for REPLACE USING flows",
                     "anyOf": [
                         {
                             "enum": [
+                                "standard",
                                 "cdc",
-                                "snapshot_cdc"
+                                "snapshot_cdc",
+                                "replace"
                             ]
                         },
                         {
@@ -707,6 +992,48 @@
                         }
                     ],
                     "description": "Snapshot CDC configuration (can use template parameters with {{ }})"
+                },
+                "catalog": {
+                    "type": "string",
+                    "description": "Unity Catalog catalog name"
+                },
+                "private": {
+                    "description": "Create the table for the pipeline's lifetime without publishing it to the metastore (SDP private=True); the dataset is visible only inside the pipeline.",
+                    "anyOf": [
+                        {
+                            "type": "boolean",
+                            "default": false
+                        },
+                        {
+                            "type": "string",
+                            "pattern": "\\{\\{[\\s\\S]*\\}\\}"
+                        }
+                    ]
+                },
+                "replace_config": {
+                    "description": "REPLACE USING configuration (mode: replace)",
+                    "anyOf": [
+                        {
+                            "type": "object",
+                            "properties": {
+                                "replace_using": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "string"
+                                    },
+                                    "description": "Key columns identifying the rows to replace"
+                                },
+                                "sequence_by": {
+                                    "type": "string",
+                                    "description": "Single ordering column; highest value wins"
+                                }
+                            }
+                        },
+                        {
+                            "type": "string",
+                            "pattern": "\\{\\{[\\s\\S]*\\}\\}"
+                        }
+                    ]
                 }
             }
         }

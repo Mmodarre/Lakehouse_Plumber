@@ -7,7 +7,7 @@
 | Key | Type | Default | Accepted / constraints |
 |-----|------|---------|------------------------|
 | `source` | string / dict | required | View-name string, or a dict with `view` / `source`. |
-| `sql` | string | — | Optional; `{source}` placeholder is substituted. |
+| `sql` | string | — | Optional query; use the source view name or a defined `${token}`. Bare `{source}` is processed as a substitution token before generation. |
 | `readMode` | string | `batch` | Read mode. |
 
 ## Minimal YAML
@@ -17,12 +17,12 @@
   type: transform
   transform_type: temp_table
   source: v_orders
-  sql: "SELECT * FROM {source} WHERE status = 'open'"
+  sql: "SELECT * FROM v_orders WHERE status = 'open'"
   target: tmp_orders
 ```
 
 ## Key rules
 
 - Without `sql`, it is a passthrough materialization of `source`.
-- Use `stream({source})` in `sql` when `readMode: stream`.
+- Use `stream(v_orders)` in `sql` when `readMode: stream`.
 - Useful for multi-step transforms where intermediate materialization improves performance.

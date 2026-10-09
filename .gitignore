@@ -19,6 +19,8 @@ docs_old/
 src/lakehouse_plumber.egg-info/
 __pycache__/
 build/
+# Authoring guides are source documentation, not build output.
+!docs/build/
 dist/
 # Per-pipeline wheel-packaging staging dir + built wheels (content-addressed
 # binaries; rebuilt deterministically by `lhp generate`, never committed).
@@ -117,6 +119,7 @@ Example_Projects/performance_testing/resources
 
 
 Example_Projects/performance_testing/monitoring/
+Example_Projects/performance_testing/.claude/
 .claude/*
 HOW_TO_CREATE_BLUEPRINTS.md
 

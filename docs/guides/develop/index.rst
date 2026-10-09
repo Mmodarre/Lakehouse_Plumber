@@ -1,6 +1,9 @@
-=======
-Develop
-=======
+Local development tools
+=======================
+
+.. raw:: html
+
+   <span id="develop"></span>
 
 .. meta::
    :description: Author, run, and iterate on Lakehouse Plumber pipelines locally — the web IDE, the in-IDE AI assistant, sandboxes, editor autocomplete, and coding agents.
@@ -23,3 +26,5 @@ a browser IDE, or a coding agent. These guides cover each authoring surface.
    Sandbox <sandbox>
    Editor setup <editor-setup>
    Coding agents <coding-agents>
+
+   How coding agents use LHP </concepts/coding-agents-and-the-skill>

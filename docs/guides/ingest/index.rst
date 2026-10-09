@@ -1,6 +1,10 @@
-======
-Ingest
-======
+Read data
+=========
+
+.. raw:: html
+
+   <span id="ingest"></span>
+
 
 .. meta::
    :description: Choose how to read data into a Lakehouse Plumber pipeline — Auto Loader for files, Delta for tables, JDBC for databases, Kafka for streams, SQL for queries, or a custom Python data source.
@@ -30,9 +34,14 @@ A ``load`` action reads data into a pipeline. Which one you reach for depends on
    * - A streaming Kafka topic
      - **Kafka** load
      - :doc:`kafka`
+   * - Returned by a Python function
+     - A **Python** load
+     - :doc:`python`
    * - Behind an API or protocol with no built-in loader
      - A **custom Python data source**
      - :doc:`custom-datasource`
+
+For all fields and defaults, open :doc:`/reference/actions/load`.
 
 .. toctree::
    :maxdepth: 1
@@ -43,4 +52,5 @@ A ``load`` action reads data into a pipeline. Which one you reach for depends on
    SQL query <sql>
    JDBC database <jdbc>
    Kafka topic <kafka>
+   Python function <python>
    Custom data source <custom-datasource>

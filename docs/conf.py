@@ -1,6 +1,7 @@
 # Configuration file for the Sphinx documentation builder.
 # -- Path setup --------------------------------------------------------------
 import os
+import posixpath
 import sys
 from datetime import datetime
 
@@ -30,7 +31,6 @@ extensions = [
     "sphinx.ext.intersphinx",
     "myst_parser",
     "sphinx_click",
-    "sphinxcontrib.mermaid",
     "sphinx_copybutton",
     "sphinxext.opengraph",  # Open Graph + meta description tags
     "notfound.extension",  # Custom 404 page
@@ -62,6 +62,9 @@ master_doc = "index"
 # directories to ignore when looking for source files.
 exclude_patterns = [
     "_build",
+    "_includes/**",
+    "_agent_guides/**",  # Published as raw Markdown, not rendered pages.
+    "reviews/**",  # Internal review artifacts are not product documentation.
     "Thumbs.db",
     ".DS_Store",
     "DOCS_REORGANIZATION_PLAN.md",
@@ -107,7 +110,7 @@ redirects = {
     "dependency_analysis": "guides/ops/dependency-analysis.html",
     "actions/test_reporting": "guides/test/test-reporting.html",
     "migrate_from_dlt": "guides/ship/migrate-from-dlt.html",
-    "troubleshooting": "reference/errors.html",
+    "troubleshooting": "operate/troubleshooting.html",
     "architecture": "concepts/how-lhp-works.html",
     "skills_concept": "concepts/coding-agents-and-the-skill.html",
     "decisions": "concepts/presets-templates-blueprints.html",
@@ -141,20 +144,61 @@ redirects = {
     "guides/quality-and-ops/monitoring": "guides/ops/monitoring.html",
     "guides/quality-and-ops/dependency-analysis": "guides/ops/dependency-analysis.html",
     "guides/quality-and-ops/quarantine": "guides/transform/quarantine.html",
-    "guides/quality-and-ops/test-reporting": "guides/test/data-tests.html",
+    "guides/quality-and-ops/test-reporting": "guides/test/test-reporting.html",
     # Wheel packaging moved from Ship to its own Deploy category.
     "guides/ship/package-as-wheels": "guides/deploy/package-as-wheels.html",
     # Get Started gained an "Explore LHP Web" step; where-to-next shifted 06→07.
     "get-started/06-where-to-next": "get-started/07-where-to-next.html",
 }
 
+# Redirect targets are resolved by the browser relative to each retired URL.
+# Keep the map above relative to the documentation root for maintainability.
+redirects = {
+    source: posixpath.relpath(target, posixpath.dirname(source) or ".")
+    for source, target in redirects.items()
+}
+
 # -- Options for HTML output -------------------------------------------------
 html_theme = "furo"
 html_static_path = ["_static"]
+templates_path = ["_templates"]
+html_extra_path = ["_agent_guides"]
+html_css_files = ["navigation.css", "lhp/theme.css", "lhp/agent-dialog.css"]
+html_sidebars = {"**": ["lhp/navigation.html"]}
+html_theme_options = {
+    "light_logo": "lhp/lhp-wordmark-light.svg",
+    "dark_logo": "lhp/lhp-wordmark-dark.svg",
+    "light_css_variables": {
+        "color-brand-primary": "#A73824",
+        "color-brand-content": "#A73824",
+        "color-background-primary": "#FAF8F5",
+        "color-background-secondary": "#FAF8F5",
+        "color-foreground-primary": "#202126",
+        "color-foreground-secondary": "#595A60",
+        "color-background-border": "#D8D5CF",
+    },
+    "dark_css_variables": {
+        "color-brand-primary": "#F4A261",
+        "color-brand-content": "#F4A261",
+        "color-background-primary": "#202126",
+        "color-background-secondary": "#202126",
+        "color-foreground-primary": "#FAF8F5",
+        "color-foreground-secondary": "#C1BFB9",
+        "color-background-border": "#4A4C53",
+    },
+}
+# Both entry points use the repository as the canonical guide source.
+html_context = {
+    "lhp_agent_guides_base": "https://raw.githubusercontent.com/Mmodarre/"
+    "Lakehouse_Plumber/main/docs/_agent_guides",
+}
 
 # -- Analytics: GoatCounter (privacy-respecting, no cookies, free for OSS) ---
 # Register the slug at https://www.goatcounter.com/signup before this collects data.
 html_js_files = [
+    "navigation.js",
+    "lhp/theme.js",
+    "lhp/agent-dialog.js",
     (
         "https://gc.zgo.at/count.js",
         {

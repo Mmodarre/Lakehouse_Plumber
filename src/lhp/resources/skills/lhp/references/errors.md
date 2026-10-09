@@ -31,7 +31,7 @@ Terminal output includes: error code, description, context, fix suggestions, and
 | **CFG-007** | `event_log` missing `catalog` or `schema` | Add both required fields, or `enabled: false` |
 | **CFG-008** | Invalid `monitoring` config (not a mapping, missing event_log, bad MVs) | See [monitoring.md](monitoring.md) troubleshooting table |
 | **CFG-009** | YAML parsing error (bad indent, unquoted special chars) | Quote strings with `:` `{` `}` `[` `]`; use YAML linter |
-| **CFG-010** | Deprecated field name | Replace with the field name shown in error message |
+| **CFG-010** | Deprecated field name, OR an unresolved substitution token: a `${token}` left in a flowgroup after substitution, or a `${...}` / `%{...}` / `{{ ... }}` left in a selected `lhp.yaml` operational-metadata `expression` (raised by both `lhp validate` and `lhp generate`) | Replace with the field name shown in error message; for a token, add the key to `substitutions/<env>.yaml` (local vars / template params are not resolved in `lhp.yaml`) |
 | **CFG-012** | Missing required template parameters | Add `template_parameters:` with all required params |
 | **CFG-021** | Module / skill / bundle YAML processing error (covers import-time errors, skill command failures, and bundle-resource parsing) | Check the error context for the specific cause; for bundle sites validate `databricks.yml` syntax and UTF-8 encoding |
 | **CFG-023** | `--pipeline-config` not passed and bundle support enabled (preflight) | Pass `--pipeline-config config/pipeline_config.yaml`, or `--no-bundle` to skip bundle resource generation |
@@ -54,6 +54,7 @@ Terminal output includes: error code, description, context, fix suggestions, and
 | **CFG-067** | Invalid unified schema/tags file — non-mapping, unknown top-level key (the retired `column_tags` key now errors as unknown), a `columns` that is not a list, or a `columns` entry that is not a mapping or has an unknown key. Read as a `tags_file` it also rejects a wrong-typed `table`/`name`/`tags`, a missing/empty/duplicate column `name`, or a non-mapping per-column `tags`. Legacy `version`/`description`/`primary_key` top-level keys are tolerated and ignored | Use the unified format (optional identifier `table` or its alias `name`; a table-level `tags` mapping and/or a `columns` list; per-column `name`/`type`/`nullable`/`comment`/`tags`); as a `tags_file` set `table:` to the write target's table name |
 | **CFG-068** | *Warning, logged (not a structured event)* — a UC `tags_file` identifier is inconsistent: it does not match the write target's table (generation proceeds using the write target's table; check skipped under `--sandbox`), or the file declares both `table` and `name` with differing values (`table` wins) | Set the sidecar's `table:`/`name:` to the write target's table name, or accept the mismatch |
 | **CFG-069** | *Warning, logged (not a structured event)* — a write target's `table_schema` file carries UC tags (top-level `tags:` or a per-column `tags:`) but is not also wired as that action's `tags_file`, so those tags are dropped. Emitted at generate time by the streaming-table and materialized-view writes only (never the cloudfiles load path) | Point `tags_file` at the same file to apply the tags, or drop the `tags:` keys from the schema file |
+| **CFG-070** | A selected `lhp.yaml` operational-metadata `expression` references a secret (`${secret:...}`, directly or via a token value) — the expression's result is written into table data, so the secret would land in every row. Raised by both `lhp validate` and `lhp generate` | Remove the secret; use a `${token}` from `substitutions/<env>.yaml` for non-secret per-env values, or a transform action for per-table logic |
 
 ## Validation Errors (LHP-VAL)
 
@@ -380,6 +381,9 @@ Substitution order: `%{local_var}` → `{{ template_param }}` → `${env_token}`
 3. Token must appear inside a string value, not as a YAML key.
 4. `lhp diff --env <env>` — inspect the regenerated output; unresolved
    tokens appear unchanged there.
+5. `lhp.yaml` operational-metadata expressions resolve only `${pipeline_name}`,
+   `${flowgroup_name}`, `${source_table}` (delta/jdbc loads) and env `${token}`s;
+   anything left fails with CFG-010 (secrets: CFG-070) rather than being emitted.
 
 ### Preset/template/blueprint edits not picked up
 

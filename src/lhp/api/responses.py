@@ -219,7 +219,7 @@ class StatsResult:
       by model validation rather than by this module's allow-lists;
     * ``write_<streaming_table|materialized_view|sink>``, or
       ``write_other`` for an unreadable write target;
-    * ``write_mode_<standard|cdc|snapshot_cdc>`` (``write_mode_other``
+    * ``write_mode_<standard|cdc|snapshot_cdc|replace>`` (``write_mode_other``
       otherwise) for non-sink writes only;
     * ``test_<test type>``, or ``test_other`` for an unknown one;
     * ``tables`` — the number of DISTINCT non-sink targets written, so a
@@ -673,7 +673,8 @@ class SandboxScopeResult:
     are the concrete names those patterns expand to (monitoring excluded),
     empty when resolution failed or no profile exists; ``allowed_envs`` are
     the environments the team ``sandbox:`` policy permits, or ``None`` when
-    unrestricted.
+    unrestricted. ``strategy`` and ``table_pattern`` report the effective team
+    policy, including defaults, even when no profile exists.
 
     :stability: provisional
     """
@@ -684,6 +685,8 @@ class SandboxScopeResult:
     resolved_pipelines: Tuple[str, ...] = ()
     allowed_envs: Optional[Tuple[str, ...]] = None
     error: Optional[str] = None
+    strategy: Literal["table"] = "table"
+    table_pattern: str = "{namespace}_{table}"
 
 
 # ``ValidationIssueView`` / ``PipelineStats`` / ``DatasetView`` are

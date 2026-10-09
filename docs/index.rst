@@ -66,20 +66,48 @@ Plumber generates from it, and the two commands that turn one into the other.
 
 The payoff compounds. Adding a data-quality check, a second table, or a CDC
 merge is a few more lines of YAML — not another fifty lines of Python each time.
-The :doc:`Get Started course <get-started/index>` grows this one example into a
-reusable, deployable project, one primitive at a time.
+The :doc:`Get Started course <get-started/index>` walks through a complete
+sample project. Then :doc:`build/first-pipeline` helps you author your own.
 
 The model
 =========
 
-Every pipeline follows the same shape: load a source, apply zero or more
-transforms, write a target.
+A common data-flow shape combines one or more loads, zero or more transforms,
+and one or more writes. Actions connect through the views they read and produce.
 
-.. mermaid::
+.. figure:: _static/diagrams/action-model.png
+   :alt: A common flow has one or more Load actions, zero or more Transform actions and one or more Write actions. Faded, dotted cards behind Load and Write represent additional actions. A bypass connects Load directly to Write when no transform is needed.
+   :width: 100%
+   :figclass: lhp-diagram
 
-   graph LR
-       A[Load] --> B{0..N Transform}
-       B --> C[Write]
+   Dotted cards represent additional loads and writes. Transforms are optional,
+   so a load can feed a write directly. Select the diagram to view it full size.
+
+What LHP handles for you
+========================
+
+Start with a source and a target, then enable the capabilities your project
+needs. Monitoring and quarantine extend the same declarative approach to
+operating pipelines and recovering rejected rows.
+
+.. figure:: _static/diagrams/capability-overview.png
+   :alt: Six LHP capability groups: author and reuse with presets, templates, blueprints, environment values and developer tools; read and transform multiple sources; write and publish with CDC, replacement, views, sinks and tags; check and recover with expectations, tests and quarantine recycling; develop and deliver with validation, sandboxing, jobs, bundles and CI; observe and operate with centralized event logs, summary views and optional job correlation.
+   :width: 100%
+   :figclass: lhp-diagram
+
+   LHP generates the code and configuration for the capabilities you enable.
+   Select the diagram to view it full size.
+
+- **Author and reuse:** :doc:`build/compose`,
+  :doc:`environment values and secrets <guides/reuse-and-scale/substitutions-and-secrets>`.
+- **Read and transform:** :doc:`sources <guides/ingest/index>`,
+  :doc:`transformations <guides/transform/index>`, :doc:`build/metadata`.
+- **Write and publish:** :doc:`streaming tables, views and sinks <guides/write/index>`.
+- **Check and recover:** :doc:`data quality <guides/transform/data-quality>`,
+  :doc:`quarantine and recycling <guides/transform/quarantine>`.
+- **Develop and deliver:** :doc:`develop/index`.
+- **Observe and operate:** :doc:`centralized monitoring <guides/ops/monitoring>`,
+  :doc:`dependency diagnostics <guides/ops/dependency-analysis>`.
 
 Where to next
 =============
@@ -87,33 +115,35 @@ Where to next
 .. grid:: 1 1 2 2
    :gutter: 3
 
-   .. grid-item-card:: Get Started →
+   .. grid-item-card:: Get Started
       :link: get-started/index
       :link-type: doc
 
-      Run the sample project end to end — scaffold a complete medallion pipeline,
-      configure it, generate the Lakeflow code, and deploy it to Databricks.
+      Run the existing sample course from installation through deployment.
 
-   .. grid-item-card:: Guides →
-      :link: guides/index
+   .. grid-item-card:: Build pipelines
+      :link: build/index
       :link-type: doc
 
-      One task at a time, grouped by action kind: ingest from any source, choose
-      a write mode, test your data, reuse and scale, and operate.
+      Build with your own data: configure, read, transform, write and check quality.
 
-   .. grid-item-card:: Concepts →
-      :link: concepts/index
+   .. grid-item-card:: Develop and deploy
+      :link: develop/index
       :link-type: doc
 
-      The reasoning behind the design — how LHP compiles pipelines, the action
-      model, dependency inference, and the reuse ladder.
+      Develop locally, configure bundles, schedule jobs and deploy through CI.
 
-   .. grid-item-card:: Reference →
+   .. grid-item-card:: Monitor and troubleshoot
+      :link: operate/index
+      :link-type: doc
+
+      Enable monitoring, adjust its settings and diagnose problems by symptom.
+
+   .. grid-item-card:: Reference
       :link: reference/index
       :link-type: doc
 
-      CLI flags, the Python API, every action option, error codes, and
-      configuration schemas. Pure lookup, generated from the code itself.
+      Find exact action syntax and configuration options by feature or filename.
 
 .. admonition:: Coming from DLT?
    :class: tip
@@ -122,10 +152,12 @@ Where to next
    :doc:`Migrate a DLT pipeline to Lakehouse Plumber <guides/ship/migrate-from-dlt>`.
 
 .. toctree::
-   :maxdepth: 1
+   :maxdepth: 2
+   :hidden:
    :caption: Documentation
 
    get-started/index
-   guides/index
-   concepts/index
+   build/index
+   develop/index
+   operate/index
    reference/index

@@ -1,0 +1,134 @@
+page	disposition	candidate_ids	existing_images
+build/compose.rst	Approved shared visual available (A)	A	-
+build/configure.rst	Keep prose, example, table or navigation; no additional standalone diagram proposed	-	-
+build/first-pipeline.rst	Approved shared visual available (A)	A	-
+build/index.rst	Keep prose, example, table or navigation; no additional standalone diagram proposed	-	-
+build/metadata.rst	Proposed diagram or link to shared visual; awaiting approval	O	-
+concepts/coding-agents-and-the-skill.rst	Keep prose, example, table or navigation; no additional standalone diagram proposed	-	-
+concepts/flowgroups-and-dependencies.rst	Proposed diagram or link to shared visual; awaiting approval	I	../_static/diagrams/pipeline-boundaries.png
+concepts/how-lhp-works.rst	Approved shared visual available (A)	A	../_static/diagrams/concept-map.png; ../_static/diagrams/compilation.png
+concepts/index.rst	Keep prose, example, table or navigation; no additional standalone diagram proposed	-	-
+concepts/presets-templates-blueprints.rst	Approved shared visual available (B)	B	../_static/diagrams/reuse-example.png
+concepts/substitution-and-envs.rst	Approved shared visual available (C)	C	../_static/diagrams/environment-resolution.png
+concepts/the-action-model.rst	Approved shared visual available (A); secondary proposal (G) awaits approval	A, G	-
+develop/bundles.rst	Proposed diagram or link to shared visual; awaiting approval	J	-
+develop/index.rst	Keep prose, example, table or navigation; no additional standalone diagram proposed	-	-
+develop/jobs.rst	Proposed diagram or link to shared visual; awaiting approval	I	-
+get-started/01-install-and-scaffold.rst	Keep prose, example, table or navigation; no additional standalone diagram proposed	-	-
+get-started/02-configure-the-project.rst	Approved shared visual available (C)	C	-
+get-started/03-explore-the-pipelines.rst	Approved shared visual available (A); secondary proposal (G) awaits approval	A, G	-
+get-started/04-generate-and-inspect.rst	Keep prose, example, table or navigation; no additional standalone diagram proposed	-	-
+get-started/05-deploy-and-run.rst	Proposed diagram or link to shared visual; awaiting approval	J	-
+get-started/06-explore-lhp-web.rst	Retain existing product screenshots; no generated substitute proposed	-	/_static/lhp_web.png; /_static/lhp_web_designer.png; /_static/lhp_web_designer_actions.png
+get-started/07-where-to-next.rst	Keep prose, example, table or navigation; no additional standalone diagram proposed	-	-
+get-started/index.rst	Keep prose, example, table or navigation; no additional standalone diagram proposed	-	-
+guides/deploy/index.rst	Keep prose, example, table or navigation; no additional standalone diagram proposed	-	-
+guides/deploy/package-as-wheels.rst	Proposed diagram or link to shared visual; awaiting approval	J	-
+guides/develop/ai-assistant.rst	Retain existing product screenshots; no generated substitute proposed	-	/_static/web-assistant.png
+guides/develop/coding-agents.rst	Keep prose, example, table or navigation; no additional standalone diagram proposed	-	-
+guides/develop/editor-setup.rst	Keep prose, example, table or navigation; no additional standalone diagram proposed	-	-
+guides/develop/index.rst	Keep prose, example, table or navigation; no additional standalone diagram proposed	-	-
+guides/develop/sandbox.rst	Proposed diagram or link to shared visual; awaiting approval	H	/_static/web-sandbox.png; /_static/web-project-map-sandbox-off.png; /_static/web-project-map-sandbox-on.png; /_static/web-sandbox-settings.png
+guides/develop/web-ide.rst	Retain existing product screenshots; no generated substitute proposed	-	/_static/web-workspace-overview.png; /_static/web-explorer-structure.png; /_static/web-explorer-tables.png; /_static/web-project-map.png; /_static/web-flowgroup-graph.png; /_static/web-flowgroup-code.png; /_static/web-action-inspector.png; /_static/web-config-form.png; /_static/web-run-validate.png; /_static/web-viewer-lens.png; /_static/web-theme-dark.png; /_static/web-init-wizard.png
+guides/index.rst	Keep prose, example, table or navigation; no additional standalone diagram proposed	-	-
+guides/ingest/auto-loader.rst	Proposed diagram or link to shared visual; awaiting approval	K, P	-
+guides/ingest/custom-datasource.rst	Keep prose, example, table or navigation; no additional standalone diagram proposed	-	-
+guides/ingest/delta.rst	Keep prose, example, table or navigation; no additional standalone diagram proposed	-	-
+guides/ingest/index.rst	Keep prose, example, table or navigation; no additional standalone diagram proposed	-	-
+guides/ingest/jdbc.rst	Keep prose, example, table or navigation; no additional standalone diagram proposed	-	-
+guides/ingest/kafka.rst	Keep prose, example, table or navigation; no additional standalone diagram proposed	-	-
+guides/ingest/python.rst	Keep prose, example, table or navigation; no additional standalone diagram proposed	-	-
+guides/ingest/sql.rst	Keep prose, example, table or navigation; no additional standalone diagram proposed	-	-
+guides/ops/dependency-analysis.rst	Proposed diagram or link to shared visual; awaiting approval	I	-
+guides/ops/index.rst	Keep prose, example, table or navigation; no additional standalone diagram proposed	-	-
+guides/ops/monitoring.rst	Approved shared visual available (F)	F	../../_static/diagrams/monitoring-architecture.png
+guides/reuse-and-scale/blueprints.rst	Approved shared visual available (B)	B	-
+guides/reuse-and-scale/index.rst	Keep prose, example, table or navigation; no additional standalone diagram proposed	-	-
+guides/reuse-and-scale/multi-flowgroup.rst	Proposed diagram or link to shared visual; awaiting approval	K	-
+guides/reuse-and-scale/presets.rst	Approved shared visual available (B)	B	-
+guides/reuse-and-scale/substitutions-and-secrets.rst	Approved shared visual available (C)	C	-
+guides/reuse-and-scale/templates.rst	Approved shared visual available (B)	B	-
+guides/ship/ci-cd.rst	Proposed diagram or link to shared visual; awaiting approval	J	-
+guides/ship/index.rst	Keep prose, example, table or navigation; no additional standalone diagram proposed	-	-
+guides/ship/migrate-from-dlt.rst	Keep prose, example, table or navigation; no additional standalone diagram proposed	-	-
+guides/test/data-tests.rst	Proposed diagram or link to shared visual; awaiting approval	G	-
+guides/test/index.rst	Keep prose, example, table or navigation; no additional standalone diagram proposed	-	-
+guides/test/test-reporting.rst	Proposed diagram or link to shared visual; awaiting approval	N	-
+guides/transform/data-quality.rst	Proposed diagram or link to shared visual; awaiting approval	G	-
+guides/transform/index.rst	Keep prose, example, table or navigation; no additional standalone diagram proposed	-	-
+guides/transform/python.rst	Keep prose, example, table or navigation; no additional standalone diagram proposed	-	-
+guides/transform/quarantine.rst	Recovery image integrated in guide; reference links to guide	Completed	../../_static/diagrams/quarantine.png
+guides/transform/schema.rst	Proposed diagram or link to shared visual; awaiting approval	M	-
+guides/transform/sql.rst	Proposed diagram or link to shared visual; awaiting approval	L	-
+guides/transform/temp-table.rst	Keep prose, example, table or navigation; no additional standalone diagram proposed	-	-
+guides/write/index.rst	Keep prose, example, table or navigation; no additional standalone diagram proposed	-	-
+guides/write/materialized-view.rst	Keep prose, example, table or navigation; no additional standalone diagram proposed	-	-
+guides/write/sinks.rst	Keep prose, example, table or navigation; no additional standalone diagram proposed	-	-
+guides/write/streaming-table-cdc.rst	Approved shared visual available (D)	D	../../_static/diagrams/cdc-timelines.png
+guides/write/streaming-table-replace.rst	Keep prose, example, table or navigation; no additional standalone diagram proposed	-	-
+guides/write/streaming-table-snapshot-cdc.rst	Approved shared visual available (D)	D	-
+guides/write/streaming-table-standard.rst	Proposed diagram or link to shared visual; awaiting approval	K	-
+index.rst	Approved shared visual available (E)	E	_static/diagrams/action-model.png; _static/diagrams/capability-overview.png
+operate/adjust-monitoring.rst	Approved shared visual available (F)	F	-
+operate/index.rst	Keep prose, example, table or navigation; no additional standalone diagram proposed	-	-
+operate/monitoring.rst	Approved shared visual available (F)	F	-
+operate/troubleshooting.rst	Keep prose, example, table or navigation; no additional standalone diagram proposed	-	-
+reference/actions/load/cloudfiles.rst	Proposed diagram or link to shared visual; awaiting approval	K, P	-
+reference/actions/load/custom_datasource.rst	Keep prose, example, table or navigation; no additional standalone diagram proposed	-	-
+reference/actions/load/delta.rst	Keep prose, example, table or navigation; no additional standalone diagram proposed	-	-
+reference/actions/load/jdbc.rst	Keep prose, example, table or navigation; no additional standalone diagram proposed	-	-
+reference/actions/load/kafka.rst	Keep prose, example, table or navigation; no additional standalone diagram proposed	-	-
+reference/actions/load/python.rst	Keep prose, example, table or navigation; no additional standalone diagram proposed	-	-
+reference/actions/load/sql.rst	Keep prose, example, table or navigation; no additional standalone diagram proposed	-	-
+reference/actions/load.rst	Keep prose, example, table or navigation; no additional standalone diagram proposed	-	-
+reference/actions/test/all_lookups_found.rst	Proposed diagram or link to shared visual; awaiting approval	G	-
+reference/actions/test/completeness.rst	Proposed diagram or link to shared visual; awaiting approval	G	-
+reference/actions/test/custom_expectations.rst	Proposed diagram or link to shared visual; awaiting approval	G	-
+reference/actions/test/custom_sql.rst	Proposed diagram or link to shared visual; awaiting approval	G	-
+reference/actions/test/range.rst	Proposed diagram or link to shared visual; awaiting approval	G	-
+reference/actions/test/referential_integrity.rst	Proposed diagram or link to shared visual; awaiting approval	G	-
+reference/actions/test/row_count.rst	Proposed diagram or link to shared visual; awaiting approval	G	-
+reference/actions/test/schema_match.rst	Proposed diagram or link to shared visual; awaiting approval	G	-
+reference/actions/test/uniqueness.rst	Proposed diagram or link to shared visual; awaiting approval	G	-
+reference/actions/test.rst	Proposed diagram or link to shared visual; awaiting approval	G	-
+reference/actions/transform/data_quality.rst	Proposed diagram or link to shared visual; awaiting approval	G	-
+reference/actions/transform/python.rst	Keep prose, example, table or navigation; no additional standalone diagram proposed	-	-
+reference/actions/transform/schema.rst	Proposed diagram or link to shared visual; awaiting approval	M	-
+reference/actions/transform/sql.rst	Proposed diagram or link to shared visual; awaiting approval	L	-
+reference/actions/transform/temp_table.rst	Keep prose, example, table or navigation; no additional standalone diagram proposed	-	-
+reference/actions/transform.rst	Keep prose, example, table or navigation; no additional standalone diagram proposed	-	-
+reference/actions/write/materialized-view.rst	Keep prose, example, table or navigation; no additional standalone diagram proposed	-	-
+reference/actions/write/sink.rst	Keep prose, example, table or navigation; no additional standalone diagram proposed	-	-
+reference/actions/write/streaming-table-cdc.rst	Approved shared visual available (D)	D	-
+reference/actions/write/streaming-table-replace.rst	Keep prose, example, table or navigation; no additional standalone diagram proposed	-	-
+reference/actions/write/streaming-table-snapshot-cdc.rst	Approved shared visual available (D)	D	-
+reference/actions/write/streaming-table.rst	Proposed diagram or link to shared visual; awaiting approval	K	-
+reference/actions/write.rst	Keep prose, example, table or navigation; no additional standalone diagram proposed	-	-
+reference/api.rst	Keep prose, example, table or navigation; no additional standalone diagram proposed	-	-
+reference/changelog.rst	Keep prose, example, table or navigation; no additional standalone diagram proposed	-	-
+reference/cli.rst	Keep prose, example, table or navigation; no additional standalone diagram proposed	-	-
+reference/config/blueprints.rst	Approved shared visual available (B)	B	-
+reference/config/bundle.rst	Proposed diagram or link to shared visual; awaiting approval	J	-
+reference/config/expectations.rst	Proposed diagram or link to shared visual; awaiting approval	G	-
+reference/config/features.rst	Keep prose, example, table or navigation; no additional standalone diagram proposed	-	-
+reference/config/flowgroups.rst	Approved shared visual available (A)	A	-
+reference/config/index.rst	Keep prose, example, table or navigation; no additional standalone diagram proposed	-	-
+reference/config/jobs.rst	Proposed diagram or link to shared visual; awaiting approval	I	-
+reference/config/monitoring-job.rst	Approved shared visual available (F)	F	-
+reference/config/monitoring.rst	Approved shared visual available (F)	F	-
+reference/config/operational-metadata.rst	Proposed diagram or link to shared visual; awaiting approval	O	-
+reference/config/pipeline-config.rst	Keep prose, example, table or navigation; no additional standalone diagram proposed	-	-
+reference/config/presets.rst	Approved shared visual available (B)	B	-
+reference/config/project.rst	Keep prose, example, table or navigation; no additional standalone diagram proposed	-	-
+reference/config/quarantine-dlq.rst	Recovery image integrated in guide; reference links to guide	Completed	-
+reference/config/sandbox.rst	Proposed diagram or link to shared visual; awaiting approval	H	-
+reference/config/schema-files.rst	Proposed diagram or link to shared visual; awaiting approval	O	-
+reference/config/substitutions.rst	Approved shared visual available (C)	C	-
+reference/config/templates.rst	Approved shared visual available (B)	B	-
+reference/config/test-reporting.rst	Proposed diagram or link to shared visual; awaiting approval	N	-
+reference/config/uc-tagging.rst	Proposed diagram or link to shared visual; awaiting approval	O	-
+reference/dependency-analysis.rst	Proposed diagram or link to shared visual; awaiting approval	I	-
+reference/errors.rst	Keep prose, example, table or navigation; no additional standalone diagram proposed	-	-
+reference/glossary.rst	Keep prose, example, table or navigation; no additional standalone diagram proposed	-	-
+reference/index.rst	Keep prose, example, table or navigation; no additional standalone diagram proposed	-	-
+reference/telemetry.rst	Keep prose, example, table or navigation; no additional standalone diagram proposed	-	-

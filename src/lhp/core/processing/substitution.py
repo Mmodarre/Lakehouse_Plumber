@@ -239,12 +239,24 @@ class EnhancedSubstitutionManager:
 
         return self.SECRET_PATTERN.sub(secret_replacer, text)
 
+    def substitute_env_tokens(self, text: str) -> str:
+        """Replace ``${token}`` references in ``text`` with this environment's values.
+
+        Only the ``${token}`` form is applied. Unknown tokens, ``${secret:...}``
+        references and the deprecated bare ``{token}`` form are left exactly as
+        written, so text that is code (operational-metadata expressions holding
+        ``'\\d{8}'`` regex quantifiers) is not corrupted.
+        """
+        return self.DOLLAR_TOKEN_PATTERN.sub(self._lookup_token, text)
+
+    def _lookup_token(self, match: "re.Match[str]") -> Any:
+        return self.mappings.get(match.group(1), match.group(0))
+
     def _replace_tokens_in_string(self, text: str) -> str:
-        def _lookup(match):
-            return self.mappings.get(match.group(1), match.group(0))
+        _lookup = self._lookup_token
 
         # Dollar pattern first — avoids conflict with bare {TOKEN} pattern.
-        text = self.DOLLAR_TOKEN_PATTERN.sub(_lookup, text)
+        text = self.substitute_env_tokens(text)
 
         # Flip per-instance flag the first time a deprecated bare
         # ``{token}`` substitution actually happens. The main-thread

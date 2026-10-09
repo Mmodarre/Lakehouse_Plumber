@@ -5,6 +5,86 @@ All notable changes to Lakehouse Plumber are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Provisional sandbox editor APIs.** `inspect_editor_project`,
+  `validate_editor_project`, `preview_editor_project` and
+  `GenerationFacade.plan_generation` accept additive `sandbox=False` keywords.
+  Unsaved profile, policy, environment and source drafts resolve together in a
+  bounded mirror that copies only `.lhp/profile.yaml` from private state.
+  Sandbox source preview shares generation's SQL/Python/module/shim transforms
+  and warnings; preview also accepts `include_tests=False`. Snapshots keep the
+  full authored graph and report effective sandbox scope, strategy and table
+  pattern. Missing/invalid sandbox inputs cannot fall back to ordinary output.
+- **Template resource provenance.** Editor catalogues report declared resource
+  references for all templates, including unused definitions, so clients can
+  distinguish concrete file usages from unresolved parameter paths.
+
+- **`mode: replace` for streaming-table writes (Databricks REPLACE USING).** A new
+  streaming-table write mode that generates `@dp.replace_flow`: on each update it
+  replaces every target row whose `replace_using` key columns match an incoming batch,
+  keeping the highest `sequence_by` value, and leaves unmatched keys untouched — the
+  declarative form of a keyed partial-snapshot overwrite. Configure it with a
+  `replace_config` block (`replace_using: [...]`, `sequence_by: "..."`); field names
+  match the Databricks API. The target table is always created by the flow
+  (`create_table` is forced `true`), the source must be a streaming read
+  (`readMode: batch` is rejected), and the target must be served by this single flow
+  (it cannot share its table with any other write action). Sits alongside `cdc` and
+  `snapshot_cdc`; a batch-read sibling `mode: replace_where` is planned. See the write
+  action reference and the "Keep a current-state table with a REPLACE USING flow" guide.
+
+### Fixed
+
+- **`cluster_columns` and `cluster_by_auto` can now be set together** on streaming-table
+  (every mode) and materialized-view write targets (#282). Validation no longer rejects
+  the combination as mutually exclusive; the generated table definition carries both
+  `cluster_by=[...]` and `cluster_by_auto=True`. Databricks uses the columns as the
+  initial clustering keys and may later change them based on the workload. The web
+  IDE's "Set only one of cluster columns / auto clustering" hint is gone too.
+- **CloudFiles explicit schemas escape column names and comments (#287).** A `"`, a
+  newline, a trailing backslash, or a backslash sequence such as `\U`, `\N` or `\x` in a
+  schema column's `name` or `comment` no longer produces unparsable code (reported as
+  `LHP-CFG-031`). Values such as `C:\temp\new` and `\\server\share` are no longer
+  silently altered. The values are emitted as JSON-escaped string literals and
+  non-ASCII text stays verbatim, so plain ASCII values generate byte-identical code.
+- **CloudFiles explicit schemas import only the types they use (#288).** The
+  generated module now imports `StructType`, `StructField` and each column's type, one
+  `from pyspark.sql.types import <Name>` line per name, instead of a fixed list of 14
+  names. The schema transform no longer adds an unused `StructType` import. Operational
+  metadata expressions now get an import for every one of those 14 types they call
+  (previously only `StringType`, `IntegerType`, `DoubleType`, `BooleanType` and
+  `TimestampType`), including `DecimalType(10, 2)` with arguments. Expressions such as
+  `.cast(LongType())` used to compile only when a schema's blanket import happened to
+  be in the same file.
+- **Two CloudFiles schema loads in one flowgroup no longer share one variable.** The
+  `StructType` variable is now named after the load's target view (`<target>_schema`)
+  instead of the schema file's `name`. Every schema file keyed by `table:` used to
+  become `schema_schema`, so the first view silently read the second view's schema; a
+  `name` such as `prices-file` produced an invalid identifier. Regenerating renames the
+  variable in existing output (for example `customer_schema` becomes
+  `v_customer_schema_raw_schema`).
+- **Environment `${tokens}` now resolve in operational-metadata expressions, and an
+  unresolved one fails the run (#289).** `operational_metadata.columns.<name>.expression`
+  in `lhp.yaml` substituted only `${pipeline_name}` and `${flowgroup_name}`; any other
+  `${token}` was written into the generated code literally, so every row got the text
+  `${fd_source}`, and neither `lhp validate` nor `lhp generate` reported it. Expressions
+  now resolve per flowgroup for `--env`: context tokens first (`${pipeline_name}`,
+  `${flowgroup_name}`, and `${source_table}` on delta and JDBC loads), winning over a
+  substitutions key of the same name; then environment `${token}` values from
+  `substitutions/<env>.yaml`. **Behaviour change:** where LHP used to emit `${…}`
+  literally it now fails loudly. A `${...}`, `%{...}` or `{{ ... }}` left in a rendered
+  expression fails with `LHP-CFG-010` (naming the pipeline, flowgroup, column, token and
+  environment), and a `${secret:...}` reference fails with the new `LHP-CFG-070`, because
+  the expression's result is written into table data. `lhp validate --env <env>` now
+  reports the same errors as `lhp generate --env <env>`. Only expressions actually
+  rendered into generated code are checked: a column selected only on actions that never
+  emit metadata columns (streaming-table and materialized-view writes, schema transforms,
+  test actions) is ignored, as before. Expressions without tokens generate
+  byte-identical code, and the bare `{token}` form is not applied to expressions, so
+  regex quantifiers such as `'\\d{8}'` are emitted unchanged.
+
 ## [0.9.2] — 2026-09-22
 
 ### Added

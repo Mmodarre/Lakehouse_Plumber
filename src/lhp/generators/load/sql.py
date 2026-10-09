@@ -15,6 +15,8 @@ logger = logging.getLogger(__name__)
 class SQLLoadGenerator(BaseActionGenerator):
     """Generate SQL query load actions."""
 
+    renders_operational_metadata = True
+
     def __init__(self):
         super().__init__()
         self.add_import("from pyspark import pipelines as dp")

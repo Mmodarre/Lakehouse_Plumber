@@ -1,12 +1,14 @@
 """CloudFiles load generator"""
 
 import logging
+import re
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
 from lhp.errors import ErrorFactory, LHPError, codes
 from lhp.models import Action
 
+from ...core.codegen.imports import spark_type_import
 from ...core.codegen.struct_type_emitter import emit_struct_type_code
 from ...core.loaders.external_file_loader import (
     is_file_path,
@@ -16,9 +18,24 @@ from ...core.loaders.external_file_loader import (
 from ...core.registry import BaseActionGenerator
 from ...parsers.schema_parser import SchemaParser
 
+# Same identifier rule the data-quality generator applies to its source view.
+_NON_IDENTIFIER_CHARS = re.compile(r"[^a-zA-Z0-9_]")
+
+
+def _schema_variable_name(target: str) -> str:
+    """Name the module-level ``StructType`` after the load's target view.
+
+    The target is unique within a flowgroup; the schema file's own ``name`` or
+    ``table`` is not (every ``table:``-keyed file used to become
+    ``schema_schema``) and need not be a valid identifier.
+    """
+    return f"{_NON_IDENTIFIER_CHARS.sub('_', target)}_schema"
+
 
 class CloudFilesLoadGenerator(BaseActionGenerator):
     """Generate CloudFiles (Auto Loader) load actions."""
+
+    renders_operational_metadata = True
 
     def __init__(self):
         super().__init__()
@@ -58,6 +75,7 @@ class CloudFilesLoadGenerator(BaseActionGenerator):
         self.mandatory_options = {"format"}
 
     def generate(self, action: Action, context: Dict[str, Any]) -> str:
+        assert action.target is not None, "load validator enforces target"
         source_config = action.source if isinstance(action.source, dict) else {}
         self.logger.debug(
             f"Generating CloudFiles load for target '{action.target}', action '{action.name}'"
@@ -90,12 +108,12 @@ class CloudFilesLoadGenerator(BaseActionGenerator):
             if isinstance(explicit_schema, str):
                 # Schema file path
                 schema_variable, schema_code_lines = self._process_schema_file(
-                    explicit_schema, context.get("spec_dir")
+                    explicit_schema, action.target, context.get("spec_dir")
                 )
             elif isinstance(explicit_schema, dict) and "file" in explicit_schema:
                 # Schema object with file
                 schema_variable, schema_code_lines = self._process_schema_file(
-                    explicit_schema["file"], context.get("spec_dir")
+                    explicit_schema["file"], action.target, context.get("spec_dir")
                 )
 
         reader_options = {}
@@ -133,7 +151,7 @@ class CloudFilesLoadGenerator(BaseActionGenerator):
         ):
             # Default to explicit schema for backward compatibility
             schema_variable, schema_file_lines = self._process_schema_file(
-                source_config["schema_file"], context.get("spec_dir")
+                source_config["schema_file"], action.target, context.get("spec_dir")
             )
             schema_code_lines.extend(schema_file_lines)
 
@@ -252,9 +270,9 @@ class CloudFilesLoadGenerator(BaseActionGenerator):
         return processed_options
 
     def _process_schema_file(
-        self, schema_file_path: str, spec_dir: Path | None = None
+        self, schema_file_path: str, target: str, spec_dir: Path | None = None
     ) -> Tuple[str, List[str]]:
-        """Process a schema file and generate StructType code."""
+        """Process a schema file and generate StructType code for ``target``'s view."""
         try:
             schema_data = self.schema_parser.parse_schema_file(
                 Path(schema_file_path), spec_dir
@@ -276,20 +294,15 @@ class CloudFilesLoadGenerator(BaseActionGenerator):
                     },
                 )
 
-            variable_name, code_lines = emit_struct_type_code(schema_data)
+            variable_name = _schema_variable_name(target)
+            struct_code = emit_struct_type_code(schema_data, variable_name)
 
-            for line in code_lines:
-                if line.startswith("from pyspark.sql.types import"):
-                    self.add_import(line)
-                    break
+            # One statement per name, the form ImportDetector also emits, so
+            # overlapping names from other actions dedupe instead of redefining.
+            for type_name in struct_code.type_names:
+                self.add_import(spark_type_import(type_name))
 
-            schema_def_lines = [
-                line
-                for line in code_lines
-                if not line.startswith("from pyspark.sql.types import") and line.strip()
-            ]
-
-            return variable_name, schema_def_lines
+            return variable_name, list(struct_code.code_lines)
 
         except FileNotFoundError as exc:
             search_locations = []

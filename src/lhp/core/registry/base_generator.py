@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set
+from typing import TYPE_CHECKING, Any, ClassVar, Dict, List, Optional, Set
 
 from ...utils.performance_timer import perf_timer
 
@@ -12,6 +12,13 @@ if TYPE_CHECKING:
 
 
 class BaseActionGenerator(ABC):
+    #: Whether :meth:`generate` emits ``lhp.yaml`` operational-metadata columns
+    #: for its action. The one declaration both paths read:
+    #: :meth:`_get_operational_metadata` refuses to run unless it is ``True``,
+    #: and validation resolves metadata expressions only for actions whose
+    #: generator sets it (``ActionRegistry.renders_operational_metadata``).
+    renders_operational_metadata: ClassVar[bool] = False
+
     def __init__(self, use_import_manager: bool = False):
         # Legacy import collection (backward compatible)
         self._imports: Set[str] = set()
@@ -91,7 +98,22 @@ class BaseActionGenerator(ABC):
     def _get_operational_metadata(
         self, action: Action, context: Dict[str, Any], target_type: str = "view"
     ) -> tuple:
-        """Centralized operational metadata lookup via OperationalMetadataService."""
+        """Centralized operational metadata lookup via OperationalMetadataService.
+
+        Expressions resolve against the run's ``substitution_manager`` from
+        ``context`` (environment ``${tokens}``; unresolved tokens and secrets
+        raise ``LHP-CFG-010`` / ``LHP-CFG-070``).
+
+        :raises TypeError: when the generator does not declare
+            :attr:`renders_operational_metadata`; validation would otherwise
+            skip expressions this call emits.
+        """
+        if not self.renders_operational_metadata:
+            raise TypeError(
+                f"{type(self).__name__} renders operational metadata but does not "
+                "set renders_operational_metadata = True"
+            )
+
         from ..codegen.operational_metadata import OperationalMetadataService
 
         flowgroup = context.get("flowgroup")
@@ -107,6 +129,7 @@ class BaseActionGenerator(ABC):
                 project_config=project_config,
                 target_type=target_type,
                 import_manager=self.get_import_manager(),
+                substitution_mgr=context.get("substitution_manager"),
             )
         )
 

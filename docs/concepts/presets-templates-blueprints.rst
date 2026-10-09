@@ -41,14 +41,38 @@ short parameter blocks against one shared skeleton — in a single pipeline. Rea
 for a template when the *shape* repeats and only leaf values (the table name, the
 format, a cluster key) change from one table to the next.
 
-**A blueprint removes duplicated pipelines.** It is a parameterized *set* of
+**A blueprint removes duplicated sets of flowgroups.** It is a parameterized *set* of
 flowgroups, carrying ``%{parameter}`` placeholders in the names that identify
 each pipeline and table. An instance file names it with ``use_blueprint:`` and
-supplies one set of parameter values; one blueprint and *N* instances expand
-into *N* pipelines' worth of flowgroups. Reach for a blueprint when an entire
+supplies one set of parameter values. Each instance expands the flowgroup
+patterns; their pipeline names control the deployment grouping. Reach for a blueprint when an entire
 pipeline repeats across an outer axis — a region, a tenant, a source system, an
 environment — and copying the whole thing per axis is what you're trying to
 avoid.
+
+.. _lhp-reuse-example:
+
+A worked example
+================
+
+These examples use the checked-in reuse guides. The template's
+``bronze_defaults`` preset gives both readers a
+``cloudFiles.maxFilesPerTrigger`` value of 200. The orders flowgroup applies
+``high_throughput`` afterwards, changing its value to 1000. Customers keeps 200.
+The shared template supplies each flowgroup's load and write actions.
+
+.. figure:: ../_static/diagrams/reuse-example.png
+   :alt: Three examples distinguish reuse tools. The bronze_defaults preset gives orders and customers a reader limit of 200, with high_throughput overriding orders to 1000. The bronze_ingest template produces orders_ingest and customers_ingest actions in the bronze pipeline using different parameters. Separately, the tenant_bronze blueprint expands orders and customers patterns for acme and globex into four flowgroups across two pipelines.
+   :width: 100%
+   :figclass: lhp-diagram
+
+   The first two rows share a template example; the third is a separate blueprint
+   example with two tenant instances. Select the diagram to view it full size.
+
+Blueprints expand sets of flowgroups. Their pipeline names determine how those
+flowgroups are grouped; a blueprint is not restricted to one pipeline per
+instance. Follow the examples in :doc:`/guides/reuse-and-scale/templates` and
+:doc:`/guides/reuse-and-scale/blueprints`.
 
 Reach for the smallest grain that repeats
 =========================================

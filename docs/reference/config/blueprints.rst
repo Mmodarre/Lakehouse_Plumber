@@ -201,7 +201,7 @@ Instance file fields
 
 An instance file names one blueprint and supplies its parameter values. The
 file is strict — unknown top-level keys are rejected. The legacy ``blueprint:``
-key with flat parameter siblings is deprecated and removed in V0.9; use
+key with flat parameter siblings is still accepted with a deprecation warning; use
 ``use_blueprint:`` with a nested ``parameters:`` block.
 
 .. list-table::

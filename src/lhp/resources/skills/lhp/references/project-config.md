@@ -349,13 +349,21 @@ actions:
 ## Operational Metadata
 
 **Usage in actions:**
-- `operational_metadata: true` — all defined columns
+- `operational_metadata: true` — accepted, but selects no columns; use an explicit list
 - `operational_metadata: ["_col1", "_col2"]` — specific columns
 - `operational_metadata: false` — disable all (overrides preset/flowgroup)
 
 **Behavior:** Additive across preset + flowgroup + action levels (except `false` disables all).
 
 **CloudFiles-only columns:** `_source_file_path`, `_source_file_size`, `_source_file_modification_time` — only available in views from CloudFiles loads, not downstream.
+
+**Tokens in `expression`** (resolved per flowgroup for `--env`, only where the expression is rendered — selections on actions that emit no op-metadata, e.g. streaming_table/MV writes, schema transforms and test actions, are not checked):
+1. Context tokens first, winning over a same-named substitutions key: `${pipeline_name}`, `${flowgroup_name}`, and `${source_table}` on delta/jdbc loads.
+2. `${secret:...}` (direct or via a token value) → **LHP-CFG-070** — the value would be written into table data. Use `substitutions/<env>.yaml` for non-secret config, a transform action for per-table logic.
+3. Env `${token}` from `substitutions/<env>.yaml` (`global` + `<env>`), e.g. `expression: "F.lit('${source_system}')"`.
+4. Any leftover `${...}` / `%{...}` / `{{ ... }}` → **LHP-CFG-010** (error, names column + token + env). `%{local_var}` and `{{ template_param }}` are NOT resolved in `lhp.yaml`.
+
+Bare `{token}` is not substituted, so regex quantifiers like `F.col("id").rlike("\\d{8}")` are emitted unchanged. `lhp validate --env X` reports the same errors as `lhp generate --env X`.
 
 ## CLI Commands
 

@@ -131,8 +131,80 @@ dp.create_auto_cdc_from_snapshot_flow(
     {%- endif %}
 )
 
+{% elif mode == "replace" %}
+{#
+   Replace-using mode: always create the streaming table (a REPLACE USING target
+   must be created within the pipeline and served by a single dp.replace_flow),
+   then emit exactly one @dp.replace_flow reading a streaming source.
+#}
+# Create the streaming table for the replace-using flow
+dp.create_streaming_table(
+    name="{{ full_table_name }}",
+    comment="{{ comment }}"
+    {%- if properties %},
+    table_properties={{ properties | tojson }}
+    {%- endif %}
+    {%- if spark_conf %},
+    spark_conf={{ spark_conf | tojson }}
+    {%- endif %}
+    {%- if partitions %},
+    partition_cols={{ partitions | tojson }}
+    {%- endif %}
+    {%- if cluster_by %},
+    cluster_by={{ cluster_by | tojson }}
+    {%- endif %}
+    {%- if cluster_by_auto %},
+    cluster_by_auto={{ cluster_by_auto | string | title }}
+    {%- endif %}
+    {%- if table_path %},
+    path="{{ table_path }}"
+    {%- endif %}
+    {%- if schema %},
+    schema="""{{ schema }}"""
+    {%- endif %}
+    {%- if row_filter %},
+    row_filter="{{ row_filter }}"
+    {%- endif %}
+    {%- if temporary %},
+    temporary={{ temporary | string | title }}
+    {%- endif %}
+    {%- if private %},
+    private={{ private | string | title }}
+    {%- endif %}
+)
+
+# Replace-using flow: {{ flow_name }}
+@dp.replace_flow(
+    target="{{ full_table_name }}",
+    name="{{ flow_name }}",
+    replace_using={{ replace_config['replace_using'] | tojson }},
+    sequence_by="{{ replace_config['sequence_by'] }}",
+    comment="{{ description }}"
+)
+{% if expect_all %}
+@dp.expect_all({{ expect_all | tojson }})
+{% endif %}
+{% if expect_all_or_drop %}
+@dp.expect_all_or_drop({{ expect_all_or_drop | tojson }})
+{% endif %}
+{% if expect_all_or_fail %}
+@dp.expect_all_or_fail({{ expect_all_or_fail | tojson }})
+{% endif %}
+def {{ flow_name }}():
+    """{{ description }}"""
+    # Streaming flow (REPLACE USING requires a streaming source)
+    df = spark.readStream.table("{{ source_view }}")
+    {% if add_operational_metadata %}
+
+    # Add operational metadata columns
+    {% for col_name, expression in metadata_columns.items()|sort %}
+    df = df.withColumn('{{ col_name }}', {{ expression }})
+    {% endfor %}
+    {% endif %}
+
+    return df
 {% else %}
-{# 
+{#
    Standard streaming table: Create table first (if needed), then append flow(s)
 #}
 {% if create_table %}

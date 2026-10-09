@@ -101,7 +101,7 @@ runtime:
 .. literalinclude:: ../../_fixtures/guide_transform_schema/generated/dev/silver_orders/orders_typed.py
    :language: python
    :caption: generated/dev/silver_orders/orders_typed.py
-   :emphasize-lines: 36-59
+   :emphasize-lines: 35-58
 
 The schema transform became a ``@dp.temporary_view`` that turns each contract line
 into concrete PySpark: four ``withColumnRenamed`` calls map the cryptic names,
@@ -137,3 +137,8 @@ What's next
   data-quality guide.
 - For inline schemas (``schema_inline``), the ``permissive`` mode, the full arrow
   syntax, and ``readMode``, see the **Transform action reference**.
+
+Syntax and options
+------------------
+
+See :doc:`/reference/actions/transform/schema` for all supported settings and defaults.

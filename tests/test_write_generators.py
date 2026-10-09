@@ -137,7 +137,8 @@ class TestWriteGenerators:
         """Test materialized view emits cluster_by_auto when set, omits when not."""
         generator = MaterializedViewWriteGenerator()
 
-        # cluster_by_auto is mutually exclusive with cluster_columns, so omit them.
+        # cluster_by_auto alone; the combination with cluster_columns is covered in
+        # tests/generators/write/test_liquid_clustering.py.
         action_enabled = Action(
             name="write_auto_cluster",
             type=ActionType.WRITE,

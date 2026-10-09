@@ -25,14 +25,15 @@ Then, using what the sample showed you:
 
 - Set your environment values in ``substitutions/dev.yaml`` — the ``${...}``
   tokens your flowgroups reference.
-- Add flowgroups under ``pipelines/``, one YAML file per pipeline.
+- Add flowgroups under ``pipelines/``; a pipeline can contain several flowgroups.
 - If it's a bundle project, keep ``config/pipeline_config.yaml`` and pass it with
   ``-pc`` on every ``generate``.
 - Reach for :doc:`presets, templates, and blueprints </concepts/presets-templates-blueprints>`
   once a pattern starts repeating.
 
-The :doc:`Guides </guides/index>` go deep on each task — every ingestion source,
-every write mode, every transform type.
+Follow :doc:`Build your own pipeline </build/first-pipeline>` for a complete
+first example. Then choose a task under :doc:`Build pipelines </build/index>`,
+or jump to :doc:`Reference </reference/index>` for exact syntax and options.
 
 Features the sample didn't cover
 =================================

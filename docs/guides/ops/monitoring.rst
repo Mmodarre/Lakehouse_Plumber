@@ -1,30 +1,45 @@
-=====================================
-Monitor every pipeline from one place
-=====================================
+==========================
+Enable pipeline monitoring
+==========================
+
+.. raw:: html
+
+   <span id="monitor-every-pipeline-from-one-place"></span>
+
 
 .. meta::
    :description: Turn on centralized event-log monitoring with two blocks in lhp.yaml — Lakehouse Plumber generates the union notebook, the run-summary materialized view, and the Workflow job that chains them across every pipeline in your project.
 
-A project is rarely one pipeline. It is a bronze ingest, a handful of silver
-transforms, a gold rollup — each writing its own Databricks event log. When you
-want to answer one operational question across all of them — did every pipeline
-run last night, how long did each take, how many rows moved, how many were
-dropped by a quality gate — that answer is scattered across N separate event
-logs.
+Enable event logs for your pipelines, then generate a monitoring job that
+collects them into a shared Delta table and refreshes summary views. Configuration
+lives in ``lhp.yaml`` and a separate monitoring-job file.
 
-You could hand-write the machinery that pulls them together: a notebook with one
-streaming query per pipeline event log, each with its own checkpoint so adding a
-pipeline never invalidates the others; a pre-create step so parallel writers do
-not race to create the target table on a cold run; a ``ThreadPoolExecutor`` to
-run the streams concurrently; a run-summary query that parses the event-log JSON
-into status, duration, and row counts; and a Databricks Workflow job that runs
-the notebook and then the summary. Or you add two blocks to ``lhp.yaml`` and let
-Lakehouse Plumber write all of it. That is the idea on every page: **declare your
-ETL, don't hand-write it** — and here, don't hand-wire your observability either.
+For an existing installation, use :doc:`/operate/adjust-monitoring`.
+For all options and defaults, open :doc:`/reference/config/monitoring`.
 
-Let's turn on monitoring for a project with a single bronze ``orders`` pipeline
-and watch Lakehouse Plumber generate the union notebook, the run-summary view,
-and the Workflow job that chains them.
+.. _lhp-monitoring-architecture:
+
+What runs when
+==============
+
+With the default summary view enabled, the generated monitoring job first
+collects logs, then refreshes the monitoring pipeline. Each eligible pipeline
+has an independent available-now stream and its own checkpoint. All streams
+append to the same Delta event table, which supplies the summary views.
+
+.. figure:: ../../_static/diagrams/monitoring-architecture.png
+   :alt: LHP generates a collection notebook, a monitoring view pipeline and a job. Task 1 reads bronze, silver and gold event logs through independent available-now streams with separate checkpoints into one shared Delta event table. Task 2 reads that same table to refresh the events_summary materialized view with run status, duration and row metrics. Optional Databricks SDK job correlation enriches the monitoring information.
+   :width: 100%
+   :figclass: lhp-diagram
+
+   The shared table is shown in both tasks to explain the handoff. Views are
+   configurable, and job correlation is opt-in. Select the diagram to view it
+   full size.
+
+LHP selects the event-log sources when it generates the notebook. Pipelines
+that disable event logging and the monitoring pipeline itself are excluded.
+Regenerate after changing that set. Custom materialized views replace the
+default ``events_summary``; an empty view list omits summary views.
 
 Before you start
 ================
@@ -69,7 +84,7 @@ set ``monitoring.enabled: false`` to keep the configuration but skip generation.
   path to the Workflow-job config, covered next). Every other monitoring field —
   the pipeline name, the target Delta table name, the catalog and schema
   override, the materialized-view list — has a default. The full list of fields
-  and defaults is in the monitoring reference.
+  and defaults is in :doc:`/reference/config/monitoring`.
 
 Describe the Workflow job
 =========================
@@ -93,8 +108,7 @@ through untouched into the generated resource.
    The file must be a flat mapping. Do not wrap it in a ``project_defaults:``
    key and do not add a ``job_name:`` key — the job name is always derived as
    ``{pipeline_name}_job``, and the ``pipeline_task`` is generated for you. The
-   full job schema (schedule, clusters, notifications, permissions) is in the
-   monitoring reference.
+   full job schema (schedule, clusters, notifications, permissions) is in :doc:`/reference/config/monitoring-job`.
 
 Generate the pipelines
 ======================
@@ -148,7 +162,7 @@ behind a runtime:
    :caption: monitoring/dev/union_event_logs.py
    :emphasize-lines: 15-21, 82-88
 
-Every design decision from the antithesis is here, generated:
+The generated notebook includes:
 
 - **The sources.** ``SOURCES`` is the resolved list of ``(pipeline_name,
   event_log_table)`` pairs — one entry per pipeline, ``bronze_orders`` mapped to
@@ -217,4 +231,4 @@ What's next
   that triggered it, via the Databricks SDK.
 - **See every field.** The full ``event_log`` and ``monitoring`` schema, the
   complete job-config options, the ``events_summary`` column list, and the
-  validation error codes are in the monitoring reference.
+  validation error codes are in :doc:`/reference/config/monitoring`.

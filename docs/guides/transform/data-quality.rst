@@ -163,3 +163,8 @@ What's next
   read as typed columns, covered in the SQL transform and schema transform guides.
 - For every field — ``mode``, ``quarantine``, ``readMode``, the old list-format
   expectations file — see the **Transform action reference**.
+
+Syntax and options
+------------------
+
+See :doc:`/reference/actions/transform/data_quality` for all supported settings and defaults.
