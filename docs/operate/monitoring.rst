@@ -5,6 +5,9 @@ Collect pipeline event logs and build shared monitoring tables.
 Choose setup instructions for a new installation, adjustment steps for an
 existing one, or the complete settings reference for a syntax lookup.
 
+The :ref:`monitoring architecture diagram <lhp-monitoring-architecture>`
+shows collection, checkpoints and the summary-view refresh order.
+
 .. toctree::
    :maxdepth: 1
 

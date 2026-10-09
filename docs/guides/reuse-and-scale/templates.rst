@@ -19,6 +19,9 @@ CSV and customers as JSON. Start with a working :doc:`pipeline </build/first-pip
 and read :doc:`presets` if you want to share reader and table settings.
 Create ``templates/`` and ``presets/`` directories if they do not exist.
 
+See the :ref:`worked reuse diagram <lhp-reuse-example>` for the resulting orders
+and customers flowgroups and their preset values.
+
 Declare the parameters
 ======================
 

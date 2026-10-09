@@ -23,6 +23,9 @@ database and land it in the bronze layer, then ship that same file to dev and
 prod — with the catalog, the database host, and the credentials all supplied
 from outside the flowgroup.
 
+See the :ref:`environment resolution diagram <lhp-environment-resolution>`
+for the build-time steps and the runtime secret lookup.
+
 Before you start
 ================
 
@@ -35,8 +38,8 @@ lookup call, never into a value.
 Declare the flowgroup once
 ==========================
 
-A pipeline in Lakehouse Plumber is a **flowgroup**: a short YAML file describing
-a sequence of **actions**. This one has two — a ``load`` that reads the orders
+A **flowgroup** is a YAML definition within a pipeline, describing a set of
+**actions**. This one has two — a ``load`` that reads the orders
 table over JDBC, and a ``write`` that lands it as a bronze table. Nothing in it
 names an environment.
 
