@@ -1,19 +1,19 @@
 # Documentation diagram review
 
-Scope: 133 RST documents in the current documentation tree, excluding shared includes and build output. Inventory covers every page and existing visual reference; the conceptual guides received closer prose review. Feature semantics for **new suggestions** remain subject to code verification after approval. No application code was changed.
+Scope: 133 RST documents in the current documentation tree, excluding shared includes and build output. Inventory covers every page and existing visual reference; the conceptual guides received closer prose review. The six priority additions (A–F) were approved, checked against code, generated and integrated. Secondary candidates (G–P) remain proposals. No application code was changed.
 
 ## Completed replacements
 
 | Page | Message | Evidence checked |
 | --- | --- | --- |
-| `index.rst` | Load → optional transforms → write; direct load-to-write is valid. Presented as a common shape, not a requirement on standalone writes. | `src/lhp/core/dependencies/dependency_resolver.py` (including self-contained writes); `docs/_fixtures/first_pipeline/` YAML and generated Python |
+| `index.rst` | One or more loads → optional transforms → one or more writes; dotted, faded stacks represent additional actions. Direct load-to-write is valid. Presented as a common shape, not a requirement on standalone writes. | `src/lhp/models/_flowgroup.py`, `_action.py`; `src/lhp/core/codegen/grouping.py`; dependency resolver including self-contained writes; `docs/_fixtures/first_pipeline/` |
 | `concepts/how-lhp-works.rst` | Build-time compilation produces owned Python; deployment separates this from Lakeflow execution. | `src/lhp/core/coordination/orchestrator.py`; `core/processing/flowgroup_resolver.py`; `core/codegen/coordinator.py`; `core/codegen/formatter.py` |
 | `concepts/flowgroups-and-dependencies.rst` | Local views connect within a pipeline; a persisted table connects pipelines. | `src/lhp/core/dependencies/builder.py` pipeline/name index; `_producers.py` table index and matching |
 | `guides/transform/quarantine.rst` | Clean path plus inbox repair, CDF selection, deduplicated outbox, reconstruction and revalidation before union. | `src/lhp/generators/transform/data_quality.py`; `src/lhp/templates/transform/data_quality_quarantine.py.j2`; `tests/e2e/test_quarantine_e2e.py` assertions; generated guide fixture |
 
 Three Mermaid directives replaced; Mermaid extension and docs dependency removed. Existing quarantine artwork was found at `docs/_static/quarantine_data_flow.svg`; the guide now uses the newly generated PNG. The original unused artwork is retained. Quarantine reference points readers to the illustrated guide.
 
-Four images were generated with the built-in image generation tool, checked visually, and imported into the existing Superdesign project. Prompts and selected project-relative paths are in `diagram-prompts.json`; canvas records are in `diagram-canvas-assets.json`. They are local assets at `docs/_static/diagrams/`, with descriptive alternative text and keyboard-accessible full-size links. Warm illustration panels are deliberately retained in both page themes; no colour inversion is applied.
+Ten images are now integrated: the four original replacements plus six approved additions. All use the built-in image generation tool, with visual review and import into the existing Superdesign project. Prompts and selected project-relative paths are in `diagram-prompts.json`; the approved batch and targeted edits are also preserved in `approved-prompts.json` and `approved-refinements.json`. Canvas records are in `diagram-canvas-assets.json`. They are local assets at `docs/_static/diagrams/`, with descriptive alternative text and keyboard-accessible full-size links. Warm illustration panels are deliberately retained in both page themes; no colour inversion is applied.
 
 ### Quarantine facts that constrain the visual
 
@@ -25,9 +25,24 @@ Four images were generated with the built-in image generation tool, checked visu
 - Failed recycled rows are dropped. The code contains no automatic requeue from that view to the inbox.
 - The picture does not promise immediate repair or a precisely timed run boundary. Existing guide timing prose was not independently runtime-tested.
 
-## Suggested additions — awaiting approval
+## Approved additions — completed
 
-The visual ideas below are proposals, not verified implementation specifications. After approval: inspect the named implementation area and tests, write a precise diagram contract, generate, check every label/edge, and integrate at the indicated location. Reuse the same visual from related pages instead of making near-duplicates.
+The user approved the six priority concepts presented in the review (A–F), and requested the index action-count refinement. Each visual was defined from source before generation. Related guides link to the canonical illustrated explanation.
+
+| ID | Asset | Evidence and limits |
+| --- | --- | --- |
+| A | `concept-map.png` | `models/_flowgroup.py`, `models/_action.py`, `core/processing/blueprint_expander.py`, `template_engine.py`, `flowgroup_resolver.py`. Blueprint instances expand flowgroups, templates append actions, presets apply settings. Pipeline grouping is determined by names. Tests are opt-in; shown action counts are examples. |
+| B | `reuse-example.png` | `docs/_fixtures/guide_reuse_templates/` and `guide_reuse_blueprints/`, preset manager and flowgroup resolver. Template preset gives both readers maxFilesPerTrigger 200; orders' later flowgroup preset overrides to 1000. The blueprint row uses two of the fixture's three instances: two patterns times two instances gives four flowgroups. |
+| C | `environment-resolution.png` | `core/processing/local_variables.py`, `flowgroup_resolver.py`, `substitution.py`, `core/codegen/secrets.py`, substitution guide fixture. Local-variable resolution precedes template expansion and presets; environment substitution follows. Secret references and scope aliases become lookup code; values are fetched at runtime. |
+| D | `cdc-timelines.png` | `generators/write/streaming_table.py`, `templates/write/streaming_table.py.j2`, CDC and snapshot fixtures. The comparison uses three updates to one key and tracks tier for SCD2. [Databricks AUTO CDC](https://docs.databricks.com/aws/en/ldp/cdc) checked for runtime semantics: SCD1 current state, SCD2 versions, ordered snapshots as an alternate input. Generation does not itself apply changes. |
+| E | `capability-overview.png` | `generators/registration.py`, `core/codegen/test_reporting.py`, `uc_tagging.py`, `core/sandbox/scope_resolver.py`, `bundle/manager.py`, `api/_skill_facade.py`, `api/_wheel_facade.py`, `webapp/app.py`, plus reuse, substitution, quarantine, dependency and monitoring implementations. Groups public capabilities without claims of market exclusivity or universal enablement. |
+| F | `monitoring-architecture.png` | `core/coordination/monitoring_pipeline_builder.py`, `templates/monitoring/union_event_logs.py.j2`, `templates/bundle/monitoring_job_resource.yml.j2`. Sources selected at generation; independent available-now streams and checkpoints; shared Delta table; dependent view refresh. Default events_summary can be replaced or omitted. SDK job correlation is opt-in. The same table is drawn in each task to explain the handoff. |
+
+Concept-map helper arrows and the shared-preset branch received targeted corrections after visual review. Nearby prose was corrected where it conflicted with the diagram contract: a flowgroup is a definition rather than a file or pipeline, blueprint expansion is not fixed to one pipeline, and local variables resolve before environment substitution rather than at parse time.
+
+## Candidate inventory
+
+A–F below are implemented as recorded above. G–P remain secondary proposals and need approval plus code verification before generation. Reuse shared visuals from related pages instead of making near-duplicates.
 
 | ID | Priority | Proposed visual and question it answers | Main placement | Verification before generation |
 | --- | --- | --- | --- | --- |
@@ -59,10 +74,18 @@ The requested “all unique features” is best treated as a complete capability
 - **Develop and deliver:** sandbox namespacing; inferred and explicit dependencies; generated orchestration jobs; bundle integration; optional wheel packaging; validation and CI workflows.
 - **Observe and operate:** centralized event-log monitoring; summary views; optional job correlation; diagnostic dependency graphs.
 
-This is a docs-derived checklist for code confirmation, not a statement that every item is unique to LHP or always enabled. The visual should distinguish core behavior from opt-in features.
+This inventory was checked against the implementation before generating the approved overview. It is not a statement that every item is unique to LHP or always enabled. The footer explicitly asks readers to enable the capabilities their project needs.
 
 ## Review coverage and deliberate exclusions
 
 A page-level mapping follows in `diagram-coverage.tsv`. Conceptual pages and long guides are candidates above; short field-reference pages should link to the corresponding diagram rather than repeat it. Existing Web IDE, assistant and install screenshots should remain actual product screenshots. Navigation indexes, CLI/API listings, changelog, error catalog, telemetry and compact syntax tables do not need decorative illustrations.
 
 Two wording issues surfaced while checking visual messages: the homepage's universal load/transform/write claim was narrowed because standalone write actions exist; the quarantine explanation now states the recycled-rule exception and drop behavior. Broader prose cleanup and runtime verification are outside this diagram pass.
+
+## Verification of the approved batch
+
+- Strict clean Sphinx HTML build: all 133 documents, warnings treated as errors, zero warnings.
+- Browser checks: eight illustrated pages at 1440, 810 and 390 pixels, in light and dark themes (48 combinations); images load, alternative text and full-size links are present, no page overflow.
+- All ten full-size diagram assets open from local file URLs. Desktop and mobile screenshots reviewed.
+- Existing theme smoke suite passes 28 responsive page checks, navigation, native search, code copy, theme persistence, all ten agent prompts, and keyboard/dialog/mobile controls.
+- Superdesign imports were fetched again and verified to retain the selected asset URLs. No PR was opened.

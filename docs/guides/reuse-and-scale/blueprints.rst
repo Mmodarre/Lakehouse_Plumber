@@ -21,6 +21,9 @@ flowgroup patterns and three instances bind different tenant/region values.
 The first instance is enough to generate a pipeline; add the others when that
 pattern works.
 
+The :ref:`worked reuse diagram <lhp-reuse-example>` illustrates the first two
+instances: two patterns per tenant produce four flowgroups.
+
 Parameterize the pattern
 ========================
 

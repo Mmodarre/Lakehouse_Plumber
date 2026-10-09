@@ -56,13 +56,123 @@
   "action-model": {
     "url": "https://vgbujcuwptvheqijyjbe.supabase.co/storage/v1/object/public/hmac-uploads/projects/980a5642-d302-4758-aa0f-4289f93cd496/content-assets/docs-diagrams-action-model/action-model.png",
     "nodeId": "8a0641f0-bad0-4ab6-8296-bc1993bc78b8",
+    "size": 1295425,
+    "contentHash": "fd0255de67b54ef104940ae2c50ce24fbd614b3bf36fcc10aa494090a35a88cd",
     "draft": {
       "draftId": "f5211b5c-dd55-4975-852b-f6d2919ff339",
-      "nodeId": "draft-variant-f5211b5c-dd55-4975-852b-f6d2919ff339",
       "title": "LHP diagram: action-model",
+      "currentVersion": 2,
       "projectUrl": "https://superdesign.dev/teams/f33bcfc4-6374-42ff-ab64-c439e1720bd4/projects/980a5642-d302-4758-aa0f-4289f93cd496",
       "nodeUrl": "https://superdesign.dev/teams/f33bcfc4-6374-42ff-ab64-c439e1720bd4/projects/980a5642-d302-4758-aa0f-4289f93cd496?node=draft-variant-f5211b5c-dd55-4975-852b-f6d2919ff339",
       "previewUrl": "https://p.superdesign.dev/draft/f5211b5c-dd55-4975-852b-f6d2919ff339"
+    }
+  },
+  "concept-map": {
+    "url": "https://vgbujcuwptvheqijyjbe.supabase.co/storage/v1/object/public/hmac-uploads/projects/980a5642-d302-4758-aa0f-4289f93cd496/content-assets/docs-diagrams-concept-map/concept-map.png",
+    "storagePath": "projects/980a5642-d302-4758-aa0f-4289f93cd496/content-assets/docs-diagrams-concept-map/concept-map.png",
+    "filename": "concept-map.png",
+    "mimeType": "image/png",
+    "size": 1453245,
+    "purpose": "content",
+    "contentHash": "85a2daffc91340aae8f21ca30562826ebf361503a67691f5b265b7573d8781c5",
+    "nodeId": "53477ce4-9744-4dbc-8a89-537c87d78efa",
+    "draft": {
+      "draftId": "a03ffade-c7a2-4c81-9ea2-a31fc82ca3cf",
+      "nodeId": "draft-variant-a03ffade-c7a2-4c81-9ea2-a31fc82ca3cf",
+      "title": "LHP diagram: concept-map",
+      "projectUrl": "https://superdesign.dev/teams/f33bcfc4-6374-42ff-ab64-c439e1720bd4/projects/980a5642-d302-4758-aa0f-4289f93cd496",
+      "nodeUrl": "https://superdesign.dev/teams/f33bcfc4-6374-42ff-ab64-c439e1720bd4/projects/980a5642-d302-4758-aa0f-4289f93cd496?node=draft-variant-a03ffade-c7a2-4c81-9ea2-a31fc82ca3cf",
+      "previewUrl": "https://p.superdesign.dev/draft/a03ffade-c7a2-4c81-9ea2-a31fc82ca3cf"
+    }
+  },
+  "reuse-example": {
+    "url": "https://vgbujcuwptvheqijyjbe.supabase.co/storage/v1/object/public/hmac-uploads/projects/980a5642-d302-4758-aa0f-4289f93cd496/content-assets/docs-diagrams-reuse-example/reuse-example.png",
+    "storagePath": "projects/980a5642-d302-4758-aa0f-4289f93cd496/content-assets/docs-diagrams-reuse-example/reuse-example.png",
+    "filename": "reuse-example.png",
+    "mimeType": "image/png",
+    "size": 1582814,
+    "purpose": "content",
+    "contentHash": "ae2aeaefbe90a4c0ba93814cb6f197e2774b595763049f41b9b719b250ac64a5",
+    "nodeId": "da9b09f0-bf6c-4c71-92da-437a31459042",
+    "draft": {
+      "draftId": "2a140ee0-54d9-4d81-b6a3-50152b8c950b",
+      "nodeId": "draft-variant-2a140ee0-54d9-4d81-b6a3-50152b8c950b",
+      "title": "LHP diagram: reuse-example",
+      "projectUrl": "https://superdesign.dev/teams/f33bcfc4-6374-42ff-ab64-c439e1720bd4/projects/980a5642-d302-4758-aa0f-4289f93cd496",
+      "nodeUrl": "https://superdesign.dev/teams/f33bcfc4-6374-42ff-ab64-c439e1720bd4/projects/980a5642-d302-4758-aa0f-4289f93cd496?node=draft-variant-2a140ee0-54d9-4d81-b6a3-50152b8c950b",
+      "previewUrl": "https://p.superdesign.dev/draft/2a140ee0-54d9-4d81-b6a3-50152b8c950b"
+    }
+  },
+  "environment-resolution": {
+    "url": "https://vgbujcuwptvheqijyjbe.supabase.co/storage/v1/object/public/hmac-uploads/projects/980a5642-d302-4758-aa0f-4289f93cd496/content-assets/docs-diagrams-environment-resolution/environment-resolution.png",
+    "storagePath": "projects/980a5642-d302-4758-aa0f-4289f93cd496/content-assets/docs-diagrams-environment-resolution/environment-resolution.png",
+    "filename": "environment-resolution.png",
+    "mimeType": "image/png",
+    "size": 1545017,
+    "purpose": "content",
+    "contentHash": "5a02ceef23eecf61775f4c33322237d1318097736b9e220240e928facf74b376",
+    "nodeId": "9917cdbd-8699-4360-b4f4-10c7398cf1cf",
+    "draft": {
+      "draftId": "cc0b7391-2400-42a0-9b8e-ef174e8ee29a",
+      "nodeId": "draft-variant-cc0b7391-2400-42a0-9b8e-ef174e8ee29a",
+      "title": "LHP diagram: environment-resolution",
+      "projectUrl": "https://superdesign.dev/teams/f33bcfc4-6374-42ff-ab64-c439e1720bd4/projects/980a5642-d302-4758-aa0f-4289f93cd496",
+      "nodeUrl": "https://superdesign.dev/teams/f33bcfc4-6374-42ff-ab64-c439e1720bd4/projects/980a5642-d302-4758-aa0f-4289f93cd496?node=draft-variant-cc0b7391-2400-42a0-9b8e-ef174e8ee29a",
+      "previewUrl": "https://p.superdesign.dev/draft/cc0b7391-2400-42a0-9b8e-ef174e8ee29a"
+    }
+  },
+  "cdc-timelines": {
+    "url": "https://vgbujcuwptvheqijyjbe.supabase.co/storage/v1/object/public/hmac-uploads/projects/980a5642-d302-4758-aa0f-4289f93cd496/content-assets/docs-diagrams-cdc-timelines/cdc-timelines.png",
+    "storagePath": "projects/980a5642-d302-4758-aa0f-4289f93cd496/content-assets/docs-diagrams-cdc-timelines/cdc-timelines.png",
+    "filename": "cdc-timelines.png",
+    "mimeType": "image/png",
+    "size": 1422320,
+    "purpose": "content",
+    "contentHash": "f1a87e3e385b335b470ca525cefa4fa6136388108593248c4457acd684117dcf",
+    "nodeId": "b04fc367-34fb-4209-b04e-794021349d06",
+    "draft": {
+      "draftId": "6adea9d7-7a27-48f4-a786-1ec3abfec1b8",
+      "nodeId": "draft-variant-6adea9d7-7a27-48f4-a786-1ec3abfec1b8",
+      "title": "LHP diagram: cdc-timelines",
+      "projectUrl": "https://superdesign.dev/teams/f33bcfc4-6374-42ff-ab64-c439e1720bd4/projects/980a5642-d302-4758-aa0f-4289f93cd496",
+      "nodeUrl": "https://superdesign.dev/teams/f33bcfc4-6374-42ff-ab64-c439e1720bd4/projects/980a5642-d302-4758-aa0f-4289f93cd496?node=draft-variant-6adea9d7-7a27-48f4-a786-1ec3abfec1b8",
+      "previewUrl": "https://p.superdesign.dev/draft/6adea9d7-7a27-48f4-a786-1ec3abfec1b8"
+    }
+  },
+  "capability-overview": {
+    "url": "https://vgbujcuwptvheqijyjbe.supabase.co/storage/v1/object/public/hmac-uploads/projects/980a5642-d302-4758-aa0f-4289f93cd496/content-assets/docs-diagrams-capability-overview/capability-overview.png",
+    "storagePath": "projects/980a5642-d302-4758-aa0f-4289f93cd496/content-assets/docs-diagrams-capability-overview/capability-overview.png",
+    "filename": "capability-overview.png",
+    "mimeType": "image/png",
+    "size": 1555182,
+    "purpose": "content",
+    "contentHash": "41f0b425e7cf492eb348e59034f59c2fc49eebc519b5c2f3e7d1a459b4c28610",
+    "nodeId": "e1037027-eb50-4d01-9438-8dcea0bfe3bc",
+    "draft": {
+      "draftId": "7402f2e7-c05e-4e0f-969d-0237a30555ff",
+      "nodeId": "draft-variant-7402f2e7-c05e-4e0f-969d-0237a30555ff",
+      "title": "LHP diagram: capability-overview",
+      "projectUrl": "https://superdesign.dev/teams/f33bcfc4-6374-42ff-ab64-c439e1720bd4/projects/980a5642-d302-4758-aa0f-4289f93cd496",
+      "nodeUrl": "https://superdesign.dev/teams/f33bcfc4-6374-42ff-ab64-c439e1720bd4/projects/980a5642-d302-4758-aa0f-4289f93cd496?node=draft-variant-7402f2e7-c05e-4e0f-969d-0237a30555ff",
+      "previewUrl": "https://p.superdesign.dev/draft/7402f2e7-c05e-4e0f-969d-0237a30555ff"
+    }
+  },
+  "monitoring-architecture": {
+    "url": "https://vgbujcuwptvheqijyjbe.supabase.co/storage/v1/object/public/hmac-uploads/projects/980a5642-d302-4758-aa0f-4289f93cd496/content-assets/docs-diagrams-monitoring-architecture/monitoring-architecture.png",
+    "storagePath": "projects/980a5642-d302-4758-aa0f-4289f93cd496/content-assets/docs-diagrams-monitoring-architecture/monitoring-architecture.png",
+    "filename": "monitoring-architecture.png",
+    "mimeType": "image/png",
+    "size": 1404010,
+    "purpose": "content",
+    "contentHash": "4f7eaea945259ec05fcc74e5dae1c3c3a40ad421bd36cb5d7f804c541b82f4f8",
+    "nodeId": "87b3ffaa-9eab-4ee1-89dd-85f9e07570fa",
+    "draft": {
+      "draftId": "9d1bfe3d-8c1e-44cf-ad2b-ba6e9439828d",
+      "nodeId": "draft-variant-9d1bfe3d-8c1e-44cf-ad2b-ba6e9439828d",
+      "title": "LHP diagram: monitoring-architecture",
+      "projectUrl": "https://superdesign.dev/teams/f33bcfc4-6374-42ff-ab64-c439e1720bd4/projects/980a5642-d302-4758-aa0f-4289f93cd496",
+      "nodeUrl": "https://superdesign.dev/teams/f33bcfc4-6374-42ff-ab64-c439e1720bd4/projects/980a5642-d302-4758-aa0f-4289f93cd496?node=draft-variant-9d1bfe3d-8c1e-44cf-ad2b-ba6e9439828d",
+      "previewUrl": "https://p.superdesign.dev/draft/9d1bfe3d-8c1e-44cf-ad2b-ba6e9439828d"
     }
   }
 }
