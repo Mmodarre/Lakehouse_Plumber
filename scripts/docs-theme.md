@@ -8,11 +8,17 @@ From the repository root, in an isolated Python environment:
 
 ```sh
 pip install -e . -r docs/requirements.txt
+python scripts/check_field_help.py
 sphinx-build -W --keep-going -b html docs docs/_build/html
 python3 -m http.server 8767 --directory docs/_build/html
 ```
 
 Open http://localhost:8767/. Check the homepage, Install and scaffold, a nested reference page and Search, in light and dark themes and on mobile.
+
+When the field-help check reports a changed source, review the affected catalog
+entries before running `python scripts/check_field_help.py --refresh-sources`.
+Even a diagram-only edit changes the source hash; include the reviewed manifest
+update in the same PR.
 
 The theme uses Furo's native search index, theme preference, heading outline and page navigation. Custom code adds the header, mobile navigation and agent dialog. Logos, fonts and agent artwork are served locally; font and agent licences accompany the assets. Documentation illustrations are local PNG assets with descriptive alternative text and full-size links. The existing analytics configuration is retained.
 
