@@ -27,6 +27,9 @@ inserts, updates, and deletes by comparing each snapshot to the one before it.
 Let's build a silver ``dim_customer`` from periodic ``customer_snapshots``,
 keeping full SCD Type 2 history, without touching the apply-changes API.
 
+The :ref:`CDC history diagram <lhp-cdc-history>` compares append, SCD1 and
+SCD2 outcomes and shows how snapshot inputs fit into that choice.
+
 Before you start
 ================
 

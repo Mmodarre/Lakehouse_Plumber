@@ -21,6 +21,30 @@ The change in intent is one block. A standard streaming table *appends* every
 incoming row; add ``mode: cdc`` with a ``cdc_config`` and the same write target
 *applies* each row as a change instead. LHP writes the rest.
 
+.. _lhp-cdc-history:
+
+Choose the history you need
+===========================
+
+For one key changing from Basic to Plus to Pro, append retains the incoming
+rows, SCD1 retains the current state, and SCD2 retains versions when changes to
+``tier`` are tracked. The intervals below use the ordering values supplied by
+``sequence_by``; they are illustrative, not wall-clock timestamps.
+
+.. figure:: ../../_static/diagrams/cdc-timelines.png
+   :alt: Key 42 changes tier from Basic at sequence 1 to Plus at 2 to Pro at 3. Append keeps all three input rows. CDC SCD1 keeps the current Pro row. CDC SCD2 keeps Basic over the interval from 1 to 2, Plus from 2 to 3, and Pro from 3 onward. Snapshot CDC compares successive complete snapshots to derive changes and can maintain either SCD1 or SCD2 history.
+   :width: 100%
+   :figclass: lhp-diagram
+
+   Input format and history policy are separate choices. LHP generates the flow
+   definition; Lakeflow applies the changes. Select the diagram to view it full size.
+
+:doc:`Snapshot CDC <streaming-table-snapshot-cdc>` derives changes from ordered
+snapshots instead of consuming change rows. Both CDC modes support SCD1 and
+SCD2. See Databricks'
+`AUTO CDC documentation <https://docs.databricks.com/aws/en/ldp/cdc>`_
+for the runtime semantics.
+
 Before you start
 ================
 
