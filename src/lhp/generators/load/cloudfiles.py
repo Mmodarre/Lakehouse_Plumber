@@ -1,7 +1,6 @@
 """CloudFiles load generator"""
 
 import logging
-import re
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
@@ -17,9 +16,7 @@ from ...core.loaders.external_file_loader import (
 )
 from ...core.registry import BaseActionGenerator
 from ...parsers.schema_parser import SchemaParser
-
-# Same identifier rule the data-quality generator applies to its source view.
-_NON_IDENTIFIER_CHARS = re.compile(r"[^a-zA-Z0-9_]")
+from ...utils.identifiers import replace_non_identifier_chars
 
 
 def _schema_variable_name(target: str) -> str:
@@ -29,7 +26,7 @@ def _schema_variable_name(target: str) -> str:
     ``table`` is not (every ``table:``-keyed file used to become
     ``schema_schema``) and need not be a valid identifier.
     """
-    return f"{_NON_IDENTIFIER_CHARS.sub('_', target)}_schema"
+    return f"{replace_non_identifier_chars(target)}_schema"
 
 
 class CloudFilesLoadGenerator(BaseActionGenerator):
