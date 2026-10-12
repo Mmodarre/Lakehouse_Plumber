@@ -7,7 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.3] — Unreleased
+
 ### Added
+
+- Separate ``lhp`` development and ``lhp-learn`` teaching skills in the same
+  package, selected with `lhp skill ... --name lhp-learn` or the provisional
+  `SkillFacade` methods' `skill_name` keyword. Both exports carry shared offline
+  technical references; development installs contain no course lessons.
+- Self-contained build/learning prompts selecting the appropriate skill, plus a
+  teaching course with Lesson 0 capability summaries, learner-authored exercises,
+  explicit checkpoint pauses, saved project progress and advanced topic lessons.
+- Documentation agent buttons copy the complete build or learning prompt from
+  the current docs build, so coding agents do not need website access to set up LHP.
+- `lhp skill export --output PATH` and `lhp skill install --agent genie`, also
+  available through the provisional `SkillFacade.export_skill` and
+  `install_genie_skill` methods. Portable/Genie installs verify content and preserve
+  conflicting files. `SkillFacade()` supports these operations before scaffolding;
+  existing Claude project installation remains available. Installation failures
+  use `LHP-IO-029`; optional SDK dependencies are in the `genie` extra.
+- CI-built offline release archives with pinned, hashed wheels for Python 3.12
+  across Linux x86_64/ARM64, macOS Apple Silicon and Windows x86_64. CI performs
+  native installation and sample-generation checks, then stages all distributions,
+  checksums and archives in a GitHub release before PyPI publication. Release
+  artifacts receive GitHub build-provenance attestations. Web extras are excluded.
+- Both agent setup prompts select a complete platform/Python offline ZIP when
+  pip cannot supply a usable installation, with exact asset/checksum links and
+  environment-specific transfer instructions instead of a standalone-wheel handoff.
 
 - **Provisional sandbox editor APIs.** `inspect_editor_project`,
   `validate_editor_project`, `preview_editor_project` and

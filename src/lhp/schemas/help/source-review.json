@@ -339,7 +339,7 @@
       ]
     },
     "src/lhp/resources/skills/lhp/references/actions-transform-data-quality.md": {
-      "sha256": "4ee1bba0c0f1506c1709617f3c59795731c3c1fc0eb0c70d9f3d01d25d15e89d",
+      "sha256": "b28f49bddec17d7a44e31ad0b15760e2c35e1f30de89a41b52fbd0a87f39c75e",
       "entryIds": [
         "action.transform.data_quality.expectations_file",
         "action.transform.data_quality.mode",
@@ -630,7 +630,7 @@
       ]
     },
     "src/lhp/resources/skills/lhp/references/advanced.md": {
-      "sha256": "d44125362314ff4bfd1b55db2d27352b4e0a4a42e637f640f8a5defeef5f028d",
+      "sha256": "171199b94a798fa29ff0e5623f75a1252bbac79a0e92625208d7d52843c36172",
       "entryIds": [
         "job.continuous",
         "job.email_notifications",
@@ -690,7 +690,7 @@
       ]
     },
     "src/lhp/resources/skills/lhp/references/project-config.md": {
-      "sha256": "8f2c0c3e7d3665601caa7cee972716690e63f66ff749f1d840c63c4e1fb39545",
+      "sha256": "8e370260b77c4fbc2cf40a257f6c0fab924ee9c7b32e7b0821c17ab8f0d4f484",
       "entryIds": [
         "project.apply_formatting",
         "project.author",

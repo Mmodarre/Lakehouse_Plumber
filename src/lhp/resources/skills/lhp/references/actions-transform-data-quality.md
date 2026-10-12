@@ -29,4 +29,7 @@
 - `expectations_file` is a **YAML** rules file. Each rule has a per-rule `action`: `warn` (default), `drop`, or `fail`.
 - `mode: dqe` applies expectations inline; `mode: quarantine` routes violations to a DLQ — requires a `quarantine` block with `dlq_table` and `source_table`.
 - **Quarantine coerces every expectation to `drop`** regardless of each rule's configured `action`; LHP emits a validation warning for any `warn`/`fail` rule so the coercion is visible. Don't rely on per-rule `warn`/`fail` in quarantine mode.
+- Both user-managed tables must exist before runtime. The supported inbox contract
+  requires CDF and row tracking; the outbox requires row tracking. See
+  [quarantine.md](quarantine.md) for DDL, correction, recycling and full-refresh conditions.
 - The DLQ outbox table is derived as `<dlq_table>_outbox`. **Recycling** quarantined-then-fixed rows requires Change Data Feed on the DLQ table — set `delta.enableChangeDataFeed = 'true'` on it yourself (LHP does not set it).

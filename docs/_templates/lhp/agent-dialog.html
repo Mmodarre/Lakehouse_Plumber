@@ -1,4 +1,5 @@
-<dialog id="agent-dialog" class="agent-dialog" aria-labelledby="agent-dialog-title" aria-describedby="agent-dialog-description" data-guides-base="{{ lhp_agent_guides_base }}">
+<script id="lhp-agent-prompts" type="application/json">{{ lhp_agent_prompts | tojson }}</script>
+<dialog id="agent-dialog" class="agent-dialog" aria-labelledby="agent-dialog-title" aria-describedby="agent-dialog-description">
   <div class="agent-dialog-body">
     <div class="agent-heading">
       <div><p class="agent-eyebrow">YOUR NEXT STEP</p><h2 id="agent-dialog-title">Start with your agent</h2><p id="agent-dialog-description">Set up a project or learn LHP. Choose your agent and copy the prompt.</p></div>
@@ -23,7 +24,7 @@
       <div class="agent-step"><span aria-hidden="true">2</span><h3 id="agent-step-two">Send the instruction</h3></div>
       <label for="agent-prompt" id="agent-prompt-label">Paste this into Genie Code</label>
       <textarea id="agent-prompt" readonly spellcheck="false" aria-describedby="agent-prompt-help"></textarea>
-      <p id="agent-prompt-help">Your agent will ask whether you want a sample or an empty project.</p>
+      <p id="agent-prompt-help">Your agent will check its environment, set up LHP and continue your project request.</p>
       <button id="agent-copy-prompt" class="copy-button" type="button" data-copy="" data-feedback="agent-copy-feedback"><span id="agent-copy-label">Copy setup prompt</span></button>
       <p id="agent-copy-feedback" aria-live="polite" role="status"></p>
     </section>

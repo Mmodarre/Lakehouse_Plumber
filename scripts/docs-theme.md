@@ -36,11 +36,11 @@ Set `DOCS_BASE_URL` to test another HTTP server, including a deployment under a 
 
 ## Shared agent guides
 
-`docs/_agent_guides/agent.md` and `learn.md` are the canonical setup and learning instructions. Both sites use the raw GitHub URLs under `main/docs/_agent_guides/`. Sphinx additionally publishes byte-identical mirrors at the documentation root through `html_extra_path`.
+`docs/_agent_guides/agent.md` and `learn.md` are generated from the packaged setup reference by `scripts/render_agent_guides.py`. Sphinx embeds their complete prompt bodies in the agent dialog at build time and publishes byte-identical Markdown files at the documentation root through `html_extra_path`. Copying either prompt works without external requests, and the coding agent does not need website access. The learning option selects `lhp-learn`.
 
 The companion website branch is `docs/shared-agent-guides` in the adjacent `lhp_dot_dev` repository. It changes its prompts and agent page to these repository URLs; the old website `/agent.md` and `/learn.md` become compatibility pointers.
 
-Publication order matters: merge the guides into Lakehouse_Plumber's **main** branch before deploying the website link changes. A merge into `release/V0.9.3` alone does not make the raw-main URLs available. Neither the branch nor a local preview publishes the guides.
+The companion website's raw-main links still require the guides to reach Lakehouse_Plumber's **main** branch before those website changes are deployed. The documentation dialog uses the guides from its own build, including release-branch previews, and has no dependency on raw-main URLs. Neither a branch nor a local preview publishes a release.
 
 ## Review scope
 

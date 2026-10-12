@@ -1,5 +1,7 @@
 // Browser smoke test against a built Sphinx site. See scripts/docs-theme.md.
 const assert = require("node:assert/strict");
+const { readFileSync } = require("node:fs");
+const { join } = require("node:path");
 const { chromium } = require("playwright");
 (async () => {
   const browser = await chromium.launch();
@@ -13,6 +15,11 @@ const { chromium } = require("playwright");
   const base =
     (process.env.DOCS_BASE_URL || "http://127.0.0.1:8767").replace(/\/$/, "") +
     "/";
+  await ctx.route("**/*", (route) =>
+    new URL(route.request().url()).origin === new URL(base).origin
+      ? route.continue()
+      : route.abort(),
+  );
   for (const width of [1440, 1280, 1024, 810, 800, 390, 360]) {
     await page.setViewportSize({ width, height: 900 });
     for (const route of [
@@ -87,18 +94,14 @@ const { chromium } = require("playwright");
         .locator(`label:has(input[name=agent-choice][value=${agent}])`)
         .click();
       const prompt = await page.locator("#agent-prompt").inputValue();
-      assert(
-        prompt.includes(
-          "/main/docs/_agent_guides/" +
-            (goal === "learn" ? "learn.md" : "agent.md"),
-        ),
-      );
-      assert(
-        prompt.includes(
-          goal === "learn"
-            ? "SQL, Python, and Databricks"
-            : "lhp skill install",
-        ),
+      const guide = readFileSync(
+        join(__dirname, "../docs/_agent_guides", goal === "learn" ? "learn.md" : "agent.md"),
+        "utf8",
+      ).split("\n---\n")[1].trim();
+      assert.equal(
+        prompt.slice(prompt.indexOf("\n\n") + 2),
+        guide,
+        "Every agent must receive the complete canonical prompt without a web lookup",
       );
       await page.locator("#agent-copy-prompt").click();
       await page.waitForFunction(() =>
