@@ -1,13 +1,12 @@
 """Fail closed on inconsistent tags, lock metadata or package-index errors."""
 
-import json
 import os
 import re
 import subprocess
 import tomllib
-import urllib.error
-import urllib.request
 from pathlib import Path
+
+from _release_pypi import fetch_metadata
 
 
 def main() -> None:
@@ -27,17 +26,12 @@ def main() -> None:
         capture_output=True,
         text=True,
     )
-    try:
-        with urllib.request.urlopen(
-            f"https://pypi.org/pypi/lakehouse-plumber/{version}/json", timeout=30
-        ) as response:
-            metadata = json.load(response)
+    metadata = fetch_metadata(version)
+    if metadata is not None:
         if metadata["info"]["version"] != version:
             raise ValueError("Unexpected package-index response")
         publish = "false"
-    except urllib.error.HTTPError as exc:
-        if exc.code != 404:
-            raise
+    else:
         publish = "true"
     same_tag = tag.returncode == 0 and tag.stdout.strip() == sha
     if publish == "true" and tag.returncode == 0 and not same_tag:

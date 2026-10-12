@@ -6,9 +6,9 @@ import os
 import subprocess
 import sys
 import tempfile
-import urllib.error
-import urllib.request
 from pathlib import Path
+
+from _release_pypi import fetch_metadata
 
 
 def digest(path: Path) -> str:
@@ -17,12 +17,9 @@ def digest(path: Path) -> str:
 
 def main(directory: Path) -> None:
     tag = f"v{os.environ['VERSION']}"
-    try:
-        with urllib.request.urlopen(
-            f"https://pypi.org/pypi/lakehouse-plumber/{os.environ['VERSION']}/json",
-            timeout=30,
-        ) as response:
-            packages = json.load(response)["urls"]
+    metadata = fetch_metadata(os.environ["VERSION"])
+    if metadata is not None:
+        packages = metadata["urls"]
         hashes = {item["filename"]: item["digests"]["sha256"] for item in packages}
         for path in directory.iterdir():
             if path.name.endswith((".whl", ".tar.gz")) and hashes.get(
@@ -31,9 +28,6 @@ def main(directory: Path) -> None:
                 raise ValueError(
                     f"Canonical distribution differs from PyPI: {path.name}"
                 )
-    except urllib.error.HTTPError as exc:
-        if exc.code != 404:
-            raise
     release = json.loads(
         subprocess.check_output(
             ["gh", "release", "view", tag, "--json", "assets,isDraft"], text=True
