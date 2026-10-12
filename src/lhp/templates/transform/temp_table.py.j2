@@ -2,21 +2,21 @@
     temporary=True,
 )
 def {{ target_table }}():
-    """{{ description }}"""
+    """{{ description|py_block }}"""
     {% if sql %}
-    df = spark.sql("""{{ sql }}""")
+    df = spark.sql("""{{ sql|py_block }}""")
     {% else %}
     {% if readMode == "stream" %}
-    df = spark.readStream.table("{{ source_view }}")
+    df = spark.readStream.table({{ source_view|py_str }})
     {% else %}
-    df = spark.read.table("{{ source_view }}")
+    df = spark.read.table({{ source_view|py_str }})
     {% endif %}
     {% endif %}
     {% if add_operational_metadata %}
     
     # Add operational metadata columns
     {% for col_name, expression in metadata_columns.items()|sort %}
-    df = df.withColumn('{{ col_name }}', {{ expression }})
+    df = df.withColumn({{ col_name|py_str_single }}, {{ expression }})
     {% endfor %}
     {% endif %}
 

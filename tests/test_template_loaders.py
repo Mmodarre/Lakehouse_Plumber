@@ -6,7 +6,11 @@ import pytest
 from jinja2 import Environment
 from jinja2.exceptions import TemplateNotFound
 
-from lhp.core.codegen.template_renderer import TemplateRenderer, get_lhp_template_loader
+from lhp.core.codegen.template_renderer import (
+    TemplateRenderer,
+    get_lhp_template_loader,
+    register_python_literal_filters,
+)
 from lhp.core.loaders import InitTemplateContext, InitTemplateLoader
 from lhp.core.registry import BaseActionGenerator
 
@@ -14,6 +18,7 @@ from lhp.core.registry import BaseActionGenerator
 def test_get_lhp_template_loader_resolves_known_template() -> None:
     """The helper returns a loader that can resolve a real package template."""
     env = Environment(loader=get_lhp_template_loader())
+    register_python_literal_filters(env)
     # The monitoring template is the v0.8.2 regression trigger — assert it loads.
     template = env.get_template("monitoring/union_event_logs.py.j2")
     assert template is not None

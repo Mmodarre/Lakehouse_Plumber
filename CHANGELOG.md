@@ -104,8 +104,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   newline, a trailing backslash, or a backslash sequence such as `\U`, `\N` or `\x` in a
   schema column's `name` or `comment` no longer produces unparsable code (reported as
   `LHP-CFG-031`). Values such as `C:\temp\new` and `\\server\share` are no longer
-  silently altered. The values are emitted as JSON-escaped string literals and
-  non-ASCII text stays verbatim, so plain ASCII values generate byte-identical code.
+  silently altered. Escaping is minimal: tabs, other control characters and non-ASCII
+  text stay verbatim, as in 0.9.2, so a value that was already valid generates
+  byte-identical code, with one exception: a backslash before a character Python leaves
+  alone, such as `\d`, is now doubled, which changes the generated text but not the
+  value.
 - **CloudFiles explicit schemas import only the types they use (#288).** The
   generated module now imports `StructType`, `StructField` and each column's type, one
   `from pyspark.sql.types import <Name>` line per name, instead of a fixed list of 14
@@ -157,6 +160,61 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `operational_metadata.columns.<column>.expression`, with that line, including a secret
   that arrives through a token value. A flowgroup's own unresolved tokens still point at
   the flowgroup file. No DTO fields changed.
+- **Generated Python escapes user strings (#296).** In load (`cloudfiles`, `delta`,
+  `jdbc`, `kafka`, `custom_datasource`, `python`, `sql`), transform, write (streaming
+  table in every mode, materialized view, `delta` / `kafka` / `custom` / `foreachbatch`
+  sinks) and test actions, a quote, a backslash sequence such as `\U`, `\N{`, `\x` or a
+  trailing `\`, a newline, a carriage return, NUL, a line-boundary character (U+2028,
+  U+2029, NEL, vertical tab, form feed) or a lone surrogate in a description, comment,
+  path, reader or sink option key or value, table, view, flow or sink name,
+  `where_clause`, JDBC connection value, JDBC `query`, schema hint, `table_schema` DDL,
+  `row_filter`, `refresh_schedule`, CDC `sequence_by` / `apply_as_deletes` /
+  `apply_as_truncates`, snapshot-CDC `source`, quarantine table name, schema-transform
+  column name or type, SQL query (including `custom_sql` test SQL and the uniqueness
+  test `filter`) or operational-metadata column name no longer produces unparsable code
+  or a silently altered value. The same holds for the pipeline and flowgroup names in
+  every generated module's header comments and `PIPELINE_ID` / `FLOWGROUP_ID`
+  constants: a flowgroup named `fg\new` used to get a `FLOWGROUP_ID` containing a
+  newline, and a `"` in either name produced `LHP-CFG-031`. Escaping is minimal: only
+  the characters listed above are escaped, and tabs, other control characters and
+  non-ASCII text are written exactly as before, so a value without any of the listed
+  characters generates byte-identical code.
+  A backslash at a site that did not escape it before is now doubled (load reader option
+  values and the values written as JSON, below, already escaped it); for a sequence
+  Python left alone, such as `\d`, that changes the generated text but not the value.
+  Values LHP used to write as JSON (python-load and python-transform `parameters`, delta
+  `select_columns`, table properties, `spark_conf`, partition and cluster columns, CDC
+  keys and column lists, expectations, sink options, the monitoring notebook's table
+  names and checkpoint path) are now Python literals: `true` / `null` generate `True` /
+  `None` instead of names that raise `NameError`, and a character outside the Basic
+  Multilingual Plane (an emoji, for example) is one `\U0001f600`-style escape instead of
+  a surrogate pair that Python decoded as two invalid characters; all other text there
+  keeps its previous spelling. In a value written into a `#` comment (a sink `comment`,
+  a flow, pipeline or flowgroup name), only a continuation line that would otherwise
+  run as code gets `# `; blank lines, lines that already start with `#` and a trailing
+  line break are kept. A line break can no longer turn the rest of the value into
+  executable code, and a comment that was already valid renders the same lines. In
+  test SQL only the Python string is escaped; quoting inside the SQL (a `'` in a
+  `schema_match` table name, for example) is still yours. Trailing whitespace at the
+  end of a line inside a multi-line string (SQL, descriptions) is still removed when
+  the file is written. **Behaviour change:** SQL from `sql` / `sql_path` (loads,
+  transforms, temp tables, materialized views), `custom_sql` test SQL, the uniqueness
+  `filter`, the JDBC `query`, delta `where_clause` entries and CDC `apply_as_deletes` /
+  `apply_as_truncates` now reach Spark exactly as written; a query containing
+  `RLIKE '^\\d+$'` used to lose one backslash level. If you doubled backslashes to
+  work around that, remove the extra ones: they now reach Spark doubled, which
+  silently changes what a regex or string matches, with no error.
+- **`LHP-CFG-031` now checks generated code as it is written to disk (#296).** Writing a
+  generated file starts a new line at every line-boundary character, not only `\n`, so
+  a raw line separator inside a string literal passed the parse check and then broke
+  the written file: the formatting pass failed with `LHP-CFG-033`, or `--no-format`
+  wrote invalid code and exited 0. The check now parses the text as written and reports
+  `LHP-CFG-031`. A NUL or lone-surrogate character also reports `LHP-CFG-031`; before,
+  the check let a lone surrogate (on every Python version) and a NUL (on Python 3.11)
+  through as an uncaught `ValueError`. Escaped string literals no longer trigger the
+  error on their own. It can still fire for text inserted verbatim as code or into a
+  comment, such as an operational-metadata `expression` or a snapshot-CDC
+  `source_function`, and for a `${secret:...}` reference inside SQL (#306).
 
 ## [0.9.2] — 2026-09-22
 

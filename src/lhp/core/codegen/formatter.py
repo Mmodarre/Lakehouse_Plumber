@@ -17,6 +17,7 @@ import sysconfig
 from pathlib import Path
 
 from ...errors import ErrorFactory, codes
+from ...utils.file_header import normalize_content
 
 logger = logging.getLogger(__name__)
 
@@ -109,6 +110,12 @@ def assert_generated_python_valid(code: str, flowgroup: str) -> None:
     ``context`` so the per-flowgroup attribution survives outside the
     worker's failure-DTO wrapping.
 
+    The check runs on the text as it will be written: ``write_normalized``
+    splits on every ``str.splitlines`` boundary (vertical tab, form feed, the
+    file/group/record separators, NEL, U+2028 and U+2029 as well as newline),
+    so a raw separator inside a string literal parses in memory but breaks on
+    disk.
+
     Args:
         code: Generated Python source to validate.
         flowgroup: Name of the flowgroup that produced ``code`` (surfaced
@@ -118,8 +125,8 @@ def assert_generated_python_valid(code: str, flowgroup: str) -> None:
         LHPConfigError: ``LHP-CFG-031`` if ``code`` is not valid Python.
     """
     try:
-        ast.parse(code)
-    except SyntaxError as e:
+        ast.parse(normalize_content(code))
+    except (SyntaxError, ValueError) as e:
         raise ErrorFactory.config_error(
             codes.CFG_031,
             title="Generated source failed to parse",

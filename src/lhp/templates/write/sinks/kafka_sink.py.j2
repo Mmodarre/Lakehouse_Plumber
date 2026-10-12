@@ -1,26 +1,26 @@
-# {{ comment }}
+# {{ comment|py_comment }}
 
 # Create {{ 'Event Hubs' if is_event_hubs else 'Kafka' }} sink
 dp.create_sink(
-    name="{{ sink_name }}",
+    name={{ sink_name|py_str }},
     format="kafka",
-    options={{ sink_options | tojson }}
+    options={{ sink_options|py_literal }}
 )
 
 # Define append flow(s)
 {% for source_view in source_views %}
 @dp.append_flow(
-    target="{{ sink_name }}",
-    name="f_{{ sink_name }}_{{ loop.index }}",
-    comment="{{ description }}"
+    target={{ sink_name|py_str }},
+    name={{ ("f_" ~ sink_name ~ "_" ~ loop.index)|py_str }},
+    comment={{ description|py_str }}
 )
 def f_{{ sink_name }}_{{ loop.index }}():
-    df = spark.readStream.table("{{ source_view }}")
+    df = spark.readStream.table({{ source_view|py_str }})
     
     {% if add_operational_metadata %}
     # Add operational metadata columns FIRST
     {% for col_name, expression in metadata_columns.items()|sort %}
-    df = df.withColumn('{{ col_name }}', {{ expression }})
+    df = df.withColumn({{ col_name|py_str_single }}, {{ expression }})
     {% endfor %}
     {% endif %}
     

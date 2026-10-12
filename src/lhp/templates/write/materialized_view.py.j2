@@ -1,33 +1,33 @@
 @dp.materialized_view(
-    name="{{ full_table_name }}",
-    comment="{{ comment }}",
-    table_properties={{ properties | tojson }}
+    name={{ full_table_name|py_str }},
+    comment={{ comment|py_str }},
+    table_properties={{ properties|py_literal }}
     {%- if spark_conf %},
-    spark_conf={{ spark_conf | tojson }}
+    spark_conf={{ spark_conf|py_literal }}
     {%- endif %}
     {%- if partitions %},
-    partition_cols={{ partitions | tojson }}
+    partition_cols={{ partitions|py_literal }}
     {%- endif %}
     {%- if cluster_by %},
-    cluster_by={{ cluster_by | tojson }}
+    cluster_by={{ cluster_by|py_literal }}
     {%- endif %}
     {%- if cluster_by_auto %},
     cluster_by_auto={{ cluster_by_auto | string | title }}
     {%- endif %}
     {%- if table_path %},
-    path="{{ table_path }}"
+    path={{ table_path|py_str }}
     {%- endif %}
     {%- if schema %},
-    schema="{{ schema }}"
+    schema={{ schema|py_str }}
     {%- endif %}
     {%- if row_filter %},
-    row_filter="{{ row_filter }}"
+    row_filter={{ row_filter|py_str }}
     {%- endif %}
     {%- if temporary %},
     temporary={{ temporary | string | title }}
     {%- endif %}
     {%- if refresh_schedule %},
-    refresh_schedule="{{ refresh_schedule }}"
+    refresh_schedule={{ refresh_schedule|py_str }}
     {%- endif %}
     {%- if refresh_policy %},
     refresh_policy="{{ refresh_policy }}"
@@ -37,27 +37,27 @@
     {%- endif %}
 )
 {% if expect_all %}
-@dp.expect_all({{ expect_all | tojson }})
+@dp.expect_all({{ expect_all|py_literal }})
 {% endif %}
 {% if expect_all_or_drop %}
-@dp.expect_all_or_drop({{ expect_all_or_drop | tojson }})
+@dp.expect_all_or_drop({{ expect_all_or_drop|py_literal }})
 {% endif %}
 {% if expect_all_or_fail %}
-@dp.expect_all_or_fail({{ expect_all_or_fail | tojson }})
+@dp.expect_all_or_fail({{ expect_all_or_fail|py_literal }})
 {% endif %}
 def {{ table_name }}():
-    """{{ description }}"""
+    """{{ description|py_block }}"""
     # Materialized views use batch processing
     {% if sql_query %}
-    df = spark.sql("""{{ sql_query }}""")
+    df = spark.sql("""{{ sql_query|py_block }}""")
     {% else %}
-    df = spark.read.table("{{ source_view }}")
+    df = spark.read.table({{ source_view|py_str }})
     {% endif %}
     {% if add_operational_metadata %}
     
     # Add operational metadata columns
     {% for col_name, expression in metadata_columns.items()|sort %}
-    df = df.withColumn('{{ col_name }}', {{ expression }})
+    df = df.withColumn({{ col_name|py_str_single }}, {{ expression }})
     {% endfor %}
     {% endif %}
     

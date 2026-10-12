@@ -4,17 +4,17 @@ from pyspark.sql.functions import *
 
 {% endif %}
 {% if fail_expectations %}
-@dp.expect_all_or_fail({{ fail_expectations | tojson }})
+@dp.expect_all_or_fail({{ fail_expectations|py_literal }})
 {% endif %}
 {% if drop_expectations %}
-@dp.expect_all_or_drop({{ drop_expectations | tojson }})
+@dp.expect_all_or_drop({{ drop_expectations|py_literal }})
 {% endif %}
 {% if warn_expectations %}
-@dp.expect_all({{ warn_expectations | tojson }})
+@dp.expect_all({{ warn_expectations|py_literal }})
 {% endif %}
-@dp.table(name="{{ target }}", comment="{{ description }}", temporary=True)
+@dp.table(name={{ target|py_str }}, comment={{ description|py_str }}, temporary=True)
 def {{ target }}():
-    """{{ description }}"""
+    """{{ description|py_block }}"""
     return spark.sql("""
-        SELECT * FROM {{ source }}
+        SELECT * FROM {{ source|py_block(at_delimiter=False) }}
     """)
