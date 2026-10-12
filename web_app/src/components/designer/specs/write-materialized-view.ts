@@ -30,7 +30,7 @@
 //   write_target.temporary               generators/write/materialized_view.py:82; dlt_table_options.py:106
 //   write_target.refresh_schedule        generators/write/materialized_view.py:83,135
 //   write_target.refresh_policy          generators/write/materialized_view.py:136; dlt_table_options.py:153-158 (auto|incremental|incremental_strict|full; no default)
-//   write_target.partition_columns       generators/write/materialized_view.py:130; dlt_table_options.py:116
+//   write_target.partition_columns       generators/write/materialized_view.py:130; dlt_table_options.py:116 (exclusive with cluster_columns / cluster_by_auto)
 //   write_target.cluster_columns         generators/write/materialized_view.py:131; dlt_table_options.py:127 (combinable with cluster_by_auto)
 //   write_target.cluster_by_auto         generators/write/materialized_view.py:132; dlt_table_options.py:147-150
 //   write_target.path                    generators/write/materialized_view.py:133
@@ -216,6 +216,28 @@ export const writeMaterializedViewSpec: ActionSubTypeSpec = {
         [...WT, 'tags_file'],
       ],
       message: 'Set inline tags or a tags file, not both.',
+    },
+    {
+      // PARTITIONED BY and CLUSTER BY are mutually exclusive on Databricks
+      // (dlt_table_options.py _validate_column_options, issue #297). Two
+      // PAIRWISE rules: a single three-way rule would also flag
+      // cluster_columns + cluster_by_auto, which is legal (issue #282).
+      kind: 'mutuallyExclusive',
+      paths: [
+        [...WT, 'partition_columns'],
+        [...WT, 'cluster_columns'],
+      ],
+      message:
+        'Set partition columns or cluster columns, not both — Databricks does not allow partitioning with liquid clustering.',
+    },
+    {
+      kind: 'mutuallyExclusive',
+      paths: [
+        [...WT, 'partition_columns'],
+        [...WT, 'cluster_by_auto'],
+      ],
+      message:
+        'Set partition columns or auto clustering, not both — Databricks does not allow partitioning with liquid clustering.',
     },
   ],
 }

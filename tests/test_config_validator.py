@@ -618,7 +618,12 @@ class TestConfigValidator:
             },
         )
         errors = validator.validate_action(action, 0)
-        assert len(errors) == 0
+        # Each option is valid on its own, but Databricks rejects partitioning
+        # together with liquid clustering (#297).
+        assert len(errors) == 1
+        assert (
+            "cannot specify both 'partition_columns' and liquid clustering" in errors[0]
+        )
 
         # Invalid spark_conf (not a dict)
         action = Action(

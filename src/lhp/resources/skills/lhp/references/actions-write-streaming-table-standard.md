@@ -21,9 +21,9 @@
 | `spark_conf` | dict | — | — |
 | `table_schema` | string | — | Inline schema, or a `.ddl`/`.sql`/`.yaml`/`.json` file path (auto-detected). A `.yaml`/`.json` file is the unified schema/tags file — `type`/`nullable`/`comment` are read here. UC tags in that file are ignored unless the same file is also set as `tags_file` (else `LHP-CFG-069` warns at generate time; streaming-table + MV writes only). |
 | `row_filter` | string | — | — |
-| `partition_columns` | list | — | — |
-| `cluster_columns` | list | — | — |
-| `cluster_by_auto` | bool | — | Auto liquid clustering; renders `cluster_by_auto=True`. Can be combined with `cluster_columns` (both kwargs emitted): the columns become the initial clustering keys and Databricks may later change them based on the workload. Omitted when false/unset. |
+| `partition_columns` | list | — | Mutually exclusive with `cluster_columns` and `cluster_by_auto: true` — Databricks does not allow partitioning together with liquid clustering; both set → validation error `cannot specify both 'partition_columns' and liquid clustering` (also with `create_table: false`). `[]` counts as unset. |
+| `cluster_columns` | list | — | Liquid clustering; renders `cluster_by=[...]`. Mutually exclusive with `partition_columns`. `[]` counts as unset. |
+| `cluster_by_auto` | bool | — | Auto liquid clustering; renders `cluster_by_auto=True`. Can be combined with `cluster_columns` (both kwargs emitted): the columns become the initial clustering keys and Databricks may later change them based on the workload. Omitted when false/unset. `true` is mutually exclusive with `partition_columns`. |
 | `path` | string | — | — |
 
 ## Minimal YAML
