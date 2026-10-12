@@ -61,6 +61,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `snapshot_cdc`; a batch-read sibling `mode: replace_where` is planned. See the write
   action reference and the "Keep a current-state table with a REPLACE USING flow" guide.
 
+### Security
+
+- Deny GitHub Actions cache reads and writes in release and offline-bundle
+  workflows, and disable npm caching in the release build, to isolate release
+  artifacts from shared dependency caches.
+
 ### Fixed
 
 - **`cluster_columns` and `cluster_by_auto` can now be set together** on streaming-table
