@@ -56,6 +56,16 @@ Define the view by exactly one of: an action-level ``source`` view, inline
 ``sql``, or ``sql_path``. When ``sql``/``sql_path`` is provided, no
 action-level ``source`` is needed.
 
+Substitution tokens (``${token}``, ``${secret:scope/key}``) resolve in both
+inline SQL and the ``sql_path`` file. A plain ``${name}`` that is still in the
+``sql_path`` file after substitution fails ``lhp validate`` and ``lhp generate``
+with ``LHP-CFG-010``. Dotted or prefixed Spark variables such as
+``${mypipeline.start}`` or ``${hiveconf:x}`` are left as written.
+To read a pipeline ``configuration:`` parameter at runtime, give it a dotted
+key (for example ``mypipeline.start_date``) and reference it as
+``${mypipeline.start_date}``; a plain ``${start_date}`` fails even when the
+configuration defines it.
+
 .. include:: /_includes/write-target-common.rst
 
 .. include:: /_includes/write-common.rst

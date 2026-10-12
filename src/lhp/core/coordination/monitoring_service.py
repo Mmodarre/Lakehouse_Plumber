@@ -5,7 +5,7 @@
 
 import logging
 from pathlib import Path
-from typing import Optional, Sequence
+from typing import TYPE_CHECKING, Any, Dict, Optional, Sequence
 
 from lhp.core._interfaces import BaseMonitoringFinalizerService
 from lhp.core.registry import OrchestrationDependencies
@@ -17,6 +17,9 @@ from .monitoring_pipeline_builder import (
     MonitoringBuildResult,
     MonitoringPipelineBuilder,
 )
+
+if TYPE_CHECKING:
+    from lhp.core.processing import EnhancedSubstitutionManager
 
 
 class MonitoringFinalizerService(BaseMonitoringFinalizerService):
@@ -95,6 +98,24 @@ class MonitoringFinalizerService(BaseMonitoringFinalizerService):
         self._last_build_result = result
         return result.flowgroup if result is not None else None
 
+    def resolve_notebook_context(self, env: str) -> Optional[Dict[str, Any]]:
+        """Return the union notebook's template context resolved for ``env``.
+
+        These are the values :meth:`finalize_artifacts` renders into
+        ``monitoring/<env>/union_event_logs.py``, substituted the same way;
+        the project preflight scans them for unresolved tokens before anything
+        is written. ``None`` when the last build produced no notebook.
+        """
+        if not self._last_build_result:
+            return None
+        return self._substitution_manager(env).substitute_yaml(
+            self._last_build_result.template_context
+        )
+
+    def _substitution_manager(self, env: str) -> "EnhancedSubstitutionManager":
+        substitution_file = self.project_root / "substitutions" / f"{env}.yaml"
+        return self.dependencies.create_substitution_manager(substitution_file, env)
+
     def finalize_artifacts(self, env: str, output_dir: Path) -> None:
         """Reconcile monitoring artifacts: clean stale, write current.
 
@@ -106,10 +127,7 @@ class MonitoringFinalizerService(BaseMonitoringFinalizerService):
         if not self._last_build_result:
             return
 
-        substitution_file = self.project_root / "substitutions" / f"{env}.yaml"
-        substitution_mgr = self.dependencies.create_substitution_manager(
-            substitution_file, env
-        )
+        substitution_mgr = self._substitution_manager(env)
 
         resolved_context = substitution_mgr.substitute_yaml(
             self._last_build_result.template_context

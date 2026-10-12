@@ -85,7 +85,11 @@ class GenerationFacade:
            worklist is auto-derived from that discovered set, so generating
            the whole project no longer requires a pre-computed worklist.
         3. :class:`PhaseStarted` / :class:`PhaseCompleted` for ``"preflight"``
-           (wraps the §9.24-shared project preflight).
+           (wraps the §9.24-shared project preflight). Among its checks, a
+           plain ``${name}`` left unresolved in the monitoring notebook's
+           values or, when ``bundle_enabled``, in a pipeline's bundle
+           resource settings fails the run with ``LHP-CFG-010`` before
+           anything is written.
         4. :class:`PhaseStarted` for ``"generate"``, then — as the
            delta-generator is consumed — a :class:`PipelineStarted` paired with
            exactly ONE terminal (:class:`PipelineCompleted` on success or

@@ -5,8 +5,7 @@ from pathlib import Path
 
 from lhp.models import Action
 
-from ...core.loaders import resolve_table_schema
-from ...core.loaders.external_file_loader import load_external_file_text
+from ...core.loaders import load_sql_file, resolve_table_schema
 from ...core.registry import BaseActionGenerator
 from ...errors import ErrorFactory, codes
 from ._schema_tags_warning import warn_if_schema_tags_dropped
@@ -76,19 +75,24 @@ class MaterializedViewWriteGenerator(BaseActionGenerator):
             f"Materialized view '{action.name}': has_sql={has_sql}, has_schema={schema is not None}, refresh_schedule={refresh_schedule}"
         )
 
+        substitution_mgr = context.get("substitution_manager")
         sql_query = None
         if "sql" in target_config:
             sql_query = target_config["sql"].strip()
+            if sql_query and substitution_mgr is not None:
+                sql_query = substitution_mgr._process_string(sql_query)
         elif "sql_path" in target_config:
-            project_root = context.get("project_root", Path.cwd())
-            sql_query = load_external_file_text(
-                target_config["sql_path"], project_root, file_type="SQL file"
-            ).strip()
+            flowgroup = context.get("flowgroup")
+            sql_query = load_sql_file(
+                target_config["sql_path"],
+                context.get("project_root", Path.cwd()),
+                substitution_mgr,
+                pipeline=getattr(flowgroup, "pipeline", None),
+                flowgroup=getattr(flowgroup, "flowgroup", None),
+                action=action.name,
+            )
 
-        if sql_query and "substitution_manager" in context:
-            substitution_mgr = context["substitution_manager"]
-            sql_query = substitution_mgr._process_string(sql_query)
-
+        if sql_query and substitution_mgr is not None:
             secret_refs = substitution_mgr.secret_references
             if (
                 "secret_references" in context

@@ -223,7 +223,10 @@ pipeline fails. For multi-environment workflows, pair one config file per
 environment.
 
 Substitution tokens (`${token}`, `%{local_var}`) work inside any layer; LHP resolves
-them after the deep merge.
+them after the deep merge. With bundle output enabled, a plain `${name}` still present
+after substitution in any value (or in the `lhp.yaml` `event_log` injected into the
+resource) fails `lhp validate` and `lhp generate` with **LHP-CFG-010**; dotted bundle
+references (`${var.x}`, `${bundle.target}`) pass through as written.
 
 ### Packaging mode (`packaging`: `source` | `wheel`)
 

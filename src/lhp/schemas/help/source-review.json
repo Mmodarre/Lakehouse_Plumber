@@ -53,7 +53,7 @@
       ]
     },
     "docs/reference/config/pipeline-config.rst": {
-      "sha256": "49cf5ef415e8c2a4ca13725a41fcc219414a8c59847aaf1c2ebcc9bb1a7de2ac",
+      "sha256": "16ac83d1bea8dcb7aacf785d5ac12887f719370bbc6d02bde08e4ade1845dc4c",
       "entryIds": [
         "pipeline.catalog",
         "pipeline.channel",
@@ -219,7 +219,7 @@
       ]
     },
     "src/lhp/resources/skills/lhp/references/actions-load-sql.md": {
-      "sha256": "46925fb526b9322a3c1948f3e0a9607f61c08a8bbba97c7c1e6767fcfce5e758",
+      "sha256": "9d9d618c069b1baefebd62461cc9656560eddacbd5ce22f02acab52de8e0c43e",
       "entryIds": [
         "action.load.sql.overview",
         "action.load.sql.source.sql",
@@ -375,7 +375,7 @@
       ]
     },
     "src/lhp/resources/skills/lhp/references/actions-transform-sql.md": {
-      "sha256": "71babfbe9557c9e9994a7207a3469503935972d3f3ccd42f38c874d33d8ff39b",
+      "sha256": "484c29fb15e59b94e9912950e3bb47dddceade8e8396e4d82e4cad83bdc45001",
       "entryIds": [
         "action.transform.sql.overview",
         "action.transform.sql.source",
@@ -395,7 +395,7 @@
       ]
     },
     "src/lhp/resources/skills/lhp/references/actions-write-materialized-view.md": {
-      "sha256": "5d9773c3b920cd41f9d8bc15a0923042fa10a1fb5d14ff79c5ca4bc279cd2237",
+      "sha256": "f319e67263d133af4ed1832a41809bf335cf4f7d7328c6be741f6fc2623ded9e",
       "entryIds": [
         "action.write.materialized_view.overview",
         "action.write.materialized_view.source",
@@ -581,7 +581,7 @@
       ]
     },
     "src/lhp/resources/skills/lhp/references/actions-write-streaming-table-standard.md": {
-      "sha256": "4361cb9e047639b5050ff73be551f5054111f9f194b427b9d812bb2d2c262baa",
+      "sha256": "85799ad24204983c43ed448d9e0f299478be6fbddcf0d4c0db9ffd454481cf3f",
       "entryIds": [
         "action.write.streaming_table.once",
         "action.write.streaming_table.overview",
@@ -662,7 +662,7 @@
       ]
     },
     "src/lhp/resources/skills/lhp/references/monitoring.md": {
-      "sha256": "ad3d4ca433ca7d4ee27450fc3b6d19b54068a710d7be6ec94400a58c59e40272",
+      "sha256": "a5f1e405a0cc6f583589e9324e2d3a8afc5524f10d8428834ab275171f90e0c6",
       "entryIds": [
         "job.notebook_cluster",
         "job.notebook_cluster.existing_cluster_id",
@@ -690,7 +690,7 @@
       ]
     },
     "src/lhp/resources/skills/lhp/references/project-config.md": {
-      "sha256": "8e370260b77c4fbc2cf40a257f6c0fab924ee9c7b32e7b0821c17ab8f0d4f484",
+      "sha256": "a70691a6959fd03dc7e4021cf62b6e27f19d9a4ba2b24ca099ee61982ea0c9a3",
       "entryIds": [
         "project.apply_formatting",
         "project.author",

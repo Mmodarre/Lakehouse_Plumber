@@ -14,13 +14,15 @@ The checks themselves live here exactly once.
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any, List, Optional, Sequence, Tuple
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Tuple
 
 from lhp.api._converters_common import _lhp_error_to_issue_view
 from lhp.api.views import ValidationIssueView
-from lhp.errors import ErrorCategory, LHPConfigError
+from lhp.errors import ErrorCategory, LHPConfigError, LHPError
 
 if TYPE_CHECKING:
+    from lhp.bundle.manager import BundleManager
+    from lhp.core.validators import PipelineSettings
     from lhp.models import FlowGroup
 
 logger = logging.getLogger(__name__)
@@ -44,7 +46,7 @@ def _run_project_preflight(
 ) -> Tuple[ValidationIssueView, ...]:
     """Run the shared project-level preflight checks; return issues, never raise.
 
-    Composes three backend checks, each of which contributes zero or more
+    Composes four backend checks, each of which contributes zero or more
     :class:`ValidationIssueView` entries to the returned tuple:
 
     1. **Duplicate (pipeline, flowgroup)** — via the list-returning
@@ -63,11 +65,21 @@ def _run_project_preflight(
        catalog/schema check runs via
        :meth:`BundleFacade.validate_bundle_assets` and each failure
        becomes an ``LHP-CFG-026`` issue.
+    4. **Unresolved tokens in written-out settings** — via
+       :func:`~lhp.core.validators.unresolved_setting_token_errors`. A plain
+       ``${name}`` left after substitution yields one ``LHP-CFG-010`` issue
+       per location: in each pipeline's bundle resource settings
+       (``pipeline_config.yaml`` values and the ``event_log`` injected from
+       ``lhp.yaml``, resolved by ``BundleManager.resolve_pipeline_settings``)
+       when ``bundle_enabled`` and a ``pipeline_config_path`` is set, and in
+       the monitoring union notebook's values (event-log references, target
+       table, ``checkpoint_path``) whenever monitoring builds one. The
+       monitoring job config is not checked.
 
-    The flowgroup set used by checks (1) and (2) is resolved EXACTLY ONCE
-    here — from ``pre_discovered_all_flowgroups`` when the caller supplies
-    it, otherwise from ``orchestrator.bootstrap.discover_all_flowgroups()`` — and the
-    same resolved list is threaded into both, so neither re-discovers
+    The flowgroup set used by checks (1), (2) and (4) is resolved EXACTLY
+    ONCE here — from ``pre_discovered_all_flowgroups`` when the caller
+    supplies it, otherwise from ``orchestrator.bootstrap.discover_all_flowgroups()``
+    — and the same resolved list is threaded into each, so none re-discovers
     independently. The bundle check (3) does not consume flowgroups.
 
     The function NEVER raises: every backend failure — including a backend
@@ -98,6 +110,14 @@ def _run_project_preflight(
             issues.append(_missing_pipeline_config_issue())
         else:
             issues.extend(_check_bundle_assets(orchestrator, env=env))
+    issues.extend(
+        _check_setting_tokens(
+            orchestrator,
+            env=env,
+            bundle_enabled=bundle_enabled,
+            all_flowgroups=all_flowgroups,
+        )
+    )
 
     return tuple(issues)
 
@@ -225,6 +245,102 @@ def _check_bundle_assets(
             )
         )
     ]
+
+
+def _check_setting_tokens(
+    orchestrator: Any,
+    *,
+    env: str,
+    bundle_enabled: bool,
+    all_flowgroups: List["FlowGroup"],
+) -> List[ValidationIssueView]:
+    # #298: the values are resolved by the same code that writes them out, so
+    # validate and generate check exactly what generate would emit. The bundle
+    # and monitoring parts fail independently, so one cannot hide the other.
+    from lhp.core.validators import unresolved_setting_token_errors
+
+    pipeline_settings: List["PipelineSettings"] = []
+    if bundle_enabled and orchestrator.pipeline_config_path is not None:
+        try:
+            pipeline_settings = _bundle_pipeline_settings(
+                orchestrator, env, all_flowgroups
+            )
+        except Exception:
+            logger.exception("Bundle settings token preflight failed")
+    notebook_context: Optional[Dict[str, Any]] = None
+    try:
+        notebook_context = _monitoring_notebook_context(orchestrator, env)
+    except Exception:
+        logger.exception("Monitoring notebook token preflight failed")
+    try:
+        errors = unresolved_setting_token_errors(
+            env=env,
+            project_root=orchestrator.project_root,
+            pipeline_settings=pipeline_settings,
+            pipeline_config_file=orchestrator.pipeline_config_path,
+            notebook_context=notebook_context,
+        )
+    except Exception:
+        logger.exception("Unresolved-token preflight failed")
+        return []
+    return [_lhp_error_to_issue_view(err) for err in errors]
+
+
+def _bundle_pipeline_settings(
+    orchestrator: Any, env: str, all_flowgroups: List["FlowGroup"]
+) -> List["PipelineSettings"]:
+    # One resource file is written per generated pipeline, the synthetic
+    # monitoring pipeline included. A config that fails to load or substitute
+    # is reported by the catalog/schema check (3), which reads the same file;
+    # only the pipeline that fails is skipped.
+    from lhp.bundle.manager import BundleManager
+
+    try:
+        manager = BundleManager(
+            orchestrator.project_root,
+            orchestrator.pipeline_config_path,
+            project_config=orchestrator.project_config,
+        )
+    except LHPError as exc:
+        logger.debug(f"Bundle settings not token-checked: {exc.code}")
+        return []
+    resolved = (
+        _pipeline_settings(manager, name, env)
+        for name in sorted({fg.pipeline for fg in all_flowgroups})
+    )
+    return [settings for settings in resolved if settings is not None]
+
+
+def _pipeline_settings(
+    manager: "BundleManager", name: str, env: str
+) -> Optional["PipelineSettings"]:
+    from lhp.core.validators import PipelineSettings
+
+    try:
+        return PipelineSettings(
+            name=name,
+            resolved=manager.resolve_pipeline_settings(name, env),
+            raw=manager.config_loader.get_pipeline_config(name),
+        )
+    except LHPError as exc:
+        logger.debug(f"Bundle settings of '{name}' not token-checked: {exc.code}")
+        return None
+
+
+def _monitoring_notebook_context(
+    orchestrator: Any, env: str
+) -> Optional[Dict[str, Any]]:
+    # Discovery built the monitoring notebook the generate monitoring phase
+    # renders; resolve_notebook_context substitutes it the same way. That
+    # phase raises any substitution error itself.
+    try:
+        context: Optional[Dict[str, Any]] = (
+            orchestrator.monitoring.resolve_notebook_context(env)
+        )
+    except LHPError as exc:
+        logger.debug(f"Monitoring notebook not token-checked: {exc.code}")
+        return None
+    return context
 
 
 def _code_number_from_full_code(full_code: str | None) -> str:

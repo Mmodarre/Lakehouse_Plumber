@@ -131,7 +131,17 @@ class InspectionFacade:
         :raises lhp.errors.LHPError: ``LHP-CFG-*`` from substitution-file
             loading, ``LHP-TPL-*`` from template expansion, and
             ``LHP-VAL-*`` from flowgroup-level validation during
-            resolution.
+            resolution. Resolution also reads every ``sql_path`` file and
+            UC ``tags_file`` the flowgroup's code renders: ``LHP-IO-001``
+            when one is missing, ``LHP-IO-004`` (not UTF-8) / ``LHP-IO-005``
+            (permission denied) when a ``sql_path`` file cannot be read,
+            ``LHP-IO-002`` when a tags file cannot be read, ``LHP-IO-003``
+            when a tags file holds no YAML document or more than one,
+            ``LHP-CFG-009`` for a tags file that is not valid YAML,
+            ``LHP-CFG-010`` for a plain ``${name}`` left unresolved in one,
+            ``LHP-CFG-067`` for an invalid tags file, and ``LHP-CFG-008`` /
+            ``LHP-CFG-059`` for a ``${secret:...}`` in a ``sql_path`` file or
+            tags file without a default scope or with an empty scope or key.
         """
         target = _locate_flowgroup_by_name(self._orchestrator, flowgroup_name)
         substitution_mgr = _build_substitution_manager_for_env(
@@ -153,8 +163,12 @@ class InspectionFacade:
             exists in the project.
         :raises lhp.errors.LHPError: ``LHP-CFG-*`` (substitution),
             ``LHP-TPL-*`` (template expansion), ``LHP-VAL-*`` (per-action
-            validation during code-generation), and ``LHP-ACTION-*``
-            (action-generator failure).
+            validation during code-generation), ``LHP-ACTION-*``
+            (action-generator failure), and ``LHP-IO-*`` when a file the
+            flowgroup references is missing (``LHP-IO-001``) or cannot be
+            read (``LHP-IO-004`` / ``LHP-IO-005``). Resolution raises the
+            same ``sql_path`` / ``tags_file`` errors as
+            :meth:`process_flowgroup`.
         """
         target = _locate_flowgroup_by_name(self._orchestrator, flowgroup_name)
         substitution_mgr = _build_substitution_manager_for_env(
