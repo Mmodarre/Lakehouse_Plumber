@@ -60,6 +60,9 @@
   const agentDialog = document.querySelector("#agent-dialog");
   const agentPrompt = document.querySelector("#agent-prompt");
   const agentCopyButton = document.querySelector("#agent-copy-prompt");
+  const agentPrompts = JSON.parse(
+    document.querySelector("#lhp-agent-prompts")?.textContent || "{}",
+  );
   const agentNames = {
     "genie-code": "Databricks Genie Code",
     claude: "Claude",
@@ -90,17 +93,19 @@
         ? "Open Genie Code in your Databricks workspace."
         : `Open ${name} in the folder where you want to work.`;
     document.querySelector("#agent-prompt-help").textContent = learning
-      ? "Learn from the current LHP documentation with guided examples."
-      : "Your agent will ask whether you want a sample or an empty project.";
+      ? "Start with LHP concepts, then learn one checkpoint at a time with lhp-learn."
+      : "Your agent will check its environment, set up LHP and continue your project request.";
     document.querySelector("#agent-copy-label").textContent = learning
       ? "Copy learning prompt"
       : "Copy setup prompt";
-    let prompt = learning
-      ? `I'm using ${name}. Help me learn Lakehouse Plumber.\n\nRead and follow ${agentDialog.dataset.guidesBase}/learn.md. Use its docs-guided learning route and the current published LHP documentation. Ask about my experience with SQL, Python, and Databricks, and what I want to build. Guide me one step at a time, explaining the YAML and generated Python. Do not claim that a dedicated teaching skill is installed.`
-      : `I'm using ${name}. Help me set up Lakehouse Plumber.\n\nRead and follow ${agentDialog.dataset.guidesBase}/agent.md.\n\nUse uv or a Python virtual environment to install LHP. Ask whether I want the sample or an empty project, and ask for the project name and folder. Then scaffold it and install and load the LHP authoring skill using lhp skill install.`;
-    if (!learning && agent === "genie-code") {
-      prompt += `\n\nFirst confirm where the project should live and which execution tools you have in this Databricks workspace. If you cannot run this setup in a suitable persistent environment, guide me through the commands in my chosen terminal and verify my results.`;
+    const guide = agentPrompts[learning ? "learn" : "onboard"];
+    if (typeof guide !== "string" || !guide.trim()) {
+      agentPrompt.value = "The setup prompt is unavailable. Reload this page and try again.";
+      agentCopyButton.disabled = true;
+      return;
     }
+    agentCopyButton.disabled = false;
+    const prompt = `I'm using ${name}.\n\n${guide}`;
     agentPrompt.value = prompt;
     agentCopyButton.dataset.copy = prompt;
     agentCopyButton.dataset.copyVersion = String(++promptGeneration);

@@ -499,7 +499,7 @@ class WheelExtractionResult:
 
 @dataclass(frozen=True)
 class SkillInstallResult:
-    """Outcome of installing the LHP Claude Code skill into a project.
+    """Outcome of installing or exporting the bundled LHP agent skill.
 
     A one-shot result DTO (§1.3) returned by
     :meth:`lhp.api.SkillFacade.install_project_skill`. Like
@@ -514,6 +514,12 @@ class SkillInstallResult:
     enumerates the copied skill files as relative POSIX paths;
     ``routing_block_status`` reports what happened to the project
     ``CLAUDE.md`` routing block.
+
+    Portable export and Genie installation also return this DTO. They leave
+    routing unchanged, report ``action='installed'`` after verifying all files
+    (including a repeated identical install), and include manifest files in
+    ``installed_files``. They preserve differing destinations rather than refresh
+    them; ``previous_version`` is therefore ``None`` for these operations.
 
     :stability: provisional
     """

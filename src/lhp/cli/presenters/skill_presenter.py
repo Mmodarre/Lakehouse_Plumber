@@ -20,6 +20,20 @@ if TYPE_CHECKING:
     from lhp.api import SkillInstallResult
 
 
+def render_export_result(result: "SkillInstallResult", *, genie: bool = False) -> None:
+    """Report verified files without claiming native skill discovery."""
+    _console_module.console.print(
+        Text(f"Verified LHP skill v{result.skill_version} at {result.install_dir}")
+    )
+    _console_module.console.print(
+        "Read SKILL.md and the relevant references to continue this conversation."
+    )
+    if genie:
+        _console_module.console.print(
+            "Genie discovers this default user folder. Use a new chat to load changed skill metadata."
+        )
+
+
 def render_install_result(result: "SkillInstallResult") -> None:
     """Render a project install/refresh outcome from the facade DTO."""
     render_installed(
@@ -119,6 +133,7 @@ def render_status(
     is_installed: bool,
     comparison: str | None,
     extras: Sequence[str],
+    skill_name: str = "lhp",
 ) -> None:
     """Render the full ``skill status`` report.
 
@@ -128,6 +143,7 @@ def render_status(
     ``lhp.api._skill_assets.compare_versions`` and is consulted only when a
     marker version is present.
     """
+    selector = "" if skill_name == "lhp" else f" --name {skill_name}"
     _console_module.console.print(
         Text.assemble(("Install location: ", "dim"), str(install_dir))
     )
@@ -139,7 +155,7 @@ def render_status(
         _console_module.console.print(
             Text.assemble(
                 ("✗ ", "bold red"),
-                "Not installed. Run `lhp skill install`.",
+                f"Not installed. Run `lhp skill install{selector}`.",
             )
         )
         return
@@ -149,7 +165,7 @@ def render_status(
             Text.assemble(
                 ("⚠ ", "bold yellow"),
                 "Foreign install detected (no marker file). "
-                "Run `lhp skill install --force` to take over.",
+                f"Run `lhp skill install{selector} --force` to take over.",
             )
         )
         return
@@ -163,7 +179,7 @@ def render_status(
             Text.assemble(
                 ("⚠ ", "bold yellow"),
                 f"Update available: v{installed} -> v{current}. "
-                f"Run `lhp skill update`.",
+                f"Run `lhp skill update{selector}`.",
             )
         )
     else:

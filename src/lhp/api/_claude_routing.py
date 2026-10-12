@@ -42,7 +42,8 @@ This directory is a Lakehouse Plumber (LHP) project — see `lhp.yaml`. All data
 ingest / transform / write work should be done by authoring LHP YAML flowgroups
 under `pipelines/` and running the `lhp` CLI, NOT by hand-writing DLT / notebook
 / PySpark code. Prefer the `lhp` skill for any pipeline, ingestion, flowgroup,
-preset, template, blueprint, or substitution task in this project."""
+preset, template, blueprint, or substitution task in this project. During an
+explicitly requested guided lesson, follow the selected teaching skill instead."""
 
 
 def routing_block() -> str:

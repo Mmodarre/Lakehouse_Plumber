@@ -797,7 +797,7 @@ wheels = [
 
 [[package]]
 name = "lakehouse-plumber"
-version = "0.9.2"
+version = "0.9.3"
 source = { editable = "." }
 dependencies = [
     { name = "click" },
@@ -837,6 +837,9 @@ dev = [
     { name = "uvicorn" },
     { name = "vulture" },
 ]
+genie = [
+    { name = "databricks-sdk" },
+]
 webapp = [
     { name = "claude-agent-sdk" },
     { name = "databricks-sdk" },
@@ -855,6 +858,7 @@ requires-dist = [
     { name = "click", specifier = ">=8.3.0" },
     { name = "cloudpickle", marker = "extra == 'dev'", specifier = ">=3.0.0" },
     { name = "databricks-sdk", marker = "extra == 'dev'", specifier = ">=0.120,<1.0" },
+    { name = "databricks-sdk", marker = "extra == 'genie'", specifier = ">=0.120,<1.0" },
     { name = "databricks-sdk", marker = "extra == 'webapp'", specifier = ">=0.120,<1.0" },
     { name = "fastapi", marker = "extra == 'dev'", specifier = ">=0.115,<1.0" },
     { name = "fastapi", marker = "extra == 'webapp'", specifier = ">=0.115,<1.0" },
@@ -887,7 +891,7 @@ requires-dist = [
     { name = "uvicorn", marker = "extra == 'webapp'", specifier = ">=0.34,<1.0" },
     { name = "vulture", marker = "extra == 'dev'", specifier = ">=2.16" },
 ]
-provides-extras = ["webapp", "dev"]
+provides-extras = ["genie", "webapp", "dev"]
 
 [[package]]
 name = "liccheck"

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "lakehouse-plumber"
-version = "0.9.2"
+version = "0.9.3"
 description = "A framework for building and managing enterprise Lakeflow Spark Declaritive Pipelines"
 readme = "README.md"
 license = {file = "LICENSE"}
@@ -57,6 +57,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+genie = ["databricks-sdk>=0.120,<1.0"]
 # Plain `uvicorn` (NOT uvicorn[standard]): uvloop/httptools/websockets/watchfiles
 # are unneeded for a localhost single-user dev server (documented spec deviation).
 webapp = [
@@ -139,6 +140,7 @@ where = ["src"]
 # sandbox runtime-shim body is a *.j2 template (constitution §2.10/§9.14); same
 # rationale — the BUILT wheel's PackageLoader must find it, not just editable
 "lhp.templates.sandbox" = ["*.j2"]
+"lhp.resources.skills.lhp_learn" = ["*.md", "lessons/*.md", "topics/*.md", "assets/*.md"]
 "lhp.resources.skills.lhp" = ["*.md"]
 "lhp.resources.skills.lhp.references" = ["*.md"]
 # Built SPA assets (gitignored, generated at build time). static/ has no

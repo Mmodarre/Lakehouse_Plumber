@@ -16,7 +16,7 @@ lhp init my_demo --sample  # ready-to-run TPC-H sample project (see below)
 
 ### `--sample` — the TPC-H demo project
 
-`lhp init <name> --sample` scaffolds a ready-to-run TPC-H medallion demo instead of the empty skeleton. It runs against the read-only `samples.tpch` catalog on any Unity Catalog workspace (zero data setup) and exercises the full feature surface: bronze ingest (delta load of nation/region + cloudfiles JSON orders + cloudfiles CSV lineitem via one reusable template), silver CDC both flavors (streaming `mode: cdc` with `apply_as_deletes`, and `mode: snapshot_cdc` + `source_function`), all four transform types, a gold materialized view from `sql/sales_by_nation.sql`, presets, every substitution syntax, operational metadata, a data-prep notebook (`notebooks/data_prep.py`), and a hand-authored job (`resources/sample_job.yml`).
+`lhp init <name> --sample` scaffolds a ready-to-run TPC-H medallion demo instead of the empty skeleton. It runs against the read-only `samples.tpch` catalog on any Unity Catalog workspace (zero data setup) and demonstrates several core features: bronze ingest (delta load of nation/region + cloudfiles JSON orders + cloudfiles CSV lineitem via one reusable template), silver CDC both flavors (streaming `mode: cdc` with `apply_as_deletes`, and `mode: snapshot_cdc` + `source_function`), a chain of SQL, schema, data-quality and Python transforms, a gold materialized view from `sql/sales_by_nation.sql`, presets, every substitution syntax, operational metadata, a data-prep notebook (`notebooks/data_prep.py`), and a hand-authored job (`resources/sample_job.yml`).
 
 - **Bundle required**: `--sample` + `--no-bundle` is a usage error (exit 2).
 - Ships a ready `config/pipeline_config.yaml` (no `.tmpl` suffix). The project is bundle-enabled, so every run needs it: `lhp validate --env dev -pc config/pipeline_config.yaml`, then `lhp generate --env dev -pc config/pipeline_config.yaml`.
@@ -101,7 +101,7 @@ actions:
 ## 4. Validate, then generate
 
 ```bash
-lhp validate --env dev        # structural + preflight checks (catalog/schema, tokens, references)
+lhp validate --env dev -pc config/pipeline_config.yaml  # bundle preflight needs the pipeline config
 lhp generate --env dev -pc config/pipeline_config.yaml   # -pc required when databricks.yml present
 ```
 

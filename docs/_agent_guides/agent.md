@@ -1,124 +1,194 @@
-# Onboard an agent to Lakehouse Plumber
+# Build with Lakehouse Plumber
 
-You are helping a user set up a local Lakehouse Plumber (LHP) project. Complete the setup in their workspace, using an isolated Python environment, then load the LHP authoring skill. This guide works as instructions for any coding agent with terminal and filesystem access.
+Copy the complete prompt below into your coding agent. It contains its own setup instructions and does not require the agent to open this page.
 
-Describe LHP as a **modern ETL framework** for Databricks Spark Declarative Pipelines. Teach its core model as load actions → transform actions → write actions, with test actions checking the data alongside the flow. Native Python supports inspection and debugging; it is an implementation detail, not the product category.
+---
 
-## Check where you can work
+Help me build with Lakehouse Plumber (LHP). Install and use the lhp development skill using the instructions below, then continue my project request. If I have not described a project yet, ask what pipeline I want to build after setup.
 
-First identify the intended project location and your actual execution access. Databricks Genie Code operates inside the Databricks workspace; do not assume it can access the user's laptop, a local terminal, or a persistent Python environment. Distinguish the workspace project folder from temporary compute storage.
+# Set up LHP and its bundled skill
 
-If you have a suitable shell, filesystem, and persistent project directory, follow the setup below there. If those tools are unavailable, ask the user which local terminal or development environment they will use and guide them through the same commands. Wait for their output to verify each stage; do not report that installation or scaffolding happened merely because you supplied commands. Do not automatically substitute notebook-scoped package installation or an ephemeral compute directory for the requested project setup.
+Perform routine setup yourself using your available tools. Preserve existing work
+and project pins. Ask only for information or actions you cannot resolve yourself;
+give exact instructions when I must act. Respect the environment's approval settings.
 
-If you cannot retrieve this guide or a referenced skill, ask the user to paste its contents or provide an accessible location. Do not invent the missing instructions.
+## 1. Identify the execution environment
 
-## 1. Establish the project choice
+Identify your agent host and interface, available terminal/notebook and file tools,
+and where Python actually runs. Check that environment's OS, architecture, Python
+version, pip and persistent project location. The underlying model name does not
+identify the agent host. Agent browsing, compute downloads and pip access are
+separate capabilities; test the route you need instead of assuming internet access.
 
-Ask the user together, before scaffolding:
+LHP requires Python 3.11 or newer. Reuse a suitable isolated environment or create
+one for desktop work. In Databricks, use notebook-scoped installation and available
+compute. If execution, Python or compute is unavailable, guide me through the
+specific missing step, then verify the result. Do not install into system Python
+or assume your remote environment is my laptop.
 
-- **Sample or empty project?** The sample is a TPC-H example with ingestion, transformations, and outputs to explore. The empty project provides the structure for their own pipelines.
-- **What project name and directory?** Offer the current directory if suitable. Explain that `lhp init NAME` creates files in the current directory; NAME does not create a directory.
+## 2. Check the existing installation
 
-Wait for the sample/empty answer. Do not silently choose a sample. Reuse a choice already given in the conversation. Inspect the destination before changing it. If `lhp.yaml` already exists, treat it as an existing project and ask whether to onboard there or create a different project; never remove it to force scaffolding. If other files would conflict, choose a separate directory with the user.
+In the selected interpreter, check the installed `lakehouse-plumber` version,
+package import and `lhp skill export --name lhp` into a temporary
+folder. Verify the selected skill's `SKILL.md` and its linked local resources.
+A version number alone is insufficient: an earlier test build can have the same
+version without this skill selector or curriculum.
+Genie also needs `SkillFacade.install_genie_skill`. Reuse a working version
+**0.9.3 or newer**; do not upgrade it just because a newer release exists. An older
+version, broken import or missing required capability needs repair or installation.
 
-## 2. Prepare an isolated Python environment
+## 3. Obtain a suitable package when needed
 
-Inspect the operating system, shell, available Python interpreters, and whether `uv` is installed. LHP requires Python 3.11 or newer; prefer a compatible installed Python, with 3.12 as a conservative default for a new environment. Check the package's current Python requirement if installation reports a conflict.
+First test the configured pip source with a real download into a temporary folder:
+use `pip download --no-deps --no-cache-dir --only-binary=:all:` with
+`--dest <temporary-folder>` and the quoted requirement `"lakehouse-plumber>=0.9.3"`,
+through the selected interpreter or notebook pip tool. Substitute a real folder.
+An installed package or cached result does not establish package-source access.
 
-Create and enter the chosen project directory. Reuse an appropriate existing project environment; do not overwrite an existing `.venv` or modify an unrelated environment.
+If the configured source cannot supply a suitable release, try public PyPI using
+`--index-url https://pypi.org/simple` for that operation, where permitted. Do not
+change persistent index settings. An internal index offering only older versions
+is insufficient. Distinguish unavailable releases from authentication, network,
+Python compatibility, permissions and dependency failures; do not retry indefinitely.
 
-If `uv` is available, use it:
+Install the retrieved wheel and its dependencies in the selected environment.
+Check dependencies separately: downloading LHP with `--no-deps` is not a complete
+installation. If dependencies cannot be retrieved, continue to the offline route.
 
-```sh
-uv venv --python 3.12 .venv
-uv pip install --python .venv/bin/python lakehouse-plumber
+## 4. Fall back to a complete offline bundle
+
+If pip cannot provide a usable installation, inspect the assets at:
+[https://github.com/Mmodarre/Lakehouse_Plumber/releases/latest](https://github.com/Mmodarre/Lakehouse_Plumber/releases/latest)
+
+Select the **complete offline ZIP**, not the standalone LHP wheel, for this
+fallback. It contains LHP, both skills and their references, all pinned CLI/Genie
+dependencies, and `install.py`. Python and pip must already be present; LHP Web's
+optional dependencies are excluded. Use this bundle when pip has no package-source
+access, dependencies cannot be retrieved, or the available indexes have no suitable
+LHP release. Do not ask me to collect dependency wheels individually.
+
+Choose a release at least 0.9.3 matching the **environment running Python**,
+which may differ from my computer or browser. Match its OS, CPU architecture and
+Python major/minor version. Published offline bundles target **CPython 3.12** on
+Linux x86_64/ARM64, macOS Apple Silicon and Windows x86_64. Names follow
+`lhp-offline-VERSION-SYSTEM-ARCH-py312.zip`:
+`SYSTEM` is `linux`, `darwin` (macOS) or `windows`; `ARCH` is `x86_64` (Intel/AMD)
+or `arm64`; `py312` means Python 3.12. Inspect the actual assets and manifest;
+do not substitute another platform or Python version if a match is missing.
+For Genie, inspect Databricks compute, not the computer running my browser.
+If the offline target uses another Python version, help me select an available
+Python 3.12 interpreter or compatible Databricks compute before installation.
+If that is unavailable, or the platform is unsupported (including Intel macOS),
+explain that no matching official offline bundle is provided and pause until a
+compatible environment or custom bundle is available. Do not change system Python.
+
+Retrieve compatible files yourself when your tools can. Only ask me to transfer
+files when you cannot. **For every coding agent**, a download handoff must include:
+
+1. **Target and file:** the detected execution OS, architecture and Python version,
+   the exact asset filename to download, and why it matches. If a required detail
+   cannot be detected, ask for it instead of guessing.
+2. **Clickable links:** show the full HTTPS release-page URL above in your reply.
+   When assets are verified, also show their full, clickable download URLs and
+   the published checksum-file URL. Do not merely say "download from GitHub".
+   If you cannot inspect assets, state that availability is unverified, give the
+   matching filename pattern and ask me to share the asset list if needed.
+   Never invent a release, filename or download URL.
+3. **Where to put it and what to share:** give the appropriate instructions below
+   for the complete ZIP and its published checksum file. A connected computer can
+   download them for transfer into the offline environment. Do not leave me to
+   infer the next step.
+
+For **Genie Code or another agent installing into Databricks**, direct me to
+**Workspace Files**: open **Workspace**, choose a writable personal or project
+folder, open its menu, select **Import > File**, and upload the complete ZIP.
+Explain that Workspace import extracts ZIPs, so guide me through verifying its
+published checksum before import. Ask me to **paste the imported folder's workspace
+link** in this conversation. Resolve that link with available tools, verify the
+corresponding `/Workspace/...` path, and locate `manifest.json` and `install.py`
+inside it. If you cannot resolve the link, ask me to right-click the folder and
+choose **Copy URL/path > Full path**. A browser link is not a pip filesystem path.
+Do not direct me to create or use a Unity Catalog volume for this setup. If
+Workspace Files is unavailable, explain the specific blocker and establish an
+accessible alternative with me.
+
+For **Codex, Claude Code, Copilot or another agent using local Python**, ask me to
+download the selected ZIP and checksum into a folder on my machine and **share the
+ZIP's full path**. Verify and extract it yourself when accessible. If the agent
+runs in a container, remote host or cloud workspace, a laptop path may not be accessible: give the host's
+supported upload or copy steps, then ask for the destination path. Match the
+package to that execution environment, even when my laptop uses another OS.
+
+If no suitable release exists, explicitly say there is no compatible published
+offline ZIP at the release link and ask whether I can supply a compatible offline
+bundle. Do not substitute an older release or recommend the standalone wheel as a
+complete offline installation. Pause installation until a suitable file is
+available. When I supply a file, link or path, continue
+from there rather than repeating failed downloads or requiring a published
+release. Verify the archive checksum before extraction, then verify its manifest
+and files and run `install.py` with the target interpreter. The installer uses only
+the bundled wheels and blocks network access during installation.
+
+If I explicitly supply a standalone wheel, including an unpublished test build,
+check its metadata and checksum and establish that its dependencies are installed
+or locally available before using it. Otherwise explain that the complete offline
+bundle is needed. The LHP wheel itself is universal (`py3-none-any`); its dependencies
+are why the complete ZIP must match the target platform.
+
+Verify the installed version, imports and required capabilities before continuing.
+Restart notebook Python only if needed, then repeat verification. Retain the exact
+version and installation source for later sessions.
+
+## 5. Install and read the bundled skill
+
+The selected `lhp` skill and its references are inside the installed
+package. Install only this skill for this request; do not load the other skill's
+entrypoint. Both skills use the same maintained technical reference material.
+Do not require a separate download, plugin or LHP Web installation.
+
+For **Genie Code**, run in authenticated notebook Python:
+
+```python
+from lhp.api import SkillFacade
+result = SkillFacade().install_genie_skill(skill_name="lhp")
+print(result.install_dir)
 ```
 
-`uv` can obtain the requested Python if it is missing. Respect the user's environment/network constraints. On Windows, the environment interpreter is `.venv\Scripts\python.exe`; use that path with `uv pip install --python`.
+This uses the authenticated workspace user and installs into
+`/Users/<user>/.assistant/skills/lhp` (filesystem: `/Workspace/Users/...`). Reuse a
+compatible Databricks SDK or install the package's optional `genie` extra from the
+same package source. The complete offline bundle already includes it. Do not
+assume a subprocess inherits notebook authentication. If SDK installation is
+unavailable but workspace file tools work,
+export the skill locally and copy its complete contents to that workspace folder.
 
-Otherwise use Python's built-in `venv`:
+For **desktop coding agents**, use `lhp skill export --name lhp --output <skill-directory>`
+in the selected environment. Default to project-local installation:
+`.agents/skills/lhp` for Codex, `.claude/skills/lhp` for Claude Code, and
+`.github/skills/lhp` for Copilot. Respect an explicitly configured location. For
+other agents, use a verified supported location or export into the project and
+read the files explicitly. Do not infer native discovery from a directory name.
 
-```sh
-python3 -m venv .venv
-.venv/bin/python -m pip install lakehouse-plumber
+Verify the exported files. Preserve differing existing skills. If installation
+is blocked, read the packaged skill directly where your tools permit:
+
+```python
+from importlib.resources import files
+root = files("lhp.resources.skills.lhp")
+print(root.joinpath("SKILL.md").read_text())
 ```
 
-First verify that the selected `python3` meets LHP's Python requirement. On Windows PowerShell, for example:
+When reading package resources directly, common technical references live under
+`lhp.resources.skills.lhp.references`; portable export assembles the selected skill
+into one self-contained folder.
 
-```powershell
-py -3.12 -m venv .venv
-& .\.venv\Scripts\python.exe -m pip install lakehouse-plumber
-```
+Read the selected `SKILL.md` now and follow its relevant local references. Native skill discovery
+is a separate check; request a new chat only when necessary, with a resume prompt.
 
-If neither a usable Python nor `uv` is available, explain the missing prerequisite and help the user install one through the appropriate official instructions. Do not install LHP into system Python or use `sudo pip`. Respect any environment-specific approval requirements.
+## 6. Continue my original request
 
-For subsequent commands use the environment's CLI executable explicitly: `.venv/bin/lhp` on macOS/Linux or `& .\.venv\Scripts\lhp.exe` in PowerShell. Activation is optional; do not assume it persists between agent tool calls. The commands below use the macOS/Linux spelling—adapt the executable path to the user's OS.
-
-## 3. Check the installed CLI and scaffold
-
-```sh
-.venv/bin/lhp --version
-.venv/bin/lhp init --help
-```
-
-Substitute the chosen project name for `PROJECT_NAME`, passing it as a single safely quoted argument. Run from the selected project directory.
-
-For the sample:
-
-```sh
-.venv/bin/lhp init PROJECT_NAME --sample
-```
-
-For an empty project:
-
-```sh
-.venv/bin/lhp init PROJECT_NAME
-```
-
-The current CLI enables bundle scaffolding by default. `--sample` cannot be combined with `--no-bundle`. The sample may initialize a local Git repository; if the user does not want this, use the documented `--no-git` option. Never run both scaffold commands against the same destination. Check the installed command help before using options that differ across releases.
-
-After scaffolding, verify that `lhp.yaml` and the expected project directories exist. Ensure `.venv/` is ignored by Git, preserving existing ignore rules.
-
-## 4. Install and load the authoring skill
-
-From the project root, inspect the installed skill commands:
-
-```sh
-.venv/bin/lhp skill --help
-```
-
-The current command is **`lhp skill install`**, not `lhp skill add`:
-
-```sh
-.venv/bin/lhp skill install
-.venv/bin/lhp skill status
-```
-
-If the skill is already installed, check its status. Use the documented update command if needed, preserving user modifications and reporting any conflict rather than forcing an overwrite.
-
-The current installer writes `.claude/skills/lhp/SKILL.md` and its references, and adds a routing block to `CLAUDE.md`. This is the CLI's Claude Code integration. Other agents can use the same Markdown: open the installed `SKILL.md` now and read the references needed for the next task. Do not claim the installer configured Codex, Gemini, or Copilot's native skill discovery. If persistence across sessions is needed, use the active agent's supported project instructions to point at the installed skill, preserving existing instructions.
-
-For Genie Code, do not claim `lhp skill install` registered a native Genie skill. Once the installed LHP skill and its references are accessible in the Databricks workspace, read them for the current task. If the user wants native discovery, use Genie Code's **Open skills folder** setting to locate their user skills folder and copy the complete installed `lhp` skill directory there, preserving relative references and existing user changes. Verify its `SKILL.md` and references before reporting registration. Use a user-scoped skill; do not publish a workspace-wide skill as part of onboarding. Follow the current [Genie Code skill instructions](https://docs.databricks.com/aws/en/genie-code/skills) for the workspace UI and supported locations.
-
-Follow the loaded skill for authoring work. In particular, inspect the project's shared presets and templates before writing new pipeline definitions, keep environment-specific settings in substitutions, and validate configuration before generating Python.
-
-## 5. Hand back a verified local project
-
-Report:
-
-- Project path and whether the user chose the sample or empty scaffold.
-- Python/environment method and installed LHP version.
-- Authoring-skill location and status, including whether it has been read in this conversation.
-- How to run the environment's `lhp` executable again.
-- The next concrete step: configure the workspace/catalog and inspect the sample, or describe the first pipeline to build.
-
-Installation and scaffolding do not mean a pipeline has been deployed. Do not report successful validation/generation unless those commands actually ran successfully. A new scaffold still needs project-specific configuration; inspect its README and generated configuration before proposing commands. Do not invent Databricks credentials, catalog names, or deployment results, and do not deploy as part of this onboarding request.
-
-## References
-
-- [LHP documentation](https://mmodarre.github.io/Lakehouse_Plumber/)
-- [LHP source](https://github.com/Mmodarre/Lakehouse_Plumber)
-- [uv environments](https://docs.astral.sh/uv/pip/environments/)
-- [Python virtual environments](https://docs.python.org/3/library/venv.html)
-- [Genie Code execution context](https://docs.databricks.com/aws/en/notebooks/code-assistant)
-- [Genie Code skills](https://docs.databricks.com/aws/en/genie-code/skills)
+Briefly report the verified environment, LHP version, skill location and project
+location, then follow the selected skill's workflow. During installation, handle
+routine installation without unnecessary confirmations, then respect the selected
+skill's interaction rules. Offer deployment and pipeline execution separately;
+report only results actually verified. Public documentation access is not required.
