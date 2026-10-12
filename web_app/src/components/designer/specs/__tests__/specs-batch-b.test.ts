@@ -363,6 +363,26 @@ describe('batch B specs — cross-field rules', () => {
     expect(both.has(pathKey(['write_target', 'cluster_by_auto']))).toBe(false)
   })
 
+  it('mv: partition_columns may not be combined with liquid clustering (issue #297)', () => {
+    const PART = pathKey(['write_target', 'partition_columns'])
+    const issues = (options: Record<string, unknown>) =>
+      computeIssues(writeMaterializedViewSpec, {
+        source: 'v',
+        write_target: { catalog: 'c', schema: 's', table: 't', ...options },
+      })
+
+    const withColumns = issues({ partition_columns: ['d'], cluster_columns: ['a'] })
+    expect(withColumns.get(PART)).toMatch(/partition columns or cluster columns, not both/i)
+    expect(withColumns.get(pathKey(['write_target', 'cluster_columns']))).toMatch(/not both/i)
+
+    const withAuto = issues({ partition_columns: ['d'], cluster_by_auto: true })
+    expect(withAuto.get(PART)).toMatch(/partition columns or auto clustering, not both/i)
+    expect(withAuto.get(pathKey(['write_target', 'cluster_by_auto']))).toMatch(/not both/i)
+
+    // An empty list / false counts as unset.
+    expect(issues({ partition_columns: ['d'], cluster_columns: [], cluster_by_auto: false }).has(PART)).toBe(false)
+  })
+
   it('sink/delta: options must set exactly one of tableName / path', () => {
     const neither = computeIssues(writeSinkSpec, {
       source: 'v',
