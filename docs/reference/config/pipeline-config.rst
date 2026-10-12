@@ -75,7 +75,10 @@ into the generated pipeline resource.
 Merge precedence (lowest to highest): built-in defaults → ``project_defaults``
 → per-pipeline document. Nested mappings are deep-merged; lists are replaced
 wholesale. Token substitution from ``substitutions/<env>.yaml`` applies to every
-field.
+field. A plain ``${name}`` still present after substitution fails ``lhp validate``
+and ``lhp generate`` with ``LHP-CFG-010`` when bundle output is enabled. Databricks
+bundle references such as ``${var.x}`` or ``${bundle.target}`` are dotted and are
+written to the resource as they are.
 
 .. code-block:: yaml
 

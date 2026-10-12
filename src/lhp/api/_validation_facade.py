@@ -176,9 +176,13 @@ class ValidationFacade:
 
         ``bundle_enabled`` mirrors the generate path: when ``True`` the
         shared preflight also runs the bundle catalog/schema check
-        (→ ``LHP-CFG-026``), but only if the orchestrator was constructed
-        with a ``pipeline_config_path``. Defaults to ``False`` so the
-        non-bundle behavior is unchanged (§9.24).
+        (→ ``LHP-CFG-026``) and rejects a plain ``${name}`` left unresolved
+        in any pipeline's bundle resource settings (→ ``LHP-CFG-010``), but
+        only if the orchestrator was constructed with a
+        ``pipeline_config_path``. Defaults to ``False`` so the non-bundle
+        behavior is unchanged (§9.24). The monitoring notebook's
+        ``checkpoint_path`` and event-log references get the same
+        ``LHP-CFG-010`` check whatever ``bundle_enabled`` is.
 
         ``progress`` is an optional :class:`~lhp.api.ProgressSink` advanced
         as flowgroups complete (``on_total`` once with the total flowgroup

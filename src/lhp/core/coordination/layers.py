@@ -8,6 +8,7 @@ invariant that ``ActionOrchestrator`` is never named inside the public
 API surface (§1.10, §9.13).
 """
 
+import functools
 from pathlib import Path
 from typing import Optional
 
@@ -32,15 +33,16 @@ def build_facade_orchestrator(
     ``lhp.api.facade`` can call us through a single lazy import without
     pulling in the core/coordination graph at module-import time.
     """
-    from lhp.core.codegen import OperationalMetadataService
+    from lhp.core.codegen import OperationalMetadataService, check_tags_file_tokens
     from lhp.core.coordination.orchestrator import ActionOrchestrator
     from lhp.core.coordination.validation_service import ValidationService
-    from lhp.core.loaders import ProjectConfigLoader
+    from lhp.core.loaders import ProjectConfigLoader, load_sql_file
     from lhp.core.processing import TemplateEngine
     from lhp.core.processing.flowgroup_resolver import FlowgroupResolutionService
     from lhp.core.registry import ActionRegistry
     from lhp.core.validators import (
         ConfigValidator,
+        ExternalFileTokenValidator,
         OperationalMetadataExpressionValidator,
         SecretValidator,
     )
@@ -58,6 +60,17 @@ def build_facade_orchestrator(
         ActionRegistry(),
         OperationalMetadataService().resolve_selected_columns,
     )
+    # Reads each sql_path / tags_file through the loader and the tagging-hook
+    # check generation uses, so validate and generate reject the same tokens.
+    file_token_validator = ExternalFileTokenValidator(
+        project_root,
+        load_sql_file,
+        functools.partial(
+            check_tags_file_tokens,
+            project_config=project_config,
+            project_root=project_root,
+        ),
+    )
 
     validation_service = ValidationService(
         project_root=project_root,
@@ -70,6 +83,7 @@ def build_facade_orchestrator(
         config_validator=config_validator,
         secret_validator=secret_validator,
         operational_metadata_validator=operational_metadata_validator,
+        file_token_validator=file_token_validator,
     )
 
     return ActionOrchestrator(

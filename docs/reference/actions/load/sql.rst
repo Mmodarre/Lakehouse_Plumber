@@ -51,7 +51,14 @@ Source fields
 
 ``readMode`` is ignored for SQL loads (always a ``spark.sql`` call).
 Substitution tokens (``${token}``, ``${secret:scope/key}``) resolve in both
-inline SQL and external files.
+inline SQL and external files. A plain ``${name}`` that is still in the
+``sql_path`` file after substitution fails ``lhp validate`` and ``lhp generate``
+with ``LHP-CFG-010``. Dotted or prefixed Spark variables such as
+``${mypipeline.start}`` or ``${hiveconf:x}`` are left as written.
+To read a pipeline ``configuration:`` parameter at runtime, give it a dotted
+key (for example ``mypipeline.start_date``) and reference it as
+``${mypipeline.start_date}``; a plain ``${start_date}`` fails even when the
+configuration defines it.
 
 .. include:: /_includes/load-common.rst
 

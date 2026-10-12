@@ -7,7 +7,10 @@ Monitoring configuration
 Monitoring is configured by two top-level blocks in ``lhp.yaml``: ``event_log``
 (inject an event-log table into every generated pipeline) and ``monitoring``
 (build a pipeline that consolidates and summarizes those event logs). String
-fields support ``${token}`` substitution from ``substitutions/<env>.yaml``.
+fields support ``${token}`` substitution from ``substitutions/<env>.yaml``. A
+plain ``${name}`` still present after substitution in a value written to a
+pipeline resource or the union notebook is ``LHP-CFG-010``; the monitoring
+job-config file is not checked.
 
 When ``monitoring`` is enabled, ``lhp generate`` emits three artifacts: a union
 notebook (``monitoring/<env>/union_event_logs.py``), a materialized-views-only
@@ -231,6 +234,8 @@ Validation errors
      - ``event_log`` is enabled but ``catalog`` or ``schema`` is missing.
    * - ``LHP-CFG-008``
      - ``monitoring`` is not a mapping; monitoring enabled without ``event_log``; ``checkpoint_path`` or ``job_config_path`` missing; ``job_config_path`` file not found at validate time (path has no unresolved tokens); the job-config file is not a top-level mapping; ``materialized_views`` is not a list or has a non-mapping entry; a view is missing ``name``; duplicate view names; both ``sql`` and ``sql_path`` set on one view; ``max_concurrent_streams`` outside 1–20.
+   * - ``LHP-CFG-010``
+     - A plain ``${name}`` is still present after substitution in an ``event_log`` value, ``monitoring.checkpoint_path``, ``monitoring.catalog``, ``monitoring.schema`` or ``monitoring.streaming_table``. The ``event_log`` block is checked in each pipeline resource when bundle output is enabled and in the union notebook whenever monitoring builds one. Raised by both ``lhp validate`` and ``lhp generate``.
    * - ``LHP-IO-001``
      - At generate time, the resolved ``job_config_path`` does not point to a readable file.
    * - ``LHP-IO-002``

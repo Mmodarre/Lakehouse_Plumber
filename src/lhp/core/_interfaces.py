@@ -25,7 +25,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import (
     TYPE_CHECKING,
+    Any,
     Callable,
+    Dict,
     Generator,
     List,
     Literal,
@@ -377,6 +379,15 @@ class BaseMonitoringFinalizerService(ABC):
     @abstractmethod
     def cleanup_artifacts(self, env: str, output_dir: Path) -> None:
         raise NotImplementedError
+
+    def resolve_notebook_context(self, env: str) -> Optional[Dict[str, Any]]:
+        """Return the union notebook's values resolved for ``env``, or ``None``.
+
+        The project preflight scans them for unresolved tokens before anything
+        is written. The default suits a service that builds no notebook; a
+        service that renders one returns the context it renders.
+        """
+        return None
 
 
 class BaseFlowgroupBootstrapService(ABC):

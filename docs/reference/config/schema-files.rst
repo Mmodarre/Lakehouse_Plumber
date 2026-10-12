@@ -74,6 +74,14 @@ searched locations. Under ``--sandbox`` the identifier cross-check is skipped
 (sandbox renames the write target's table), and the file's tags are applied to
 the renamed table.
 
+Tag keys and values in a ``tags_file`` resolve ``${token}`` substitutions. A
+plain ``${name}`` that is still there after substitution fails ``lhp validate``
+and ``lhp generate`` with ``LHP-CFG-010``; dotted or prefixed references such as
+``${mypipeline.start}`` are left as written. ``lhp validate`` reads every
+``tags_file`` the tagging hook would read (none when
+``uc_tagging.enabled: false``), so it also reports a missing or invalid tags
+file.
+
 Because a preset's ``tags`` default deep-merges into the write target before
 validation, pairing a preset ``tags`` default with a flowgroup ``tags_file`` is
 rejected as both-set (``cannot specify both 'tags' and 'tags_file'``).
