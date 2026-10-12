@@ -13,6 +13,9 @@ on:
 permissions:
   contents: read
 
+# This reusable build also runs in the release context; deny shared-cache access.
+cache-mode: none
+
 jobs:
   bundle:
     name: ${{ matrix.runner }} Python ${{ matrix.python }}
