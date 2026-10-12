@@ -63,6 +63,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- Restrict release metadata requests to the fixed PyPI HTTPS endpoint, reject
+  redirects, and stop publication on network, HTTP or invalid-response errors.
+  Only a direct 404 response is treated as an unpublished version.
 - Deny GitHub Actions cache reads and writes in release and offline-bundle
   workflows, and disable npm caching in the release build, to isolate release
   artifacts from shared dependency caches.
