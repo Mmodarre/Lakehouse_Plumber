@@ -3145,7 +3145,8 @@
         }
       ],
       "details": [
-        "List existing output columns. Choose a layout appropriate to the table’s access pattern and do not confuse partitioning with the business key used by CDC."
+        "List existing output columns. Choose a layout appropriate to the table’s access pattern and do not confuse partitioning with the business key used by CDC.",
+        "Choose partitioning or liquid clustering, not both. Validation fails when partition_columns is set together with cluster_columns or cluster_by_auto: true, because Databricks does not allow partitioning together with liquid clustering. An empty list counts as unset."
       ],
       "examples": [
         {
@@ -3178,7 +3179,8 @@
         }
       ],
       "details": [
-        "Provide explicit clustering columns. Combined with cluster_by_auto, they become the initial clustering keys, which Databricks may later change based on the workload."
+        "Provide explicit clustering columns. Combined with cluster_by_auto, they become the initial clustering keys, which Databricks may later change based on the workload.",
+        "Do not combine with partition_columns: Databricks does not allow partitioning together with liquid clustering, so validation fails when both are set."
       ],
       "examples": [
         {
@@ -3211,7 +3213,8 @@
         }
       ],
       "details": [
-        "Can be combined with cluster_columns, which become the initial clustering keys; Databricks may later change them based on the workload. False or omission does not emit automatic clustering."
+        "Can be combined with cluster_columns, which become the initial clustering keys; Databricks may later change them based on the workload. False or omission does not emit automatic clustering.",
+        "True cannot be combined with partition_columns: Databricks does not allow partitioning together with liquid clustering, so validation fails when both are set."
       ],
       "unsetBehavior": "When the resolved action omits this field, the default is false. A preset may supply a value before generation."
     },
@@ -3695,7 +3698,8 @@
         }
       ],
       "details": [
-        "List existing output columns. Choose a layout appropriate to the table’s access pattern and do not confuse partitioning with the business key used by CDC."
+        "List existing output columns. Choose a layout appropriate to the table’s access pattern and do not confuse partitioning with the business key used by CDC.",
+        "Choose partitioning or liquid clustering, not both. Validation fails when partition_columns is set together with cluster_columns or cluster_by_auto: true, because Databricks does not allow partitioning together with liquid clustering. An empty list counts as unset."
       ],
       "examples": [
         {
@@ -3722,7 +3726,8 @@
         }
       ],
       "details": [
-        "Provide explicit clustering columns. Combined with cluster_by_auto, they become the initial clustering keys, which Databricks may later change based on the workload."
+        "Provide explicit clustering columns. Combined with cluster_by_auto, they become the initial clustering keys, which Databricks may later change based on the workload.",
+        "Do not combine with partition_columns: Databricks does not allow partitioning together with liquid clustering, so validation fails when both are set."
       ],
       "examples": [
         {
@@ -3749,7 +3754,8 @@
         }
       ],
       "details": [
-        "Can be combined with cluster_columns, which become the initial clustering keys; Databricks may later change them based on the workload. False or omission does not emit automatic clustering."
+        "Can be combined with cluster_columns, which become the initial clustering keys; Databricks may later change them based on the workload. False or omission does not emit automatic clustering.",
+        "True cannot be combined with partition_columns: Databricks does not allow partitioning together with liquid clustering, so validation fails when both are set."
       ],
       "unsetBehavior": "When the resolved action omits this field, the default is false. A preset may supply a value before generation."
     },

@@ -195,7 +195,7 @@ import {
   selectFlowgroupAt,
   type FlowgroupDocHandle,
 } from '@/lib/flowgroup-doc'
-import { applyDiscriminatorChange } from '../../formModel'
+import { applyDiscriminatorChange, computeIssues, pathKey } from '../../formModel'
 import { readPath } from '../helpers'
 
 const freshDoc = (yaml: string): FlowgroupDocHandle =>
@@ -303,6 +303,44 @@ describe('write/streaming_table snapshot source toggle — replay prune', () => 
     applyDiscriminatorChange(doc, 'w_customer_dim', undefined, 'source_function', bp)
     const raw = listActions(doc)[0].raw
     expect(readPath(raw, [...SNAP, 'source'])).toBeUndefined() // pruned
+  })
+})
+
+// ── partitioning vs liquid clustering (issue #297) ───────────
+
+describe('write/streaming_table — partition_columns vs liquid clustering (issue #297)', () => {
+  const PART = pathKey(['write_target', 'partition_columns'])
+  const CLUS = pathKey(['write_target', 'cluster_columns'])
+  const AUTO = pathKey(['write_target', 'cluster_by_auto'])
+  const issues = (options: Record<string, unknown>) =>
+    computeIssues(spec, {
+      source: 'v',
+      write_target: { catalog: 'c', schema: 's', table: 't', ...options },
+    })
+
+  it('flags partition_columns with cluster_columns', () => {
+    const out = issues({ partition_columns: ['d'], cluster_columns: ['a'] })
+    expect(out.get(PART)).toMatch(/partition columns or cluster columns, not both/i)
+    expect(out.get(CLUS)).toMatch(/partition columns or cluster columns, not both/i)
+  })
+
+  it('flags partition_columns with cluster_by_auto: true', () => {
+    const out = issues({ partition_columns: ['d'], cluster_by_auto: true })
+    expect(out.get(PART)).toMatch(/partition columns or auto clustering, not both/i)
+    expect(out.get(AUTO)).toMatch(/partition columns or auto clustering, not both/i)
+  })
+
+  it('treats an empty list and false as unset', () => {
+    const noClustering = issues({ partition_columns: ['d'], cluster_columns: [], cluster_by_auto: false })
+    expect(noClustering.has(PART)).toBe(false)
+    const noPartition = issues({ partition_columns: [], cluster_columns: ['a'], cluster_by_auto: true })
+    expect(noPartition.has(PART)).toBe(false)
+  })
+
+  it('still allows cluster_columns with cluster_by_auto (issue #282)', () => {
+    const out = issues({ cluster_columns: ['a'], cluster_by_auto: true })
+    expect(out.has(CLUS)).toBe(false)
+    expect(out.has(AUTO)).toBe(false)
   })
 })
 

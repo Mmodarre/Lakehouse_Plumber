@@ -61,6 +61,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `snapshot_cdc`; a batch-read sibling `mode: replace_where` is planned. See the write
   action reference and the "Keep a current-state table with a REPLACE USING flow" guide.
 
+### Changed
+
+- **`partition_columns` can no longer be combined with liquid clustering (#297).** On
+  streaming-table (every mode) and materialized-view write targets, setting
+  `partition_columns` together with `cluster_columns` or `cluster_by_auto: true` is now
+  a validation error, because Databricks does not allow partitioning together with
+  liquid clustering. **Behaviour change:** configurations that combined them were
+  accepted and now fail `lhp validate` and `lhp generate` (reported inside
+  `LHP-VAL-007` "FlowGroup validation failed"). The check runs after presets, templates
+  and substitutions are applied, and also on actions with `create_table: false`; remove
+  either the partitioning or the clustering. An empty list or `false` counts as unset,
+  and `cluster_columns` with `cluster_by_auto` stays allowed (#282). The web IDE shows a
+  hint when both are set.
+
 ### Security
 
 - Restrict release metadata requests to the fixed PyPI HTTPS endpoint, reject

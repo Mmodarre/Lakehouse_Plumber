@@ -138,7 +138,7 @@ Load this file when:
 - **BP-11.1** **Default to materialized views** for silver/gold — always correct, reprocess on source changes.
 - **BP-11.2** **Streaming tables** for bronze ingestion and CDC targets — optimal for append-only.
 - **BP-11.3** On history tables: `table_properties: pipelines.reset.allowed: "false"` to prevent accidental full refresh.
-- **BP-11.4** Prefer `cluster_columns` (liquid clustering) over `partition_columns`.
+- **BP-11.4** Prefer `cluster_columns` (liquid clustering) over `partition_columns` — never both: Databricks does not allow partitioning together with liquid clustering (`cluster_columns` or `cluster_by_auto: true`), and LHP validation rejects the combination.
 - **BP-11.4a** Use `cluster_by_auto: true` when clustering keys / cardinality are unknown — let Databricks pick and evolve them. Can be combined with `cluster_columns`: those become the initial keys, which Databricks may later change based on the workload.
 - **BP-11.5** Always include `comment` on write targets (Unity Catalog descriptions).
 - **BP-11.6** Use `spark_conf` on write targets for per-table tuning.

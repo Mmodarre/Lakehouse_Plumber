@@ -49,7 +49,12 @@ Each highlighted field maps to one argument on the generated
 - ``cluster_columns`` sets the liquid-clustering key. For automatic clustering,
   set ``cluster_by_auto: true``; combined with ``cluster_columns``, those columns
   become the initial keys and Databricks may later change them based on the
-  workload. To partition rather than cluster, use ``partition_columns``.
+  workload. To partition rather than cluster, use ``partition_columns`` instead
+  of liquid clustering (``cluster_columns`` / ``cluster_by_auto``): Databricks
+  does not allow partitioning together with liquid clustering, so
+  ``lhp validate`` and ``lhp generate`` reject a target that sets
+  ``partition_columns`` alongside ``cluster_columns`` or
+  ``cluster_by_auto: true``.
 
 The ``${catalog}`` and ``${silver_schema}`` tokens resolve per environment from
 ``substitutions/dev.yaml``, so the same flowgroup targets dev, staging, and prod

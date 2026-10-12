@@ -60,15 +60,15 @@ These ``write_target`` fields apply to ``streaming_table`` and
    * - ``partition_columns``
      - list
      - —
-     - Emitted as ``partition_cols=``.
+     - Emitted as ``partition_cols=``. Mutually exclusive with ``cluster_columns`` and ``cluster_by_auto``: Databricks does not allow partitioning together with liquid clustering, so ``lhp validate`` and ``lhp generate`` reject the combination, even on an action with ``create_table: false``. An empty list counts as unset.
    * - ``cluster_columns``
      - list
      - —
-     - Liquid clustering; emitted as ``cluster_by=``. With ``cluster_by_auto``, these become the initial clustering keys.
+     - Liquid clustering; emitted as ``cluster_by=``. With ``cluster_by_auto``, these become the initial clustering keys. Mutually exclusive with ``partition_columns``.
    * - ``cluster_by_auto``
      - bool
      - —
-     - Auto liquid clustering. Can be combined with ``cluster_columns``, which become the initial clustering keys; Databricks may later change the keys based on the workload.
+     - Auto liquid clustering. Can be combined with ``cluster_columns``, which become the initial clustering keys; Databricks may later change the keys based on the workload. ``true`` is mutually exclusive with ``partition_columns``.
    * - ``spark_conf``
      - dict
      - —
