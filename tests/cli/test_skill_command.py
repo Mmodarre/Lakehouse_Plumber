@@ -11,6 +11,7 @@ from pathlib import Path
 
 import pytest
 from click.testing import CliRunner
+from conftest import strip_ansi
 
 from lhp.api import _skill_assets as sa
 from lhp.cli.commands.skill_command import export, install, status, uninstall, update
@@ -49,8 +50,9 @@ def test_genie_rejects_claude_flags_before_authentication(
 ) -> None:
     result = runner.invoke(install, ["--agent", "genie", flag])
     assert result.exit_code == 2
-    assert "never force-overwrite" in result.output
-    assert "--user/--force" in result.output
+    output = strip_ansi(result.output)
+    assert "never force-overwrite" in output
+    assert "--user/--force" in output
 
 
 def test_install_creates_files_under_claude_skills(runner: CliRunner) -> None:
