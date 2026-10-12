@@ -13,16 +13,17 @@ This mirrors :mod:`lhp.core.codegen.tst_reporting_hook_generator`.
 
 import logging
 from pathlib import Path
-from typing import Dict, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from jinja2 import Environment, StrictUndefined
 
-from lhp.models import ActionType, ProjectConfig, UCTaggingConfig
+from lhp.models import Action, ActionType, ProjectConfig, UCTaggingConfig
 
 from ...core.loaders.external_file_loader import resolve_external_file_path
 from ...errors import ErrorFactory, codes
-from ...parsers.tags_file_parser import parse_tags_file
+from ...parsers.tags_file_parser import ParsedTagsFile, parse_tags_file
 from ...utils.file_header import write_normalized
+from ..processing import find_unresolved_tokens, unresolved_tokens_error
 from ..processing.substitution import EnhancedSubstitutionManager
 from ..validators.compatibility.table_creation import action_creates_table
 from .template_renderer import get_lhp_template_loader, register_python_literal_filters
@@ -37,6 +38,9 @@ _TAGGABLE_SUBTYPES = {"streaming_table", "materialized_view"}
 TableTags = Dict[str, Dict[str, str]]
 # Map of fqn -> {column_name: {tag_key: tag_value}}
 ColumnTags = Dict[str, Dict[str, Dict[str, str]]]
+# ``get(key, default=None)`` over a write target held as a dict or a WriteTarget
+# model; values are raw, untyped YAML config, hence ``Any``.
+WriteTargetGetter = Callable[..., Any]
 
 
 class UCTaggingHookGenerator:
@@ -70,9 +74,7 @@ class UCTaggingHookGenerator:
         hook is only written when some table/column declares ``tags``. Set
         ``uc_tagging.enabled: false`` in lhp.yaml to disable.
         """
-        if self.project_config is None or self.project_config.uc_tagging is None:
-            return UCTaggingConfig()
-        return self.project_config.uc_tagging
+        return _resolved_uc_tagging_config(self.project_config)
 
     def build_hook_files(
         self,
@@ -235,19 +237,10 @@ class UCTaggingHookGenerator:
         """
         for flowgroup in processed_flowgroups:
             for action in getattr(flowgroup, "actions", None) or []:
-                if action.type != ActionType.WRITE or not action.write_target:
+                wt = _tagged_write_target(action)
+                if wt is None:
                     continue
-
-                wt = self._wt_getter(action.write_target)
-                if wt("type") not in _TAGGABLE_SUBTYPES:
-                    continue
-                if not action_creates_table(action) or wt("temporary", False):
-                    continue
-
                 catalog, schema, table = wt("catalog"), wt("schema"), wt("table")
-                if not (catalog and schema and table):
-                    continue
-
                 yield wt, self._sub(f"{catalog}.{schema}.{table}", substitution_mgr)
 
     def _collect_raw_tags(self, wt, substitution_mgr):
@@ -263,7 +256,9 @@ class UCTaggingHookGenerator:
         where tables are renamed. Otherwise inline ``tags`` supplies table tags
         only; inline DDL / ``table_schema`` carries no column tags, so column
         tags are always ``{}`` on the inline path. Validation guarantees at most
-        one of ``tags`` / ``tags_file`` is set (§9.24).
+        one of ``tags`` / ``tags_file`` is set (§9.24). A sidecar tag key or value
+        that keeps a plain ``${name}`` after substitution raises LHP-CFG-010;
+        inline ``tags`` were already checked when the flowgroup resolved.
         """
         tags_file = wt("tags_file")
         if tags_file:
@@ -271,6 +266,9 @@ class UCTaggingHookGenerator:
                 tags_file, self.project_root, file_type="tags file"
             )
             parsed = parse_tags_file(resolved)
+            _reject_unresolved_tags_file_tokens(
+                parsed, tags_file, substitution_mgr, project_root=self.project_root
+            )
             if not self._sandbox_active and parsed.table is not None:
                 actual_table = self._sub(str(wt("table") or ""), substitution_mgr)
                 if parsed.table != actual_table:
@@ -328,3 +326,115 @@ class UCTaggingHookGenerator:
                 column_tags[fqn] = cols
 
         return table_tags, column_tags
+
+
+def _resolved_uc_tagging_config(
+    project_config: Optional[ProjectConfig],
+) -> UCTaggingConfig:
+    if project_config is None or project_config.uc_tagging is None:
+        return UCTaggingConfig()
+    return project_config.uc_tagging
+
+
+def _tagged_write_target(action: Action) -> Optional[WriteTargetGetter]:
+    """Getter over ``action``'s write target when the hook tags its table, else ``None``.
+
+    The hook tags a streaming-table / materialized-view write that creates a
+    non-temporary table with a fully-qualified name.
+    """
+    if action.type != ActionType.WRITE or not action.write_target:
+        return None
+    wt: WriteTargetGetter = UCTaggingHookGenerator._wt_getter(action.write_target)
+    if wt("type") not in _TAGGABLE_SUBTYPES:
+        return None
+    if not action_creates_table(action) or wt("temporary", False):
+        return None
+    if not (wt("catalog") and wt("schema") and wt("table")):
+        return None
+    return wt
+
+
+def _reject_unresolved_tags_file_tokens(
+    parsed: ParsedTagsFile,
+    tags_file: str,
+    substitution_mgr: Optional[EnhancedSubstitutionManager],
+    *,
+    project_root: Optional[Path] = None,
+    pipeline: Optional[str] = None,
+    flowgroup: Optional[str] = None,
+    action: Optional[str] = None,
+) -> None:
+    """Reject a plain ``${name}`` left in the tags the hook renders from a tags file.
+
+    Every table and column tag key and value is substituted the way
+    ``_normalize_tags`` substitutes it for the hook. Without a manager, or with
+    one built with ``skip_validation=True``, nothing is checked.
+
+    :raises LHPConfigError: ``LHP-CFG-010`` naming ``tags_file`` and the tokens
+        in its title, with no SQL note (tags are applied through the REST API).
+    """
+    if substitution_mgr is None or substitution_mgr.skip_validation:
+        return
+    sub = UCTaggingHookGenerator._sub
+    tokens: List[str] = []
+    for raw in (parsed.tags or {}, *parsed.columns.values()):
+        for key, value in raw.items():
+            tokens.extend(find_unresolved_tokens(sub(str(key), substitution_mgr)))
+            if value is not None:
+                tokens.extend(find_unresolved_tokens(sub(str(value), substitution_mgr)))
+    if tokens:
+        raise unresolved_tokens_error(
+            list(dict.fromkeys(tokens)),
+            file=tags_file,
+            project_root=project_root,
+            env=substitution_mgr.env,
+            pipeline=pipeline,
+            flowgroup=flowgroup,
+            action=action,
+            located_title=True,
+            sql_note=False,
+        )
+
+
+def check_tags_file_tokens(
+    action: Action,
+    substitution_mgr: EnhancedSubstitutionManager,
+    pipeline: Optional[str] = None,
+    flowgroup: Optional[str] = None,
+    *,
+    project_config: Optional[ProjectConfig],
+    project_root: Path,
+) -> None:
+    """Read the ``tags_file`` the hook would read for ``action`` and reject leftovers.
+
+    A no-op when ``uc_tagging`` is disabled, when the hook does not tag
+    ``action``'s table, or when the write target has no ``tags_file``, so the
+    check covers exactly the files ``lhp generate`` reads for the hook.
+
+    :raises LHPFileError: ``LHP-IO-001`` when the tags file does not exist;
+        ``LHP-IO-002`` when it cannot be read; ``LHP-IO-003`` when it holds no
+        YAML document or more than one.
+    :raises LHPConfigError: ``LHP-CFG-009`` for malformed YAML; ``LHP-CFG-067``
+        for an invalid tags file; ``LHP-CFG-010`` for a plain ``${name}`` left
+        after substitution; ``LHP-CFG-008`` / ``LHP-CFG-059`` for a
+        ``${secret:...}`` reference without a default scope or with an empty
+        scope or key.
+    """
+    if not _resolved_uc_tagging_config(project_config).enabled:
+        return
+    wt = _tagged_write_target(action)
+    tags_file = wt("tags_file") if wt is not None else None
+    if not tags_file:
+        return
+    resolved = resolve_external_file_path(
+        tags_file, project_root, file_type="tags file"
+    )
+    _reject_unresolved_tags_file_tokens(
+        parse_tags_file(resolved),
+        tags_file,
+        substitution_mgr,
+        project_root=project_root,
+        pipeline=pipeline,
+        flowgroup=flowgroup,
+        action=action.name,
+    )

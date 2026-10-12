@@ -82,6 +82,57 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   CI checks that match `LHP-VAL-007` for an invalid `readMode` must match `LHP-VAL-068`.
   The error's advice no longer suggests `batch`, which these actions reject: it names
   only the modes the action accepts (`stream`).
+- **An undefined `${token}` in a `sql_path` file or a UC `tags_file` is now an error
+  (#298).** A plain `${name}` that is still in the file after substitution raises
+  `LHP-CFG-010` from both `lhp validate` and `lhp generate`. The error title names the
+  token and the file, for example
+  `Unresolved substitution token(s) ${order_suffix} in sql/q.sql`, so `lhp validate`'s
+  one-line summary and the web IDE show where to look. This covers the `sql_path` of
+  SQL loads, SQL transforms and materialized views, and the tag keys and values of a
+  UC `tags_file`. Before, the token was left in the generated code as written: in SQL,
+  unless a pipeline `configuration:` value or a Spark conf defined it at runtime, Spark
+  replaced it with an empty string, and a tag was written to Unity Catalog as literal
+  text. **Behaviour change:** projects whose `sql_path` files or tags files hold such
+  a token now fail; define it in `substitutions/<env>.yaml`, or, for a Spark or
+  pipeline variable set at runtime, use a dotted or prefixed name such as
+  `${mypipeline.start}` or `${hiveconf:x}`, which LHP leaves as written. This includes
+  a `sql_path` file that reads a pipeline `configuration:` parameter with a plain name
+  (`configuration: {start_date: ...}` read as `'${start_date}'`), which worked at
+  runtime and now fails: rename the configuration key and every reference to it to a
+  dotted key (for example `mypipeline.start_date`, read as
+  `'${mypipeline.start_date}'`). Because `lhp validate` now reads these files, it also
+  reports a missing `sql_path` file or `tags_file` (`LHP-IO-001`), a `sql_path` file
+  that is not UTF-8 text or cannot be read (`LHP-IO-004` / `LHP-IO-005`), a tags file
+  that cannot be read (`LHP-IO-002`), is not valid YAML (`LHP-CFG-009`), holds no YAML
+  document or more than one (`LHP-IO-003`) or is invalid (`LHP-CFG-067`), and a
+  `${secret:...}` in a `sql_path` file or tags file that has no default scope or an
+  empty scope or key (`LHP-CFG-008` / `LHP-CFG-059`), as `lhp generate` already did.
+  The web IDE likewise shows a diagnostic, and an empty resolved view, for a flowgroup
+  whose `sql_path` file or tags file is missing or fails one of these checks.
+  `lhp dag` does not validate and is unchanged, and so are Python files (transform and
+  load modules, custom sources and sinks, foreachbatch handlers, snapshot-CDC source
+  functions, the test-reporting provider): defined tokens are substituted and
+  undefined ones are left as written.
+- **An undefined `${token}` in bundle or monitoring settings is now an error (#298).**
+  A plain `${name}` still present after substitution fails `lhp validate` and
+  `lhp generate` with `LHP-CFG-010` before anything is written. When bundle output is
+  enabled (a `databricks.yml` and `--pipeline-config`), this covers every
+  `pipeline_config.yaml` value of every pipeline's resource file and the `event_log`
+  block injected from `lhp.yaml`. With or without bundle output, it covers the
+  monitoring union notebook's values: `monitoring.checkpoint_path`, the target table
+  and the event-log table references. The error title names the token, the file
+  (`lhp.yaml` or the pipeline config) and the key, for example
+  `Unresolved substitution token(s) ${undefined_evt} in lhp.yaml (event_log)`, so
+  `lhp validate`'s one-line summary shows where to look; `lhp generate` prints the
+  full error, which for a pipeline config value also lists up to five of the
+  pipelines. Before, the token was written into `resources/lhp/*.pipeline.yml` or
+  `monitoring/<env>/union_event_logs.py` as written. **Behaviour change:** projects
+  with such a token now fail; define it in `substitutions/<env>.yaml`. Databricks
+  bundle references are dotted (`${var.x}`, `${bundle.target}`,
+  `${workspace.file_path}`) and pass unchanged. The monitoring job config, including
+  its `${bundle_target}`, is not checked. These checks also run on `--sandbox` runs,
+  and the monitoring one on `lhp diff` and `preview_editor_project`, which share the
+  same preflight but never write bundle resources.
 
 ### Security
 

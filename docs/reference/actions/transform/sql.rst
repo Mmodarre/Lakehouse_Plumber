@@ -51,8 +51,15 @@ Options
      - Path to an external ``.sql`` file, relative to project root. Exactly one of ``sql`` / ``sql_path``.
 
 Substitution tokens (``${token}``, ``${secret:scope/key}``) are resolved in both
-inline SQL and external files. Wrap a source in ``stream(view_name)`` inside the
-query to read it as a stream.
+inline SQL and external files. A plain ``${name}`` that is still in the
+``sql_path`` file after substitution fails ``lhp validate`` and ``lhp generate``
+with ``LHP-CFG-010``. Dotted or prefixed Spark variables such as
+``${mypipeline.start}`` or ``${hiveconf:x}`` are left as written.
+To read a pipeline ``configuration:`` parameter at runtime, give it a dotted
+key (for example ``mypipeline.start_date``) and reference it as
+``${mypipeline.start_date}``; a plain ``${start_date}`` fails even when the
+configuration defines it.
+Wrap a source in ``stream(view_name)`` inside the query to read it as a stream.
 
 .. include:: /_includes/transform-common.rst
 
