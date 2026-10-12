@@ -74,6 +74,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   either the partitioning or the clustering. An empty list or `false` counts as unset,
   and `cluster_columns` with `cluster_by_auto` stays allowed (#282). The web IDE shows a
   hint when both are set.
+- **An invalid `readMode` now reports `LHP-VAL-068` instead of `LHP-VAL-007` (#299).**
+  `LHP-VAL-007` meant both "FlowGroup validation failed" (the wrapper around a
+  flowgroup's list of configuration errors) and "invalid `readMode`". The `readMode`
+  error raised by `cloudfiles` and `kafka` loads and `data_quality` transforms now has
+  its own code, and `LHP-VAL-007` is only the wrapper. **Behaviour change:** scripts or
+  CI checks that match `LHP-VAL-007` for an invalid `readMode` must match `LHP-VAL-068`.
+  The error's advice no longer suggests `batch`, which these actions reject: it names
+  only the modes the action accepts (`stream`).
 
 ### Security
 
@@ -133,6 +141,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   test actions) is ignored, as before. Expressions without tokens generate
   byte-identical code, and the bare `{token}` form is not applied to expressions, so
   regex quantifiers such as `'\\d{8}'` are emitted unchanged.
+- **No more duplicate `StringType` import (ruff F811) (#299).** A quarantine
+  `data_quality` action imports `from pyspark.sql.types import MapType, StringType`; a
+  CloudFiles schema load with a `STRING` column, or an `lhp.yaml` operational-metadata
+  expression that calls `StringType()`, imports `StringType` on its own line. Both lines
+  reached the generated module, which bound `StringType` twice. When two
+  `from <module> import ...` lines bind the same name (same name and alias, including
+  `additional_imports` from `lhp.yaml`), those lines are now split into one line per
+  name and the repeat is dropped. Lines that share no name are unchanged, so flowgroups
+  without the overlap generate byte-identical code.
+- **The editor API points operational-metadata expression errors at `lhp.yaml` (#299).**
+  `inspect_editor_project` (provisional) attributed an `LHP-CFG-010` unresolved token or
+  `LHP-CFG-070` secret reference in an `lhp.yaml` operational-metadata `expression` to
+  the flowgroup file, line 0. The diagnostic's source is now `lhp.yaml` at
+  `operational_metadata.columns.<column>.expression`, with that line, including a secret
+  that arrives through a token value. A flowgroup's own unresolved tokens still point at
+  the flowgroup file. No DTO fields changed.
 
 ## [0.9.2] — 2026-09-22
 

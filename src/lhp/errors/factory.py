@@ -337,9 +337,20 @@ actions:
         provided: str,
         valid_modes: List[str],
     ) -> LHPValidationError:
-        """Build an invalid-readMode error. Returns code LHP-VAL-007."""
-        code = codes.VAL_007
+        """Build an invalid-readMode error. Returns code LHP-VAL-068.
+
+        The suggestions name only ``valid_modes``, so a stream-only action is
+        never told to use ``batch``.
+        """
+        code = codes.VAL_068
         valid_list = ", ".join(f"'{m}'" for m in valid_modes)
+        suggestions = [f"Set readMode to one of: {valid_list}"]
+        if "stream" in valid_modes:
+            suggestions.append(
+                "Use 'stream' for streaming ingestion (spark.readStream)"
+            )
+        if "batch" in valid_modes:
+            suggestions.append("Use 'batch' for batch reads (spark.read)")
         return LHPValidationError(
             category=code.category,
             code_number=code.number,
@@ -348,11 +359,7 @@ actions:
                 f"Action '{action_name}' (type: {action_type}) has readMode "
                 f"'{provided}' which is not valid. Valid modes: {valid_list}"
             ),
-            suggestions=[
-                f"Use one of: {valid_list}",
-                "Use 'stream' for streaming ingestion (spark.readStream)",
-                "Use 'batch' for batch reads (spark.read)",
-            ],
+            suggestions=suggestions,
             context={
                 "Action": action_name,
                 "Action Type": action_type,

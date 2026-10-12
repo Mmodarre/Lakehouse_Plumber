@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, Any, Dict, Literal, Mapping, Optional, Tuple, 
 
 import yaml
 
+from lhp.api._editor_error_source import lhp_yaml_field
 from lhp.api._editor_generated import generated_flowgroup_view
 from lhp.api._editor_template_references import _template_file_references
 from lhp.api._inspection_converters import _build_substitution_manager_for_env
@@ -113,6 +114,22 @@ def _index_for(
                 )
             )
     return cache[path]
+
+
+def _error_source(
+    root: Path,
+    error: LHPError,
+    fallback: EditorSourceView,
+    cache: Dict[str, Optional[EditorYamlIndex]],
+    diagnostics: list[EditorDiagnosticView],
+) -> EditorSourceView:
+    """Point ``error`` at the ``lhp.yaml`` field it names, else at ``fallback``."""
+    field = lhp_yaml_field(error)
+    if field is None:
+        return fallback
+    index = _index_for(root, "lhp.yaml", cache, diagnostics)
+    entry = index.first_mapping() if index is not None else None
+    return _source("lhp.yaml", index, entry, field)
 
 
 def editor_catalog_from_facade(
@@ -275,7 +292,7 @@ def project_view(
                         code=exc.code,
                         message=exc.title,
                         layer="configuration",
-                        source=source,
+                        source=_error_source(root, exc, source, indexes, diagnostics),
                     )
                 )
             projected.append(
@@ -365,7 +382,9 @@ def project_view(
                     code=exc.code,
                     message=exc.title,
                     layer="configuration",
-                    source=flowgroup_source,
+                    source=_error_source(
+                        root, exc, flowgroup_source, indexes, diagnostics
+                    ),
                 )
             )
             resolved = {}

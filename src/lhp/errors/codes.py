@@ -100,6 +100,11 @@ VAL_066 = ErrorCode(ErrorCategory.VALIDATION, "066")
 # left untouched) and from the runtime table-read shim (opaque reads are wrapped
 # in __lhp_sandbox_table(...), not warned).
 VAL_067 = ErrorCode(ErrorCategory.VALIDATION, "067")
+# VAL_068: an action's ``readMode`` is not one the action's generator accepts
+# (the cloudfiles, kafka and data_quality generators accept only ``stream``) —
+# raised by ErrorFactory.invalid_read_mode. Distinct from VAL_007, which is only
+# the "FlowGroup validation failed" wrapper around configuration errors.
+VAL_068 = ErrorCode(ErrorCategory.VALIDATION, "068")
 VAL_902 = ErrorCode(ErrorCategory.VALIDATION, "902")
 VAL_DUPFG = ErrorCode(ErrorCategory.VALIDATION, "DUPFG")
 
@@ -312,6 +317,7 @@ ALL_CODES: tuple[ErrorCode, ...] = (
     VAL_065,
     VAL_066,
     VAL_067,
+    VAL_068,
     VAL_902,
     VAL_DUPFG,
     IO_001,
@@ -525,6 +531,7 @@ __all__ = [
     "VAL_065",
     "VAL_066",
     "VAL_067",
+    "VAL_068",
     "VAL_902",
     "VAL_DUPFG",
     "ErrorCode",

@@ -172,7 +172,7 @@ INTENT_CASES = [
             "valid_modes": ["stream", "batch"],
         },
         LHPValidationError,
-        "LHP-VAL-007",
+        "LHP-VAL-068",
     ),
     (
         "invalid_field_type",
@@ -638,6 +638,6 @@ class TestErrorFactoryMiscMethods:
             "my_action", "load", "invalid", ["stream", "batch"]
         )
         msg = str(error)
-        assert "LHP-VAL-007" in error.code
+        assert "LHP-VAL-068" in error.code
         assert "stream" in msg
         assert "batch" in msg

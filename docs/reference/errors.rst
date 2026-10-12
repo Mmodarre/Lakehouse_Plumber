@@ -202,8 +202,8 @@ Validation errors (LHP-VAL)
      - A field has a value outside its allowed set.
      - Use one of the valid values shown.
    * - LHP-VAL-007
-     - Invalid ``readMode``.
-     - Use ``stream`` or ``batch``.
+     - FlowGroup validation failed — wraps the list of configuration validation errors found in one flowgroup.
+     - Fix each listed error.
    * - LHP-VAL-008
      - A field has the wrong data type.
      - Match the expected type from the message.
@@ -303,6 +303,9 @@ Validation errors (LHP-VAL)
    * - LHP-VAL-067
      - Warning (category sandbox) — opaque dynamic SQL could not be verified or rewritten.
      - Use a statically resolvable name, or accept the shared read; ``--strict`` promotes to a failure.
+   * - LHP-VAL-068
+     - Invalid ``readMode`` — the action does not accept that mode. ``cloudfiles`` and ``kafka`` loads and ``data_quality`` transforms accept only ``stream``.
+     - Set ``readMode: stream``, or remove ``readMode`` (these actions default to ``stream``).
    * - LHP-VAL-902
      - All-or-nothing aggregator — one or more flowgroups failed in a parallel ``lhp generate`` run; no files were written.
      - Fix every listed failure; re-run with ``--verbose`` or ``--log-file``.
