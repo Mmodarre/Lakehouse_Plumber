@@ -16,7 +16,7 @@ from lhp.models import ActionType, FlowGroup, ProjectConfig
 from ...errors import ErrorFactory, codes
 from ...utils.file_header import build_lhp_source_header, write_normalized
 from ..processing.substitution import EnhancedSubstitutionManager
-from .template_renderer import get_lhp_template_loader
+from .template_renderer import get_lhp_template_loader, register_python_literal_filters
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +40,7 @@ class TestReportingHookGenerator:
             loader=get_lhp_template_loader(),
             keep_trailing_newline=True,
         )
+        register_python_literal_filters(self._jinja_env)
 
     @property
     def test_reporting_config(self):

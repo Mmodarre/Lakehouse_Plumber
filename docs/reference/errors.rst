@@ -101,7 +101,13 @@ Configuration errors (LHP-CFG)
      - Template has a Jinja syntax error.
      - Fix the template syntax.
    * - LHP-CFG-031
-     - Generated Python source failed to parse (``ast.parse`` reported a SyntaxError).
+     - Generated Python source failed to parse. The check runs on the source as it is
+       written to disk, where every line-boundary character starts a new line. Values
+       written into escaped string literals no longer cause it on their own. It can
+       still fire for text inserted verbatim as code or into a comment (for example an
+       operational-metadata ``expression`` or a snapshot-CDC ``source_function``) that
+       breaks the syntax or contains a NUL or lone-surrogate character, and for a
+       ``${secret:...}`` reference inside SQL (#306).
      - Almost always a generator/template bug; file a report with the flowgroup YAML.
    * - LHP-CFG-033
      - The ``ruff format`` pass on generated code exited non-zero.

@@ -25,7 +25,7 @@ from ...parsers.tags_file_parser import parse_tags_file
 from ...utils.file_header import write_normalized
 from ..processing.substitution import EnhancedSubstitutionManager
 from ..validators.compatibility.table_creation import action_creates_table
-from .template_renderer import get_lhp_template_loader
+from .template_renderer import get_lhp_template_loader, register_python_literal_filters
 
 logger = logging.getLogger(__name__)
 
@@ -59,6 +59,7 @@ class UCTaggingHookGenerator:
             # guard never sees, since this file bypasses it. Fail loudly instead.
             undefined=StrictUndefined,
         )
+        register_python_literal_filters(self._jinja_env)
 
     @property
     def uc_tagging_config(self) -> UCTaggingConfig:

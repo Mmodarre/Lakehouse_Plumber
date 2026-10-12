@@ -6,13 +6,13 @@
 
 {% endif %}
 {% if schema_hints_variable %}
-# Schema hints for {{ schema_hints_label }} table
+# Schema hints for {{ schema_hints_label|py_comment }} table
 {{ schema_hints_variable }} = """
 {% for column in schema_hints_columns %}
 {% if loop.last %}
-    {{ column }}
+    {{ column|py_block(at_delimiter=False) }}
 {% else %}
-    {{ column }},
+    {{ column|py_block(at_delimiter=False) }},
 {% endif %}
 {% endfor %}
 """.strip().replace("\n", " ")
@@ -21,7 +21,7 @@
 {% endif %}
 @dp.temporary_view()
 def {{ target_view }}():
-    """{{ description }}"""
+    """{{ description|py_block }}"""
     df = spark.readStream \
         .format("cloudFiles")
     {%- if schema_variable %} \
@@ -29,22 +29,22 @@ def {{ target_view }}():
     {%- endif %}
     {%- for key, value in reader_options.items() %}
     {%- if value is boolean %} \
-        .option("{{ key }}", {{ value|string|title }})
+        .option({{ key|py_str }}, {{ value|string|title }})
     {%- elif value is number %} \
-        .option("{{ key }}", {{ value }})
+        .option({{ key|py_str }}, {{ value }})
     {%- else %} \
-        .option("{{ key }}", "{{ value|replace('\\', '\\\\')|replace('"', '\\"') }}")
+        .option({{ key|py_str }}, {{ value|py_str }})
     {%- endif %}
     {%- endfor %}
     {%- if schema_hints_variable %} \
         .option("cloudFiles.schemaHints", {{ schema_hints_variable }})
     {%- endif %} \
-        .load("{{ path }}")
+        .load({{ path|py_str }})
     {% if add_operational_metadata %}
     
     # Add operational metadata columns
     {% for col_name, expression in metadata_columns.items()|sort %}
-    df = df.withColumn('{{ col_name }}', {{ expression }})
+    df = df.withColumn({{ col_name|py_str_single }}, {{ expression }})
     {% endfor %}
     {% endif %}
     

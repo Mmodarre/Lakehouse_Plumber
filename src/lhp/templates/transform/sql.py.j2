@@ -1,12 +1,12 @@
-@dp.temporary_view({% if description %}comment="{{ description }}"{% endif %})
+@dp.temporary_view({% if description %}comment={{ description|py_str }}{% endif %})
 def {{ target_view }}():
-    """{{ description }}"""
-    df = spark.sql("""{{ sql_query }}""")
+    """{{ description|py_block }}"""
+    df = spark.sql("""{{ sql_query|py_block }}""")
     {% if add_operational_metadata %}
     
     # Add operational metadata columns
     {% for col_name, expression in metadata_columns.items()|sort %}
-    df = df.withColumn('{{ col_name }}', {{ expression }})
+    df = df.withColumn({{ col_name|py_str_single }}, {{ expression }})
     {% endfor %}
     {% endif %}
     

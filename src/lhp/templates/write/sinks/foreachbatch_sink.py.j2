@@ -1,19 +1,19 @@
-# {{ comment }}
+# {{ comment|py_comment }}
 
-@dp.foreach_batch_sink(name="{{ sink_name }}")
+@dp.foreach_batch_sink(name={{ sink_name|py_str }})
 def {{ sink_name }}(df, batch_id):
-    """{{ description }}"""
+    """{{ description|py_block }}"""
     {{ batch_handler_code | indent(4) }}
     return
 
-@dp.append_flow(target="{{ sink_name }}", name="f_{{ sink_name }}_1", comment="{{ description }}")
+@dp.append_flow(target={{ sink_name|py_str }}, name={{ ("f_" ~ sink_name ~ "_1")|py_str }}, comment={{ description|py_str }})
 def f_{{ sink_name }}_1():
-    df = spark.readStream.table("{{ source_view }}")
+    df = spark.readStream.table({{ source_view|py_str }})
     
     {% if add_operational_metadata %}
     # Add operational metadata columns
     {% for col_name, expression in metadata_columns.items()|sort %}
-    df = df.withColumn('{{ col_name }}', {{ expression }})
+    df = df.withColumn({{ col_name|py_str_single }}, {{ expression }})
     {% endfor %}
     {% endif %}
     

@@ -1,23 +1,23 @@
 @dp.temporary_view()
 def {{ target_view }}():
-    """{{ description }}"""
+    """{{ description|py_block }}"""
     {% if readMode == "batch" %}
-    df = spark.read.table("{{ source_view }}")
+    df = spark.read.table({{ source_view|py_str }})
     {% else %}
-    df = spark.readStream.table("{{ source_view }}")
+    df = spark.readStream.table({{ source_view|py_str }})
     {% endif %}
     
     {% if column_mapping %}
     # Apply column renaming
     {% for old_name, new_name in column_mapping.items() %}
-    df = df.withColumnRenamed("{{ old_name }}", "{{ new_name }}")
+    df = df.withColumnRenamed({{ old_name|py_str }}, {{ new_name|py_str }})
     {% endfor %}
     {% endif %}
     
     {% if type_casting %}
     # Apply type casting
     {% for column, new_type in type_casting.items() %}
-    df = df.withColumn("{{ column }}", F.col("{{ column }}").cast("{{ new_type }}"))
+    df = df.withColumn({{ column|py_str }}, F.col({{ column|py_str }}).cast({{ new_type|py_str }}))
     {% endfor %}
     {% endif %}
     
@@ -26,7 +26,7 @@ def {{ target_view }}():
     # Schema-defined columns (will fail if missing)
     columns_to_select = [
         {% for col in final_columns %}
-        "{{ col }}"{% if not loop.last %},{% endif %}
+        {{ col|py_str }}{% if not loop.last %},{% endif %}
         {% endfor %}
     ]
     
@@ -35,7 +35,7 @@ def {{ target_view }}():
     available_columns = set(df.columns)
     metadata_columns = [
         {% for col in metadata_columns %}
-        "{{ col }}"{% if not loop.last %},{% endif %}
+        {{ col|py_str }}{% if not loop.last %},{% endif %}
         {% endfor %}
     ]
     for meta_col in metadata_columns:

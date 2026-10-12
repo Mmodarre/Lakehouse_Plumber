@@ -1,18 +1,18 @@
 @dp.temporary_view()
 def {{ target_view }}():
-    """{{ description }}"""
+    """{{ description|py_block }}"""
     {% if source_views %}
     # Load source view(s)
     {% for source in source_views %}
     {% if readMode == "stream" %}
-    {{ source }}_df = spark.readStream.table("{{ source }}")
+    {{ source }}_df = spark.readStream.table({{ source|py_str }})
     {% else %}
-    {{ source }}_df = spark.read.table("{{ source }}")
+    {{ source }}_df = spark.read.table({{ source|py_str }})
     {% endif %}
     {% endfor %}
     
     # Apply Python transformation
-    parameters = {{ parameters | tojson }}
+    parameters = {{ parameters|py_literal }}
     {% if source_views|length == 1 %}
     df = {{ function_name }}({{ source_views[0] }}_df, spark, parameters)
     {% else %}
@@ -21,14 +21,14 @@ def {{ target_view }}():
     {% endif %}
     {% else %}
     # No source views - function generates data
-    parameters = {{ parameters | tojson }}
+    parameters = {{ parameters|py_literal }}
     df = {{ function_name }}(spark, parameters)
     {% endif %}
     
     {% if add_operational_metadata %}
     # Add operational metadata columns
     {% for col_name, expression in metadata_columns.items()|sort %}
-    df = df.withColumn('{{ col_name }}', {{ expression }})
+    df = df.withColumn({{ col_name|py_str_single }}, {{ expression }})
     {% endfor %}
     {% endif %}
     

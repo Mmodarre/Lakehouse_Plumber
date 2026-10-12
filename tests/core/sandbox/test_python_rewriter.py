@@ -26,6 +26,7 @@ from lhp.core.sandbox import (
     rewrite_python_table_literals,
 )
 from lhp.models import Action, ActionType, FlowGroup
+from lhp.utils.python_literals import py_block, py_str
 
 _HELPER_DEF = "def __lhp_sandbox_table("
 
@@ -795,4 +796,36 @@ class TestOpaqueSqlAdvisory:
         out, warnings = rewrite_python_table_literals(source, _renames())
 
         assert "dev.silver.alice_orders" in out
+        assert warnings == ()
+
+
+@pytest.mark.unit
+class TestPythonLiteralFilterOutput:
+    """Literals emitted by the #296 template filters stay rewritable.
+
+    ``py_str`` / ``py_block`` emit escapes (``\\\\``, ``\\"``, ``\\n``), so the
+    rewriter takes its decode-then-``_safe_literal`` path; the rewritten
+    literal must still evaluate to the renamed original value.
+    """
+
+    def test_escaped_table_and_sql_literals_round_trip(self):
+        sql = (
+            "SELECT * FROM dev.silver.orders\n"
+            'WHERE code RLIKE \'^\\\\d+$\' AND note = "a""b" -- ends \\'
+        )
+        source = (
+            f"df = spark.table({py_str('dev.silver.orders')})\n"
+            f'df2 = spark.sql("""{py_block(sql)}""")\n'
+            f"df3 = spark.sql({py_str(sql)})\n"
+        )
+
+        out, warnings = rewrite_python_table_literals(source, _renames())
+
+        values = [
+            node.value
+            for node in ast.walk(ast.parse(out))
+            if isinstance(node, ast.Constant) and isinstance(node.value, str)
+        ]
+        renamed_sql = sql.replace("dev.silver.orders", "dev.silver.alice_orders")
+        assert values == ["dev.silver.alice_orders", renamed_sql, renamed_sql]
         assert warnings == ()

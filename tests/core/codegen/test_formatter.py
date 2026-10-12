@@ -39,6 +39,54 @@ def test_assert_generated_python_valid_noop_on_valid():
 
 
 @pytest.mark.unit
+def test_assert_generated_python_valid_rejects_nul_with_cfg_031():
+    """NUL is rejected by the parser (ValueError on 3.11, SyntaxError on 3.12+)."""
+    with pytest.raises(LHPConfigError) as exc_info:
+        assert_generated_python_valid('x = "a\x00b"\n', "nul_fg")
+    assert exc_info.value.code_number == "031"
+    assert "nul_fg" in str(exc_info.value)
+
+
+@pytest.mark.unit
+def test_assert_generated_python_valid_rejects_lone_surrogate_with_cfg_031():
+    """A lone surrogate cannot be encoded as UTF-8, so the file could not be written."""
+    with pytest.raises(LHPConfigError) as exc_info:
+        assert_generated_python_valid("# comment \udcff\nx = 1\n", "surrogate_fg")
+    assert exc_info.value.code_number == "031"
+    assert isinstance(exc_info.value.__cause__, UnicodeEncodeError)
+
+
+@pytest.mark.unit
+def test_assert_generated_python_valid_converts_value_error_to_cfg_031():
+    with (
+        patch(
+            "lhp.core.codegen.formatter.ast.parse",
+            side_effect=ValueError("source code string cannot contain null bytes"),
+        ),
+        pytest.raises(LHPConfigError) as exc_info,
+    ):
+        assert_generated_python_valid("x = 1\n", "value_error_fg")
+    assert exc_info.value.code_number == "031"
+    assert isinstance(exc_info.value.__cause__, ValueError)
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "separator", ["\x0b", "\x0c", "\x1c", "\x1d", "\x1e", "\x85", "\u2028", "\u2029"]
+)
+def test_assert_generated_python_valid_checks_the_code_as_written(separator):
+    """A raw line separator parses in memory but splits the literal once written.
+
+    ``write_normalized`` splits every generated file on all ``str.splitlines``
+    boundaries, so the guard must judge the normalized text, not the raw text.
+    """
+    code = f'x = "a{separator}b"\n'
+    with pytest.raises(LHPConfigError) as exc_info:
+        assert_generated_python_valid(code, "separator_fg")
+    assert exc_info.value.code_number == "031"
+
+
+@pytest.mark.unit
 def test_ruff_exe_returns_existing_path():
     """``_ruff_exe`` resolves the bundled ruff to a path that exists.
 
