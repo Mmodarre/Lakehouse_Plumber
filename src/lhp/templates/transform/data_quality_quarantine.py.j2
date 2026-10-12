@@ -1,38 +1,38 @@
 # --- Rules & constants ---
 
-_EXPECTATIONS_{{ safe_source_view }} = {{ expectations | tojson }}
+_EXPECTATIONS_{{ safe_source_view }} = {{ expectations|py_literal }}
 
-_INVERSE_FILTER_{{ safe_source_view }} = {{ inverse_filter | tojson }}
+_INVERSE_FILTER_{{ safe_source_view }} = {{ inverse_filter|py_literal }}
 
 _FAILED_RULE_EXPRS_{{ safe_source_view }} = [
 {% for rule in failed_rule_data %}
     F.when(
-        ~F.expr({{ rule.rule | tojson }}),
+        ~F.expr({{ rule.rule|py_literal }}),
         F.struct(
-            F.lit({{ rule.name | tojson }}).alias("name"),
-            F.lit({{ rule.rule | tojson }}).alias("rule"),
+            F.lit({{ rule.name|py_literal }}).alias("name"),
+            F.lit({{ rule.rule|py_literal }}).alias("rule"),
         ),
     ),
 {% endfor %}
 ]
 
-DLQ_TABLE_{{ safe_source_view }} = "{{ dlq_table }}"
-DLQ_OUTBOX_TABLE_{{ safe_source_view }} = "{{ dlq_outbox_table }}"
-SOURCE_TABLE_{{ safe_source_view }} = "{{ source_table }}"
+DLQ_TABLE_{{ safe_source_view }} = {{ dlq_table|py_str }}
+DLQ_OUTBOX_TABLE_{{ safe_source_view }} = {{ dlq_outbox_table|py_str }}
+SOURCE_TABLE_{{ safe_source_view }} = {{ source_table|py_str }}
 {% if hash_exclude_columns %}
 
-_HASH_EXCLUDE_COLS_{{ safe_source_view }} = {{ hash_exclude_columns | tojson }}
+_HASH_EXCLUDE_COLS_{{ safe_source_view }} = {{ hash_exclude_columns|py_literal }}
 {% endif %}
 
-_EXPECTATIONS_RECYCLED_{{ safe_source_view }} = {{ recycled_expectations | tojson }}
+_EXPECTATIONS_RECYCLED_{{ safe_source_view }} = {{ recycled_expectations|py_literal }}
 
 
 # --- Clean path (provides DQ metrics in event log) ---
 @dp.temporary_view()
 @dp.expect_all_or_drop(_EXPECTATIONS_{{ safe_source_view }})
 def _clean_{{ safe_source_view }}():
-    """{{ description }} — clean records"""
-    return spark.readStream.table("{{ source_view }}")
+    """{{ description|py_block(at_delimiter=False) }} — clean records"""
+    return spark.readStream.table({{ source_view|py_str }})
 
 
 # --- Quarantine path (DLQ sink + routing) ---
@@ -123,7 +123,7 @@ def dlq_sink_{{ safe_source_view }}(batch_df, batch_id):
 def quarantine_flow_{{ safe_source_view }}():
     """Route failed rows to DLQ"""
     return (
-        spark.readStream.table("{{ source_view }}")
+        spark.readStream.table({{ source_view|py_str }})
         .filter(_INVERSE_FILTER_{{ safe_source_view }})
         .withColumn("_dlq_failed_rules",
             F.array_compact(F.array(*_FAILED_RULE_EXPRS_{{ safe_source_view }}))
@@ -197,7 +197,7 @@ def _recycled_{{ safe_source_view }}():
 # --- Validated output (clean + recycled) ---
 @dp.temporary_view()
 def {{ target_view }}():
-    """{{ description }} — clean + recycled records"""
+    """{{ description|py_block(at_delimiter=False) }} — clean + recycled records"""
     clean = spark.readStream.table("_clean_{{ safe_source_view }}")
     recycled = spark.readStream.table("_recycled_{{ safe_source_view }}")
 
@@ -207,7 +207,7 @@ def {{ target_view }}():
     # Add operational metadata columns
     df = df.withColumns({
         {%- for col_name, expression in metadata_columns.items()|sort %}
-        '{{ col_name }}': {{ expression }}{{ "," if not loop.last }}
+        {{ col_name|py_str_single }}: {{ expression }}{{ "," if not loop.last }}
         {%- endfor %}
     })
     {% endif %}

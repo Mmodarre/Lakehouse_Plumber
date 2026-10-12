@@ -6,13 +6,13 @@ the parser owns YAML parsing and validation, while this module owns the
 via a Jinja2 template (constitution §2.10 / §9.14, layering §5).
 """
 
-import json
 import logging
 import re
 from dataclasses import dataclass
 from typing import Any
 
 from ...errors import ErrorFactory, codes
+from ...utils.python_literals import py_str
 from .template_renderer import TemplateRenderer
 
 logger = logging.getLogger(__name__)
@@ -40,13 +40,6 @@ _TYPE_MAPPING = {
 
 # DECIMAL types need precision/scale extraction.
 _DECIMAL_PATTERN = r"DECIMAL\((\d+),(\d+)\)"
-
-# str.splitlines() boundaries that json.dumps(ensure_ascii=False) leaves raw.
-# write_normalized() splits every generated file on them, which would break
-# the literal across two physical lines.
-_SPLITLINES_ESCAPES = str.maketrans(
-    {"\x85": "\\x85", "\u2028": "\\u2028", "\u2029": "\\u2029"}
-)
 
 
 @dataclass(frozen=True)
@@ -116,24 +109,13 @@ def emit_struct_type_code(
 
 
 def _generate_struct_field(column: dict[str, Any], spark_type: str) -> str:
-    name = _str_literal(column["name"])
+    name = py_str(column["name"])
     nullable = column.get("nullable", True)
     comment = column.get("comment", "")
 
-    metadata = "{}" if not comment else f'{{"comment": {_str_literal(comment)}}}'
+    metadata = "{}" if not comment else f'{{"comment": {py_str(comment)}}}'
 
     return f"StructField({name}, {spark_type}, {nullable}, {metadata})"
-
-
-def _str_literal(value: Any) -> str:
-    """Render a YAML scalar as a Python string literal that round-trips exactly.
-
-    A JSON string is a valid Python string literal, so ``json.dumps`` escapes
-    quotes, backslashes and control characters. ``ensure_ascii`` must stay off:
-    its surrogate-pair escapes for astral characters (``\\ud83d\\ude00``) decode
-    in Python as two lone surrogates, not the original character.
-    """
-    return json.dumps(str(value), ensure_ascii=False).translate(_SPLITLINES_ESCAPES)
 
 
 def _convert_to_spark_type(col_type: str) -> str:

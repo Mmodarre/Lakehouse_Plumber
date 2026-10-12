@@ -29,6 +29,8 @@ import re
 
 from jinja2 import Environment, PackageLoader
 
+from lhp.utils.python_literals import PYTHON_LITERAL_FILTERS
+
 from ._renames import SandboxTableRenames, TableRenameStrategy
 
 #: The single runtime shim function name. Emitted once per module and used as
@@ -106,14 +108,19 @@ def _environment() -> Environment:
 
     Cached so template compilation is paid once per worker. A local environment
     (not the shared generator one in ``core/codegen``) keeps this sub-package's
-    downward-only import layering intact.
+    downward-only import layering intact; for the same reason the Python-literal
+    filters come straight from ``utils`` rather than through
+    ``core.codegen.template_renderer.register_python_literal_filters``, which
+    applies the same mapping.
     """
-    return Environment(  # nosec B701 — generates Python, not HTML
+    env = Environment(  # nosec B701 — generates Python, not HTML
         loader=PackageLoader("lhp", "templates"),
         trim_blocks=True,
         lstrip_blocks=True,
         auto_reload=False,
     )
+    env.filters.update(PYTHON_LITERAL_FILTERS)
+    return env
 
 
 def _leaf_affixes(strategy: TableRenameStrategy) -> tuple[str, str]:

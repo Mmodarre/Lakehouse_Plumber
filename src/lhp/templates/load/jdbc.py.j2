@@ -1,20 +1,20 @@
 @dp.temporary_view()
 def {{ target_view }}():
-    """{{ description }}"""
+    """{{ description|py_block }}"""
     df = spark.read \
         .format("jdbc") \
-        .option("url", "{{ jdbc_url|replace('\\', '\\\\')|replace('"', '\\"') }}") \
-        .option("user", "{{ jdbc_user|replace('\\', '\\\\')|replace('"', '\\"') }}") \
-        .option("password", "{{ jdbc_password|replace('\\', '\\\\')|replace('"', '\\"') }}") \
-        .option("driver", "{{ jdbc_driver|replace('\\', '\\\\')|replace('"', '\\"') }}") \
-{% if jdbc_query %}        .option("query", """{{ jdbc_query }}""") \
-{% elif jdbc_table %}        .option("dbtable", "{{ jdbc_table|replace('\\', '\\\\')|replace('"', '\\"') }}") \
+        .option("url", {{ jdbc_url|py_str }}) \
+        .option("user", {{ jdbc_user|py_str }}) \
+        .option("password", {{ jdbc_password|py_str }}) \
+        .option("driver", {{ jdbc_driver|py_str }}) \
+{% if jdbc_query %}        .option("query", """{{ jdbc_query|py_block }}""") \
+{% elif jdbc_table %}        .option("dbtable", {{ jdbc_table|py_str }}) \
 {% endif %}        .load()
     {% if add_operational_metadata %}
     
     # Add operational metadata columns
     {% for col_name, expression in metadata_columns.items()|sort %}
-    df = df.withColumn('{{ col_name }}', {{ expression }})
+    df = df.withColumn({{ col_name|py_str_single }}, {{ expression }})
     {% endfor %}
     {% endif %}
     
