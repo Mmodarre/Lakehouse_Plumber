@@ -395,17 +395,24 @@ shows the regenerated output).
 
 For the `lhp generate` flag reference, see `project-config.md` (CLI Commands section) or run `lhp generate --help`.
 
-### POSIX exit codes (from `src/lhp/utils/exit_codes.py`)
+### CLI exit codes
 
-| Code | Meaning | LHP categories |
-|------|---------|----------------|
-| 0 | Success | — |
-| 1 | General error | unknown |
-| 64 | Usage error | bad CLI args |
-| 65 | Data error | VAL, DEP, ACT |
-| 66 | No input | IO |
-| 70 | Software error | internal bug |
-| 74 | I/O error | permissions, disk |
-| 78 | Config error | CFG, CloudFiles |
+| Code | Meaning |
+|------|---------|
+| 0 | Success |
+| 1 | Structured LHP error |
+| 2 | Invalid CLI arguments or options |
+| 3 | Unexpected internal failure |
 
 Script integrations should branch on exit code, not on stderr text.
+
+### Agent skill installation
+
+- `LHP-IO-020`: a portable/Genie destination contains files differing from the
+  packaged release. Preserve those files before choosing a new destination or
+  moving the old skill aside. Do not force an overwrite.
+- `LHP-IO-029`: export/upload/read-back verification failed. Use the safe failure
+  category to distinguish a missing SDK, authentication, permissions or file I/O.
+  Run Genie installation in authenticated notebook Python; its chained exception
+  contains further diagnostics. No successful native discovery is implied by a
+  successful upload.

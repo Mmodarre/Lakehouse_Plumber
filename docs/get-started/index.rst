@@ -11,6 +11,12 @@ medallion pipeline (bronze → silver → gold) over the ``samples.tpch`` datase
 every Unity Catalog workspace — then walks you through reading it, configuring
 it, generating its code, and deploying it to Databricks.
 
+Prefer an agent-guided course? Copy the `learning prompt <../learn.md>`_ into your
+coding agent. The separate ``lhp-learn`` skill begins with **Lesson 0**, explaining
+LHP's model and capabilities before opening the sample files. You make the exercise
+edits, the agent waits after each checkpoint, and progress stays with your project.
+The course and its advanced topic lessons also work without website access.
+
 .. toctree::
    :maxdepth: 1
 

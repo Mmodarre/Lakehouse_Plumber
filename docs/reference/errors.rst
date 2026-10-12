@@ -368,6 +368,9 @@ Input/output errors (LHP-IO)
    * - LHP-IO-028
      - ``lhp telemetry on|off`` could not write the telemetry state file.
      - Point ``LHP_CONFIG_DIR`` at a writable directory.
+   * - LHP-IO-029
+     - Portable or Genie skill installation failed during access, upload or verification.
+     - Use the reported failure category. Check destination permissions, SDK availability and notebook authentication; read the chained exception in Python for further detail.
 
 Action errors (LHP-ACT)
 =======================

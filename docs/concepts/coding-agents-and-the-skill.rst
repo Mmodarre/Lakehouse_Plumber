@@ -69,15 +69,28 @@ index plus a set of leaf references:
 - ``SKILL.md`` — the file an agent loads first. It carries the core architecture,
   the substitution syntax, the action-type catalogue, and the mistakes an agent
   most often makes, so the correction lands before the agent writes a line.
-- ``references/`` — forty topic-scoped Markdown files: thirty leaves, one per
-  action sub-type, and ten topic references such as CDC patterns, best practices,
-  and error codes. The agent loads only the leaves the task in front of it needs,
+- ``references/`` — topic-scoped Markdown files for action sub-types, CDC
+  patterns, best practices, configuration and error codes. The agent loads only the leaves the task in front of it needs,
   keeping its context small.
 
 The reference files are dense and list-driven, built for a token budget: field
 tables, key rules, minimal examples. They carry the same LHP facts as this site,
 shaped for a reader that parses headings as anchors and rarely follows a link
 out.
+
+A separate teaching skill
+=========================
+
+The package also contains ``lhp-learn``. Its entrypoint defines a guided course:
+concepts and capabilities first, followed by file inspection, learner-authored
+edits and explicit pauses at each checkpoint. It saves progress in the learning
+project so another conversation or coding agent can resume.
+
+Teaching instructions and lessons belong only to ``lhp-learn``. Ordinary development
+uses ``lhp`` and does not load the curriculum. Both exports include technical
+references assembled from the same maintained source, so either works independently
+without internet access. The learning prompt installs the teaching skill; the build
+prompt installs the development skill.
 
 Same facts, different form
 ==========================
@@ -102,7 +115,7 @@ keeps them apart on purpose.
    The skill is correct for humans too — you can open the Markdown and read it —
    but it is denser and more list-driven than these guides. It is a fast lookup
    once you know Lakehouse Plumber, not the place to learn it from scratch. This
-   site is.
+   site and the separate ``lhp-learn`` course provide guided introductions.
 
 Where to go from here
 =====================

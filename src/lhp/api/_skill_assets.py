@@ -1,7 +1,7 @@
-"""File-system and version primitives for the LHP Claude Code skill.
+"""File-system and version primitives for bundled LHP agent skills.
 
-The skill content ships inside the package at ``lhp.resources.skills.lhp``
-and is copied into ``<base>/.claude/skills/lhp/`` on demand — the project
+The skill content ships inside ``lhp.resources.skills`` and is assembled
+into ``<base>/.claude/skills/<skill_name>/`` on demand — the project
 root for :meth:`lhp.api.SkillFacade.install_project_skill`, or the user's
 home directory for a ``--user`` CLI install. This module owns the pure
 I/O and version math: enumerating, copying, and clearing skill files,
@@ -35,22 +35,37 @@ logger = logging.getLogger(__name__)
 
 SKILL_PACKAGE = "lhp.resources.skills.lhp"
 SKILL_DIRNAME = "lhp"
+SKILL_PACKAGES = {
+    "lhp": SKILL_PACKAGE,
+    "lhp-learn": "lhp.resources.skills.lhp_learn",
+}
 MARKER_FILE = ".lhp_skill_version"
 EXCLUDED_NAMES = {"__init__.py", "__pycache__"}
 
 VersionComparison = Literal["same", "older", "newer"]
 
 
-def skill_install_dir(base: Path) -> Path:
+def skill_install_dir(base: Path, skill_name: str = "lhp") -> Path:
     """Return the skill install directory rooted at ``base``.
 
     ``base`` is the project root for a project install, or ``Path.home()``
     for a user-level install; the skill always lands under
-    ``<base>/.claude/skills/lhp/``.
+    ``<base>/.claude/skills/<skill_name>/``.
 
     :stability: provisional
     """
-    return base / ".claude" / "skills" / SKILL_DIRNAME
+    skill_package(skill_name)
+    return base / ".claude" / "skills" / skill_name
+
+
+def skill_package(skill_name: str) -> str:
+    """Resolve an allowlisted skill name, rejecting arbitrary resource paths.
+
+    :stability: provisional
+    """
+    if skill_name not in SKILL_PACKAGES:
+        raise ValueError(f"Unknown skill {skill_name!r}; choose lhp or lhp-learn")
+    return SKILL_PACKAGES[skill_name]
 
 
 def current_version() -> str:
@@ -99,7 +114,7 @@ def write_marker(install_dir: Path, version_str: str) -> None:
     marker_path.write_text(version_str + "\n", encoding="utf-8")
 
 
-def enumerate_skill_files() -> List[str]:
+def enumerate_skill_files(skill_name: str = "lhp") -> List[str]:
     """Sorted relative POSIX paths of the packaged skill files.
 
     Excludes ``__init__.py`` and ``__pycache__`` so only the rendered skill
@@ -107,8 +122,19 @@ def enumerate_skill_files() -> List[str]:
 
     :stability: provisional
     """
-    package_root = files(SKILL_PACKAGE)
-    collected: List[str] = []
+    return sorted(skill_files(skill_name))
+
+
+def skill_files(skill_name: str = "lhp") -> dict[str, bytes]:
+    """Assemble a self-contained skill from one maintained technical source.
+
+    Both skills carry technical references, but only lhp-learn carries lessons.
+    The authoring entrypoint is never copied into the learning skill.
+
+    :stability: provisional
+    """
+    package_root = files(skill_package(skill_name))
+    collected: dict[str, bytes] = {}
 
     def collect(node: Traversable, rel: str = "") -> None:
         for item in node.iterdir():
@@ -119,14 +145,24 @@ def enumerate_skill_files() -> List[str]:
             if item.is_dir():
                 collect(item, child_rel)
             elif item.is_file():
-                collected.append(child_rel)
+                collected[child_rel] = item.read_bytes()
 
     collect(package_root)
-    collected.sort()
+    if skill_name == "lhp-learn":
+        collect(files(SKILL_PACKAGE) / "references", "references")
+    setup = "references/setup.md"
+    if setup in collected:
+        collected[setup] = (
+            collected[setup]
+            .decode("utf-8")
+            .replace("@@SKILL_NAME@@", skill_name)
+            .replace("@@SKILL_PACKAGE@@", skill_name.replace("-", "_"))
+            .encode("utf-8")
+        )
     return collected
 
 
-def copy_skill_files(install_dir: Path) -> None:
+def copy_skill_files(install_dir: Path, skill_name: str = "lhp") -> None:
     """Copy every packaged skill file into ``install_dir``.
 
     Creates ``install_dir`` and any intermediate directories. Existing files
@@ -135,15 +171,10 @@ def copy_skill_files(install_dir: Path) -> None:
     :stability: provisional
     """
     install_dir.mkdir(parents=True, exist_ok=True)
-    package_root = files(SKILL_PACKAGE)
-
-    for rel in enumerate_skill_files():
+    for rel, content in skill_files(skill_name).items():
         target = install_dir / rel
         target.parent.mkdir(parents=True, exist_ok=True)
-        source = package_root
-        for part in rel.split("/"):
-            source = source / part
-        target.write_text(source.read_text(encoding="utf-8"), encoding="utf-8")
+        target.write_bytes(content)
         logger.debug(f"Wrote skill file: {target}")
 
 
@@ -171,7 +202,7 @@ def remove_install_dir(install_dir: Path) -> None:
     shutil.rmtree(install_dir)
 
 
-def extra_files(install_dir: Path) -> List[str]:
+def extra_files(install_dir: Path, skill_name: str = "lhp") -> List[str]:
     """Files present in ``install_dir`` but not in the packaged source.
 
     Excludes the marker file (``update`` rewrites it). Returns an empty list
@@ -182,7 +213,7 @@ def extra_files(install_dir: Path) -> List[str]:
     if not install_dir.exists():
         return []
 
-    expected = set(enumerate_skill_files())
+    expected = set(enumerate_skill_files(skill_name))
     extras: List[str] = []
     for path in install_dir.rglob("*"):
         if not path.is_file():

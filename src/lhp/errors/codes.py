@@ -130,6 +130,8 @@ IO_027 = ErrorCode(ErrorCategory.IO, "027")
 # telemetry on|off`` when writing ``telemetry.json`` in the config directory
 # fails; suggests pointing ``LHP_CONFIG_DIR`` at a writable directory.
 IO_028 = ErrorCode(ErrorCategory.IO, "028")
+# IO_029: portable/Genie skill installation or read-back verification failed.
+IO_029 = ErrorCode(ErrorCategory.IO, "029")
 
 CFG_001 = ErrorCode(ErrorCategory.CONFIG, "001")
 CFG_002 = ErrorCode(ErrorCategory.CONFIG, "002")
@@ -328,6 +330,7 @@ ALL_CODES: tuple[ErrorCode, ...] = (
     IO_026,
     IO_027,
     IO_028,
+    IO_029,
     CFG_001,
     CFG_002,
     CFG_003,
@@ -481,6 +484,7 @@ __all__ = [
     "IO_026",
     "IO_027",
     "IO_028",
+    "IO_029",
     "VAL_001",
     "VAL_002",
     "VAL_003",

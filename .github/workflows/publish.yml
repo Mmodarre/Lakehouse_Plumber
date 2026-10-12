@@ -2,177 +2,169 @@ name: Build and Publish to PyPI
 
 on:
   workflow_run:
-    workflows: ["Tests"]
-    types:
-      - completed
-    branches: [ "main" ]
-  workflow_dispatch:  # Allow manual triggering
+    workflows: [Tests]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
 
 permissions:
-  contents: write    # Required for creating git tags
-  id-token: write    # Required for trusted publishing to PyPI and SLSA provenance
-  actions: read      # Required for SLSA provenance generation
+  contents: read
+
+concurrency:
+  group: lhp-release
+  cancel-in-progress: false
 
 jobs:
-  check-version:
-    runs-on: ubuntu-latest
-    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
+  prepare:
+    if: >-
+      (github.event_name == 'workflow_run' &&
+       github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_repository.full_name == github.repository) ||
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+      actions: read
     outputs:
-      version: ${{ steps.get_version.outputs.version }}
-      should_publish: ${{ steps.check_pypi.outputs.should_publish }}
+      sha: ${{ steps.metadata.outputs.sha }}
+      version: ${{ steps.metadata.outputs.version }}
+      publish: ${{ steps.metadata.outputs.publish }}
+      release: ${{ steps.metadata.outputs.release }}
+    env:
+      SOURCE_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+      GH_TOKEN: ${{ github.token }}
     steps:
-    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
-
-    - name: Get current version from pyproject.toml
-      id: get_version
-      run: |
-        VERSION=$(grep -E '^version = ' pyproject.toml | sed 's/version = "\(.*\)"/\1/')
-        echo "Current version: $VERSION"
-        echo "version=$VERSION" >> $GITHUB_OUTPUT
-
-    - name: Check if version exists on PyPI
-      id: check_pypi
-      run: |
-        PACKAGE_NAME="lakehouse-plumber"
-        CURRENT_VERSION="${{ steps.get_version.outputs.version }}"
-        HTTP_STATUS=$(curl -s -A "GitHub-Actions-CI" -o /dev/null -w "%{http_code}" "https://pypi.org/pypi/${PACKAGE_NAME}/${CURRENT_VERSION}/json")
-        if [ "$HTTP_STATUS" = "200" ]; then
-          echo "Version ${CURRENT_VERSION} already exists on PyPI"
-          echo "should_publish=false" >> $GITHUB_OUTPUT
-        elif [ "$HTTP_STATUS" = "404" ]; then
-          echo "Version ${CURRENT_VERSION} does not exist on PyPI - will publish"
-          echo "should_publish=true" >> $GITHUB_OUTPUT
-        else
-          echo "Unexpected HTTP status: $HTTP_STATUS - assuming new version"
-          echo "should_publish=true" >> $GITHUB_OUTPUT
-        fi
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.SOURCE_SHA }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.12'
+      - name: Require successful main-branch CI for this exact commit
+        run: |
+          count=$(gh run list --workflow python_ci.yml --commit "$SOURCE_SHA" --branch main --event push --status success --json databaseId --jq 'length')
+          test "$count" -gt 0
+      - name: Validate release identity and package-index state
+        id: metadata
+        run: python scripts/release_metadata.py
 
   build:
-    needs: check-version
-    if: needs.check-version.outputs.should_publish == 'true'
-    runs-on: ubuntu-latest
-    outputs:
-      hashes: ${{ steps.hash.outputs.hashes }}
+    needs: prepare
+    if: needs.prepare.outputs.release == 'true'
+    runs-on: ubuntu-22.04
+    env:
+      UV_PROJECT_ENVIRONMENT: .lhp-release-env
     steps:
-    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.prepare.outputs.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: web_app/package-lock.json
+      - name: Verify lock and build canonical distributions
+        run: |
+          python -m pip install uv==0.12.23 twine==6.2.0
+          uv lock --check
+          python scripts/render_agent_guides.py --check
+          bash scripts/build_webapp.sh
+          SOURCE_DATE_EPOCH=$(git log -1 --pretty=%ct) uv build --build-constraints scripts/release-build-requirements.txt
+          python -m twine check dist/*
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: dist
+          path: dist/*
+          if-no-files-found: error
 
-    - name: Set up Python
-      uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
-      with:
-        python-version: "3.12"
-
-    - name: Install build dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install build twine
-
-    - name: Clean build artifacts
-      run: |
-        rm -rf build/ dist/ src/*.egg-info/
-        find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
-        find . -name "*.pyc" -delete 2>/dev/null || true
-
-    # Stage the web IDE SPA assets (src/lhp/webapp/static/, gitignored) into the
-    # tree BEFORE `python -m build` so they ship in the published wheel.
-    # build_webapp.sh is the single source of truth for the build/sync sequence.
-    - name: Set up Node.js
-      uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7.0.0
-      with:
-        node-version: "22"
-        cache: npm
-        cache-dependency-path: web_app/package-lock.json
-
-    - name: Build web IDE SPA and stage wheel assets
-      run: |
-        bash scripts/build_webapp.sh
-
-    - name: Build package (reproducible)
-      run: |
-        SOURCE_DATE_EPOCH=$(git log -1 --pretty=%ct) python -m build
-        if [ ! -d "dist" ] || [ -z "$(ls -A dist)" ]; then
-          echo "Build failed - no distribution files found"
-          exit 1
-        fi
-
-    - name: Verify package
-      run: |
-        python -m twine check dist/*
-        echo "Files to upload:"
-        ls -la dist/
-
-    - name: Generate hashes
-      id: hash
-      run: |
-        cd dist && echo "hashes=$(sha256sum * | base64 -w0)" >> $GITHUB_OUTPUT
-
-    - name: Upload build artifacts
-      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
-      with:
-        name: dist
-        path: dist/
-
-  # SLSA provenance — generates a signed attestation linking artifacts to this build
-  # Runs in parallel with publish; does not block the release
-  provenance:
-    needs: [build]
-    permissions:
-      actions: read
-      id-token: write
-      contents: write
-    # Reusable workflow from OpenSSF — referenced by tag (trusted org, signed releases)
-    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@v2.1.0
+  offline:
+    needs: [prepare, build]
+    uses: ./.github/workflows/offline-bundles.yml
     with:
-      base64-subjects: "${{ needs.build.outputs.hashes }}"
+      source-sha: ${{ needs.prepare.outputs.sha }}
+      distribution-artifact: dist
+
+  stage-release:
+    needs: [prepare, build, offline]
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    env:
+      VERSION: ${{ needs.prepare.outputs.version }}
+      SOURCE_SHA: ${{ needs.prepare.outputs.sha }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.SOURCE_SHA }}
+          persist-credentials: false
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: dist
+          path: release-assets
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: offline-*
+          merge-multiple: true
+          path: release-assets
+      - name: Check completeness and create release checksums
+        run: |
+          test "$(find release-assets -name '*.zip' | wc -l)" -eq 4
+          cd release-assets
+          sha256sum *.whl *.tar.gz *.zip > SHA256SUMS
+      - name: Attest canonical distributions and offline archives
+        uses: actions/attest-build-provenance@43d14bc2b83dec42d39ecae14e916627a18bb661 # v3
+        with:
+          subject-path: release-assets/*
+      - name: Stage all assets in a draft release
+        run: |
+          tag_sha=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/v$VERSION" --jq '.object.sha' 2>/dev/null || true)
+          if [ -z "$tag_sha" ]; then
+            gh api "repos/$GITHUB_REPOSITORY/git/refs" --method POST -f ref="refs/tags/v$VERSION" -f sha="$SOURCE_SHA"
+          else
+            test "$tag_sha" = "$SOURCE_SHA"
+          fi
+          if ! gh release view "v$VERSION" >/dev/null 2>&1; then
+            gh release create "v$VERSION" --verify-tag --draft --title "LHP $VERSION" --generate-notes
+          fi
+          python scripts/publish_release_assets.py release-assets
 
   publish:
-    needs: [check-version, build]
-    runs-on: ubuntu-latest
+    needs: [prepare, stage-release]
+    if: needs.prepare.outputs.publish == 'true'
+    runs-on: ubuntu-22.04
     permissions:
-      id-token: write  # OIDC trusted publishing
+      id-token: write
     steps:
-    - name: Download build artifacts
-      uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
-      with:
-        name: dist
-        path: dist/
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: dist
+          path: dist
+      - uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2
+        with:
+          print-hash: true
 
-    - name: Show package information
-      run: |
-        echo "Package: lakehouse-plumber"
-        echo "Version: ${{ needs.check-version.outputs.version }}"
-        echo "Files:"
-        ls -la dist/
-
-    - name: Publish to PyPI
-      uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33  # v1.14.2
-      with:
-        print-hash: true
-        verbose: true
-
-  tag:
-    needs: [check-version, publish]
-    runs-on: ubuntu-latest
+  publish-github:
+    needs: [prepare, stage-release, publish]
+    if: >-
+      always() && needs.stage-release.result == 'success' &&
+      (needs.publish.result == 'success' ||
+       (needs.publish.result == 'skipped' && needs.prepare.outputs.publish == 'false'))
+    runs-on: ubuntu-22.04
     permissions:
       contents: write
+    env:
+      VERSION: ${{ needs.prepare.outputs.version }}
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
     steps:
-    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
-
-    - name: Create Git tag
-      run: |
-        VERSION="${{ needs.check-version.outputs.version }}"
-        echo "Creating git tag v${VERSION}..."
-        git config --local user.email "action@github.com"
-        git config --local user.name "GitHub Action"
-        git tag -a "v${VERSION}" -m "Release version ${VERSION}"
-        git push origin "v${VERSION}"
-        echo "Successfully published lakehouse-plumber v${VERSION} to PyPI!"
-        echo "PyPI page: https://pypi.org/project/lakehouse-plumber/${VERSION}/"
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  skip:
-    needs: check-version
-    if: needs.check-version.outputs.should_publish == 'false'
-    runs-on: ubuntu-latest
-    steps:
-    - run: echo "Version ${{ needs.check-version.outputs.version }} already exists on PyPI. Skipping publication."
+      - name: Publish the fully populated GitHub release
+        run: gh release edit "v$VERSION" --draft=false

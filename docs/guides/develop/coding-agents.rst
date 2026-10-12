@@ -30,29 +30,139 @@ grounded agent and a guessing one.
 Before you start
 ================
 
-You need Lakehouse Plumber installed and an LHP project to work in — a directory
-with an ``lhp.yaml``. If you followed the Get Started course you already have
-one; otherwise scaffold an empty project first.
+For a guided setup, copy the complete `build prompt <../../agent.md>`_ or
+`learning prompt <../../learn.md>`_ into your coding agent. Both include their
+own installation instructions; website access is not required by the agent.
+The learning prompt selects the separate ``lhp-learn`` skill. It assumes
+Databricks, Python and SQL experience and begins with Lesson 0: concepts and a
+short overview of each capability. It then guides file inspection and learner-led
+edits one checkpoint at a time, waiting for readiness before continuing. Progress
+is saved in ``.lhp/learning-progress.md`` in the learning project.
 
-You also need a coding agent. The ``lhp skill`` command installs the skill for
-Claude Code specifically — it writes into the ``.claude/`` config directory. Any
-agent that reads Markdown can use the same content; the last section covers that.
+If installing manually, use the routes below. Claude project installation needs
+an ``lhp.yaml``; portable export and Genie installation work before scaffolding.
 
-What the skill is
-=================
+Two skills, one package
+=======================
 
-The skill ships inside the ``lakehouse-plumber`` package, under
-``src/lhp/resources/skills/lhp/``. It is two things:
+Both skills ship with the same ``lakehouse-plumber`` release and work offline:
 
-- ``SKILL.md`` — the index an agent loads first. It carries the core
-  architecture summary, the substitution syntax, the action-type catalogue, and
-  a short list of the mistakes an agent most often makes.
-- ``references/`` — forty topic-scoped Markdown files: one leaf file per action
-  sub-type (thirty of them — ``actions-load-cloudfiles.md``,
-  ``actions-transform-sql.md``, ``actions-write-streaming-table-cdc.md``, and so
-  on) plus ten topic references (``cdc-patterns.md``, ``best-practices.md``,
-  ``errors.md``, and the rest). The agent loads only the leaves it needs for the
-  task in front of it.
+- ``lhp`` handles development: authoring, configuration, debugging, validation,
+  generation and direct technical explanations. It contains no course lessons.
+- ``lhp-learn`` handles explicit teaching requests: Lesson 0, the guided sample
+  course, learner exercises, saved progress and advanced topic lessons. It ends
+  each checkpoint and waits for the learner to continue.
+
+Their ``SKILL.md`` entrypoints select different behaviours. Technical references
+are maintained once under ``src/lhp/resources/skills/lhp/references/`` and copied
+into each exported skill. The curriculum source is under
+``src/lhp/resources/skills/lhp_learn/``. An exported teaching skill is self-contained
+and does not need the development skill installed or loaded.
+
+The build prompt installs ``lhp``; the learning prompt installs ``lhp-learn``.
+Existing commands default to ``lhp``. Use ``--name lhp-learn`` to select teaching
+for install, export, update, status or uninstall. The selector changes only the
+selected skill; teaching installation adds no project-wide development routing
+block. You can install both in separate folders.
+
+Install for Genie Code
+======================
+
+Run in the authenticated notebook Python context so notebook credentials are
+available:
+
+.. code-block:: python
+
+   from lhp.api import SkillFacade
+   result = SkillFacade().install_genie_skill(skill_name="lhp")
+   print(result.install_dir)
+
+The installer uses the Databricks SDK already in the environment, or the optional
+``lakehouse-plumber[genie]`` dependency group. It obtains the authenticated user's
+identity, uploads the complete skill to
+``/Users/<user>/.assistant/skills/lhp`` through the Workspace API and verifies
+the resulting contents. Its filesystem path begins with ``/Workspace/Users/``.
+This is Genie's default user skills folder, so custom-folder registration is
+unnecessary. A CLI equivalent, ``lhp skill install --agent genie``, is available
+when that process has workspace authentication. For teaching, pass
+``skill_name="lhp-learn"`` to the API or add ``--name lhp-learn`` to the CLI;
+the destination then ends in ``.assistant/skills/lhp-learn``.
+
+Read the installed skill explicitly to continue the current conversation. Native
+discovery in a new chat is a separate check; changed skill metadata may require a
+new chat. Installation success does not prove that Genie loaded the skill.
+
+Export for another agent
+========================
+
+.. code-block:: console
+
+   lhp skill export --output /path/to/skills/lhp
+   lhp skill export --name lhp-learn --output /path/to/skills/lhp-learn
+
+Use the agent's supported skills location, or point it directly at this directory.
+The Python equivalent is
+``SkillFacade().export_skill(Path(...), skill_name="lhp-learn")`` for teaching,
+or omit the keyword for development. Export and
+Genie installation resume identical/partial installations and reject differing
+files with ``LHP-IO-020``. Preserve edits before moving an old copy aside. They do
+not use the destructive refresh behaviour of the legacy Claude update command.
+``LHP-IO-029`` reports installation/access/verification failures with a safe failure
+category; notebook Python also preserves the underlying chained exception.
+
+Install without package-index access
+====================================
+
+When an agent cannot retrieve a suitable package, it should give you a full,
+clickable `GitHub release URL <https://github.com/Mmodarre/Lakehouse_Plumber/releases/latest>`_,
+the exact matching filename and, when verified, direct download and checksum
+links. This applies to every coding agent. If a suitable release is unavailable,
+the agent should say so and accept a compatible file you supply.
+
+The fallback download is a **complete offline ZIP** containing LHP, both skills,
+all pinned CLI/Genie dependencies and the installer. Its filename is
+``lhp-offline-VERSION-SYSTEM-ARCH-py312.zip``. Agents should select this archive
+when pip cannot provide a usable installation, including when an internal index
+has only older releases. They should not ask you to collect dependency wheels.
+The standalone LHP wheel remains universal across macOS, Windows and Linux, but
+does not contain its dependencies and is not the offline fallback download.
+The release build produces four archives for **CPython 3.12**: Linux x86_64,
+Linux ARM64, macOS Apple Silicon and Windows x86_64. Select an actual release asset matching
+the **environment running Python**, including its OS, architecture and Python
+version. An agent running on Linux remotely needs Linux dependencies even if
+your laptop uses macOS or Windows. Archive filenames use ``darwin`` for macOS.
+If the offline environment uses another Python version, the agent helps you select
+a Python 3.12 environment or compatible Databricks compute. Intel macOS has no
+official offline archive. If no compatible environment or custom bundle is
+available, setup pauses instead of installing a mismatched archive.
+
+For local execution, download the ZIP and checksum into a folder on your machine
+and give the agent the ZIP's full path. A connected computer can download them
+for transfer to an offline machine. For a container, remote host or cloud workspace,
+the agent should guide you through transferring the files into a folder it can
+access, then verify and extract the ZIP.
+
+For Genie Code or another agent installing into Databricks, use **Workspace
+Files**. Open **Workspace**, choose a writable folder, then use its menu's
+**Import > File** to upload the ZIP after checking its published checksum.
+Workspace import extracts ZIPs; share the imported folder's workspace link
+with the agent. If it cannot resolve that link, use **Copy URL/path > Full path**
+on the folder and share the resulting path. See Databricks' `Workspace library
+upload instructions <https://docs.databricks.com/aws/en/libraries/workspace-files-libraries>`_.
+
+An offline archive contains pinned dependency wheels, hashes, a compatibility
+manifest, installation code and both agent prompts. Verify its published SHA256
+before extracting it. Workspace import extracts ZIPs automatically; share the
+imported folder's link and have the agent verify its manifest and files. Python
+and pip must already be installed; LHP Web's optional dependencies are not included.
+
+Run the archive's ``install.py`` with the selected interpreter, using an isolated
+environment on a desktop or notebook Python in Databricks. The installer performs
+the network-denied pip operation in a child process so it cannot disable
+subsequent Workspace API calls in the parent notebook.
+
+Notebook packages may need reinstalling after a compute session ends. Keep the
+version-pinned setup command; skill files in workspace storage persist separately.
 
 Because the skill ships with the package, it is pinned to the LHP version you
 have installed. The YAML keys, action sub-types, and error codes in the skill
@@ -140,8 +250,8 @@ What you just did
 =================
 
 One command wired LHP's knowledge base into your agent. The agent now authors
-flowgroup YAML from the same field tables and rules the CLI enforces — forty
-reference files, pinned to your installed LHP version — instead of guessing from
+flowgroup YAML from the packaged field tables and rules, pinned to your installed
+LHP version, instead of guessing from
 training data.
 
 You still own the output. The agent writes the YAML; you run ``lhp validate``
@@ -152,14 +262,10 @@ pipeline.
 What's next
 ===========
 
-- **Use a different agent.** ``lhp skill install`` targets Claude Code, but the
-  skill is plain Markdown. Run the install to put the files on disk, then point
-  Cursor or another tool at the same content — the installed copy under
-  ``.claude/skills/lhp/``, or the bundle shipped in the package at
-  ``src/lhp/resources/skills/lhp/`` — and hand it ``SKILL.md`` as the entry point.
-- **Keep the skill current.** Re-run ``lhp skill update`` after every ``pip
-  install -U lakehouse-plumber`` so the agent never authors against a version you
-  are not running.
+- **Use a different agent.** Export to its supported location and read ``SKILL.md``.
+- **Keep the skill current.** After upgrading LHP, export/install its matching
+  skill. Preserve differing copies before replacing them. The legacy Claude
+  ``lhp skill update`` command replaces its installed files.
 - **Read it yourself.** The reference content is correct for humans too, just
   denser and more list-driven than these guides. It is a fast lookup once you
-  know LHP; it is not where you learn LHP from scratch.
+  know LHP. For guided learning, select ``lhp-learn`` and its separate course.

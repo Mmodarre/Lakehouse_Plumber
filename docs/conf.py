@@ -4,6 +4,7 @@ import os
 import posixpath
 import sys
 from datetime import datetime
+from pathlib import Path
 
 # Add project root and src directory to sys.path so autodoc can find modules
 sys.path.insert(0, os.path.abspath(".."))
@@ -187,10 +188,15 @@ html_theme_options = {
         "color-background-border": "#4A4C53",
     },
 }
-# Both entry points use the repository as the canonical guide source.
+# Embed the complete guides so copied prompts work without agent web access.
 html_context = {
-    "lhp_agent_guides_base": "https://raw.githubusercontent.com/Mmodarre/"
-    "Lakehouse_Plumber/main/docs/_agent_guides",
+    "lhp_agent_prompts": {
+        mode: (Path(__file__).parent / "_agent_guides" / filename)
+        .read_text(encoding="utf-8")
+        .split("\n---\n", 1)[1]
+        .strip()
+        for mode, filename in (("onboard", "agent.md"), ("learn", "learn.md"))
+    },
 }
 
 # -- Analytics: GoatCounter (privacy-respecting, no cookies, free for OSS) ---
