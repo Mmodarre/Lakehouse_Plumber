@@ -495,7 +495,7 @@ actions:
     ) -> LHPValidationError:
         """Build a schema-syntax error. Returns code LHP-VAL-011."""
         code = codes.VAL_011
-        details = f"Invalid syntax in schema file '{file_path}'."
+        details = f"Invalid syntax in schema '{file_path}'."
         if line_content:
             details += f"\nProblematic content: {line_content}"
         details += f"\nExpected format: {expected_format}"
