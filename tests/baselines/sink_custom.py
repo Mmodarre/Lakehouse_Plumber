@@ -1,10 +1,7 @@
 # Custom sink: MyCustomDataSink
 
 # Register custom data sink
-try:
-    spark.dataSource.register(MyCustomDataSink)
-except Exception:
-    pass  # Already registered
+spark.dataSource.register(MyCustomDataSink)
 
 # Create custom sink
 dp.create_sink(

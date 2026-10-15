@@ -38,10 +38,7 @@ def v_test_sink_data():
 # Write to custom sink with wildcard imports and operational metadata
 
 # Register custom data sink
-try:
-    spark.dataSource.register(CustomSinkWithWildcard)
-except Exception:
-    pass  # Already registered
+spark.dataSource.register(CustomSinkWithWildcard)
 
 # Create custom sink
 dp.create_sink(

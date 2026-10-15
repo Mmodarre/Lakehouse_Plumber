@@ -125,7 +125,7 @@ output — nothing is hidden behind a runtime:
 .. literalinclude:: ../../_fixtures/guide_ingest_customds/generated/dev/bronze_rates/exchange_rates.py
    :language: python
    :caption: generated/dev/bronze_rates/exchange_rates.py
-   :emphasize-lines: 10,23,32
+   :emphasize-lines: 10,22,29
 
 Every piece of the wiring is here. LHP registered the class with
 ``spark.dataSource.register(ExchangeRatesDataSource)``, read it with
@@ -146,7 +146,7 @@ and the pipeline fails at run time with a pickling error.
 What you just did
 =================
 
-Twenty-two lines of flowgroup YAML compiled to sixty-two lines of Lakeflow
+Twenty-two lines of flowgroup YAML compiled to fifty-nine lines of Lakeflow
 Python. **Zero lines of the wiring came from you** — not the
 ``spark.dataSource.register`` call, not the ``format(...).load()`` read, not the
 ``@dp.temporary_view``, not the ``create_streaming_table`` / ``append_flow``, and
