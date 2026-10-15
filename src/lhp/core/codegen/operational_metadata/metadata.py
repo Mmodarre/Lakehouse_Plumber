@@ -2,7 +2,7 @@
 
 import logging
 import re
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, List, Mapping, Optional, Set
 
 from lhp.models import (
     Action,
@@ -12,7 +12,9 @@ from lhp.models import (
 )
 
 from ....errors import ErrorFactory, LHPError, codes
+from ...processing import EnhancedSubstitutionManager
 from ..imports import ImportDetector
+from .expression import resolve_metadata_expression
 
 logger = logging.getLogger(__name__)
 
@@ -61,12 +63,29 @@ class OperationalMetadataCatalog:
             "_flowgroup_name": 'lit("${flowgroup_name}")',
         }
 
-        self.pipeline_name = None
-        self.flowgroup_name = None
+        self.pipeline_name: Optional[str] = None
+        self.flowgroup_name: Optional[str] = None
+        self.substitution_mgr: Optional[EnhancedSubstitutionManager] = None
+        self.extra_context_tokens: Dict[str, str] = {}
 
-    def update_context(self, pipeline_name: str, flowgroup_name: str):
+    def update_context(
+        self,
+        pipeline_name: Optional[str],
+        flowgroup_name: Optional[str],
+        *,
+        substitution_mgr: Optional[EnhancedSubstitutionManager] = None,
+        extra_context_tokens: Optional[Mapping[str, str]] = None,
+    ):
+        """Set what expressions resolve against.
+
+        ``substitution_mgr`` carries the run's environment (``None`` keeps
+        context-token-only resolution); ``extra_context_tokens`` are
+        per-action context tokens such as ``source_table``.
+        """
         self.pipeline_name = pipeline_name
         self.flowgroup_name = flowgroup_name
+        self.substitution_mgr = substitution_mgr
+        self.extra_context_tokens = dict(extra_context_tokens or {})
 
     def adapt_expressions_for_imports(self, import_manager=None) -> None:
         """Applies to project-level custom columns via local copies — does not mutate shared project config."""
@@ -251,8 +270,12 @@ class OperationalMetadataCatalog:
                 column_config = available_columns[column_name]
                 if target_type in column_config.applies_to:
                     try:
-                        expression = self._apply_substitutions(column_config.expression)
+                        expression = self._apply_substitutions(
+                            column_name, column_config.expression
+                        )
                         result[column_name] = expression
+                    except LHPError:
+                        raise
                     except Exception as e:
                         raise ErrorFactory.config_error(
                             codes.CFG_009,
@@ -331,13 +354,19 @@ class OperationalMetadataCatalog:
                 },
             )
 
-    def _apply_substitutions(self, expression: str) -> str:
-        """Apply ``${pipeline_name}`` / ``${flowgroup_name}`` context substitutions."""
+    def _apply_substitutions(self, column_name: str, expression: str) -> str:
+        """Resolve one expression via the shared resolver (render == validate)."""
+        context_tokens = dict(self.extra_context_tokens)
         if self.pipeline_name:
-            expression = expression.replace("${pipeline_name}", self.pipeline_name)
+            context_tokens["pipeline_name"] = self.pipeline_name
         if self.flowgroup_name:
-            expression = expression.replace("${flowgroup_name}", self.flowgroup_name)
-        return expression
+            context_tokens["flowgroup_name"] = self.flowgroup_name
+        return resolve_metadata_expression(
+            column_name,
+            expression,
+            context_tokens=context_tokens,
+            substitution_mgr=self.substitution_mgr,
+        )
 
     def get_required_imports(self, columns: Dict[str, str]) -> Set[str]:
         """``columns`` is a dict of column_name -> expression as returned from ``get_selected_columns``."""

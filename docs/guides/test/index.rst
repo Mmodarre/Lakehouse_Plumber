@@ -1,28 +1,32 @@
-====
-Test
-====
+Check data quality
+==================
 
-.. meta::
-   :description: Test your data with Lakehouse Plumber test actions — the fourth action kind — and publish the results to an external system.
+.. raw:: html
 
-A **test action** is the fourth Lakehouse Plumber action kind, alongside load,
-transform, and write. It's a **unit test for your data**: a standalone assertion
-— uniqueness, a row count, referential integrity — that runs inside the pipeline
-on every update and reports pass or fail.
+   <span id="test"></span>
 
-- :doc:`data-tests` — declare a test action and let LHP generate the assertion.
-- :doc:`test-reporting` — forward every result to a Delta audit table, Azure
-  DevOps Test Plans, or your own endpoint.
 
-.. note::
+Choose a check by what should happen to the data.
 
-   A test action is different from a ``data_quality`` :doc:`transform
-   </guides/transform/data-quality>`: the transform gates rows *inside* a flow;
-   a test action asserts a property *about* a table and reports the outcome.
+.. list-table::
+   :header-rows: 1
+
+   * - I want to
+     - Use
+   * - Record, drop or fail rows based on rules inside a flow
+     - :doc:`Row expectations </guides/transform/data-quality>`
+   * - Keep invalid rows for inspection and recycling
+     - :doc:`Quarantine </guides/transform/quarantine>`
+   * - Assert row counts, uniqueness, relationships or other dataset properties
+     - :doc:`Test actions <data-tests>`
+   * - Publish test outcomes to another system
+     - :doc:`Test reporting <test-reporting>`
 
 .. toctree::
    :maxdepth: 1
    :hidden:
 
+   Row expectations </guides/transform/data-quality>
+   Quarantine </guides/transform/quarantine>
    Data tests <data-tests>
    Test reporting <test-reporting>

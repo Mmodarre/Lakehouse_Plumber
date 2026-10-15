@@ -18,6 +18,9 @@ logger = logging.getLogger(__name__)
 
 
 class SinkWriteGenerator(BaseActionGenerator):
+    # Every per-``sink_type`` generator below renders metadata columns.
+    renders_operational_metadata = True
+
     def __init__(self):
         super().__init__(use_import_manager=True)
         self.generators = {

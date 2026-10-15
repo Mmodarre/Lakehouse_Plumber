@@ -16,6 +16,8 @@ from jinja2 import (
 from jinja2.exceptions import TemplateNotFound
 
 from ...errors import ErrorFactory, codes
+from ...utils.python_literals import PYTHON_LITERAL_FILTERS
+from ...utils.spark_identifiers import spark_column_ref
 from ...utils.yaml_filters import dict_to_yaml
 
 logger = logging.getLogger(__name__)
@@ -24,6 +26,19 @@ logger = logging.getLogger(__name__)
 def get_lhp_template_loader() -> PackageLoader:
     """Single source of truth for LHP package-template location; renames/moves are a one-line change here."""
     return PackageLoader("lhp", "templates")
+
+
+def register_python_literal_filters(env: Environment) -> None:
+    """Register the Python-literal template filters on ``env``.
+
+    Adds ``py_str``, ``py_str_single``, ``py_block``, ``py_literal`` and
+    ``py_comment`` (``lhp.utils.python_literals.PYTHON_LITERAL_FILTERS``). The
+    shared generator environment, :class:`TemplateRenderer` and the
+    test-reporting and UC-tagging hook environments call this. The sandbox
+    runtime-shim environment applies the same mapping directly, because
+    ``core/sandbox`` must not import from ``core/codegen``.
+    """
+    env.filters.update(PYTHON_LITERAL_FILTERS)
 
 
 @functools.lru_cache(maxsize=1)
@@ -55,6 +70,8 @@ def get_shared_generator_environment() -> Environment:
     )
     env.filters["tojson"] = json.dumps
     env.filters["toyaml"] = yaml.dump
+    env.filters["spark_column_ref"] = spark_column_ref
+    register_python_literal_filters(env)
     return env
 
 
@@ -68,6 +85,8 @@ class TemplateRenderer:
 
         self.env.filters["tojson"] = json.dumps
         self.env.filters["toyaml"] = dict_to_yaml
+        self.env.filters["spark_column_ref"] = spark_column_ref
+        register_python_literal_filters(self.env)
 
     @classmethod
     def from_package(cls) -> "TemplateRenderer":

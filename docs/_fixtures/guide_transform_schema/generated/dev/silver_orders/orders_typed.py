@@ -3,7 +3,6 @@
 # FlowGroup: orders_typed
 
 from pyspark.sql import functions as F
-from pyspark.sql.types import StructType
 from pyspark import pipelines as dp
 
 # Pipeline Configuration

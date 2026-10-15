@@ -1,28 +1,28 @@
 @dp.temporary_view()
 def {{ target }}():
-    """{{ description }}"""
+    """{{ description|py_block }}"""
     {% if readMode == "stream" %}
     df = spark.readStream{% if reader_options %}{% for key, value in reader_options.items() %} \
-        .option("{{ key }}", {% if value is boolean %}{{ value|string|title }}{% elif value is number %}{{ value }}{% else %}"{{ value|replace('\\', '\\\\')|replace('"', '\\"') }}"{% endif %}){% endfor %}{% endif %}.table("{{ table_ref }}")
+        .option({{ key|py_str }}, {% if value is boolean %}{{ value|string|title }}{% elif value is number %}{{ value }}{% else %}{{ value|py_str }}{% endif %}){% endfor %}{% endif %}.table({{ table_ref|py_str }})
     {% else %}
     df = spark.read{% if reader_options %}{% for key, value in reader_options.items() %} \
-        .option("{{ key }}", {% if value is boolean %}{{ value|string|title }}{% elif value is number %}{{ value }}{% else %}"{{ value|replace('\\', '\\\\')|replace('"', '\\"') }}"{% endif %}){% endfor %}{% endif %}.table("{{ table_ref }}")
+        .option({{ key|py_str }}, {% if value is boolean %}{{ value|string|title }}{% elif value is number %}{{ value }}{% else %}{{ value|py_str }}{% endif %}){% endfor %}{% endif %}.table({{ table_ref|py_str }})
     {% endif %}
     {% if where_clauses %}
     {% for clause in where_clauses %}
-    df = df.where("{{ clause }}")
+    df = df.where({{ clause|py_str }})
     {% endfor %}
     {% endif %}
     {% if select_columns %}
     
     # Apply column selection
-    df = df.select({{ select_columns | tojson }})
+    df = df.select({{ select_columns|py_literal }})
     {% endif %}
     {% if add_operational_metadata %}
     
     # Add operational metadata columns
     {% for col_name, expression in metadata_columns.items()|sort %}
-    df = df.withColumn('{{ col_name }}', {{ expression }})
+    df = df.withColumn({{ col_name|py_str_single }}, {{ expression }})
     {% endfor %}
     {% endif %}
     

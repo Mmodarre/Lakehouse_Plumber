@@ -3,7 +3,6 @@
 # FlowGroup: orders_clean
 
 from pyspark.sql import functions as F
-from pyspark.sql.types import StructType
 from pyspark import pipelines as dp
 from custom_python_functions.normalize_tz import normalize_timestamps
 

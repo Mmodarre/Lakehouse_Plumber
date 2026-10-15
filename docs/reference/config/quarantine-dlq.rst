@@ -22,7 +22,7 @@ them. It is enabled per action, and both DLQ tables are user-managed DDL::
 
 .. seealso::
 
-   How-to guide: :doc:`/guides/transform/quarantine`.
+   How-to guide and recovery-path diagram: :doc:`/guides/transform/quarantine`.
 
 Action fields
 -------------

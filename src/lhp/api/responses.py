@@ -219,7 +219,7 @@ class StatsResult:
       by model validation rather than by this module's allow-lists;
     * ``write_<streaming_table|materialized_view|sink>``, or
       ``write_other`` for an unreadable write target;
-    * ``write_mode_<standard|cdc|snapshot_cdc>`` (``write_mode_other``
+    * ``write_mode_<standard|cdc|snapshot_cdc|replace>`` (``write_mode_other``
       otherwise) for non-sink writes only;
     * ``test_<test type>``, or ``test_other`` for an unknown one;
     * ``tables`` — the number of DISTINCT non-sink targets written, so a
@@ -499,7 +499,7 @@ class WheelExtractionResult:
 
 @dataclass(frozen=True)
 class SkillInstallResult:
-    """Outcome of installing the LHP Claude Code skill into a project.
+    """Outcome of installing or exporting the bundled LHP agent skill.
 
     A one-shot result DTO (§1.3) returned by
     :meth:`lhp.api.SkillFacade.install_project_skill`. Like
@@ -514,6 +514,12 @@ class SkillInstallResult:
     enumerates the copied skill files as relative POSIX paths;
     ``routing_block_status`` reports what happened to the project
     ``CLAUDE.md`` routing block.
+
+    Portable export and Genie installation also return this DTO. They leave
+    routing unchanged, report ``action='installed'`` after verifying all files
+    (including a repeated identical install), and include manifest files in
+    ``installed_files``. They preserve differing destinations rather than refresh
+    them; ``previous_version`` is therefore ``None`` for these operations.
 
     :stability: provisional
     """
@@ -673,7 +679,8 @@ class SandboxScopeResult:
     are the concrete names those patterns expand to (monitoring excluded),
     empty when resolution failed or no profile exists; ``allowed_envs`` are
     the environments the team ``sandbox:`` policy permits, or ``None`` when
-    unrestricted.
+    unrestricted. ``strategy`` and ``table_pattern`` report the effective team
+    policy, including defaults, even when no profile exists.
 
     :stability: provisional
     """
@@ -684,6 +691,8 @@ class SandboxScopeResult:
     resolved_pipelines: Tuple[str, ...] = ()
     allowed_envs: Optional[Tuple[str, ...]] = None
     error: Optional[str] = None
+    strategy: Literal["table"] = "table"
+    table_pattern: str = "{namespace}_{table}"
 
 
 # ``ValidationIssueView`` / ``PipelineStats`` / ``DatasetView`` are

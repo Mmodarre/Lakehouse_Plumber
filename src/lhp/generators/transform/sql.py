@@ -5,7 +5,7 @@ from pathlib import Path
 
 from lhp.models import Action
 
-from ...core.loaders.external_file_loader import load_external_file_text
+from ...core.loaders import load_sql_file
 from ...core.registry import BaseActionGenerator
 from ...errors import ErrorFactory
 
@@ -13,6 +13,8 @@ logger = logging.getLogger(__name__)
 
 
 class SQLTransformGenerator(BaseActionGenerator):
+    renders_operational_metadata = True
+
     def __init__(self):
         super().__init__()
         self.add_import("from pyspark import pipelines as dp")
@@ -52,19 +54,27 @@ class SQLTransformGenerator(BaseActionGenerator):
     def _get_sql_query(
         self, action: Action, spec_dir: Path | None = None, context: dict | None = None
     ) -> str:
-        sql_content = None
+        substitution_mgr = context.get("substitution_manager") if context else None
 
         if action.sql:
             sql_content = action.sql.strip()
+            if substitution_mgr is not None:
+                sql_content = substitution_mgr._process_string(sql_content)
         elif action.sql_path:
             project_root = (
                 context.get("project_root", Path.cwd())
                 if context
                 else (spec_dir or Path.cwd())
             )
-            sql_content = load_external_file_text(
-                action.sql_path, project_root, file_type="SQL file"
-            ).strip()
+            flowgroup = context.get("flowgroup") if context else None
+            sql_content = load_sql_file(
+                action.sql_path,
+                project_root,
+                substitution_mgr,
+                pipeline=getattr(flowgroup, "pipeline", None),
+                flowgroup=getattr(flowgroup, "flowgroup", None),
+                action=action.name,
+            )
         else:
             raise ErrorFactory.missing_required_field(
                 field_name="sql/sql_path",
@@ -82,10 +92,7 @@ class SQLTransformGenerator(BaseActionGenerator):
     # sql_path: "queries/transform.sql" """,
             )
 
-        if context and "substitution_manager" in context:
-            substitution_mgr = context["substitution_manager"]
-            sql_content = substitution_mgr._process_string(sql_content)
-
+        if context and substitution_mgr is not None:
             secret_refs = substitution_mgr.secret_references
             if (
                 "secret_references" in context

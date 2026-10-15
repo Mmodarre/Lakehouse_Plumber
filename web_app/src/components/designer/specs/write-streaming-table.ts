@@ -32,8 +32,8 @@
 //   write_target.comment                 streaming_table.py:247; models/_action.py:26
 //   write_target.table_schema            streaming_table.py:79-98 (inline DDL OR file path; is_file_path → .yaml/.yml/.json/.sql)
 //   write_target.row_filter              streaming_table.py:100; models/_action.py:34
-//   write_target.partition_columns       streaming_table.py:244; models/_action.py:29
-//   write_target.cluster_columns         streaming_table.py:245 (XOR cluster_by_auto)
+//   write_target.partition_columns       streaming_table.py:244; models/_action.py:29 (exclusive with cluster_columns / cluster_by_auto)
+//   write_target.cluster_columns         streaming_table.py:245 (combinable with cluster_by_auto)
 //   write_target.cluster_by_auto         streaming_table.py:246; models/_action.py:31
 //   write_target.path                    streaming_table.py:248; models/_action.py:36
 //   write_target.table_properties        streaming_table.py:76-77; models/_action.py:27
@@ -426,14 +426,6 @@ export const writeStreamingTableSpec: ActionSubTypeSpec = {
   ],
   rules: [
     {
-      kind: 'mutuallyExclusive',
-      paths: [
-        ['write_target', 'cluster_columns'],
-        ['write_target', 'cluster_by_auto'],
-      ],
-      message: 'Set only one of cluster columns / auto clustering.',
-    },
-    {
       kind: 'custom',
       paths: [['write_target', 'create_table']],
       check: (raw) =>
@@ -448,6 +440,28 @@ export const writeStreamingTableSpec: ActionSubTypeSpec = {
         ['write_target', 'tags_file'],
       ],
       message: 'Set inline tags or a tags file, not both.',
+    },
+    {
+      // PARTITIONED BY and CLUSTER BY are mutually exclusive on Databricks
+      // (dlt_table_options.py _validate_column_options, issue #297). Two
+      // PAIRWISE rules: a single three-way rule would also flag
+      // cluster_columns + cluster_by_auto, which is legal (issue #282).
+      kind: 'mutuallyExclusive',
+      paths: [
+        ['write_target', 'partition_columns'],
+        ['write_target', 'cluster_columns'],
+      ],
+      message:
+        'Set partition columns or cluster columns, not both — Databricks does not allow partitioning with liquid clustering.',
+    },
+    {
+      kind: 'mutuallyExclusive',
+      paths: [
+        ['write_target', 'partition_columns'],
+        ['write_target', 'cluster_by_auto'],
+      ],
+      message:
+        'Set partition columns or auto clustering, not both — Databricks does not allow partitioning with liquid clustering.',
     },
     // cdc mode -----------------------------------------------------------
     {

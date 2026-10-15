@@ -35,10 +35,7 @@ def v_helper_sink_seed():
 # Write seed rows to a custom sink backed by a helper closure
 
 # Register custom data sink
-try:
-    spark.dataSource.register(HelperBackedSink)
-except Exception:
-    pass  # Already registered
+spark.dataSource.register(HelperBackedSink)
 
 # Create custom sink
 dp.create_sink(

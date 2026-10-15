@@ -1,5 +1,6 @@
 """Tests for sink write generators of LakehousePlumber."""
 
+import ast
 import shutil
 import tempfile
 from pathlib import Path
@@ -640,6 +641,40 @@ class MyCustomDataSink:
         assert self.generator.get_pre_pipeline_statements() == [
             "_lhp_cloudpickle.register_pickle_by_value(custom_python_functions)"
         ]
+
+    def test_register_failure_is_not_swallowed(self):
+        """Registration is a bare module-level statement (#326)."""
+        (self.project_root / "my_sink.py").write_text(
+            "class MyCustomDataSink:\n"
+            "    @classmethod\n"
+            "    def name(cls):\n"
+            '        return "my_custom_format"\n'
+        )
+        action = Action(
+            name="write_custom_sink",
+            type=ActionType.WRITE,
+            source="v_data",
+            write_target={
+                "type": "sink",
+                "sink_type": "custom",
+                "sink_name": "custom_sink",
+                "module_path": "my_sink.py",
+                "custom_sink_class": "MyCustomDataSink",
+            },
+        )
+        context = {
+            "spec_dir": self.project_root,
+            "flowgroup": FlowGroup(pipeline="p_test", flowgroup="fg_test"),
+        }
+
+        code = self.generator.generate(action, context)
+
+        top_level_statements = [
+            ast.unparse(stmt)
+            for stmt in ast.parse(code).body
+            if isinstance(stmt, ast.Expr)
+        ]
+        assert "spark.dataSource.register(MyCustomDataSink)" in top_level_statements
 
     def test_generate_missing_module_path(self):
         """Test generation with missing module_path raises error."""

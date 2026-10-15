@@ -2,13 +2,13 @@
 
 `type: load` with `source.type: sql`. Materializes a SQL query into a temporary view. Handler: `SQLLoadGenerator`.
 
-`source:` may be an inline SQL string, or a dict carrying `sql` or `sql_path`.
+`source:` must be a mapping with `type: sql` and exactly one of `sql` or `sql_path`. The public validation path rejects a scalar SQL source.
 
 ## Options (under `source:`)
 
 | Key | Type | Default | Accepted / constraints |
 |-----|------|---------|------------------------|
-| `source` | string / dict | — | Inline SQL string, or a dict with `sql` or `sql_path`. |
+| `type` | string | required | Must be `sql`. |
 | `sql` | string | — | Inline SQL query (one of `sql` / `sql_path`). |
 | `sql_path` | string | — | External SQL file (one of `sql` / `sql_path`). |
 
@@ -26,4 +26,4 @@
 ## Key rules
 
 - Exactly one of `sql` / `sql_path`.
-- Substitution variables work in both inline SQL and external SQL files (`${token}`, `${secret:scope/key}`).
+- Substitution variables work in both inline SQL and external SQL files (`${token}`, `${secret:scope/key}`). A plain `${name}` still in the `sql_path` file after substitution → `LHP-CFG-010` from `lhp validate` and `lhp generate`; dotted/prefixed Spark variables (`${mypipeline.start}`, `${hiveconf:x}`) are left as written. A pipeline `configuration:` parameter read at runtime needs a dotted key (`mypipeline.start_date` → `${mypipeline.start_date}`); a plain `${start_date}` fails even when the configuration defines it.

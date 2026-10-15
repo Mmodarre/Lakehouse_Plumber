@@ -149,9 +149,15 @@ class DltTableOptionsValidator:
             if not isinstance(cluster_by_auto, bool):
                 errors.append(f"{prefix}: 'cluster_by_auto' must be a boolean")
 
-        if cluster_columns and cluster_by_auto is True:
+        # PARTITIONED BY is mutually exclusive with CLUSTER BY (incl. CLUSTER BY
+        # AUTO). An empty list or false counts as unset. cluster_columns together
+        # with cluster_by_auto stays legal (#282).
+        if partition_columns and (cluster_columns or cluster_by_auto is True):
             errors.append(
-                f"{prefix}: 'cluster_columns' and 'cluster_by_auto' are mutually exclusive"
+                f"{prefix}: cannot specify both 'partition_columns' and liquid "
+                "clustering ('cluster_columns' / 'cluster_by_auto') — Databricks "
+                "does not allow partitioning together with liquid clustering; "
+                "remove one"
             )
 
         return errors

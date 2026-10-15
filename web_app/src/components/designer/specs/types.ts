@@ -300,7 +300,7 @@ export interface FieldGroup {
 export type CrossFieldRule =
   /** Exactly one of `paths` present (e.g. `sql` ⊕ `sql_path`). */
   | { kind: 'xor'; paths: YamlPath[]; message: string }
-  /** At most one of `paths` present (e.g. `cluster_columns` ⊕ `cluster_by_auto`). */
+  /** At most one of `paths` present (e.g. `tags` ⊕ `tags_file`). */
   | { kind: 'mutuallyExclusive'; paths: YamlPath[]; message: string }
   /** At least one of `paths` present. */
   | { kind: 'requiredOneOf'; paths: YamlPath[]; message: string }

@@ -100,6 +100,11 @@ VAL_066 = ErrorCode(ErrorCategory.VALIDATION, "066")
 # left untouched) and from the runtime table-read shim (opaque reads are wrapped
 # in __lhp_sandbox_table(...), not warned).
 VAL_067 = ErrorCode(ErrorCategory.VALIDATION, "067")
+# VAL_068: an action's ``readMode`` is not one the action's generator accepts
+# (the cloudfiles, kafka and data_quality generators accept only ``stream``) —
+# raised by ErrorFactory.invalid_read_mode. Distinct from VAL_007, which is only
+# the "FlowGroup validation failed" wrapper around configuration errors.
+VAL_068 = ErrorCode(ErrorCategory.VALIDATION, "068")
 VAL_902 = ErrorCode(ErrorCategory.VALIDATION, "902")
 VAL_DUPFG = ErrorCode(ErrorCategory.VALIDATION, "DUPFG")
 
@@ -130,6 +135,8 @@ IO_027 = ErrorCode(ErrorCategory.IO, "027")
 # telemetry on|off`` when writing ``telemetry.json`` in the config directory
 # fails; suggests pointing ``LHP_CONFIG_DIR`` at a writable directory.
 IO_028 = ErrorCode(ErrorCategory.IO, "028")
+# IO_029: portable/Genie skill installation or read-back verification failed.
+IO_029 = ErrorCode(ErrorCategory.IO, "029")
 
 CFG_001 = ErrorCode(ErrorCategory.CONFIG, "001")
 CFG_002 = ErrorCode(ErrorCategory.CONFIG, "002")
@@ -227,6 +234,14 @@ CFG_068 = ErrorCode(ErrorCategory.CONFIG, "068")
 # LHP-CFG-069 token, never raised as an error. Not emitted on the cloudfiles
 # load path (a load can never apply UC tags).
 CFG_069 = ErrorCode(ErrorCategory.CONFIG, "069")
+# CFG_070: an operational-metadata column expression in lhp.yaml references a
+# secret (``${secret:...}``, written directly or reached through an environment
+# ``${token}``). Metadata expressions are evaluated per row and their value is
+# written into table data, so a secret there would be stored in every row.
+# Raised by the shared expression resolver
+# (core/codegen/operational_metadata/expression.py) on both the validate and
+# generate paths, via ErrorFactory.config_error(codes.CFG_070, ...).
+CFG_070 = ErrorCode(ErrorCategory.CONFIG, "070")
 
 DEP_001 = ErrorCode(ErrorCategory.DEPENDENCY, "001")
 # DEP_002: dependency extraction found a recognized table-read in Python code
@@ -302,6 +317,7 @@ ALL_CODES: tuple[ErrorCode, ...] = (
     VAL_065,
     VAL_066,
     VAL_067,
+    VAL_068,
     VAL_902,
     VAL_DUPFG,
     IO_001,
@@ -320,6 +336,7 @@ ALL_CODES: tuple[ErrorCode, ...] = (
     IO_026,
     IO_027,
     IO_028,
+    IO_029,
     CFG_001,
     CFG_002,
     CFG_003,
@@ -372,6 +389,7 @@ ALL_CODES: tuple[ErrorCode, ...] = (
     CFG_067,
     CFG_068,
     CFG_069,
+    CFG_070,
     DEP_001,
     DEP_002,
     DEP_003,
@@ -444,6 +462,7 @@ __all__ = [
     "CFG_067",
     "CFG_068",
     "CFG_069",
+    "CFG_070",
     "DEPR_001",
     "DEPR_002",
     "DEPR_003",
@@ -471,6 +490,7 @@ __all__ = [
     "IO_026",
     "IO_027",
     "IO_028",
+    "IO_029",
     "VAL_001",
     "VAL_002",
     "VAL_003",
@@ -511,6 +531,7 @@ __all__ = [
     "VAL_065",
     "VAL_066",
     "VAL_067",
+    "VAL_068",
     "VAL_902",
     "VAL_DUPFG",
     "ErrorCode",

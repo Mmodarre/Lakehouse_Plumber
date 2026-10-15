@@ -12,13 +12,13 @@ from pyspark.sql.utils import AnalysisException
 # ---------------------------------------------------------------------------
 # Configuration (injected at generation time)
 # ---------------------------------------------------------------------------
-TARGET_TABLE = {{ target_fqn | tojson }}
-CHECKPOINT_BASE = {{ checkpoint_path | tojson }}
+TARGET_TABLE = {{ target_fqn|py_literal }}
+CHECKPOINT_BASE = {{ checkpoint_path|py_literal }}
 MAX_WORKERS = {{ max_concurrent_streams }}
 
 SOURCES = [
 {% for pipeline_name, table_ref in sources %}
-    ({{ pipeline_name | tojson }}, {{ table_ref | tojson }}),
+    ({{ pipeline_name|py_literal }}, {{ table_ref|py_literal }}),
 {% endfor %}]
 
 

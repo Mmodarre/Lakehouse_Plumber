@@ -5,6 +5,304 @@ All notable changes to Lakehouse Plumber are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+## [0.9.3] — Unreleased
+
+### Added
+
+- Separate ``lhp`` development and ``lhp-learn`` teaching skills in the same
+  package, selected with `lhp skill ... --name lhp-learn` or the provisional
+  `SkillFacade` methods' `skill_name` keyword. Both exports carry shared offline
+  technical references; development installs contain no course lessons.
+- Self-contained build/learning prompts selecting the appropriate skill, plus a
+  teaching course with Lesson 0 capability summaries, learner-authored exercises,
+  explicit checkpoint pauses, saved project progress and advanced topic lessons.
+- Documentation agent buttons copy the complete build or learning prompt from
+  the current docs build, so coding agents do not need website access to set up LHP.
+- `lhp skill export --output PATH` and `lhp skill install --agent genie`, also
+  available through the provisional `SkillFacade.export_skill` and
+  `install_genie_skill` methods. Portable/Genie installs verify content and preserve
+  conflicting files. `SkillFacade()` supports these operations before scaffolding;
+  existing Claude project installation remains available. Installation failures
+  use `LHP-IO-029`; optional SDK dependencies are in the `genie` extra.
+- CI-built offline release archives with pinned, hashed wheels for Python 3.12
+  across Linux x86_64/ARM64, macOS Apple Silicon and Windows x86_64. CI performs
+  native installation and sample-generation checks, then stages all distributions,
+  checksums and archives in a GitHub release before PyPI publication. Release
+  artifacts receive GitHub build-provenance attestations. Web extras are excluded.
+- Both agent setup prompts select a complete platform/Python offline ZIP when
+  pip cannot supply a usable installation, with exact asset/checksum links and
+  environment-specific transfer instructions instead of a standalone-wheel handoff.
+
+- **Provisional sandbox editor APIs.** `inspect_editor_project`,
+  `validate_editor_project`, `preview_editor_project` and
+  `GenerationFacade.plan_generation` accept additive `sandbox=False` keywords.
+  Unsaved profile, policy, environment and source drafts resolve together in a
+  bounded mirror that copies only `.lhp/profile.yaml` from private state.
+  Sandbox source preview shares generation's SQL/Python/module/shim transforms
+  and warnings; preview also accepts `include_tests=False`. Snapshots keep the
+  full authored graph and report effective sandbox scope, strategy and table
+  pattern. Missing/invalid sandbox inputs cannot fall back to ordinary output.
+- **Template resource provenance.** Editor catalogues report declared resource
+  references for all templates, including unused definitions, so clients can
+  distinguish concrete file usages from unresolved parameter paths.
+
+- **`mode: replace` for streaming-table writes (Databricks REPLACE USING).** A new
+  streaming-table write mode that generates `@dp.replace_flow`: on each update it
+  replaces every target row whose `replace_using` key columns match an incoming batch,
+  keeping the highest `sequence_by` value, and leaves unmatched keys untouched — the
+  declarative form of a keyed partial-snapshot overwrite. Configure it with a
+  `replace_config` block (`replace_using: [...]`, `sequence_by: "..."`); field names
+  match the Databricks API. The target table is always created by the flow
+  (`create_table` is forced `true`), the source must be a streaming read
+  (`readMode: batch` is rejected), and the target must be served by this single flow
+  (it cannot share its table with any other write action). Sits alongside `cdc` and
+  `snapshot_cdc`; a batch-read sibling `mode: replace_where` is planned. See the write
+  action reference and the "Keep a current-state table with a REPLACE USING flow" guide.
+- **Schema transforms accept backtick-quoted source column names (#324).** A source
+  column whose name has spaces or punctuation is written in backticks, Spark SQL
+  style: `` "`customer name` -> CUSTOMER_NAME" ``. Quoting works for rename sources,
+  cast-only and pass-through entries; a backtick inside the name is doubled. Rename
+  targets stay plain identifiers. In a `columns:` list, quote the entry, since YAML
+  cannot start an unquoted value with a backtick; plain `schema_inline` lines are
+  written as-is.
+
+### Changed
+
+- **`partition_columns` can no longer be combined with liquid clustering (#297).** On
+  streaming-table (every mode) and materialized-view write targets, setting
+  `partition_columns` together with `cluster_columns` or `cluster_by_auto: true` is now
+  a validation error, because Databricks does not allow partitioning together with
+  liquid clustering. **Behaviour change:** configurations that combined them were
+  accepted and now fail `lhp validate` and `lhp generate` (reported inside
+  `LHP-VAL-007` "FlowGroup validation failed"). The check runs after presets, templates
+  and substitutions are applied, and also on actions with `create_table: false`; remove
+  either the partitioning or the clustering. An empty list or `false` counts as unset,
+  and `cluster_columns` with `cluster_by_auto` stays allowed (#282). The web IDE shows a
+  hint when both are set.
+- **An invalid `readMode` now reports `LHP-VAL-068` instead of `LHP-VAL-007` (#299).**
+  `LHP-VAL-007` meant both "FlowGroup validation failed" (the wrapper around a
+  flowgroup's list of configuration errors) and "invalid `readMode`". The `readMode`
+  error raised by `cloudfiles` and `kafka` loads and `data_quality` transforms now has
+  its own code, and `LHP-VAL-007` is only the wrapper. **Behaviour change:** scripts or
+  CI checks that match `LHP-VAL-007` for an invalid `readMode` must match `LHP-VAL-068`.
+  The error's advice no longer suggests `batch`, which these actions reject: it names
+  only the modes the action accepts (`stream`).
+- **An undefined `${token}` in a `sql_path` file or a UC `tags_file` is now an error
+  (#298).** A plain `${name}` that is still in the file after substitution raises
+  `LHP-CFG-010` from both `lhp validate` and `lhp generate`. The error title names the
+  token and the file, for example
+  `Unresolved substitution token(s) ${order_suffix} in sql/q.sql`, so `lhp validate`'s
+  one-line summary and the web IDE show where to look. This covers the `sql_path` of
+  SQL loads, SQL transforms and materialized views, and the tag keys and values of a
+  UC `tags_file`. Before, the token was left in the generated code as written: in SQL,
+  unless a pipeline `configuration:` value or a Spark conf defined it at runtime, Spark
+  replaced it with an empty string, and a tag was written to Unity Catalog as literal
+  text. **Behaviour change:** projects whose `sql_path` files or tags files hold such
+  a token now fail; define it in `substitutions/<env>.yaml`, or, for a Spark or
+  pipeline variable set at runtime, use a dotted or prefixed name such as
+  `${mypipeline.start}` or `${hiveconf:x}`, which LHP leaves as written. This includes
+  a `sql_path` file that reads a pipeline `configuration:` parameter with a plain name
+  (`configuration: {start_date: ...}` read as `'${start_date}'`), which worked at
+  runtime and now fails: rename the configuration key and every reference to it to a
+  dotted key (for example `mypipeline.start_date`, read as
+  `'${mypipeline.start_date}'`). Because `lhp validate` now reads these files, it also
+  reports a missing `sql_path` file or `tags_file` (`LHP-IO-001`), a `sql_path` file
+  that is not UTF-8 text or cannot be read (`LHP-IO-004` / `LHP-IO-005`), a tags file
+  that cannot be read (`LHP-IO-002`), is not valid YAML (`LHP-CFG-009`), holds no YAML
+  document or more than one (`LHP-IO-003`) or is invalid (`LHP-CFG-067`), and a
+  `${secret:...}` in a `sql_path` file or tags file that has no default scope or an
+  empty scope or key (`LHP-CFG-008` / `LHP-CFG-059`), as `lhp generate` already did.
+  The web IDE likewise shows a diagnostic, and an empty resolved view, for a flowgroup
+  whose `sql_path` file or tags file is missing or fails one of these checks.
+  `lhp dag` does not validate and is unchanged, and so are Python files (transform and
+  load modules, custom sources and sinks, foreachbatch handlers, snapshot-CDC source
+  functions, the test-reporting provider): defined tokens are substituted and
+  undefined ones are left as written.
+- **An undefined `${token}` in bundle or monitoring settings is now an error (#298).**
+  A plain `${name}` still present after substitution fails `lhp validate` and
+  `lhp generate` with `LHP-CFG-010` before anything is written. When bundle output is
+  enabled (a `databricks.yml` and `--pipeline-config`), this covers every
+  `pipeline_config.yaml` value of every pipeline's resource file and the `event_log`
+  block injected from `lhp.yaml`. With or without bundle output, it covers the
+  monitoring union notebook's values: `monitoring.checkpoint_path`, the target table
+  and the event-log table references. The error title names the token, the file
+  (`lhp.yaml` or the pipeline config) and the key, for example
+  `Unresolved substitution token(s) ${undefined_evt} in lhp.yaml (event_log)`, so
+  `lhp validate`'s one-line summary shows where to look; `lhp generate` prints the
+  full error, which for a pipeline config value also lists up to five of the
+  pipelines. Before, the token was written into `resources/lhp/*.pipeline.yml` or
+  `monitoring/<env>/union_event_logs.py` as written. **Behaviour change:** projects
+  with such a token now fail; define it in `substitutions/<env>.yaml`. Databricks
+  bundle references are dotted (`${var.x}`, `${bundle.target}`,
+  `${workspace.file_path}`) and pass unchanged. The monitoring job config, including
+  its `${bundle_target}`, is not checked. These checks also run on `--sandbox` runs,
+  and the monitoring one on `lhp diff` and `preview_editor_project`, which share the
+  same preflight but never write bundle resources.
+- **A dotted legacy `type_casting` key now names a top-level column, not a struct
+  field (#324).** `type_casting: {"a.b": INT}` used to read field `b` of a struct `a`
+  and add a separate top-level column literally named `a.b` holding the cast value;
+  in `strict` mode the selection then returned the uncast struct field. The key now
+  refers only to a top-level column named `a.b`. **Behaviour change:** a source with
+  no such column fails at pipeline start with `UNRESOLVED_COLUMN`; cast a nested
+  field with a SQL transform instead.
+
+### Security
+
+- Restrict release metadata requests to the fixed PyPI HTTPS endpoint, reject
+  redirects, and stop publication on network, HTTP or invalid-response errors.
+  Only a direct 404 response is treated as an unpublished version.
+- Deny GitHub Actions cache reads and writes in release and offline-bundle
+  workflows, and disable npm caching in the release build, to isolate release
+  artifacts from shared dependency caches.
+
+### Fixed
+
+- **`cluster_columns` and `cluster_by_auto` can now be set together** on streaming-table
+  (every mode) and materialized-view write targets (#282). Validation no longer rejects
+  the combination as mutually exclusive; the generated table definition carries both
+  `cluster_by=[...]` and `cluster_by_auto=True`. Databricks uses the columns as the
+  initial clustering keys and may later change them based on the workload. The web
+  IDE's "Set only one of cluster columns / auto clustering" hint is gone too.
+- **CloudFiles explicit schemas escape column names and comments (#287).** A `"`, a
+  newline, a trailing backslash, or a backslash sequence such as `\U`, `\N` or `\x` in a
+  schema column's `name` or `comment` no longer produces unparsable code (reported as
+  `LHP-CFG-031`). Values such as `C:\temp\new` and `\\server\share` are no longer
+  silently altered. Escaping is minimal: tabs, other control characters and non-ASCII
+  text stay verbatim, as in 0.9.2, so a value that was already valid generates
+  byte-identical code, with one exception: a backslash before a character Python leaves
+  alone, such as `\d`, is now doubled, which changes the generated text but not the
+  value.
+- **CloudFiles explicit schemas import only the types they use (#288).** The
+  generated module now imports `StructType`, `StructField` and each column's type, one
+  `from pyspark.sql.types import <Name>` line per name, instead of a fixed list of 14
+  names. The schema transform no longer adds an unused `StructType` import. Operational
+  metadata expressions now get an import for every one of those 14 types they call
+  (previously only `StringType`, `IntegerType`, `DoubleType`, `BooleanType` and
+  `TimestampType`), including `DecimalType(10, 2)` with arguments. Expressions such as
+  `.cast(LongType())` used to compile only when a schema's blanket import happened to
+  be in the same file.
+- **Two CloudFiles schema loads in one flowgroup no longer share one variable.** The
+  `StructType` variable is now named after the load's target view (`<target>_schema`)
+  instead of the schema file's `name`. Every schema file keyed by `table:` used to
+  become `schema_schema`, so the first view silently read the second view's schema; a
+  `name` such as `prices-file` produced an invalid identifier. Regenerating renames the
+  variable in existing output (for example `customer_schema` becomes
+  `v_customer_schema_raw_schema`).
+- **Environment `${tokens}` now resolve in operational-metadata expressions, and an
+  unresolved one fails the run (#289).** `operational_metadata.columns.<name>.expression`
+  in `lhp.yaml` substituted only `${pipeline_name}` and `${flowgroup_name}`; any other
+  `${token}` was written into the generated code literally, so every row got the text
+  `${fd_source}`, and neither `lhp validate` nor `lhp generate` reported it. Expressions
+  now resolve per flowgroup for `--env`: context tokens first (`${pipeline_name}`,
+  `${flowgroup_name}`, and `${source_table}` on delta and JDBC loads), winning over a
+  substitutions key of the same name; then environment `${token}` values from
+  `substitutions/<env>.yaml`. **Behaviour change:** where LHP used to emit `${…}`
+  literally it now fails loudly. A `${...}`, `%{...}` or `{{ ... }}` left in a rendered
+  expression fails with `LHP-CFG-010` (naming the pipeline, flowgroup, column, token and
+  environment), and a `${secret:...}` reference fails with the new `LHP-CFG-070`, because
+  the expression's result is written into table data. `lhp validate --env <env>` now
+  reports the same errors as `lhp generate --env <env>`. Only expressions actually
+  rendered into generated code are checked: a column selected only on actions that never
+  emit metadata columns (streaming-table and materialized-view writes, schema transforms,
+  test actions) is ignored, as before. Expressions without tokens generate
+  byte-identical code, and the bare `{token}` form is not applied to expressions, so
+  regex quantifiers such as `'\\d{8}'` are emitted unchanged.
+- **No more duplicate `StringType` import (ruff F811) (#299).** A quarantine
+  `data_quality` action imports `from pyspark.sql.types import MapType, StringType`; a
+  CloudFiles schema load with a `STRING` column, or an `lhp.yaml` operational-metadata
+  expression that calls `StringType()`, imports `StringType` on its own line. Both lines
+  reached the generated module, which bound `StringType` twice. When two
+  `from <module> import ...` lines bind the same name (same name and alias, including
+  `additional_imports` from `lhp.yaml`), those lines are now split into one line per
+  name and the repeat is dropped. Lines that share no name are unchanged, so flowgroups
+  without the overlap generate byte-identical code.
+- **The editor API points operational-metadata expression errors at `lhp.yaml` (#299).**
+  `inspect_editor_project` (provisional) attributed an `LHP-CFG-010` unresolved token or
+  `LHP-CFG-070` secret reference in an `lhp.yaml` operational-metadata `expression` to
+  the flowgroup file, line 0. The diagnostic's source is now `lhp.yaml` at
+  `operational_metadata.columns.<column>.expression`, with that line, including a secret
+  that arrives through a token value. A flowgroup's own unresolved tokens still point at
+  the flowgroup file. No DTO fields changed.
+- **Generated Python escapes user strings (#296).** In load (`cloudfiles`, `delta`,
+  `jdbc`, `kafka`, `custom_datasource`, `python`, `sql`), transform, write (streaming
+  table in every mode, materialized view, `delta` / `kafka` / `custom` / `foreachbatch`
+  sinks) and test actions, a quote, a backslash sequence such as `\U`, `\N{`, `\x` or a
+  trailing `\`, a newline, a carriage return, NUL, a line-boundary character (U+2028,
+  U+2029, NEL, vertical tab, form feed) or a lone surrogate in a description, comment,
+  path, reader or sink option key or value, table, view, flow or sink name,
+  `where_clause`, JDBC connection value, JDBC `query`, schema hint, `table_schema` DDL,
+  `row_filter`, `refresh_schedule`, CDC `sequence_by` / `apply_as_deletes` /
+  `apply_as_truncates`, snapshot-CDC `source`, quarantine table name, schema-transform
+  column name or type, SQL query (including `custom_sql` test SQL and the uniqueness
+  test `filter`) or operational-metadata column name no longer produces unparsable code
+  or a silently altered value. The same holds for the pipeline and flowgroup names in
+  every generated module's header comments and `PIPELINE_ID` / `FLOWGROUP_ID`
+  constants: a flowgroup named `fg\new` used to get a `FLOWGROUP_ID` containing a
+  newline, and a `"` in either name produced `LHP-CFG-031`. Escaping is minimal: only
+  the characters listed above are escaped, and tabs, other control characters and
+  non-ASCII text are written exactly as before, so a value without any of the listed
+  characters generates byte-identical code.
+  A backslash at a site that did not escape it before is now doubled (load reader option
+  values and the values written as JSON, below, already escaped it); for a sequence
+  Python left alone, such as `\d`, that changes the generated text but not the value.
+  Values LHP used to write as JSON (python-load and python-transform `parameters`, delta
+  `select_columns`, table properties, `spark_conf`, partition and cluster columns, CDC
+  keys and column lists, expectations, sink options, the monitoring notebook's table
+  names and checkpoint path) are now Python literals: `true` / `null` generate `True` /
+  `None` instead of names that raise `NameError`, and a character outside the Basic
+  Multilingual Plane (an emoji, for example) is one `\U0001f600`-style escape instead of
+  a surrogate pair that Python decoded as two invalid characters; all other text there
+  keeps its previous spelling. In a value written into a `#` comment (a sink `comment`,
+  a flow, pipeline or flowgroup name), only a continuation line that would otherwise
+  run as code gets `# `; blank lines, lines that already start with `#` and a trailing
+  line break are kept. A line break can no longer turn the rest of the value into
+  executable code, and a comment that was already valid renders the same lines. In
+  test SQL only the Python string is escaped; quoting inside the SQL (a `'` in a
+  `schema_match` table name, for example) is still yours. Trailing whitespace at the
+  end of a line inside a multi-line string (SQL, descriptions) is still removed when
+  the file is written. **Behaviour change:** SQL from `sql` / `sql_path` (loads,
+  transforms, temp tables, materialized views), `custom_sql` test SQL, the uniqueness
+  `filter`, the JDBC `query`, delta `where_clause` entries and CDC `apply_as_deletes` /
+  `apply_as_truncates` now reach Spark exactly as written; a query containing
+  `RLIKE '^\\d+$'` used to lose one backslash level. If you doubled backslashes to
+  work around that, remove the extra ones: they now reach Spark doubled, which
+  silently changes what a regex or string matches, with no error.
+- **`LHP-CFG-031` now checks generated code as it is written to disk (#296).** Writing a
+  generated file starts a new line at every line-boundary character, not only `\n`, so
+  a raw line separator inside a string literal passed the parse check and then broke
+  the written file: the formatting pass failed with `LHP-CFG-033`, or `--no-format`
+  wrote invalid code and exited 0. The check now parses the text as written and reports
+  `LHP-CFG-031`. A NUL or lone-surrogate character also reports `LHP-CFG-031`; before,
+  the check let a lone surrogate (on every Python version) and a NUL (on Python 3.11)
+  through as an uncaught `ValueError`. Escaped string literals no longer trigger the
+  error on their own. It can still fire for text inserted verbatim as code or into a
+  comment, such as an operational-metadata `expression` or a snapshot-CDC
+  `source_function`, and for a `${secret:...}` reference inside SQL (#306).
+- **Custom data source and custom sink registration errors are no longer hidden
+  (#326).** Generated `custom_datasource` loads and `custom` sinks wrapped
+  `spark.dataSource.register(...)` in `try: ... except Exception: pass`. Registering a
+  name again only replaces it and logs a warning, so the guard protected nothing, but
+  it hid real failures: a class that cannot be pickled, a missing or failing `name()`,
+  or, on Spark 4.0.x, a name that clashes with an installed `pyspark_*` data source.
+  A load then failed at `.load()` with a misleading `[DATA_SOURCE_NOT_FOUND]`, or on
+  Spark 4.0.x read the other data source without any error. The generated code now
+  calls `spark.dataSource.register(...)` directly, so the original error is raised at
+  the register line.
+- **Legacy-format schema transforms resolve column names containing `.` or a backtick
+  (#324).** A `type_casting` key such as `"a.b"` generated `F.col("a.b")`, which Spark
+  reads as field `b` of a struct `a`, so a cast or `strict` selection of a top-level
+  column named `a.b` failed at pipeline start with `UNRESOLVED_COLUMN`. Such names are
+  now backtick-quoted in the generated `F.col(...)` and `select(...)` references;
+  every other name generates byte-identical code.
+- **`LHP-VAL-011` for schema transforms names the failing part of the line (#324).**
+  An invalid source name now gets its backtick-quoted spelling instead of the
+  rename-target rule. An unclosed or empty backtick-quoted name, text after a quoted
+  name, a plain `schema_inline` line wrapped in quotes, and an inline `columns:` list
+  that is not valid YAML are each reported as such. The message names the schema
+  file, or `schema_inline`, instead of `<schema>`.
+
 ## [0.9.2] — 2026-09-22
 
 ### Added

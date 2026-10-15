@@ -2,7 +2,7 @@
   "version": 1,
   "sources": {
     "docs/concepts/flowgroups-and-dependencies.rst": {
-      "sha256": "8237bd2f2b37450a2ed61bf9c248e2b391e55fd3e3374a8995d16a0e1fe95a83",
+      "sha256": "523360e15447313d0398269a9a21cf4a9d4d72245319c32c1fe9e824952dc1cf",
       "entryIds": [
         "flowgroup.depends_on",
         "flowgroup.description",
@@ -13,7 +13,7 @@
       ]
     },
     "docs/guides/test/test-reporting.rst": {
-      "sha256": "c9eca44e1da4619213c545e59536cc4b113855289e47e10d87dcab161af354cf",
+      "sha256": "6d8917517f01848ed8713dd8ee8c4e2b6fa651591af97a0734adbe90baee98ae",
       "entryIds": [
         "project.test_reporting",
         "project.test_reporting.config_file",
@@ -21,14 +21,39 @@
         "project.test_reporting.module_path"
       ]
     },
-    "docs/reference/actions/write.rst": {
-      "sha256": "bf9ccae07031ecfb58547ddbb3f4157a1b24126ae345d95de5c8feffb926bf85",
+    "docs/reference/actions/write/streaming-table.rst": {
+      "sha256": "dd3a3af9285a7590f7e534cbc86ac09c14de017842660110293ee747215934fd",
       "entryIds": [
         "action.write.streaming_table.once"
       ]
     },
     "docs/reference/config/bundle.rst": {
-      "sha256": "c33e2f3be8c419f97be0af18f978f30ce6a7e685be4f99c4359f6a18659be154",
+      "sha256": "7d5151db9d110181532d7ee5ff39cf056a0ef21a99c3f806eb7bbc605f8cc7ca",
+      "entryIds": [
+        "pipeline.packaging",
+        "project.wheel",
+        "project.wheel.artifact_volume"
+      ]
+    },
+    "docs/reference/config/operational-metadata.rst": {
+      "sha256": "bce6c43d01be79e99eb32e7f1442d4421c8ef3b40b1a95b99725d59688ffb138",
+      "entryIds": [
+        "flowgroup.operational_metadata",
+        "project.operational_metadata",
+        "project.operational_metadata.columns",
+        "project.operational_metadata.columns.*.additional_imports",
+        "project.operational_metadata.columns.*.applies_to",
+        "project.operational_metadata.columns.*.description",
+        "project.operational_metadata.columns.*.enabled",
+        "project.operational_metadata.columns.*.expression",
+        "project.operational_metadata.defaults",
+        "project.operational_metadata.presets",
+        "project.operational_metadata.presets.*.columns",
+        "project.operational_metadata.presets.*.description"
+      ]
+    },
+    "docs/reference/config/pipeline-config.rst": {
+      "sha256": "16ac83d1bea8dcb7aacf785d5ac12887f719370bbc6d02bde08e4ade1845dc4c",
       "entryIds": [
         "pipeline.catalog",
         "pipeline.channel",
@@ -62,31 +87,17 @@
         "pipeline.run_as",
         "pipeline.schema",
         "pipeline.serverless",
-        "pipeline.tags",
-        "project.wheel",
-        "project.wheel.artifact_volume"
-      ]
-    },
-    "docs/reference/config/operational-metadata.rst": {
-      "sha256": "41ca829482cd697f90ea8ccf175067112fa7ab07d543fd57cc7a9005e2b5013c",
-      "entryIds": [
-        "flowgroup.operational_metadata",
-        "project.operational_metadata",
-        "project.operational_metadata.columns",
-        "project.operational_metadata.columns.*.additional_imports",
-        "project.operational_metadata.columns.*.applies_to",
-        "project.operational_metadata.columns.*.description",
-        "project.operational_metadata.columns.*.enabled",
-        "project.operational_metadata.columns.*.expression",
-        "project.operational_metadata.defaults",
-        "project.operational_metadata.presets",
-        "project.operational_metadata.presets.*.columns",
-        "project.operational_metadata.presets.*.description"
+        "pipeline.tags"
       ]
     },
     "docs/reference/config/presets.rst": {
-      "sha256": "66f8c8e987d0d1e738f9f6b59a1fd91db6375b24098de2e0711776448ee6b3e4",
+      "sha256": "99ba0ca35d6943bf10e263ac51c43b8c9a15218864abbe2f9fd0fba28434d442",
       "entryIds": [
+        "action.transform.data_quality.mode",
+        "action.transform.python.readMode",
+        "action.transform.schema.enforcement",
+        "action.transform.schema.readMode",
+        "action.transform.temp_table.readMode",
         "flowgroup.presets"
       ]
     },
@@ -115,6 +126,15 @@
         "template.parameters.*.type",
         "template.presets",
         "template.version"
+      ]
+    },
+    "docs/reference/config/test-reporting.rst": {
+      "sha256": "abb5e902314a89ff08004652e07eed9c8a3e8ba608483efd4516220e0aee650c",
+      "entryIds": [
+        "project.test_reporting",
+        "project.test_reporting.config_file",
+        "project.test_reporting.function_name",
+        "project.test_reporting.module_path"
       ]
     },
     "src/lhp/resources/skills/lhp/references/actions-load-cloudfiles.md": {
@@ -199,7 +219,7 @@
       ]
     },
     "src/lhp/resources/skills/lhp/references/actions-load-sql.md": {
-      "sha256": "b451df14ac3bb721c6ab1730b4e589e34c3265d0f94b06b9bbd88b12edb62218",
+      "sha256": "9d9d618c069b1baefebd62461cc9656560eddacbd5ce22f02acab52de8e0c43e",
       "entryIds": [
         "action.load.sql.overview",
         "action.load.sql.source.sql",
@@ -319,7 +339,7 @@
       ]
     },
     "src/lhp/resources/skills/lhp/references/actions-transform-data-quality.md": {
-      "sha256": "4ee1bba0c0f1506c1709617f3c59795731c3c1fc0eb0c70d9f3d01d25d15e89d",
+      "sha256": "b28f49bddec17d7a44e31ad0b15760e2c35e1f30de89a41b52fbd0a87f39c75e",
       "entryIds": [
         "action.transform.data_quality.expectations_file",
         "action.transform.data_quality.mode",
@@ -331,7 +351,7 @@
       ]
     },
     "src/lhp/resources/skills/lhp/references/actions-transform-python.md": {
-      "sha256": "38da1d24d86ac18ef3bc0e8f3d3139c9968793e82187000dcb98cb3a3d8fb375",
+      "sha256": "2e5bf4b0069a3f5d67db31c91001b61e59763b93f940f47075bbc45408f56a8b",
       "entryIds": [
         "action.transform.python.function_name",
         "action.transform.python.module_path",
@@ -343,7 +363,7 @@
       ]
     },
     "src/lhp/resources/skills/lhp/references/actions-transform-schema.md": {
-      "sha256": "22f42131b9426da026d9b532543cce5edd3b39e49d7e7ff461ff2f96c8991ad1",
+      "sha256": "f0f4c5cab951af6d49a1d4c1bfd6b0298b5a35db5a2d0fb22528bf781a79a11b",
       "entryIds": [
         "action.transform.schema.enforcement",
         "action.transform.schema.overview",
@@ -355,7 +375,7 @@
       ]
     },
     "src/lhp/resources/skills/lhp/references/actions-transform-sql.md": {
-      "sha256": "71babfbe9557c9e9994a7207a3469503935972d3f3ccd42f38c874d33d8ff39b",
+      "sha256": "484c29fb15e59b94e9912950e3bb47dddceade8e8396e4d82e4cad83bdc45001",
       "entryIds": [
         "action.transform.sql.overview",
         "action.transform.sql.source",
@@ -365,7 +385,7 @@
       ]
     },
     "src/lhp/resources/skills/lhp/references/actions-transform-temp-table.md": {
-      "sha256": "e5a9b6e573b45280f43a0af5b446bb8e7c0811b686a273cdedd9ed28def060c0",
+      "sha256": "d471e6412c263655575f5261babcb43321c8d4a2e89d970ad8f6de62d43dc709",
       "entryIds": [
         "action.transform.temp_table.overview",
         "action.transform.temp_table.readMode",
@@ -375,7 +395,7 @@
       ]
     },
     "src/lhp/resources/skills/lhp/references/actions-write-materialized-view.md": {
-      "sha256": "536f5272374ac6688402eecfe82772dff14a9c70e3d242a5a5fe524a58f73503",
+      "sha256": "f319e67263d133af4ed1832a41809bf335cf4f7d7328c6be741f6fc2623ded9e",
       "entryIds": [
         "action.write.materialized_view.overview",
         "action.write.materialized_view.source",
@@ -508,8 +528,16 @@
         "action.write.streaming_table.write_target.temporary"
       ]
     },
+    "src/lhp/resources/skills/lhp/references/actions-write-streaming-table-replace.md": {
+      "sha256": "7b3a550af0495dab7afe525a6fce23a48b863ffdafdf657a15064f95cd1f193e",
+      "entryIds": [
+        "action.write.streaming_table.write_target.mode",
+        "action.write.streaming_table.write_target.replace_config.replace_using",
+        "action.write.streaming_table.write_target.replace_config.sequence_by"
+      ]
+    },
     "src/lhp/resources/skills/lhp/references/actions-write-streaming-table-snapshot-cdc.md": {
-      "sha256": "554b29079db58f1209f61462fdab62bcb04f604a292a049a21f829fbc2aee8cc",
+      "sha256": "626060438d2aea31e90448074c4020e49f871d83a9ccbf12f5b7ab7c55630be8",
       "entryIds": [
         "action.write.streaming_table.once",
         "action.write.streaming_table.overview",
@@ -553,7 +581,7 @@
       ]
     },
     "src/lhp/resources/skills/lhp/references/actions-write-streaming-table-standard.md": {
-      "sha256": "9d5c8512a1572d9b16de9346682c323e0172cc7413556c6abaea47d073696a7e",
+      "sha256": "85799ad24204983c43ed448d9e0f299478be6fbddcf0d4c0db9ffd454481cf3f",
       "entryIds": [
         "action.write.streaming_table.once",
         "action.write.streaming_table.overview",
@@ -602,7 +630,7 @@
       ]
     },
     "src/lhp/resources/skills/lhp/references/advanced.md": {
-      "sha256": "d44125362314ff4bfd1b55db2d27352b4e0a4a42e637f640f8a5defeef5f028d",
+      "sha256": "171199b94a798fa29ff0e5623f75a1252bbac79a0e92625208d7d52843c36172",
       "entryIds": [
         "job.continuous",
         "job.email_notifications",
@@ -634,7 +662,7 @@
       ]
     },
     "src/lhp/resources/skills/lhp/references/monitoring.md": {
-      "sha256": "297da4b903b755242336b4e68f6fada9c52857ce2b15151817ee6bb709a68cd4",
+      "sha256": "a5f1e405a0cc6f583589e9324e2d3a8afc5524f10d8428834ab275171f90e0c6",
       "entryIds": [
         "job.notebook_cluster",
         "job.notebook_cluster.existing_cluster_id",
@@ -662,7 +690,7 @@
       ]
     },
     "src/lhp/resources/skills/lhp/references/project-config.md": {
-      "sha256": "0f14ebec1435a6b027b73b8617cf8ee00c84f1a5e5ba15d1f63e8d5657dad60a",
+      "sha256": "a70691a6959fd03dc7e4021cf62b6e27f19d9a4ba2b24ca099ee61982ea0c9a3",
       "entryIds": [
         "project.apply_formatting",
         "project.author",

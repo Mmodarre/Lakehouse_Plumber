@@ -1,0 +1,37 @@
+# Keep a current-state order-lines table from periodic partial snapshots.
+# Action chain: load (delta, streaming read of order-line snapshots) -> write (streaming_table, mode: replace).
+#
+# Each order has many line rows. Whenever an order changes upstream, the source
+# resends the COMPLETE current set of lines for that order_id. REPLACE USING
+# swaps out every existing line for the order_ids in the batch and appends the
+# incoming lines as-is — order_id is a grouping key, not a unique row key, so an
+# order keeps as many line rows as the source sent. Nothing is merged.
+pipeline: order_lines_current
+flowgroup: order_lines_current
+
+actions:
+  # 1. Load: stream the bronze order-line snapshots another pipeline lands. Each
+  #    batch carries the full set of current lines for the order_ids it contains.
+  - name: load_order_line_updates
+    type: load
+    readMode: stream
+    source:
+      type: delta
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
+      table: order_line_updates
+    target: v_order_line_updates
+
+  # 2. Write: replace each order's line rows as a whole set, keyed by order_id.
+  - name: write_order_lines_current
+    type: write
+    source: v_order_line_updates
+    write_target:
+      type: streaming_table
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
+      table: order_lines_current
+      mode: replace
+      replace_config:
+        replace_using: [order_id]
+        sequence_by: updated_at

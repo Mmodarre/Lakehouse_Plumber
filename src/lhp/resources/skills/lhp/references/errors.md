@@ -31,7 +31,7 @@ Terminal output includes: error code, description, context, fix suggestions, and
 | **CFG-007** | `event_log` missing `catalog` or `schema` | Add both required fields, or `enabled: false` |
 | **CFG-008** | Invalid `monitoring` config (not a mapping, missing event_log, bad MVs) | See [monitoring.md](monitoring.md) troubleshooting table |
 | **CFG-009** | YAML parsing error (bad indent, unquoted special chars) | Quote strings with `:` `{` `}` `[` `]`; use YAML linter |
-| **CFG-010** | Deprecated field name | Replace with the field name shown in error message |
+| **CFG-010** | Deprecated field name, OR an unresolved substitution token: a `${token}` left in a flowgroup after substitution, a `${...}` / `%{...}` / `{{ ... }}` left in a selected `lhp.yaml` operational-metadata `expression`, or a plain `${name}` left in a `sql_path` file (SQL load / SQL transform / materialized view), a UC `tags_file`, a bundle pipeline resource (any `pipeline_config.yaml` value or the `lhp.yaml` `event_log` injected into it; only when bundle output is enabled) or the monitoring union notebook (`monitoring.checkpoint_path`, target table, `event_log` table refs) — dotted/prefixed variables (`${mypipeline.start}`, `${hiveconf:x}`, `${var.x}`, `${bundle.target}`) pass, Python files and the monitoring job config are not checked; a plain `${name}` in a `sql_path` file is reported even when a pipeline `configuration:` value would define it at runtime (otherwise Spark substitutes an empty string) (raised by both `lhp validate` and `lhp generate`) | Replace with the field name shown in error message; for a token, add the key to `substitutions/<env>.yaml` (local vars / template params are not resolved in `lhp.yaml`); for a runtime Spark/pipeline variable use a dotted or prefixed name — a pipeline `configuration:` parameter read in SQL gets a dotted key (`mypipeline.start_date`, referenced as `${mypipeline.start_date}`), which LHP leaves untouched |
 | **CFG-012** | Missing required template parameters | Add `template_parameters:` with all required params |
 | **CFG-021** | Module / skill / bundle YAML processing error (covers import-time errors, skill command failures, and bundle-resource parsing) | Check the error context for the specific cause; for bundle sites validate `databricks.yml` syntax and UTF-8 encoding |
 | **CFG-023** | `--pipeline-config` not passed and bundle support enabled (preflight) | Pass `--pipeline-config config/pipeline_config.yaml`, or `--no-bundle` to skip bundle resource generation |
@@ -39,7 +39,7 @@ Terminal output includes: error code, description, context, fix suggestions, and
 | **CFG-025** | Bundle configuration structural error | Review `databricks.yml` against DAB docs |
 | **CFG-026** | Aggregated catalog/schema preflight failure (see below) | Add `catalog`/`schema` to `project_defaults` or per-pipeline; for empty-after-substitution failures, check `substitutions/<env>.yaml` |
 | **CFG-027** | Template not found | Check spelling; run `lhp list templates` |
-| **CFG-031** | Generated Python source failed to parse (`ast.parse` SyntaxError) — in-worker syntax guard; names the offending flowgroup | Almost always an LHP generator/template bug — file a bug report with the failing flowgroup YAML; turn on DEBUG logging to inspect the generated source; if authoring a custom template or snapshot-CDC `source_function`, verify embedded Python with `python -m py_compile` |
+| **CFG-031** | Generated Python source failed to parse — in-worker syntax guard on the source as written to disk (every `str.splitlines` boundary starts a new line); names the offending flowgroup. Escaped string literals no longer trigger it on their own; it can still fire for text inserted verbatim as code or into a comment (e.g. an operational-metadata `expression`, a snapshot-CDC `source_function`) that breaks the syntax or contains NUL / a lone surrogate, and for a `${secret:...}` reference inside SQL (#306) | Almost always an LHP generator/template bug — file a bug report with the failing flowgroup YAML; turn on DEBUG logging to inspect the generated source; if authoring a custom template or snapshot-CDC `source_function`, verify embedded Python with `python -m py_compile` |
 | **CFG-032** | Test-reporting provider/config file not found (preflight) | Create the file at `test_reporting.module_path` (and `config_file` if set) in `lhp.yaml`, or fix the path. Runs on both `lhp validate` and `lhp generate`, independent of `--include-tests` |
 | **CFG-033** | `ruff format` terminal pass exited non-zero — generated code written but not formatted; error carries ruff's exit code + stderr/stdout | Inspect ruff's output for the offending file; confirm ruff is installed and the generated tree is valid Python; re-run with `--no-format` to skip formatting and inspect the raw code |
 | **CFG-034** | `ruff` executable not found for the generated-code formatting pass (not in the active env's scripts dir or on `PATH`) | ruff ships as an LHP runtime dependency — `pip install ruff`, or reinstall LHP (`pip install lakehouse-plumber`); in isolated/custom envs ensure ruff is on `PATH` |
@@ -54,6 +54,7 @@ Terminal output includes: error code, description, context, fix suggestions, and
 | **CFG-067** | Invalid unified schema/tags file — non-mapping, unknown top-level key (the retired `column_tags` key now errors as unknown), a `columns` that is not a list, or a `columns` entry that is not a mapping or has an unknown key. Read as a `tags_file` it also rejects a wrong-typed `table`/`name`/`tags`, a missing/empty/duplicate column `name`, or a non-mapping per-column `tags`. Legacy `version`/`description`/`primary_key` top-level keys are tolerated and ignored | Use the unified format (optional identifier `table` or its alias `name`; a table-level `tags` mapping and/or a `columns` list; per-column `name`/`type`/`nullable`/`comment`/`tags`); as a `tags_file` set `table:` to the write target's table name |
 | **CFG-068** | *Warning, logged (not a structured event)* — a UC `tags_file` identifier is inconsistent: it does not match the write target's table (generation proceeds using the write target's table; check skipped under `--sandbox`), or the file declares both `table` and `name` with differing values (`table` wins) | Set the sidecar's `table:`/`name:` to the write target's table name, or accept the mismatch |
 | **CFG-069** | *Warning, logged (not a structured event)* — a write target's `table_schema` file carries UC tags (top-level `tags:` or a per-column `tags:`) but is not also wired as that action's `tags_file`, so those tags are dropped. Emitted at generate time by the streaming-table and materialized-view writes only (never the cloudfiles load path) | Point `tags_file` at the same file to apply the tags, or drop the `tags:` keys from the schema file |
+| **CFG-070** | A selected `lhp.yaml` operational-metadata `expression` references a secret (`${secret:...}`, directly or via a token value) — the expression's result is written into table data, so the secret would land in every row. Raised by both `lhp validate` and `lhp generate` | Remove the secret; use a `${token}` from `substitutions/<env>.yaml` for non-secret per-env values, or a transform action for per-table logic |
 
 ## Validation Errors (LHP-VAL)
 
@@ -62,7 +63,7 @@ Terminal output includes: error code, description, context, fix suggestions, and
 | **VAL-001** | Missing required field (source, target, type) | Add the field shown in error; check action type requirements |
 | **VAL-002** | Multiple validation issues in one action | Fix each `✗` item in the error list |
 | **VAL-006** | Invalid field value (typo, wrong context) | Check spelling; use valid values for the field |
-| **VAL-007** | Invalid `readMode` | Use `stream` or `batch` only |
+| **VAL-007** | FlowGroup validation failed — wraps the list of configuration validation errors found in one flowgroup | Fix each listed error |
 | **VAL-008** | Wrong data type (string where dict expected) | Check YAML structure matches expected format |
 | **VAL-010** | Both `__eventlog_monitoring` alias and real pipeline name in config | Use only one — alias or real name |
 | **VAL-011** | Multiple validation causes; commonly: eventlog alias misuse OR schema column-type syntax. See source for the specific site. | Check the error context for the specific cause |
@@ -74,6 +75,7 @@ Terminal output includes: error code, description, context, fix suggestions, and
 | **VAL-065** | *Warning, category `sandbox`* — a sandbox-renamed sink table is also produced by an out-of-scope pipeline (mixed producer); the rename still proceeds | Bring the other producing pipeline into the profile scope, or accept the split; `--strict` promotes this warning to a failure |
 | **VAL-066** | *Warning, category `sandbox`* — an in-scope Python table read whose argument statically resolves to an in-scope table but is not a plain string literal (bound variable, f-string, concatenation, `.format`, or constant-key container subscript) could not be rewritten; the source is left untouched. Generate-only in v1 — `lhp validate --sandbox` does not emit it | Make the table argument a plain string literal in the copied module, or accept that it reads the shared table; `--strict` promotes this warning to a failure |
 | **VAL-067** | *Warning, category `sandbox`* — opaque dynamic SQL: a `spark.sql(...)` body whose table refs are runtime-determined (a variable/call result, or an f-string with ≥2 interpolated name parts) can be neither verified nor rewritten. Generate-only in v1. NOTE: an opaque *table read* (`spark.read.table(runtime_name)`) is instead wrapped in a generated `__lhp_sandbox_table(...)` shim — no warning | Reference in-scope tables with a literal/statically-resolvable name in the SQL body, or accept that the statement reads the shared tables; `--strict` promotes this warning to a failure |
+| **VAL-068** | Invalid `readMode` — the action does not accept that mode; `cloudfiles` and `kafka` loads and `data_quality` transforms accept only `stream` | Set `readMode: stream`, or remove `readMode` (these actions default to `stream`) |
 | **VAL-902** | All-or-nothing aggregator — one or more flowgroups failed anywhere in a parallel `lhp generate` run (per-flowgroup validation, codegen, generated-source parse failure `LHP-CFG-031`, cross-flowgroup conflict, or copy conflict `LHP-VAL-019`); raised by the coordinator gate after all worker results are joined, before any files are written | Re-run with `--verbose` for full stack; re-run with `--log-file` to capture a debug log at `<project>/.lhp/logs/lhp.log` and attach it to the bug report; every listed failure must be fixed — the run wrote zero files |
 
 ## I/O Errors (LHP-IO)
@@ -380,6 +382,9 @@ Substitution order: `%{local_var}` → `{{ template_param }}` → `${env_token}`
 3. Token must appear inside a string value, not as a YAML key.
 4. `lhp diff --env <env>` — inspect the regenerated output; unresolved
    tokens appear unchanged there.
+5. `lhp.yaml` operational-metadata expressions resolve only `${pipeline_name}`,
+   `${flowgroup_name}`, `${source_table}` (delta/jdbc loads) and env `${token}`s;
+   anything left fails with CFG-010 (secrets: CFG-070) rather than being emitted.
 
 ### Preset/template/blueprint edits not picked up
 
@@ -391,17 +396,24 @@ shows the regenerated output).
 
 For the `lhp generate` flag reference, see `project-config.md` (CLI Commands section) or run `lhp generate --help`.
 
-### POSIX exit codes (from `src/lhp/utils/exit_codes.py`)
+### CLI exit codes
 
-| Code | Meaning | LHP categories |
-|------|---------|----------------|
-| 0 | Success | — |
-| 1 | General error | unknown |
-| 64 | Usage error | bad CLI args |
-| 65 | Data error | VAL, DEP, ACT |
-| 66 | No input | IO |
-| 70 | Software error | internal bug |
-| 74 | I/O error | permissions, disk |
-| 78 | Config error | CFG, CloudFiles |
+| Code | Meaning |
+|------|---------|
+| 0 | Success |
+| 1 | Structured LHP error |
+| 2 | Invalid CLI arguments or options |
+| 3 | Unexpected internal failure |
 
 Script integrations should branch on exit code, not on stderr text.
+
+### Agent skill installation
+
+- `LHP-IO-020`: a portable/Genie destination contains files differing from the
+  packaged release. Preserve those files before choosing a new destination or
+  moving the old skill aside. Do not force an overwrite.
+- `LHP-IO-029`: export/upload/read-back verification failed. Use the safe failure
+  category to distinguish a missing SDK, authentication, permissions or file I/O.
+  Run Genie installation in authenticated notebook Python; its chained exception
+  contains further diagnostics. No successful native discovery is implied by a
+  successful upload.

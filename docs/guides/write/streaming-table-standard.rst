@@ -46,9 +46,15 @@ Each highlighted field maps to one argument on the generated
 - ``comment`` documents the table in Unity Catalog.
 - ``table_properties`` is a map of Delta properties — here it turns on Change
   Data Feed and auto-optimize and stamps a ``quality`` marker.
-- ``cluster_columns`` sets the liquid-clustering key. For automatic clustering
-  instead, set ``cluster_by_auto: true`` (the two are mutually exclusive). To
-  partition rather than cluster, use ``partition_columns``.
+- ``cluster_columns`` sets the liquid-clustering key. For automatic clustering,
+  set ``cluster_by_auto: true``; combined with ``cluster_columns``, those columns
+  become the initial keys and Databricks may later change them based on the
+  workload. To partition rather than cluster, use ``partition_columns`` instead
+  of liquid clustering (``cluster_columns`` / ``cluster_by_auto``): Databricks
+  does not allow partitioning together with liquid clustering, so
+  ``lhp validate`` and ``lhp generate`` reject a target that sets
+  ``partition_columns`` alongside ``cluster_columns`` or
+  ``cluster_by_auto: true``.
 
 The ``${catalog}`` and ``${silver_schema}`` tokens resolve per environment from
 ``substitutions/dev.yaml``, so the same flowgroup targets dev, staging, and prod
@@ -149,3 +155,8 @@ What's next
 - For the full option set — ``table_schema``, ``row_filter``, ``tags``,
   ``cluster_by_auto``, and the ``cdc`` / ``snapshot_cdc`` modes — see the
   **Write action reference**.
+
+Syntax and options
+------------------
+
+See :doc:`/reference/actions/write/streaming-table` for all supported settings and defaults.

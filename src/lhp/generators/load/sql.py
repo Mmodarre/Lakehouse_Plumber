@@ -6,7 +6,7 @@ from pathlib import Path
 from lhp.errors import ErrorFactory
 from lhp.models import Action
 
-from ...core.loaders.external_file_loader import load_external_file_text
+from ...core.loaders import load_sql_file
 from ...core.registry import BaseActionGenerator
 
 logger = logging.getLogger(__name__)
@@ -14,6 +14,8 @@ logger = logging.getLogger(__name__)
 
 class SQLLoadGenerator(BaseActionGenerator):
     """Generate SQL query load actions."""
+
+    renders_operational_metadata = True
 
     def __init__(self):
         super().__init__()
@@ -35,7 +37,7 @@ class SQLLoadGenerator(BaseActionGenerator):
                 f"SQL load '{action.name}': source type='{sql_source_type}', target='{action.target}'"
             )
             sql_query = self._get_sql_query(
-                source_config, context.get("spec_dir"), context
+                source_config, context.get("spec_dir"), context, action.name
             )
         else:
             raise ErrorFactory.invalid_source_format(
@@ -69,20 +71,30 @@ class SQLLoadGenerator(BaseActionGenerator):
         source_config: dict,
         spec_dir: Path | None = None,
         context: dict | None = None,
+        action_name: str | None = None,
     ) -> str:
-        sql_content = None
+        substitution_mgr = context.get("substitution_manager") if context else None
 
+        sql_content: str
         if "sql" in source_config:
             sql_content = source_config["sql"]
+            if substitution_mgr is not None:
+                sql_content = substitution_mgr._process_string(sql_content)
         elif "sql_path" in source_config:
             project_root = (
                 context.get("project_root", Path.cwd())
                 if context
                 else (spec_dir or Path.cwd())
             )
-            sql_content = load_external_file_text(
-                source_config["sql_path"], project_root, file_type="SQL file"
-            ).strip()
+            flowgroup = context.get("flowgroup") if context else None
+            sql_content = load_sql_file(
+                source_config["sql_path"],
+                project_root,
+                substitution_mgr,
+                pipeline=getattr(flowgroup, "pipeline", None),
+                flowgroup=getattr(flowgroup, "flowgroup", None),
+                action=action_name,
+            )
         else:
             raise ErrorFactory.missing_required_field(
                 field_name="sql/sql_path",
@@ -95,10 +107,7 @@ class SQLLoadGenerator(BaseActionGenerator):
   sql_path: "queries/my_query.sql" """,
             )
 
-        if context and "substitution_manager" in context:
-            substitution_mgr = context["substitution_manager"]
-            sql_content = substitution_mgr._process_string(sql_content)
-
+        if context and substitution_mgr is not None:
             secret_refs = substitution_mgr.secret_references
             if (
                 "secret_references" in context

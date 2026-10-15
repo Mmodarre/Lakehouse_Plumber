@@ -36,7 +36,11 @@ event_log:
   name_suffix: "_event_log"
 ```
 
-All fields support LHP token substitution from `substitutions/<env>.yaml`.
+All fields support LHP token substitution from `substitutions/<env>.yaml`. A plain
+`${name}` left after substitution in a value LHP writes out (the `event_log` block in
+bundle pipeline resources; the union notebook's `checkpoint_path`, target table and
+event-log refs) is **LHP-CFG-010** from `lhp validate` and `lhp generate`. The
+monitoring job config (e.g. its `${bundle_target}`) is not checked.
 
 ### Pipeline-Level Overrides (pipeline_config.yaml)
 
@@ -60,7 +64,7 @@ pipeline: temp_debug_pipeline
 event_log: false
 ```
 
-Project-level event logging does NOT require the `-pc` flag — it's applied automatically during `lhp generate`.
+When bundle support is enabled, both `lhp validate` and `lhp generate` require `-pc` / `--pipeline-config`. The project event-log block supplies the injection settings; it does not remove that bundle preflight requirement.
 
 ### Generated Resource Output
 
@@ -263,6 +267,7 @@ dev:                              prod:
 | `event_log` missing `catalog` or `schema` | LHP-CFG-007 | Add both required fields, or set `enabled: false` |
 | `monitoring` is not a YAML mapping | LHP-CFG-008 | Define `monitoring:` as a mapping with `checkpoint_path` and `job_config_path` |
 | Monitoring missing `checkpoint_path` | LHP-CFG-008 | Add `checkpoint_path` (typically a UC volume) or disable monitoring |
+| Undefined `${name}` in `event_log`, `checkpoint_path`, `monitoring.catalog` / `schema` / `streaming_table` (after substitution) | LHP-CFG-010 | Define the token in `substitutions/<env>.yaml` |
 | Monitoring missing `job_config_path` | LHP-CFG-008 | Add `job_config_path` pointing to a job YAML, or disable monitoring |
 | Monitoring `job_config_path` file not found | LHP-CFG-008 / LHP-IO-001 | File at resolved path does not exist; create it or fix the path |
 | `materialized_views` is not a list | LHP-CFG-008 | Use YAML list: `materialized_views: [...]` |

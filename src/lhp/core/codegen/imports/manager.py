@@ -21,7 +21,10 @@ from lhp.core.codegen.imports.categorizer import (
     sort_imports,
 )
 from lhp.core.codegen.imports.detector import ImportDetector
-from lhp.core.codegen.imports.resolver import resolve_conflicts
+from lhp.core.codegen.imports.resolver import (
+    resolve_conflicts,
+    split_overlapping_from_imports,
+)
 
 
 class ImportManager:
@@ -164,7 +167,7 @@ class ImportManager:
             is_wildcard_import=is_wildcard_import,
         )
 
-        return sort_imports(resolved_imports)
+        return sort_imports(split_overlapping_from_imports(resolved_imports))
 
     def clear(self) -> None:
         self._manual_imports.clear()

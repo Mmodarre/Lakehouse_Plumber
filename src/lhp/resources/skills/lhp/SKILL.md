@@ -1,15 +1,21 @@
 ---
 name: lhp
-description: "Lakehouse Plumber (LHP): the tool that compiles declarative YAML into Databricks Lakeflow/DLT Python. Use whenever the user is working inside an LHP project. Dead-giveaway signals: the word `flowgroup`; the `lhp` CLI (`init`/`validate`/`generate`/`dag`/`diff`); or LHP files (`lhp.yaml`, `substitutions/`, `presets/`, `templates/`, `blueprints/`, `pipelines/*.yaml`). Covers scaffolding a new LHP project; authoring or fixing flowgroup load/transform/write/test actions; regenerating Python after editing YAML and checking the diff; reusing one pattern across regions/tenants/sites via templates or blueprints; setting up substitutions or Asset Bundle integration; and debugging any LHP validate/generate failure (unresolved `${token}`, non-streaming source) including the SQL or YAML behind the generated Python. Fire even when the user only says `flowgroup` or `lhp` with little else. Skip for hand-written DLT/Spark notebooks, generic SQL, Genie, or CI/CD with no LHP project involved."
+description: "Build, configure, debug and maintain Lakehouse Plumber (LHP) projects for Databricks Lakeflow Spark Declarative Pipelines. Use for LHP YAML, flowgroups, CLI commands, project setup, feature explanations, validation, generation, deployment and troubleshooting. Includes offline technical references. Guided courses and learner exercises belong to the separate lhp-learn skill; do not start lessons during ordinary development work."
 ---
 
 # Lakehouse Plumber (LHP)
 
-YAML-to-Python code generator for Databricks Lakeflow Declarative Pipelines.
+Modern YAML-driven ETL framework for Databricks Lakeflow Spark Declarative Pipelines.
+
+Use the technical references bundled with this installed release. Read only those
+needed for the current development task. Website access is optional. Complete the
+requested work and explain relevant decisions; do not introduce course checkpoints.
+
+For environment installation, use [setup.md](references/setup.md).
 
 ## Before You Start (read this first)
 
-- **Reuse before authoring.** On any "create a flowgroup / pipeline / ingestion" request, scan `templates/` and `blueprints/` **first**. If an existing template (one parameterised flowgroup) or blueprint (a whole-flowgroup pattern repeated per site/region/tenant) already fits, propose reusing it via `use_template:` / `use_blueprint:` and confirm with the user *before* hand-writing new actions. Only author fresh YAML when nothing fits.
+- **Reuse before authoring.** On any "create a flowgroup / pipeline / ingestion" request, scan `templates/` and `blueprints/` **first**. If an existing template (one parameterised flowgroup) or blueprint (a whole-flowgroup pattern repeated per site/region/tenant) already fits, reuse it via `use_template:` / `use_blueprint:` when it matches the request. Ask only if the choice is ambiguous or changes the requested behaviour. Only author fresh YAML when nothing fits.
 - **Write-target rule of thumb:** incremental/append/streaming ingest → `streaming_table`; full recompute, joins, aggregations, or dimensional rebuilds → `materialized_view`.
 - **New project from scratch?** Load [quickstart.md](references/quickstart.md) for the `init → lhp.yaml/substitutions/pipeline_config → validate → generate` path.
 - **Common mistakes to avoid:**
@@ -130,6 +136,7 @@ Each sub-type has its own leaf reference file. Load only the one(s) you need.
 | **Write** | streaming_table (standard) | [actions-write-streaming-table-standard.md](references/actions-write-streaming-table-standard.md) |
 | **Write** | streaming_table `mode: cdc` (`cdc_config`) | [actions-write-streaming-table-cdc.md](references/actions-write-streaming-table-cdc.md) |
 | **Write** | streaming_table `mode: snapshot_cdc` | [actions-write-streaming-table-snapshot-cdc.md](references/actions-write-streaming-table-snapshot-cdc.md) |
+| **Write** | streaming_table `mode: replace` (REPLACE USING, `replace_config`) | [actions-write-streaming-table-replace.md](references/actions-write-streaming-table-replace.md) |
 | **Write** | materialized_view | [actions-write-materialized-view.md](references/actions-write-materialized-view.md) |
 | **Write** | sink (delta) | [actions-write-sink-delta.md](references/actions-write-sink-delta.md) |
 | **Write** | sink (kafka) | [actions-write-sink-kafka.md](references/actions-write-sink-kafka.md) |
@@ -157,7 +164,7 @@ Each sub-type has its own leaf reference file. Load only the one(s) you need.
 6. **Validate before generating**: `lhp validate --env <env>`
 7. **`readMode: stream`** -> `spark.readStream`, **`batch`** -> `spark.read`
 8. **Monitoring requires event_log** — `monitoring: {}` won't work without `event_log` section
-9. **`catalog` and `schema` are REQUIRED in `pipeline_config.yaml`** — set them per-pipeline or in a top-level `project_defaults` block. Missing either fails `lhp generate` with `BundleResourceError`. See [project-config.md](references/project-config.md) and `docs/how-to/configure-catalog-and-schema.rst`.
+9. **`catalog` and `schema` are REQUIRED in `pipeline_config.yaml`** — set them per-pipeline or in a top-level `project_defaults` block. Missing either fails generation. See [project-config.md](references/project-config.md).
 10. **`resources/lhp/` is exclusively managed by LHP** — every `lhp generate` wipes it and rewrites it. Place custom resource YAMLs (hand-written jobs, dashboards, secret scopes) under `resources/` at the top level or any non-`lhp` subdirectory.
 11. **Every `lhp generate` is a full regenerate** — there is no incremental mode and no `--force` flag (it was removed and is a no-op). Never suggest `--force`.
 
@@ -201,7 +208,7 @@ Action references are split per sub-type — one leaf file per action sub-type. 
 
 - **Load** — [cloudfiles](references/actions-load-cloudfiles.md), [delta](references/actions-load-delta.md), [sql](references/actions-load-sql.md), [python](references/actions-load-python.md), [jdbc](references/actions-load-jdbc.md), [custom_datasource](references/actions-load-custom-datasource.md), [kafka](references/actions-load-kafka.md).
 - **Transform** — [sql](references/actions-transform-sql.md), [python](references/actions-transform-python.md), [data_quality](references/actions-transform-data-quality.md), [temp_table](references/actions-transform-temp-table.md), [schema](references/actions-transform-schema.md).
-- **Write** — [streaming_table standard](references/actions-write-streaming-table-standard.md), [streaming_table cdc](references/actions-write-streaming-table-cdc.md), [streaming_table snapshot_cdc](references/actions-write-streaming-table-snapshot-cdc.md), [materialized_view](references/actions-write-materialized-view.md), [sink delta](references/actions-write-sink-delta.md), [sink kafka](references/actions-write-sink-kafka.md), [sink eventhubs](references/actions-write-sink-eventhubs.md), [sink custom](references/actions-write-sink-custom.md), [sink foreachbatch](references/actions-write-sink-foreachbatch.md).
+- **Write** — [streaming_table standard](references/actions-write-streaming-table-standard.md), [streaming_table cdc](references/actions-write-streaming-table-cdc.md), [streaming_table snapshot_cdc](references/actions-write-streaming-table-snapshot-cdc.md), [streaming_table replace](references/actions-write-streaming-table-replace.md), [materialized_view](references/actions-write-materialized-view.md), [sink delta](references/actions-write-sink-delta.md), [sink kafka](references/actions-write-sink-kafka.md), [sink eventhubs](references/actions-write-sink-eventhubs.md), [sink custom](references/actions-write-sink-custom.md), [sink foreachbatch](references/actions-write-sink-foreachbatch.md).
 - **Test** — [row_count](references/actions-test-row-count.md), [uniqueness](references/actions-test-uniqueness.md), [referential_integrity](references/actions-test-referential-integrity.md), [completeness](references/actions-test-completeness.md), [range](references/actions-test-range.md), [schema_match](references/actions-test-schema-match.md), [all_lookups_found](references/actions-test-all-lookups-found.md), [custom_sql](references/actions-test-custom-sql.md), [custom_expectations](references/actions-test-custom-expectations.md). All 9 require the `--include-tests` flag.
 - **[cdc-patterns.md](references/cdc-patterns.md)** — CDC and SCD2 patterns for Delta CDF, PostgreSQL WAL, and snapshot CDC. Load when implementing any CDC/SCD2 pattern.
 - **[templates-presets.md](references/templates-presets.md)** — Template structure, naming conventions, parameter types (incl. inline SQL parametrized with Jinja), preset matching/merge behavior. Load when creating or editing templates or presets.
@@ -209,6 +216,8 @@ Action references are split per sub-type — one leaf file per action sub-type. 
 - **[quickstart.md](references/quickstart.md)** — First-project setup: `lhp init`, `lhp.yaml`, `databricks.yml`, `substitutions/`, `config/pipeline_config.yaml`, first flowgroup, validate + generate. Load when scaffolding a new project from scratch.
 - **[project-config.md](references/project-config.md)** — lhp.yaml, substitutions, local variables, operational metadata, CLI commands, multi-flowgroup syntax. Load for project setup or config questions.
 - **[advanced.md](references/advanced.md)** — Databricks bundles, pipeline/job configuration, dependency analysis, multi-job orchestration, CI/CD patterns. Load for deployment or orchestration tasks.
+- **[quarantine.md](references/quarantine.md)** — Inbox/outbox DDL, corrected-row recycling and replay conditions. Load when configuring quarantine.
+- **[uc-tags.md](references/uc-tags.md)** — Table/column tagging and event-hook behaviour. Load for Unity Catalog tags.
 - **[monitoring.md](references/monitoring.md)** — Event log injection, monitoring pipeline, materialized views, `__eventlog_monitoring` alias. Load when configuring event_log or monitoring in lhp.yaml.
 - **[sandbox.md](references/sandbox.md)** — Developer sandbox mode (`--sandbox`): personal namespaced copies of in-scope pipelines, profile + team policy config, rename semantics, sandbox error codes. Load when the user mentions `--sandbox`, `.lhp/profile.yaml`, developer isolation, or parallel development on a shared environment.
 - **[errors.md](references/errors.md)** — All LHP error codes (LHP-CFG/VAL/IO/ACT/DEP) with causes and fixes. Load when troubleshooting any LHP error.
@@ -217,7 +226,7 @@ Action references are split per sub-type — one leaf file per action sub-type. 
 ## Instructions
 
 1. **Read project files first** — match existing patterns and conventions. Do not introduce a best-practice default that conflicts with an established project convention without flagging the trade-off.
-2. **Reuse before authoring** — for any flowgroup/pipeline creation request, scan `templates/` and `blueprints/` first. If an existing template or blueprint fits the pattern, propose reusing it (`use_template:` / `use_blueprint:`) and confirm with the user before hand-writing new actions. Author fresh YAML only when nothing fits.
+2. **Reuse before authoring** — for any flowgroup/pipeline creation request, scan `templates/` and `blueprints/` first. If an existing template or blueprint fits the pattern, reuse it (`use_template:` / `use_blueprint:`) when it matches the request; ask only about ambiguous or behaviour-changing choices. Author fresh YAML only when nothing fits.
 3. **Apply best-practice defaults** (see section above). When the project is new or silent on a choice, pick the BP default. Load [best-practices.md](references/best-practices.md) when designing new structures or refactoring.
 4. **Validate substitution tokens** — ensure `${token}` has corresponding entry in substitution files
 5. **Apply presets** — reference project presets where appropriate

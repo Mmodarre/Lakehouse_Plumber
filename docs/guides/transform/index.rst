@@ -36,7 +36,7 @@ flow through. Pick the transform type by what you're doing to the data.
 
 .. note::
 
-   Data quality has two homes. A ``data_quality`` transform gates rows *inside* a
+   Use the :doc:`quality chooser </guides/test/index>` to compare quality checks. A ``data_quality`` transform gates rows *inside* a
    flow (drop or quarantine). To assert a standalone property — uniqueness, a row
    count, referential integrity — as a **unit test for your data**, use a
    :doc:`test action </guides/test/index>` instead.
@@ -49,5 +49,3 @@ flow through. Pick the transform type by what you're doing to the data.
    Python transform <python>
    Schema enforcement <schema>
    Temp tables <temp-table>
-   Data-quality expectations <data-quality>
-   Quarantine bad rows <quarantine>

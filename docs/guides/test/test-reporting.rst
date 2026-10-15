@@ -130,4 +130,4 @@ What's next
   so every pipeline with a tagged test gets its own hook. One provider, all
   pipelines.
 - **Reference** — every ``test_reporting`` field is in the
-  :doc:`test action reference </reference/actions/test>`.
+  :doc:`test reporting reference </reference/config/test-reporting>`.

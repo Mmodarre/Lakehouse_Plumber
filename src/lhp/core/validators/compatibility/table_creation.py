@@ -17,7 +17,8 @@ def action_creates_table(action: Action) -> bool:
 
     Rules (identical to the private predicate):
     - ``MaterializedView`` write targets always create their table.
-    - ``snapshot_cdc`` mode always creates its table.
+    - ``snapshot_cdc`` and ``replace`` modes always create their table
+      (each is served by a single flow on a dedicated table).
     - Otherwise, falls back to the explicit ``create_table`` field
       (default True if absent).
     """
@@ -29,13 +30,13 @@ def action_creates_table(action: Action) -> bool:
         if write_type == "materialized_view":
             return True
         mode = action.write_target.get("mode", "standard")
-        if mode == "snapshot_cdc":
+        if mode in ("snapshot_cdc", "replace"):
             return True
         return action.write_target.get("create_table", True)
     if action.write_target.type == WriteTargetType.MATERIALIZED_VIEW:
         return True
     mode = getattr(action.write_target, "mode", "standard")
-    if mode == "snapshot_cdc":
+    if mode in ("snapshot_cdc", "replace"):
         return True
     return action.write_target.create_table
 

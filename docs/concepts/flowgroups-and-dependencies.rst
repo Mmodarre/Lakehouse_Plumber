@@ -73,16 +73,12 @@ and silver reads it back; a view will not reach across, and the edge simply
 never forms. Deciding what to materialize is, in large part, deciding where your
 pipeline boundaries fall.
 
-.. mermaid::
+.. figure:: ../_static/diagrams/pipeline-boundaries.png
+   :alt: Bronze Load produces the pipeline-local v_orders_raw view, which Write persists as main.bronze.orders. Silver reads and transforms that table into its own local v_clean view, then writes its output. The persisted table crosses the pipeline boundary; the views do not.
+   :width: 100%
+   :figclass: lhp-diagram
 
-   flowchart LR
-       subgraph bronze["Pipeline: bronze"]
-           A["load orders_raw"] -->|"v_orders_raw — view, pipeline-scoped"| B["write orders — table"]
-       end
-       subgraph silver["Pipeline: silver"]
-           C["transform clean_orders"] -->|"v_clean — view, pipeline-scoped"| D["write orders_clean — table"]
-       end
-       B -->|"orders — table, global"| C
+   Views stay within a pipeline; a persisted table connects bronze to silver. Select the diagram to view it full size.
 
 Within each pipeline a view carries the edge; across the pipeline boundary, only
 the global ``orders`` table connects bronze to silver.

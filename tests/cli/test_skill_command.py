@@ -11,9 +11,10 @@ from pathlib import Path
 
 import pytest
 from click.testing import CliRunner
+from conftest import strip_ansi
 
 from lhp.api import _skill_assets as sa
-from lhp.cli.commands.skill_command import install, status, uninstall, update
+from lhp.cli.commands.skill_command import export, install, status, uninstall, update
 
 SKILL_DIR = Path(".claude") / "skills" / "lhp"
 
@@ -28,6 +29,30 @@ def runner() -> CliRunner:
     # Click >=8.2 dropped ``mix_stderr``; stderr is captured separately by
     # default and read back via ``result.stderr``.
     return CliRunner()
+
+
+def test_export_needs_no_project_and_preserves_edits(runner: CliRunner) -> None:
+    with runner.isolated_filesystem():
+        target = Path("skills/lhp")
+        result = runner.invoke(export, ["--output", str(target)])
+        assert result.exit_code == 0, result.output
+        assert (target / "references/quickstart.md").is_file()
+        (target / "SKILL.md").write_text("user changes")
+        repeated = runner.invoke(export, ["--output", str(target)])
+        assert repeated.exit_code == 1
+        assert "LHP-IO-020" in repeated.stderr
+        assert (target / "SKILL.md").read_text() == "user changes"
+
+
+@pytest.mark.parametrize("flag", ["--user", "--force"])
+def test_genie_rejects_claude_flags_before_authentication(
+    runner: CliRunner, flag: str
+) -> None:
+    result = runner.invoke(install, ["--agent", "genie", flag])
+    assert result.exit_code == 2
+    output = strip_ansi(result.output)
+    assert "never force-overwrite" in output
+    assert "--user/--force" in output
 
 
 def test_install_creates_files_under_claude_skills(runner: CliRunner) -> None:
@@ -192,3 +217,45 @@ def test_uninstall_keeps_user_content_in_claude_md(runner: CliRunner) -> None:
         text = CLAUDE_MD.read_text()
         assert "Keep me." in text
         assert "lhp:routing:start" not in text
+
+
+def test_teaching_lifecycle_is_separate_from_development(runner: CliRunner) -> None:
+    with runner.isolated_filesystem():
+        _make_project()
+        assert runner.invoke(install, []).exit_code == 0
+        routing = Path("CLAUDE.md").read_bytes()
+        development = (SKILL_DIR / "SKILL.md").read_bytes()
+        teacher = SKILL_DIR.with_name("lhp-learn")
+        for command, args in ((install, []), (status, []), (update, ["--yes"])):
+            result = runner.invoke(command, ["--name", "lhp-learn", *args])
+            assert result.exit_code == 0, result.output
+        assert (teacher / "lessons/00-understand-lhp.md").is_file()
+        assert Path("CLAUDE.md").read_bytes() == routing
+        result = runner.invoke(uninstall, ["--name", "lhp-learn", "--force"])
+        assert result.exit_code == 0, result.output
+        assert not teacher.exists()
+        assert (SKILL_DIR / "SKILL.md").read_bytes() == development
+        assert Path("CLAUDE.md").read_bytes() == routing
+
+
+def test_teaching_project_install_does_not_add_development_routing(
+    runner: CliRunner,
+) -> None:
+    with runner.isolated_filesystem():
+        _make_project()
+        result = runner.invoke(install, ["--name", "lhp-learn"])
+        assert result.exit_code == 0, result.output
+        assert not Path("CLAUDE.md").exists()
+        assert not SKILL_DIR.exists()
+
+
+def test_export_selects_self_contained_teaching_skill(runner: CliRunner) -> None:
+    with runner.isolated_filesystem():
+        target = Path(".agents/skills/lhp-learn")
+        result = runner.invoke(export, ["--name", "lhp-learn", "--output", str(target)])
+        assert result.exit_code == 0, result.output
+        assert (target / "lessons/00-understand-lhp.md").is_file()
+        assert (target / "references/actions-load-delta.md").is_file()
+        invalid = runner.invoke(export, ["--name", "missing", "--output", "bad"])
+        assert invalid.exit_code == 2
+        assert not Path("bad").exists()

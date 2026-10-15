@@ -1,0 +1,65 @@
+name: Offline installation bundles
+
+on:
+  workflow_call:
+    inputs:
+      source-sha:
+        required: true
+        type: string
+      distribution-artifact:
+        default: ''
+        type: string
+
+permissions:
+  contents: read
+
+# This reusable build also runs in the release context; deny shared-cache access.
+cache-mode: none
+
+jobs:
+  bundle:
+    name: ${{ matrix.runner }} Python ${{ matrix.python }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-22.04, ubuntu-24.04-arm, macos-14, windows-2022]
+        python: ['3.12']
+    env:
+      LHP_TELEMETRY: 'off'
+      UV_PROJECT_ENVIRONMENT: .lhp-release-env
+      UV_PYTHON: ${{ matrix.python }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.source-sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Install pinned release tooling
+        run: python -m pip install uv==0.12.23
+      - name: Download the canonical release distributions
+        if: inputs.distribution-artifact != ''
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: ${{ inputs.distribution-artifact }}
+          path: dist
+      - name: Build a wheel for pull-request verification
+        if: inputs.distribution-artifact == ''
+        run: uv build --wheel --out-dir dist --build-constraints scripts/release-build-requirements.txt
+      - name: Build and verify native offline archive
+        run: |
+          uv lock --check
+          python scripts/render_agent_guides.py --check
+          python scripts/build_offline_bundle.py --wheel dist/*.whl --output offline-dist
+          python scripts/check_offline_bundle.py offline-dist/*.zip
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: offline-${{ matrix.runner }}-py${{ matrix.python }}
+          path: offline-dist/*
+          if-no-files-found: error

@@ -42,6 +42,11 @@ column as-is — but a clean ``source -> target: TYPE`` per column is all this
 contract needs. The file is a versioned artifact in its own right: diff it, review
 it, and reuse it across flowgroups that share the shape.
 
+Raw headers are not always clean identifiers. When a source column's name has
+spaces or punctuation, write it in backticks and quote the list entry:
+``"`customer name` -> customer_name: STRING"``. Only the source side takes
+backticks; the name after ``->`` is always a plain identifier.
+
 Declare the transform
 =====================
 
@@ -101,7 +106,7 @@ runtime:
 .. literalinclude:: ../../_fixtures/guide_transform_schema/generated/dev/silver_orders/orders_typed.py
    :language: python
    :caption: generated/dev/silver_orders/orders_typed.py
-   :emphasize-lines: 36-59
+   :emphasize-lines: 35-58
 
 The schema transform became a ``@dp.temporary_view`` that turns each contract line
 into concrete PySpark: four ``withColumnRenamed`` calls map the cryptic names,
@@ -137,3 +142,8 @@ What's next
   data-quality guide.
 - For inline schemas (``schema_inline``), the ``permissive`` mode, the full arrow
   syntax, and ``readMode``, see the **Transform action reference**.
+
+Syntax and options
+------------------
+
+See :doc:`/reference/actions/transform/schema` for all supported settings and defaults.

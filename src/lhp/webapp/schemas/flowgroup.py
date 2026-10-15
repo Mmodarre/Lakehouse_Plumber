@@ -107,7 +107,9 @@ class FlowgroupActionSummary(BaseModel):
     description: str | None = None
     transform_type: str | None = None
     test_type: str | None = None
-    write_mode: str | None = None  # "standard" | "cdc" | "snapshot_cdc" | None
+    write_mode: str | None = (
+        None  # "standard" | "cdc" | "snapshot_cdc" | "replace" | None
+    )
     scd_type: int | None = None  # 1 | 2 | None
     target_full_name: str | None = None
 

@@ -1,7 +1,6 @@
 """Data quality transformation generator."""
 
 import logging
-import re
 from pathlib import Path
 from typing import Any, Dict, List, Union
 
@@ -11,11 +10,14 @@ from ...core.loaders.external_file_loader import resolve_external_file_path
 from ...core.processing.dqe import DQEParser
 from ...core.registry import BaseActionGenerator
 from ...errors import ErrorFactory, codes
+from ...utils.identifiers import replace_non_identifier_chars
 
 logger = logging.getLogger(__name__)
 
 
 class DataQualityTransformGenerator(BaseActionGenerator):
+    renders_operational_metadata = True
+
     def __init__(self):
         super().__init__()
         self.add_import("from pyspark import pipelines as dp")
@@ -163,9 +165,11 @@ class DataQualityTransformGenerator(BaseActionGenerator):
                 ],
             )
 
-        # Sanitize source view for use as a Python identifier
+        # Replace each character outside [A-Za-z0-9_] in the source view name
+        # with "_"; the result suffixes generated names (_clean_<view>, ...).
+        # A leading digit or a Python keyword is left as it is.
         source_view = self._extract_source_view(action.source)
-        safe_source_view = re.sub(r"[^a-zA-Z0-9_]", "_", source_view)
+        safe_source_view = replace_non_identifier_chars(source_view)
 
         inverse_filter = "NOT ({})".format(
             " AND ".join(f"({rule})" for rule in all_expectations.values())

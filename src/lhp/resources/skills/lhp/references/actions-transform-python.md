@@ -28,7 +28,7 @@
 
 ## Key rules
 
-- Function signatures: single source `def func(df, spark, parameters: dict) -> DataFrame`; multiple sources (`source` is a list) `def func(dataframes: List[DataFrame], spark, parameters: dict) -> DataFrame`; no source (generator) `def func(spark, parameters: dict) -> DataFrame`.
+- Function signatures: single source `def func(df, spark, parameters: dict) -> DataFrame`; multiple sources (`source` is a list) `def func(dataframes: List[DataFrame], spark, parameters: dict) -> DataFrame`. A source is required. Use a Python load for a function with signature `func(spark, parameters)` that produces its own DataFrame.
 - **The whole file is copied, not just the entry function.** Define helper functions alongside `function_name` in the same `.py` and call them from the entry function — they are preserved verbatim. Prefer factoring procedural logic into helpers the entry function calls over one giant function.
 - Files auto-copied to `generated/<pipeline>/custom_python_functions/`; imports emitted as `from custom_python_functions.module import function`; copies carry a "DO NOT EDIT" header. Always edit originals.
 - Local helper imports: transitive closure copied, sub-package structure preserved; import root must NOT be a package → `LHP-VAL-023`; `import helpers.x` → `LHP-VAL-024`; missing helper → `LHP-VAL-025`; broken sibling → `LHP-IO-003`. Relative imports preserved; absolute-local imports prefix-rewritten.

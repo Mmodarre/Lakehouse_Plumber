@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 
+from lhp.errors import LHPValidationError
 from lhp.parsers.schema_transform_parser import SchemaTransformParser
 
 
@@ -462,3 +463,172 @@ class TestSchemaTransformParserValidation:
 
         result = parser.parse_arrow_format(data)
         assert "address" in result["pass_through_columns"]
+
+
+class TestSchemaTransformParserBacktickColumns:
+    """Backtick-quoted source column names hold any characters (issue #324)."""
+
+    def _parse(self, *lines: str) -> dict:
+        return SchemaTransformParser().parse_arrow_format({"columns": list(lines)})
+
+    def test_rename_source_with_spaces(self):
+        result = self._parse("`customer name`  -> CUSTOMER_NAME")
+
+        assert result["column_mapping"] == {"customer name": "CUSTOMER_NAME"}
+        assert result["type_casting"] == {}
+
+    def test_rename_and_cast(self):
+        result = self._parse("`order date` -> order_date: DATE")
+
+        assert result["column_mapping"] == {"order date": "order_date"}
+        assert result["type_casting"] == {"order_date": "DATE"}
+
+    def test_cast_only_and_pass_through(self):
+        result = self._parse("`unit price`: DECIMAL(18,2)", "`ship mode`")
+
+        assert result["type_casting"] == {"unit price": "DECIMAL(18,2)"}
+        assert result["pass_through_columns"] == ["ship mode"]
+
+    def test_arrow_and_colon_inside_quotes_belong_to_the_name(self):
+        result = self._parse("`a -> b` -> ab", "`k:v`: STRING", "`x.y`")
+
+        assert result["column_mapping"] == {"a -> b": "ab"}
+        assert result["type_casting"] == {"k:v": "STRING"}
+        assert result["pass_through_columns"] == ["x.y"]
+
+    def test_whitespace_inside_quotes_is_kept_exactly(self):
+        result = self._parse("` padded ` -> padded", "`two  spaces` -> two_spaces")
+
+        assert result["column_mapping"] == {
+            " padded ": "padded",
+            "two  spaces": "two_spaces",
+        }
+
+    def test_doubled_backtick_is_one_literal_backtick(self):
+        result = self._parse("`tick``name` -> tick", "```` -> lone_tick")
+
+        assert result["column_mapping"] == {"tick`name": "tick", "`": "lone_tick"}
+
+    def test_quoted_and_bare_spelling_are_the_same_column(self):
+        with pytest.raises(ValueError, match="Schema syntax error") as excinfo:
+            self._parse("`c_name` -> a", "c_name -> b")
+
+        assert "can only be mapped once" in excinfo.value.details
+
+    @pytest.mark.parametrize(
+        "line",
+        [
+            "`` -> x",
+            "`customer name -> x",
+            "c_name -> `target`",
+            "c_name -> customer name",
+            "customer name -> x",
+        ],
+    )
+    def test_invalid_quoting_is_a_syntax_error(self, line):
+        with pytest.raises(ValueError, match="Schema syntax error"):
+            self._parse(line)
+
+    def test_inline_plain_lines_with_backticks(self):
+        # YAML cannot start a plain scalar with a backtick, so this is not YAML;
+        # the inline parser falls back to reading arrow lines.
+        result = SchemaTransformParser().parse_inline_schema(
+            "`customer name` -> CUSTOMER_NAME\nc_id: BIGINT"
+        )
+
+        assert result["column_mapping"] == {"customer name": "CUSTOMER_NAME"}
+        assert result["type_casting"] == {"c_id": "BIGINT"}
+
+    def test_schema_file_with_quoted_entries(self, tmp_path):
+        schema_file = tmp_path / "customers.yaml"
+        schema_file.write_text(
+            'columns:\n  - "`customer name` -> CUSTOMER_NAME: STRING"\n'
+        )
+
+        result = SchemaTransformParser().parse_file(schema_file)
+
+        assert result["column_mapping"] == {"customer name": "CUSTOMER_NAME"}
+        assert result["type_casting"] == {"CUSTOMER_NAME": "STRING"}
+
+
+class TestSchemaTransformParserErrorMessages:
+    """LHP-VAL-011 names the failing part of the line and where it came from."""
+
+    def _error(self, line: str) -> LHPValidationError:
+        with pytest.raises(LHPValidationError) as excinfo:
+            SchemaTransformParser().parse_arrow_format({"columns": [line]})
+        return excinfo.value
+
+    def test_issue_324_unquoted_spaced_source_suggests_backticks(self):
+        error = self._error("customer name  -> CUSTOMER_NAME")
+
+        assert "`customer name`" in error.details
+        assert "rename target" not in error.details
+        assert error.example is not None
+        assert "`customer name`  -> CUSTOMER_NAME" in error.example
+
+    def test_invalid_rename_target_names_the_target_rule(self):
+        error = self._error("a -> $b")
+
+        assert "rename target" in error.details
+        assert "write it as" not in error.details
+
+    def test_unclosed_backtick_is_named(self):
+        error = self._error("`customer name -> CUSTOMER_NAME")
+
+        assert "end with a backtick" in error.details
+
+    def test_file_errors_name_the_file(self, tmp_path):
+        schema_file = tmp_path / "bad.yaml"
+        schema_file.write_text('columns:\n  - "customer name -> X"\n')
+
+        with pytest.raises(LHPValidationError) as excinfo:
+            SchemaTransformParser().parse_file(schema_file)
+
+        assert str(schema_file) in excinfo.value.details
+        assert "<schema>" not in excinfo.value.details
+
+    def test_inline_errors_name_schema_inline(self):
+        with pytest.raises(LHPValidationError) as excinfo:
+            SchemaTransformParser().parse_inline_schema("customer name -> X")
+
+        assert "schema_inline" in excinfo.value.details
+
+    def test_line_wrapped_in_quotes_says_to_remove_them(self):
+        error = self._error('"`customer name` -> customer_name"')
+
+        assert "without them" in error.details
+        assert "write it as" not in error.details
+
+    def test_empty_backtick_name_is_named(self):
+        error = self._error("`` -> x")
+
+        assert "cannot be empty" in error.details
+
+    def test_text_after_a_quoted_name_is_named(self):
+        error = self._error("`customer` name -> x")
+
+        assert "must be followed by" in error.details
+        assert "write it as" not in error.details
+
+    def test_quoted_name_with_missing_type_is_not_requoted(self):
+        error = self._error("`k:v`:")
+
+        assert "write it as" not in error.details
+
+    def test_inline_columns_list_with_unquoted_backtick_entry(self):
+        with pytest.raises(LHPValidationError) as excinfo:
+            SchemaTransformParser().parse_inline_schema(
+                "columns:\n  - `customer name` -> customer_name\n"
+            )
+
+        assert "- `customer name` -> customer_name" in excinfo.value.details
+        assert "quote" in excinfo.value.details
+
+    def test_plain_line_cast_of_a_column_named_columns_still_parses(self):
+        result = SchemaTransformParser().parse_inline_schema(
+            "columns: STRING\n`a b` -> ab"
+        )
+
+        assert result["type_casting"] == {"columns": "STRING"}
+        assert result["column_mapping"] == {"a b": "ab"}

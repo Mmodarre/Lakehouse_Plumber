@@ -1,14 +1,14 @@
 @dp.temporary_view()
 def {{ target_view }}():
-    """{{ description }}"""
+    """{{ description|py_block }}"""
     # Call the external Python function with spark and parameters
-    parameters = {{ parameters | tojson }}
+    parameters = {{ parameters|py_literal }}
     df = {{ function_name }}(spark, parameters)
     {% if add_operational_metadata %}
     
     # Add operational metadata columns
     {% for col_name, expression in metadata_columns.items()|sort %}
-    df = df.withColumn('{{ col_name }}', {{ expression }})
+    df = df.withColumn({{ col_name|py_str_single }}, {{ expression }})
     {% endfor %}
     {% endif %}
     

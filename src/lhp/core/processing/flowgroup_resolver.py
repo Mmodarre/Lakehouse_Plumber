@@ -37,11 +37,21 @@ class FlowgroupResolutionService(BaseFlowgroupResolutionService):
         preset_manager=None,
         config_validator=None,
         secret_validator=None,
+        operational_metadata_validator=None,
+        file_token_validator=None,
     ):
+        """``operational_metadata_validator`` resolves the ``lhp.yaml``
+        metadata expressions each flowgroup selects; ``file_token_validator``
+        rejects unresolved ``${name}`` tokens in the ``sql_path`` and UC
+        ``tags_file`` files its code renders. ``None`` skips a check
+        (resolvers whose output never reaches code generation).
+        """
         self.template_engine = template_engine
         self.preset_manager = preset_manager
         self.config_validator = config_validator
         self.secret_validator = secret_validator
+        self.operational_metadata_validator = operational_metadata_validator
+        self.file_token_validator = file_token_validator
         self.logger = logging.getLogger(__name__)
 
     def resolve(
@@ -144,6 +154,9 @@ class FlowgroupResolutionService(BaseFlowgroupResolutionService):
                         flowgroup, template_preset_config
                     )
 
+        # The flowgroup's own preset chain, the mapping code generation hands
+        # to generators; reused by the operational-metadata check below.
+        preset_config: Dict[str, Any] = {}
         if flowgroup.presets:
             with perf_timer(f"fg_presets [{fg}]", category="fg_presets"):
                 self.logger.debug(
@@ -221,6 +234,22 @@ class FlowgroupResolutionService(BaseFlowgroupResolutionService):
                             "FlowGroup": processed_flowgroup.flowgroup,
                             "Error Count": len(errors),
                         },
+                    )
+
+            if self.operational_metadata_validator is not None:
+                with perf_timer(
+                    f"op_metadata_validation [{fg}]", category="op_metadata_validation"
+                ):
+                    self.operational_metadata_validator.validate(
+                        processed_flowgroup, substitution_mgr, preset_config
+                    )
+
+            if self.file_token_validator is not None:
+                with perf_timer(
+                    f"file_token_validation [{fg}]", category="file_token_validation"
+                ):
+                    self.file_token_validator.validate(
+                        processed_flowgroup, substitution_mgr
                     )
 
         with perf_timer(f"secret_validation [{fg}]", category="secret_validation"):

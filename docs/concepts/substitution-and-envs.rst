@@ -19,6 +19,25 @@ This is the same idea that runs through the rest of Lakehouse Plumber —
 **declare your ETL, don't hand-write it** — applied to promotion: declare the
 values that vary, don't hand-copy the pipeline for each place it runs.
 
+.. _lhp-environment-resolution:
+
+From definition to runtime
+==========================
+
+During flowgroup resolution, LHP resolves local variables, expands template
+actions and applies presets, then substitutes environment values. Secret
+references become lookup calls in the generated Python. The calls fetch values
+when that code runs on Databricks.
+
+.. figure:: ../_static/diagrams/environment-resolution.png
+   :alt: At build time, local variables resolve before template and preset expansion and environment substitution. The same catalog token produces dev_catalog.bronze.orders for dev and prod_catalog.bronze.orders for prod. A secret reference becomes a dbutils.secrets.get call in generated Python. Only at runtime does Databricks execute the call and retrieve the value from a secret scope.
+   :width: 100%
+   :figclass: lhp-diagram
+
+   Environment values change the generated references; secret values remain
+   runtime lookups. Logical secret-scope names can map to different scopes per
+   environment. Select the diagram to view it full size.
+
 The alternative is config drift
 ===============================
 
@@ -45,7 +64,7 @@ it with one mechanism. It resolves four kinds of placeholder, in a fixed order,
 each with a wider scope than the last:
 
 1. ``%{local_var}`` — **local variables**, scoped to one flowgroup. Resolved
-   first, at parse time, before anything else runs. For a value that repeats
+   first in flowgroup resolution, before template expansion. For a value that repeats
    inside a single flowgroup and is the same in every environment.
 2. ``{{ template_param }}`` — **template parameters**, scoped to one instance of
    a template. Expanded when a flowgroup stamps out a template. For the pieces
@@ -65,12 +84,11 @@ parameter, a template parameter can expand into text that contains an
 environment token, and an environment token can resolve to a string that holds a
 secret reference. Resolving them in any other order would break that chaining.
 
-The order also tracks when each value becomes known. A local variable is fixed
-the moment the flowgroup is parsed. A template parameter is fixed when the
+The order also tracks when each value becomes known. A local variable expands
+when the flowgroup is resolved. A template parameter is fixed when the
 template is stamped. An environment token is fixed when you choose ``--env`` at
 generate time. A secret is not fixed at generate time at all — the generated
-code carries a lookup, and the value arrives at run time. Parse-time facts
-resolve first, run-time secrets last.
+code carries a lookup, and the value arrives at run time.
 
 Choosing the tier is choosing the scope
 =======================================
@@ -79,9 +97,9 @@ Because the tiers differ by scope, picking the right one is a question about
 where a value belongs, not about syntax:
 
 - The value is the same everywhere but repeats inside one flowgroup — a table
-  name reused across three actions. That is a **local variable**. It resolves at
-  parse time, so it must not depend on the environment; a dev value frozen into
-  ``variables:`` will not promote to prod.
+  name reused across three actions. That is a **local variable**. It expands
+  before environment substitution, so its text can contain an environment
+  token. A hard-coded dev value in ``variables:`` still remains a dev value.
 - The value differs between dev and prod — a catalog, a schema, a storage path,
   an alert address. That is an **environment token**, and it lives in the
   substitution file.

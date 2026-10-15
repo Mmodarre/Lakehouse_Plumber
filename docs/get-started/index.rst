@@ -11,6 +11,12 @@ medallion pipeline (bronze → silver → gold) over the ``samples.tpch`` datase
 every Unity Catalog workspace — then walks you through reading it, configuring
 it, generating its code, and deploying it to Databricks.
 
+Prefer an agent-guided course? Copy the `learning prompt <../learn.md>`_ into your
+coding agent. The separate ``lhp-learn`` skill begins with **Lesson 0**, explaining
+LHP's model and capabilities before opening the sample files. You make the exercise
+edits, the agent waits after each checkpoint, and progress stays with your project.
+The course and its advanced topic lessons also work without website access.
+
 .. toctree::
    :maxdepth: 1
 
@@ -44,7 +50,6 @@ You'll work through:
 7. **Where to next** — start your own project, and find the features the sample
    didn't cover.
 
-Every YAML file, command output, and generated Python snippet on these pages is
-**fixture-backed**: it comes from the real sample project and is regenerated on
-every docs build, so nothing here can drift from what Lakehouse Plumber actually
-emits.
+The examples use checked-in sample-project fixtures. A documentation build
+renders those files; it does not regenerate every fixture. Command timings
+are illustrative and will vary between runs.

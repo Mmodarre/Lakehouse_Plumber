@@ -18,6 +18,7 @@ from lhp.core.codegen.secret_code_generator import SecretCodeGenerator
 from lhp.core.codegen.template_renderer import TemplateRenderer
 from lhp.core.codegen.test_reporting import generate_test_reporting_hook
 from lhp.core.codegen.tst_reporting_hook_generator import TestReportingHookGenerator
+from lhp.core.codegen.uc_tagging_hook_generator import check_tags_file_tokens
 
 __all__ = [
     "CodeGenerationService",
@@ -31,6 +32,7 @@ __all__ = [
     "TemplateRenderer",
     "TestReportingHookGenerator",
     "build_generation_plan",
+    "check_tags_file_tokens",
     "compute_copy_records",
     "copy_user_module_for_pipeline",
     "extract_future_imports",

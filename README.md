@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="https://raw.githubusercontent.com/Mmodarre/Lakehouse_Plumber/main/lhp_colour.png" alt="LakehousePlumber Logo" width="20%">
+  <img src="https://raw.githubusercontent.com/Mmodarre/Lakehouse_Plumber/main/lhp_logo.png" alt="LakehousePlumber Logo" width="20%">
 </div>
 
 # Lakehouse Plumber

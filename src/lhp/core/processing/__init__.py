@@ -8,25 +8,29 @@ services composed by :class:`lhp.core.coordination.orchestrator.ActionOrchestrat
 
 from typing import TYPE_CHECKING, Any
 
-from .blueprint_expander import BlueprintExpander
+from .blueprint_expander import BlueprintExpander, BlueprintProvenance
 from .dqe import DQEParser
 from .local_variables import LocalVariableResolver
 from .namespace_normalizer import normalize_namespace_fields
 from .substitution import EnhancedSubstitutionManager, SecretReference
 from .template_engine import TemplateEngine
+from .unresolved_tokens import find_unresolved_tokens, unresolved_tokens_error
 
 if TYPE_CHECKING:
     from .flowgroup_resolver import FlowgroupResolutionService
 
 __all__ = [
     "BlueprintExpander",
+    "BlueprintProvenance",
     "DQEParser",
     "EnhancedSubstitutionManager",
     "FlowgroupResolutionService",
     "LocalVariableResolver",
     "SecretReference",
     "TemplateEngine",
+    "find_unresolved_tokens",
     "normalize_namespace_fields",
+    "unresolved_tokens_error",
 ]
 
 

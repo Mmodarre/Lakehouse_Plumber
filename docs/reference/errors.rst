@@ -36,19 +36,19 @@ Configuration errors (LHP-CFG)
      - Add flowgroup content; reference a defined column.
    * - LHP-CFG-006
      - ``event_log`` is not a mapping, or operational-metadata column references are undefined.
-     - Define ``event_log`` as a mapping; reference defined columns.
+     - Define ``event_log`` as a mapping; reference defined columns. For the title "Missing packaging dependency", install the required Python ``packaging`` dependency.
    * - LHP-CFG-007
      - ``event_log`` is missing ``catalog`` or ``schema``, or a schema file failed to parse.
-     - Provide both keys; fix the schema file.
+     - Provide both keys; fix the schema file. For "version requirement not satisfied", compare the installed LHP version with :ref:`required_lhp_version <required-lhp-version>`.
    * - LHP-CFG-008
      - Invalid ``monitoring`` config, or ``sql_path`` cannot be resolved without a project root.
-     - Fix the ``monitoring`` block per the message.
+     - Follow the full error title. For an invalid version specifier, correct :ref:`required_lhp_version <required-lhp-version>`; for monitoring, correct the named field.
    * - LHP-CFG-009
-     - YAML parsing error (bad indentation, unquoted special characters).
-     - Fix YAML syntax; quote values containing ``:`` ``{`` ``}`` ``[`` ``]``.
+     - YAML parsing error, or invalid/incomplete project ``test_reporting`` configuration.
+     - For a YAML syntax error, fix indentation and quoting. For a test-reporting title, supply a mapping with ``module_path`` and ``function_name``; see :doc:`config/test-reporting`.
    * - LHP-CFG-010
-     - A removed/deprecated field name was used.
-     - Replace it with the field named in the message.
+     - A removed/deprecated field name was used, or a substitution token is unresolved: a ``${token}`` in a flowgroup after substitution; a ``${...}``, ``%{...}`` or ``{{ ... }}`` left in a selected operational-metadata ``expression`` in ``lhp.yaml``; or a plain ``${name}`` left in a ``sql_path`` file (SQL load, SQL transform, materialized view), in a UC ``tags_file``, in a bundle pipeline resource (any ``pipeline_config.yaml`` value or the ``event_log`` injected from ``lhp.yaml``; checked when bundle output is enabled), or in the monitoring union notebook (``monitoring.checkpoint_path``, the target table, the ``event_log`` table references). Dotted or prefixed variables such as ``${mypipeline.start}``, ``${hiveconf:x}`` or the bundle's ``${var.x}`` / ``${bundle.target}`` are not reported, and Python files and the monitoring job config are not checked. A plain ``${name}`` in a ``sql_path`` file is reported even when a pipeline ``configuration:`` value would define it at runtime (otherwise Spark substitutes an empty string). Raised by both ``lhp validate`` and ``lhp generate``.
+     - Replace the field named in the message, or add the missing key to ``substitutions/<env>.yaml``. For a Spark or pipeline variable set at runtime, use a dotted or prefixed name: a pipeline ``configuration:`` parameter read in SQL gets a dotted key (for example ``mypipeline.start_date``, referenced as ``${mypipeline.start_date}``), which LHP leaves untouched.
    * - LHP-CFG-011
      - Invalid ``database`` field in a write target, or undefined local variable(s) ``%{...}``.
      - Fix the target; define the referenced local variables.
@@ -101,7 +101,13 @@ Configuration errors (LHP-CFG)
      - Template has a Jinja syntax error.
      - Fix the template syntax.
    * - LHP-CFG-031
-     - Generated Python source failed to parse (``ast.parse`` reported a SyntaxError).
+     - Generated Python source failed to parse. The check runs on the source as it is
+       written to disk, where every line-boundary character starts a new line. Values
+       written into escaped string literals no longer cause it on their own. It can
+       still fire for text inserted verbatim as code or into a comment (for example an
+       operational-metadata ``expression`` or a snapshot-CDC ``source_function``) that
+       breaks the syntax or contains a NUL or lone-surrogate character, and for a
+       ``${secret:...}`` reference inside SQL (#306).
      - Almost always a generator/template bug; file a report with the flowgroup YAML.
    * - LHP-CFG-033
      - The ``ruff format`` pass on generated code exited non-zero.
@@ -169,6 +175,9 @@ Configuration errors (LHP-CFG)
    * - LHP-CFG-069
      - Warning (logged) — a write target's ``table_schema`` file carries UC tags (a top-level ``tags:`` or a per-column ``tags:``) but the same file is not also wired as that action's ``tags_file``, so those tags are dropped. Emitted at generate time by the streaming-table and materialized-view writes only (not the cloudfiles load path).
      - Point ``tags_file`` at the same file to apply the tags, or remove the ``tags:`` keys from the schema file.
+   * - LHP-CFG-070
+     - A selected operational-metadata ``expression`` in ``lhp.yaml`` references a secret (``${secret:...}``, directly or through a token value). The expression's result is written into table data, so the secret would be stored in every row. Raised by both ``lhp validate`` and ``lhp generate``.
+     - Remove the secret. Use a ``${token}`` from ``substitutions/<env>.yaml`` for non-secret per-environment values, or a transform action for per-table logic.
 
 Validation errors (LHP-VAL)
 ===========================
@@ -199,8 +208,8 @@ Validation errors (LHP-VAL)
      - A field has a value outside its allowed set.
      - Use one of the valid values shown.
    * - LHP-VAL-007
-     - Invalid ``readMode``.
-     - Use ``stream`` or ``batch``.
+     - FlowGroup validation failed — wraps the list of configuration validation errors found in one flowgroup.
+     - Fix each listed error.
    * - LHP-VAL-008
      - A field has the wrong data type.
      - Match the expected type from the message.
@@ -300,6 +309,9 @@ Validation errors (LHP-VAL)
    * - LHP-VAL-067
      - Warning (category sandbox) — opaque dynamic SQL could not be verified or rewritten.
      - Use a statically resolvable name, or accept the shared read; ``--strict`` promotes to a failure.
+   * - LHP-VAL-068
+     - Invalid ``readMode`` — the action does not accept that mode. ``cloudfiles`` and ``kafka`` loads and ``data_quality`` transforms accept only ``stream``.
+     - Set ``readMode: stream``, or remove ``readMode`` (these actions default to ``stream``).
    * - LHP-VAL-902
      - All-or-nothing aggregator — one or more flowgroups failed in a parallel ``lhp generate`` run; no files were written.
      - Fix every listed failure; re-run with ``--verbose`` or ``--log-file``.
@@ -365,6 +377,9 @@ Input/output errors (LHP-IO)
    * - LHP-IO-028
      - ``lhp telemetry on|off`` could not write the telemetry state file.
      - Point ``LHP_CONFIG_DIR`` at a writable directory.
+   * - LHP-IO-029
+     - Portable or Genie skill installation failed during access, upload or verification.
+     - Use the reported failure category. Check destination permissions, SDK availability and notebook authentication; read the chained exception in Python for further detail.
 
 Action errors (LHP-ACT)
 =======================

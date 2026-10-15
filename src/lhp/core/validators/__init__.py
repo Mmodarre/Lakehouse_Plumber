@@ -8,6 +8,7 @@
 # isort: skip_file
 from ._base import BaseActionValidator
 from .compatibility.cdc_fanin import CdcFanInCompatibilityValidator
+from .compatibility.replace_fanin import ReplaceFanInCompatibilityValidator
 from .action.load import LoadActionValidator
 from .action.transform import TransformActionValidator
 from .action.write import WriteActionValidator
@@ -18,6 +19,11 @@ from .compatibility.table_creation import TableCreationValidator, action_creates
 # taxonomy under §9.4).
 from .field.config_field import ConfigFieldValidator
 from .field.secret_reference import SecretValidator
+from .field.operational_metadata_expression import (
+    OperationalMetadataExpressionValidator,
+)
+from .field.external_file_tokens import ExternalFileTokenValidator
+from .field.setting_tokens import PipelineSettings, unresolved_setting_token_errors
 from .compatibility import (
     DltTableOptionsValidator,
     CdcConfigValidator,
@@ -37,8 +43,12 @@ __all__ = [
     "ConfigFieldValidator",
     "ConfigValidator",
     "DltTableOptionsValidator",
+    "ExternalFileTokenValidator",
     "KafkaOptionsValidator",
     "LoadActionValidator",
+    "OperationalMetadataExpressionValidator",
+    "PipelineSettings",
+    "ReplaceFanInCompatibilityValidator",
     "SecretValidator",
     "SnapshotCdcConfigValidator",
     "TableCreationValidator",
@@ -46,6 +56,7 @@ __all__ = [
     "TransformActionValidator",
     "WriteActionValidator",
     "action_creates_table",
+    "unresolved_setting_token_errors",
     "validate_job_name_format",
     "validate_job_names",
 ]

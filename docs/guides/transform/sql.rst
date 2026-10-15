@@ -131,8 +131,12 @@ PySpark from you.** You never wrote ``@dp.temporary_view``, ``spark.sql``, or a
 ``readStream.table`` by hand.
 
 The SQL is yours to own — the casts, the join, the filter are exactly what you
-typed. Lakehouse Plumber wrote only the boilerplate that turns a query into a
-wired-up Lakeflow view.
+typed. Quotes and backslashes reach Spark unchanged, so a pattern such as
+``RLIKE '^\\d+$'`` needs no extra escaping. Only whitespace changes: the query
+is stripped of leading and trailing whitespace (including blank lines before
+and after it), and whitespace at the end of each line is removed when the file
+is written. Lakehouse Plumber wrote only the boilerplate that turns a query
+into a wired-up Lakeflow view.
 
 What's next
 ===========
@@ -144,3 +148,8 @@ What's next
   transform guide.
 - For the full option list — ``sql_path``, multiple source views, and
   operational metadata — see the **Transform action reference**.
+
+Syntax and options
+------------------
+
+See :doc:`/reference/actions/transform/sql` for all supported settings and defaults.

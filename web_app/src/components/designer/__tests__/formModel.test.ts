@@ -56,7 +56,7 @@ describe('formModel — soft validation hints', () => {
     expect(issues.get(pathKey(['target']))).toMatch(/required/i)
   })
 
-  it('mutuallyExclusive: cluster_columns + cluster_by_auto hints', () => {
+  it('cluster_columns + cluster_by_auto may be combined (no hint, issue #282)', () => {
     const issues = computeIssues(writeStreamingTableSpec, {
       source: 'v',
       write_target: {
@@ -67,10 +67,11 @@ describe('formModel — soft validation hints', () => {
         cluster_by_auto: true,
       },
     })
-    expect(issues.get(pathKey(['write_target', 'cluster_columns']))).toMatch(/only one/i)
+    expect(issues.has(pathKey(['write_target', 'cluster_columns']))).toBe(false)
+    expect(issues.has(pathKey(['write_target', 'cluster_by_auto']))).toBe(false)
   })
 
-  it('cluster_by_auto: false does not trip the exclusion', () => {
+  it('cluster_columns with cluster_by_auto: false raises no hint', () => {
     const issues = computeIssues(writeStreamingTableSpec, {
       source: 'v',
       write_target: {

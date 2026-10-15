@@ -288,7 +288,8 @@
         }
       ],
       "details": [
-        "Define each column once, group columns into metadata presets, then choose the default selection. Flowgroups and actions can select metadata explicitly."
+        "Define columns here, then select their names explicitly with operational_metadata on a flowgroup or supported action.",
+        "The current selector does not activate project defaults or expand named metadata presets. A selection of true adds no columns."
       ]
     },
     {
@@ -320,7 +321,7 @@
       "examples": [
         {
           "label": "YAML example",
-          "yaml": "operational_metadata:\n  columns:\n    _processed_at:\n      expression: F.current_timestamp()\n      applies_to: [streaming_table, materialized_view]"
+          "yaml": "operational_metadata:\n  columns:\n    _processed_at:\n      expression: F.current_timestamp()\n      applies_to: [view]"
         }
       ]
     },
@@ -343,12 +344,17 @@
         }
       ],
       "details": [
-        "Use a Spark expression such as F.current_timestamp(). Declare any imports the expression needs in additional_imports."
+        "Use a Spark expression such as F.current_timestamp(). Declare any imports the expression needs in additional_imports.",
+        "${pipeline_name}, ${flowgroup_name}, ${source_table} (on delta and JDBC loads, the table the load reads) and environment ${token} values from substitutions/<env>.yaml are substituted. A ${secret:...} reference fails with LHP-CFG-070 because the result is written into table data; any token left unresolved fails with LHP-CFG-010."
       ],
       "examples": [
         {
           "label": "YAML example",
           "yaml": "expression: F.current_timestamp()"
+        },
+        {
+          "label": "Environment token",
+          "yaml": "expression: F.lit('${source_system}')"
         }
       ]
     },
@@ -393,7 +399,8 @@
         }
       ],
       "details": [
-        "Select only targets where the expression is valid. For example, file-source _metadata columns should be captured in the load view."
+        "Select only targets where the expression is valid. For example, file-source _metadata columns should be captured in the load view.",
+        "Current load and supported transform generators emit metadata on views; write actions do not add metadata columns."
       ],
       "examples": [
         {
@@ -433,7 +440,7 @@
     },
     {
       "id": "project.operational_metadata.columns.*.enabled",
-      "summary": "Control whether this metadata column is available for generation.",
+      "summary": "Record a column flag that the current selector does not use.",
       "sources": [
         {
           "file": "docs/reference/config/operational-metadata.rst"
@@ -450,12 +457,12 @@
         }
       ],
       "details": [
-        "Disable a column when it should not be added, while keeping its expression and documentation in the project."
+        "This flag is parsed but does not control emission. Select columns explicitly and use applies_to to control their target types; action-level operational_metadata: false disables that action’s metadata."
       ]
     },
     {
       "id": "project.operational_metadata.presets",
-      "summary": "Group audit columns into reusable named selections.",
+      "summary": "Define named column groups; the current selector does not expand them.",
       "sources": [
         {
           "file": "docs/reference/config/operational-metadata.rst"
@@ -470,12 +477,12 @@
         }
       ],
       "details": [
-        "Each preset lists column names defined under operational_metadata.columns. This grouping is separate from an action configuration preset."
+        "Each group lists columns defined under operational_metadata.columns. Select the column names explicitly on a flowgroup or action to emit them; this definition does not enable them."
       ]
     },
     {
       "id": "project.operational_metadata.presets.*.columns",
-      "summary": "Select the audit columns included by this metadata preset.",
+      "summary": "List the column definitions in this metadata group.",
       "sources": [
         {
           "file": "docs/reference/config/operational-metadata.rst"
@@ -499,7 +506,7 @@
         }
       ],
       "details": [
-        "Use existing column names; this list selects definitions rather than creating new expressions."
+        "Use existing column names. Group references are validated, but the current selector does not expand named groups; list the columns explicitly on a flowgroup or action."
       ],
       "examples": [
         {
@@ -510,7 +517,7 @@
     },
     {
       "id": "project.operational_metadata.presets.*.description",
-      "summary": "Explain when someone should choose this metadata preset.",
+      "summary": "Describe the purpose of this metadata group.",
       "sources": [
         {
           "file": "docs/reference/config/operational-metadata.rst"
@@ -527,12 +534,12 @@
         }
       ],
       "details": [
-        "Describe the purpose of the group, such as ingestion traceability or processing audit."
+        "Describe the group’s intended purpose, such as ingestion traceability or processing audit. This text does not activate the group’s columns."
       ]
     },
     {
       "id": "project.operational_metadata.defaults",
-      "summary": "Choose metadata when a flowgroup does not make its own selection.",
+      "summary": "Store a defaults mapping that the current selector does not apply.",
       "sources": [
         {
           "file": "docs/reference/config/operational-metadata.rst"
@@ -547,12 +554,12 @@
         }
       ],
       "details": [
-        "Use the documented metadata selection forms: a boolean, column selection or named preset selection. An explicit flowgroup/action selection may override this default."
+        "Only a mapping is accepted here. It does not select columns for generation; use an explicit operational_metadata column list on a flowgroup or supported action."
       ],
       "examples": [
         {
           "label": "YAML example",
-          "yaml": "operational_metadata:\n  defaults: true"
+          "yaml": "operational_metadata:\n  defaults: {}"
         }
       ]
     },
@@ -572,7 +579,8 @@
         }
       ],
       "details": [
-        "Enabling the block requires a catalog and schema. Naming prefixes and suffixes let each pipeline have its own event-log table."
+        "Enabling the block requires a catalog and schema. Naming prefixes and suffixes let each pipeline have its own event-log table.",
+        "With bundle support enabled, validate and generate require -pc / --pipeline-config even when event-log settings come from lhp.yaml."
       ]
     },
     {
@@ -735,7 +743,8 @@
         }
       ],
       "details": [
-        "Requires enabled event logging, a checkpoint location and a monitoring job config path."
+        "Requires enabled event logging, a checkpoint location and a monitoring job config path.",
+        "With bundle support enabled, pass -pc / --pipeline-config to validate and generate."
       ]
     },
     {
@@ -1098,6 +1107,9 @@
       "summary": "Publish test results through a project-provided Python hook.",
       "sources": [
         {
+          "file": "docs/reference/config/test-reporting.rst"
+        },
+        {
           "file": "docs/guides/test/test-reporting.rst"
         }
       ],
@@ -1116,6 +1128,9 @@
       "id": "project.test_reporting.module_path",
       "summary": "Choose the Python file implementing test-result reporting.",
       "sources": [
+        {
+          "file": "docs/reference/config/test-reporting.rst"
+        },
         {
           "file": "docs/guides/test/test-reporting.rst"
         }
@@ -1137,6 +1152,9 @@
       "summary": "Name the report hook inside the Python module.",
       "sources": [
         {
+          "file": "docs/reference/config/test-reporting.rst"
+        },
+        {
           "file": "docs/guides/test/test-reporting.rst"
         }
       ],
@@ -1157,6 +1175,9 @@
       "summary": "Supply optional YAML settings to the report hook.",
       "sources": [
         {
+          "file": "docs/reference/config/test-reporting.rst"
+        },
+        {
           "file": "docs/guides/test/test-reporting.rst"
         }
       ],
@@ -1169,7 +1190,8 @@
         }
       ],
       "details": [
-        "Use this for reporter configuration that should live separately from the hook implementation."
+        "Use this for reporter configuration that should live separately from the hook implementation.",
+        "Tokens in this file are passed to the provider unresolved. Resolve them in the provider or supply concrete values."
       ]
     },
     {
