@@ -17,6 +17,17 @@ logger = logging.getLogger(__name__)
 # invariant — see issue #142).
 _SOURCE_COLUMN_CHARS = r"[a-zA-Z_$][a-zA-Z0-9_$]*"
 _TARGET_COLUMN_CHARS = r"[a-zA-Z_][a-zA-Z0-9_]*"
+# Any other source name is written in backticks, as in Spark SQL; two
+# backticks inside stand for one literal backtick (issue #324).
+_QUOTED_COLUMN = r"`(?:[^`]|``)+`"
+_SOURCE_COLUMN = rf"(?:{_QUOTED_COLUMN}|{_SOURCE_COLUMN_CHARS})"
+
+
+def _unquote_column(token: str) -> str:
+    """Return the column name a source token refers to, without backtick quoting."""
+    if token.startswith("`"):
+        return token[1:-1].replace("``", "`")
+    return token
 
 
 class SchemaTransformParser:
@@ -28,6 +39,7 @@ class SchemaTransformParser:
           - old_col -> new_col           # Rename only
           - col: TYPE                    # Cast only
           - col                          # Pass-through (strict mode only)
+          - `odd name` -> new_col        # Backticks quote any source name
 
     Legacy format (deprecated):
         column_mapping:
@@ -40,12 +52,12 @@ class SchemaTransformParser:
         self.yaml_parser = YAMLParser()
         # Regex pattern for arrow syntax: "old -> new: TYPE" or variations
         self.arrow_pattern = re.compile(
-            rf"^\s*({_SOURCE_COLUMN_CHARS})\s*->\s*({_TARGET_COLUMN_CHARS})\s*(?::\s*(.+?))?\s*$"
+            rf"^\s*({_SOURCE_COLUMN})\s*->\s*({_TARGET_COLUMN_CHARS})\s*(?::\s*(.+?))?\s*$"
         )
         # Regex pattern for type cast only: "col: TYPE"
-        self.cast_pattern = re.compile(rf"^\s*({_SOURCE_COLUMN_CHARS})\s*:\s*(.+?)\s*$")
+        self.cast_pattern = re.compile(rf"^\s*({_SOURCE_COLUMN})\s*:\s*(.+?)\s*$")
         # Regex pattern for pass-through: "col"
-        self.passthrough_pattern = re.compile(rf"^\s*({_SOURCE_COLUMN_CHARS})\s*$")
+        self.passthrough_pattern = re.compile(rf"^\s*({_SOURCE_COLUMN})\s*$")
 
     def parse_file(self, file_path: Path) -> Dict[str, Any]:
         if not file_path.exists():
@@ -202,7 +214,7 @@ class SchemaTransformParser:
 
             arrow_match = self.arrow_pattern.match(col_def)
             if arrow_match:
-                source_col = arrow_match.group(1)
+                source_col = _unquote_column(arrow_match.group(1))
                 target_col = arrow_match.group(2)
                 col_type = arrow_match.group(3)  # May be None
 
@@ -233,7 +245,7 @@ class SchemaTransformParser:
 
             cast_match = self.cast_pattern.match(col_def)
             if cast_match:
-                col_name = cast_match.group(1)
+                col_name = _unquote_column(cast_match.group(1))
                 col_type = cast_match.group(2)
 
                 if col_name in type_casting:
@@ -260,7 +272,7 @@ class SchemaTransformParser:
 
             passthrough_match = self.passthrough_pattern.match(col_def)
             if passthrough_match:
-                col_name = passthrough_match.group(1)
+                col_name = _unquote_column(passthrough_match.group(1))
 
                 if col_name in target_columns_seen:
                     raise ErrorFactory.schema_syntax_error(
