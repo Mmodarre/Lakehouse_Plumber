@@ -1,5 +1,6 @@
 """Tests for custom data source load generator."""
 
+import ast
 from pathlib import Path
 
 import pytest
@@ -400,6 +401,50 @@ class FutureDataSource(DataSource):
             output_dir / "custom_python_functions" / "future_source.py"
         ).read_text()
         assert "from __future__" not in copied
+
+
+@pytest.mark.unit
+class TestCustomDataSourceRegistration:
+    def test_register_failure_is_not_swallowed(self, tmp_path):
+        """Registration is a bare module-level statement (#326).
+
+        A ``try/except: pass`` guard turned pickling and ``name()`` failures
+        into a misleading ``DATA_SOURCE_NOT_FOUND`` at ``.load()``.
+        """
+        custom_source_file = tmp_path / "test_source.py"
+        custom_source_file.write_text(
+            "from pyspark.sql.datasource import DataSource\n"
+            "\n"
+            "class TestDataSource(DataSource):\n"
+            "    @classmethod\n"
+            "    def name(cls):\n"
+            '        return "test_datasource"\n'
+        )
+
+        action = Action(
+            name="test_load",
+            type=ActionType.LOAD,
+            target="v_test_data",
+            readMode="stream",
+        )
+        action.source = {
+            "type": "custom_datasource",
+            "module_path": "test_source.py",
+            "custom_datasource_class": "TestDataSource",
+        }
+        context = {
+            "spec_dir": tmp_path,
+            "flowgroup": FlowGroup(pipeline="p_test", flowgroup="fg_test"),
+        }
+
+        code = CustomDataSourceLoadGenerator().generate(action, context)
+
+        top_level_statements = [
+            ast.unparse(stmt)
+            for stmt in ast.parse(code).body
+            if isinstance(stmt, ast.Expr)
+        ]
+        assert "spark.dataSource.register(TestDataSource)" in top_level_statements
 
 
 @pytest.mark.unit

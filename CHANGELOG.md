@@ -266,6 +266,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   error on their own. It can still fire for text inserted verbatim as code or into a
   comment, such as an operational-metadata `expression` or a snapshot-CDC
   `source_function`, and for a `${secret:...}` reference inside SQL (#306).
+- **Custom data source and custom sink registration errors are no longer hidden
+  (#326).** Generated `custom_datasource` loads and `custom` sinks wrapped
+  `spark.dataSource.register(...)` in `try: ... except Exception: pass`. Registering a
+  name again only replaces it and logs a warning, so the guard protected nothing, but
+  it hid real failures: a class that cannot be pickled, a missing or failing `name()`,
+  or, on Spark 4.0.x, a name that clashes with an installed `pyspark_*` data source.
+  A load then failed at `.load()` with a misleading `[DATA_SOURCE_NOT_FOUND]`, or on
+  Spark 4.0.x read the other data source without any error. The generated code now
+  calls `spark.dataSource.register(...)` directly, so the original error is raised at
+  the register line.
 
 ## [0.9.2] — 2026-09-22
 

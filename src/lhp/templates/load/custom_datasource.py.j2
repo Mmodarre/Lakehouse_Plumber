@@ -1,8 +1,5 @@
-# Try to register the custom data source
-try:
-    spark.dataSource.register({{ custom_datasource_class }})
-except Exception:
-    pass  # Ignore if already registered
+# Register the custom data source
+spark.dataSource.register({{ custom_datasource_class }})
 
 @dp.temporary_view()
 def {{ target_view }}():
