@@ -71,10 +71,21 @@ Schema definitions use arrow syntax, one entry per column:
 - ``col: DECIMAL(18,2)`` — cast in place.
 - ``col`` — pass through / explicit keep (``strict`` mode).
 
-A ``$`` is allowed in a source-column name (left of ``->``, a cast-only ``col``,
-or a pass-through ``col``). A rename target (right of ``->``) must be a clean
-identifier of letters, digits, and underscores; anything else raises
-``LHP-VAL-011``.
+A source-column name (left of ``->``, a cast-only ``col``, or a pass-through
+``col``) may contain ``$``. Write any other source name — one with spaces,
+``.``, ``-``, ``:`` or other characters — in backticks, as in Spark SQL. A
+backtick inside such a name is written as two backticks. Quote the YAML entry,
+because YAML cannot start an unquoted value with a backtick:
+
+.. code-block:: yaml
+
+   columns:
+     - "`customer name` -> customer_name"
+     - "`order.id` -> order_id: BIGINT"
+     - "`unit-price`: DECIMAL(18,2)"
+
+A rename target (right of ``->``) must be a clean identifier of letters, digits,
+and underscores; anything else raises ``LHP-VAL-011``.
 
 .. include:: /_includes/transform-common.rst
 

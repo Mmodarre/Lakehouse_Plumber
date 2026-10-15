@@ -60,6 +60,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (it cannot share its table with any other write action). Sits alongside `cdc` and
   `snapshot_cdc`; a batch-read sibling `mode: replace_where` is planned. See the write
   action reference and the "Keep a current-state table with a REPLACE USING flow" guide.
+- **Schema transforms accept backtick-quoted source column names (#324).** A source
+  column whose name has spaces or punctuation is written in backticks, Spark SQL
+  style: `` "`customer name` -> CUSTOMER_NAME" ``. Quoting works for rename sources,
+  cast-only and pass-through entries; a backtick inside the name is doubled. Rename
+  targets stay plain identifiers. Quote the YAML entry, since YAML cannot start an
+  unquoted value with a backtick.
 
 ### Changed
 
@@ -276,6 +282,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Spark 4.0.x read the other data source without any error. The generated code now
   calls `spark.dataSource.register(...)` directly, so the original error is raised at
   the register line.
+- **Schema transforms resolve column names containing `.` or a backtick (#324).** A
+  cast or strict-mode selection of such a column, in arrow or legacy format, no longer
+  fails at pipeline start with `UNRESOLVED_COLUMN`: the generated `F.col(...)` and
+  `select(...)` references are backtick-quoted. Every other name generates
+  byte-identical code.
+- **`LHP-VAL-011` for schema transforms names the failing part of the line (#324).**
+  An invalid source name now gets its backtick-quoted spelling instead of the
+  rename-target rule, an unclosed backtick is reported as such, and the message names
+  the schema file, or `schema_inline`, instead of `<schema>`.
 
 ## [0.9.2] — 2026-09-22
 
