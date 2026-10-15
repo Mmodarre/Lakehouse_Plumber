@@ -64,8 +64,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   column whose name has spaces or punctuation is written in backticks, Spark SQL
   style: `` "`customer name` -> CUSTOMER_NAME" ``. Quoting works for rename sources,
   cast-only and pass-through entries; a backtick inside the name is doubled. Rename
-  targets stay plain identifiers. Quote the YAML entry, since YAML cannot start an
-  unquoted value with a backtick.
+  targets stay plain identifiers. In a `columns:` list, quote the entry, since YAML
+  cannot start an unquoted value with a backtick; plain `schema_inline` lines are
+  written as-is.
 
 ### Changed
 
@@ -139,6 +140,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   its `${bundle_target}`, is not checked. These checks also run on `--sandbox` runs,
   and the monitoring one on `lhp diff` and `preview_editor_project`, which share the
   same preflight but never write bundle resources.
+- **A dotted legacy `type_casting` key now names a top-level column, not a struct
+  field (#324).** `type_casting: {"a.b": INT}` used to read field `b` of a struct `a`
+  and add a separate top-level column literally named `a.b` holding the cast value;
+  in `strict` mode the selection then returned the uncast struct field. The key now
+  refers only to a top-level column named `a.b`. **Behaviour change:** a source with
+  no such column fails at pipeline start with `UNRESOLVED_COLUMN`; cast a nested
+  field with a SQL transform instead.
 
 ### Security
 
@@ -282,15 +290,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Spark 4.0.x read the other data source without any error. The generated code now
   calls `spark.dataSource.register(...)` directly, so the original error is raised at
   the register line.
-- **Schema transforms resolve column names containing `.` or a backtick (#324).** A
-  cast or strict-mode selection of such a column, in arrow or legacy format, no longer
-  fails at pipeline start with `UNRESOLVED_COLUMN`: the generated `F.col(...)` and
-  `select(...)` references are backtick-quoted. Every other name generates
-  byte-identical code.
+- **Legacy-format schema transforms resolve column names containing `.` or a backtick
+  (#324).** A `type_casting` key such as `"a.b"` generated `F.col("a.b")`, which Spark
+  reads as field `b` of a struct `a`, so a cast or `strict` selection of a top-level
+  column named `a.b` failed at pipeline start with `UNRESOLVED_COLUMN`. Such names are
+  now backtick-quoted in the generated `F.col(...)` and `select(...)` references;
+  every other name generates byte-identical code.
 - **`LHP-VAL-011` for schema transforms names the failing part of the line (#324).**
   An invalid source name now gets its backtick-quoted spelling instead of the
-  rename-target rule, an unclosed backtick is reported as such, and the message names
-  the schema file, or `schema_inline`, instead of `<schema>`.
+  rename-target rule. An unclosed or empty backtick-quoted name, text after a quoted
+  name, a plain `schema_inline` line wrapped in quotes, and an inline `columns:` list
+  that is not valid YAML are each reported as such. The message names the schema
+  file, or `schema_inline`, instead of `<schema>`.
 
 ## [0.9.2] — 2026-09-22
 

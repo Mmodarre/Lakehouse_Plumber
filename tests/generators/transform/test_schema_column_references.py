@@ -7,14 +7,26 @@ the name argument of ``withColumn`` take names literally and must stay raw.
 
 import ast
 
+import pytest
 import yaml
 
 from lhp.generators.transform import SchemaTransformGenerator
-from lhp.models import Action, ActionType, TransformType
+from lhp.models import (
+    Action,
+    ActionType,
+    MetadataColumnConfig,
+    ProjectConfig,
+    ProjectOperationalMetadataConfig,
+    TransformType,
+)
 from lhp.utils.file_header import normalize_content
 
+pytestmark = pytest.mark.unit
 
-def _generate_code(schema_inline: str, enforcement: str = "strict") -> str:
+
+def _generate_code(
+    schema_inline: str, enforcement: str = "strict", context: dict | None = None
+) -> str:
     action = Action(
         name="apply_schema",
         type=ActionType.TRANSFORM,
@@ -25,11 +37,14 @@ def _generate_code(schema_inline: str, enforcement: str = "strict") -> str:
         enforcement=enforcement,
         readMode="batch",
     )
-    return SchemaTransformGenerator().generate(action, {})
+    return SchemaTransformGenerator().generate(action, context or {})
 
 
-def _generate(schema_inline: str, enforcement: str = "strict") -> ast.Module:
-    return ast.parse(normalize_content(_generate_code(schema_inline, enforcement)))
+def _generate(
+    schema_inline: str, enforcement: str = "strict", context: dict | None = None
+) -> ast.Module:
+    code = _generate_code(schema_inline, enforcement, context)
+    return ast.parse(normalize_content(code))
 
 
 def _calls(tree: ast.Module, attr: str) -> list[ast.Call]:
@@ -46,15 +61,42 @@ def _args(call: ast.Call) -> list[object]:
     return [ast.literal_eval(arg) for arg in call.args]
 
 
-def _columns_to_select(tree: ast.Module) -> object:
+def _assigned(tree: ast.Module, variable: str) -> object:
     for node in ast.walk(tree):
         if (
             isinstance(node, ast.Assign)
             and isinstance(node.targets[0], ast.Name)
-            and node.targets[0].id == "columns_to_select"
+            and node.targets[0].id == variable
         ):
             return ast.literal_eval(node.value)
-    raise AssertionError("columns_to_select was not generated")
+    raise AssertionError(f"{variable} was not generated")
+
+
+def _columns_to_select(tree: ast.Module) -> object:
+    return _assigned(tree, "columns_to_select")
+
+
+def test_operational_metadata_names_stay_raw_for_the_membership_check():
+    # The generated code tests ``meta_col in set(df.columns)`` against raw
+    # names, so quoting this list would silently drop the metadata column.
+    project_config = ProjectConfig(
+        name="p",
+        operational_metadata=ProjectOperationalMetadataConfig(
+            columns={
+                "_meta.ts": MetadataColumnConfig(
+                    expression="F.current_timestamp()", applies_to=["view"]
+                )
+            }
+        ),
+    )
+
+    tree = _generate(
+        yaml.safe_dump({"type_casting": {"a.b": "INT"}}),
+        context={"project_config": project_config},
+    )
+
+    assert _assigned(tree, "metadata_columns") == ["_meta.ts"]
+    assert _columns_to_select(tree) == ["`a.b`"]
 
 
 def test_cast_of_dotted_name_quotes_only_the_column_reference():
