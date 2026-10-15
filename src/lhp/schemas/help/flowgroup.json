@@ -1931,7 +1931,8 @@
         }
       ],
       "details": [
-        "Use the schema mapping syntax: old -> new: BIGINT renames and casts; col: TYPE casts; a bare column keeps it in strict mode. Choose this or schema_file."
+        "Use the schema mapping syntax: old -> new: BIGINT renames and casts; col: TYPE casts; a bare column keeps it in strict mode. Choose this or schema_file.",
+        "Write a source column whose name has spaces or punctuation in backticks, for example `customer name` -> customer_name. The name after -> stays a plain identifier."
       ],
       "examples": [
         {
