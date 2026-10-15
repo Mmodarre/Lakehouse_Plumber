@@ -42,6 +42,11 @@ column as-is — but a clean ``source -> target: TYPE`` per column is all this
 contract needs. The file is a versioned artifact in its own right: diff it, review
 it, and reuse it across flowgroups that share the shape.
 
+Raw headers are not always clean identifiers. When a source column's name has
+spaces or punctuation, write it in backticks and quote the entry:
+``"`customer name` -> customer_name: STRING"``. Only the source side takes
+backticks; the name after ``->`` is always a plain identifier.
+
 Declare the transform
 =====================
 
