@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 
+from lhp.errors import LHPValidationError
 from lhp.parsers.schema_transform_parser import SchemaTransformParser
 
 
@@ -548,3 +549,47 @@ class TestSchemaTransformParserBacktickColumns:
 
         assert result["column_mapping"] == {"customer name": "CUSTOMER_NAME"}
         assert result["type_casting"] == {"CUSTOMER_NAME": "STRING"}
+
+
+class TestSchemaTransformParserErrorMessages:
+    """LHP-VAL-011 names the failing part of the line and where it came from."""
+
+    def _error(self, line: str) -> LHPValidationError:
+        with pytest.raises(LHPValidationError) as excinfo:
+            SchemaTransformParser().parse_arrow_format({"columns": [line]})
+        return excinfo.value
+
+    def test_issue_324_unquoted_spaced_source_suggests_backticks(self):
+        error = self._error("customer name  -> CUSTOMER_NAME")
+
+        assert "`customer name`" in error.details
+        assert "rename target" not in error.details
+        assert error.example is not None
+        assert "`customer name`  -> CUSTOMER_NAME" in error.example
+
+    def test_invalid_rename_target_names_the_target_rule(self):
+        error = self._error("a -> $b")
+
+        assert "rename target" in error.details
+        assert "write it as" not in error.details
+
+    def test_unclosed_backtick_is_named(self):
+        error = self._error("`customer name -> CUSTOMER_NAME")
+
+        assert "end with a backtick" in error.details
+
+    def test_file_errors_name_the_file(self, tmp_path):
+        schema_file = tmp_path / "bad.yaml"
+        schema_file.write_text('columns:\n  - "customer name -> X"\n')
+
+        with pytest.raises(LHPValidationError) as excinfo:
+            SchemaTransformParser().parse_file(schema_file)
+
+        assert str(schema_file) in excinfo.value.details
+        assert "<schema>" not in excinfo.value.details
+
+    def test_inline_errors_name_schema_inline(self):
+        with pytest.raises(LHPValidationError) as excinfo:
+            SchemaTransformParser().parse_inline_schema("customer name -> X")
+
+        assert "schema_inline" in excinfo.value.details

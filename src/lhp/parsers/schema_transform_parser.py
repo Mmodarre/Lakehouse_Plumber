@@ -1,3 +1,4 @@
+import json
 import logging
 import re
 from pathlib import Path
@@ -28,6 +29,54 @@ def _unquote_column(token: str) -> str:
     if token.startswith("`"):
         return token[1:-1].replace("``", "`")
     return token
+
+
+_INLINE_SOURCE = "schema_inline"
+_ARROW_FORMS = "'old -> new: TYPE', 'old -> new', 'col: TYPE', or 'col' (pass-through)"
+_ARROW_EXAMPLE = (
+    "columns:\n"
+    '  - "c_custkey -> customer_id: BIGINT"\n'
+    '  - "c_name -> customer_name"\n'
+    '  - "account_balance: DECIMAL(18,2)"\n'
+    '  - "address"\n'
+    '  - "`customer name` -> customer_name"'
+)
+_SOURCE_TOKEN = re.compile(_SOURCE_COLUMN)
+_SOURCE_THEN_ARROW = re.compile(rf"\s*{_SOURCE_COLUMN}\s*->(?P<rest>.*)")
+_TARGET_COLUMN = re.compile(_TARGET_COLUMN_CHARS)
+
+
+def _explain_invalid_line(line: str) -> tuple[str, str]:
+    """Return the expected-format text and example for a line no form matched."""
+    text = line.strip()
+    arrow = _SOURCE_THEN_ARROW.fullmatch(text)
+    if arrow:
+        target = arrow.group("rest").partition(":")[0].strip()
+        if not _TARGET_COLUMN.fullmatch(target):
+            return (
+                f"{_ARROW_FORMS}. A rename target (the name after '->') must be a "
+                "plain identifier — letters, digits, and underscores only, with no "
+                "'$', spaces or backticks.",
+                _ARROW_EXAMPLE,
+            )
+        return f"{_ARROW_FORMS}.", _ARROW_EXAMPLE
+    if text.startswith("`") and not _SOURCE_TOKEN.match(text):
+        return (
+            f"{_ARROW_FORMS}. A backtick-quoted column name must end with a "
+            "backtick; write a backtick inside the name as two backticks.",
+            _ARROW_EXAMPLE,
+        )
+    name = re.split(r"->|:", text, maxsplit=1)[0].strip()
+    if name and not _SOURCE_TOKEN.fullmatch(name):
+        quoted = "`" + name.replace("`", "``") + "`"
+        fixed = text.replace(name, quoted, 1)
+        return (
+            f"{_ARROW_FORMS}. A source column name other than letters, digits, '_' "
+            f"and '$' must be written in backticks; if '{name}' is a column name, "
+            f"write it as {quoted}.",
+            "columns:\n  - " + json.dumps(fixed, ensure_ascii=False),
+        )
+    return f"{_ARROW_FORMS}.", _ARROW_EXAMPLE
 
 
 class SchemaTransformParser:
@@ -69,7 +118,7 @@ class SchemaTransformParser:
 
         logger.debug(f"Parsing schema transform file: {file_path}")
         data = self.yaml_parser.parse_file(file_path)
-        return self.parse_file_data(data)
+        return self.parse_file_data(data, source=str(file_path))
 
     def parse_inline_schema(self, schema_str: str) -> Dict[str, Any]:
         """Parse inline schema from ``action.schema_inline``.
@@ -85,7 +134,7 @@ class SchemaTransformParser:
         """
         if not schema_str or not schema_str.strip():
             raise ErrorFactory.schema_syntax_error(
-                file_path="<inline>",
+                file_path=_INLINE_SOURCE,
                 line_content=None,
                 expected_format="Non-empty schema with column definitions",
                 example="schema_inline: |\n  old_col -> new_col: TYPE\n  col: TYPE",
@@ -116,7 +165,7 @@ class SchemaTransformParser:
                             "ignored. Specify 'enforcement' at the action level only."
                         ),
                     )
-                return self.parse_file_data(parsed)
+                return self.parse_file_data(parsed, source=_INLINE_SOURCE)
             return self._parse_arrow_lines(schema_str)
         return self._parse_arrow_lines(schema_str)
 
@@ -125,7 +174,7 @@ class SchemaTransformParser:
 
         if not lines:
             raise ErrorFactory.schema_syntax_error(
-                file_path="<inline>",
+                file_path=_INLINE_SOURCE,
                 line_content=None,
                 expected_format="One or more column definition lines",
                 example="old_col -> new_col: TYPE\ncol: TYPE",
@@ -133,14 +182,19 @@ class SchemaTransformParser:
 
         data = {"columns": lines}
 
-        result = self.parse_arrow_format(data)
+        result = self.parse_arrow_format(data, source=_INLINE_SOURCE)
 
         result.pop("enforcement", None)
 
         return result
 
-    def parse_file_data(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        """Parse schema transform from a dict (already loaded YAML)."""
+    def parse_file_data(
+        self, data: Dict[str, Any], *, source: str = "<schema>"
+    ) -> Dict[str, Any]:
+        """Parse schema transform from a dict (already loaded YAML).
+
+        ``source`` names the schema file (or ``schema_inline``) in error messages.
+        """
         if "enforcement" in data:
             record_deprecation(
                 codes.DEPR_003,
@@ -157,7 +211,7 @@ class SchemaTransformParser:
 
         if has_columns and has_legacy:
             raise ErrorFactory.schema_syntax_error(
-                file_path="<schema>",
+                file_path=source,
                 line_content="Found both 'columns' and 'column_mapping'/'type_casting'",
                 expected_format="Either 'columns' (arrow format) OR 'column_mapping'/'type_casting' (legacy format), not both",
                 example="# Arrow format (recommended):\ncolumns:\n  - old_col -> new_col: TYPE\n\n# Legacy format:\ncolumn_mapping:\n  old_col: new_col\ntype_casting:\n  col: TYPE",
@@ -167,17 +221,19 @@ class SchemaTransformParser:
             logger.debug(
                 f"Detected arrow format schema with {len(data.get('columns', []))} column(s)"
             )
-            return self.parse_arrow_format(data)
+            return self.parse_arrow_format(data, source=source)
         if has_legacy:
             return self.parse_legacy_format(data)
         raise ErrorFactory.schema_syntax_error(
-            file_path="<schema>",
+            file_path=source,
             line_content=str(list(data.keys())),
             expected_format="'columns' (arrow format) or 'column_mapping'/'type_casting' (legacy format)",
             example="columns:\n  - old_col -> new_col: TYPE\n  - col: TYPE",
         )
 
-    def parse_arrow_format(self, data: Dict[str, Any]) -> Dict[str, Any]:
+    def parse_arrow_format(
+        self, data: Dict[str, Any], *, source: str = "<schema>"
+    ) -> Dict[str, Any]:
         """Parse arrow format schema transform.
 
         Arrow format examples:
@@ -185,12 +241,15 @@ class SchemaTransformParser:
             - "c_name -> customer_name"            # Rename only
             - "account_balance: DECIMAL(18,2)"     # Cast only
             - "address"                            # Pass-through (strict only)
+            - "`customer name` -> customer_name"   # Backtick-quoted source
+
+        ``source`` names the schema file (or ``schema_inline``) in error messages.
         """
         columns = data.get("columns", [])
 
         if not columns:
             raise ErrorFactory.schema_syntax_error(
-                file_path="<schema>",
+                file_path=source,
                 line_content=None,
                 expected_format="At least one column definition in 'columns' list",
                 example='columns:\n  - "old_col -> new_col: TYPE"',
@@ -206,7 +265,7 @@ class SchemaTransformParser:
         for col_def in columns:
             if not isinstance(col_def, str):
                 raise ErrorFactory.schema_syntax_error(
-                    file_path="<schema>",
+                    file_path=source,
                     line_content=str(col_def),
                     expected_format="String column definition",
                     example='columns:\n  - "old_col -> new_col: TYPE"\n  - "col: TYPE"',
@@ -220,7 +279,7 @@ class SchemaTransformParser:
 
                 if source_col in source_columns_seen:
                     raise ErrorFactory.schema_syntax_error(
-                        file_path="<schema>",
+                        file_path=source,
                         line_content=col_def,
                         expected_format="Each source column can only be mapped once",
                         example=f"# Remove the duplicate mapping for '{source_col}'",
@@ -229,7 +288,7 @@ class SchemaTransformParser:
 
                 if target_col in target_columns_seen:
                     raise ErrorFactory.schema_syntax_error(
-                        file_path="<schema>",
+                        file_path=source,
                         line_content=col_def,
                         expected_format="Each target column must be unique",
                         example=f"# Remove or rename the duplicate target column '{target_col}'",
@@ -250,7 +309,7 @@ class SchemaTransformParser:
 
                 if col_name in type_casting:
                     raise ErrorFactory.schema_syntax_error(
-                        file_path="<schema>",
+                        file_path=source,
                         line_content=col_def,
                         expected_format="Each column can only have one type cast",
                         example=f"# Remove duplicate type cast for '{col_name}'",
@@ -258,7 +317,7 @@ class SchemaTransformParser:
 
                 if col_name in source_columns_seen:
                     raise ErrorFactory.schema_syntax_error(
-                        file_path="<schema>",
+                        file_path=source,
                         line_content=col_def,
                         expected_format="Cannot cast a column that is used as source in a rename operation",
                         example=f"# '{col_name}' was already renamed above; cast the target column instead",
@@ -276,7 +335,7 @@ class SchemaTransformParser:
 
                 if col_name in target_columns_seen:
                     raise ErrorFactory.schema_syntax_error(
-                        file_path="<schema>",
+                        file_path=source,
                         line_content=col_def,
                         expected_format="Each column must appear only once",
                         example=f"# Remove the duplicate reference to '{col_name}'",
@@ -286,16 +345,12 @@ class SchemaTransformParser:
                 pass_through_columns.append(col_name)
                 continue
 
+            expected_format, example = _explain_invalid_line(col_def)
             raise ErrorFactory.schema_syntax_error(
-                file_path="<schema>",
+                file_path=source,
                 line_content=col_def,
-                expected_format=(
-                    "'old -> new: TYPE', 'old -> new', 'col: TYPE', or 'col' (pass-through). "
-                    "A rename target (the name after '->') must be a plain identifier "
-                    "— letters, digits, and underscores only, no '$'. "
-                    "'$' is allowed only in source/reference column names."
-                ),
-                example='columns:\n  - "c_custkey -> customer_id: BIGINT"\n  - "c_name -> customer_name"\n  - "account_balance: DECIMAL(18,2)"\n  - "address"',
+                expected_format=expected_format,
+                example=example,
             )
 
         return {
