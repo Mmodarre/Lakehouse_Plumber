@@ -91,3 +91,19 @@ def test_names_that_already_resolved_render_unchanged():
 
     assert 'F.col("amount").cast("INT")' in code
     assert 'F.col("customer name").cast("STRING")' in code
+
+
+def test_issue_324_spaced_source_renames_literally():
+    tree = _generate('columns:\n  - "`customer name`  -> CUSTOMER_NAME"')
+
+    (rename,) = _calls(tree, "withColumnRenamed")
+    assert _args(rename) == ["customer name", "CUSTOMER_NAME"]
+    assert _columns_to_select(tree) == ["CUSTOMER_NAME"]
+
+
+def test_quoted_dotted_pass_through_is_selected_quoted():
+    tree = _generate('columns:\n  - "`order.id`"\n  - "`tick``name`: STRING"')
+
+    (col,) = _calls(tree, "col")
+    assert _args(col) == ["`tick``name`"]
+    assert _columns_to_select(tree) == ["`tick``name`", "`order.id`"]
