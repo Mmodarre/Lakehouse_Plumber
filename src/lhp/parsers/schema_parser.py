@@ -5,6 +5,7 @@ from typing import Any, Dict, List, Union
 
 from ..errors import ErrorFactory, LHPError, codes
 from ..parsers.yaml_parser import YAMLParser
+from ..utils.spark_identifiers import backtick_quote
 from . import unified_schema_format
 
 
@@ -88,8 +89,7 @@ class SchemaParser:
         name = str(name)
         if cls._SAFE_IDENTIFIER.match(name):
             return name
-        escaped = name.replace("`", "``")
-        return f"`{escaped}`"
+        return backtick_quote(name)
 
     @staticmethod
     def _require_column_fields(column, schema_name) -> None:

@@ -2,7 +2,22 @@
 
 import pytest
 
-from lhp.utils.spark_identifiers import spark_column_ref
+from lhp.utils.spark_identifiers import backtick_quote, spark_column_ref
+
+pytestmark = pytest.mark.unit
+
+
+@pytest.mark.parametrize(
+    ("name", "expected"),
+    [
+        ("customer name", "`customer name`"),
+        ("plain", "`plain`"),
+        ("tick`name", "`tick``name`"),
+        ("``", "``````"),
+    ],
+)
+def test_backtick_quote_wraps_and_doubles_inner_backticks(name, expected):
+    assert backtick_quote(name) == expected
 
 
 @pytest.mark.parametrize(

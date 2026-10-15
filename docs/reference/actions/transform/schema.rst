@@ -74,8 +74,8 @@ Schema definitions use arrow syntax, one entry per column:
 A source-column name (left of ``->``, a cast-only ``col``, or a pass-through
 ``col``) may contain ``$``. Write any other source name — one with spaces,
 ``.``, ``-``, ``:`` or other characters — in backticks, as in Spark SQL. A
-backtick inside such a name is written as two backticks. Quote the YAML entry,
-because YAML cannot start an unquoted value with a backtick:
+backtick inside such a name is written as two backticks. In a ``columns:`` list,
+quote the entry, because YAML cannot start an unquoted value with a backtick:
 
 .. code-block:: yaml
 
@@ -83,6 +83,15 @@ because YAML cannot start an unquoted value with a backtick:
      - "`customer name` -> customer_name"
      - "`order.id` -> order_id: BIGINT"
      - "`unit-price`: DECIMAL(18,2)"
+
+A plain ``schema_inline`` line is not a YAML string, so it is written as-is,
+without quotes:
+
+.. code-block:: yaml
+
+   schema_inline: |
+     `customer name` -> customer_name
+     `unit-price`: DECIMAL(18,2)
 
 A rename target (right of ``->``) must be a clean identifier of letters, digits,
 and underscores; anything else raises ``LHP-VAL-011``.
