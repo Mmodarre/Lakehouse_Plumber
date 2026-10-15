@@ -17,6 +17,7 @@ from jinja2.exceptions import TemplateNotFound
 
 from ...errors import ErrorFactory, codes
 from ...utils.python_literals import PYTHON_LITERAL_FILTERS
+from ...utils.spark_identifiers import spark_column_ref
 from ...utils.yaml_filters import dict_to_yaml
 
 logger = logging.getLogger(__name__)
@@ -69,6 +70,7 @@ def get_shared_generator_environment() -> Environment:
     )
     env.filters["tojson"] = json.dumps
     env.filters["toyaml"] = yaml.dump
+    env.filters["spark_column_ref"] = spark_column_ref
     register_python_literal_filters(env)
     return env
 
@@ -83,6 +85,7 @@ class TemplateRenderer:
 
         self.env.filters["tojson"] = json.dumps
         self.env.filters["toyaml"] = dict_to_yaml
+        self.env.filters["spark_column_ref"] = spark_column_ref
         register_python_literal_filters(self.env)
 
     @classmethod

@@ -17,7 +17,7 @@ def {{ target_view }}():
     {% if type_casting %}
     # Apply type casting
     {% for column, new_type in type_casting.items() %}
-    df = df.withColumn({{ column|py_str }}, F.col({{ column|py_str }}).cast({{ new_type|py_str }}))
+    df = df.withColumn({{ column|py_str }}, F.col({{ column|spark_column_ref|py_str }}).cast({{ new_type|py_str }}))
     {% endfor %}
     {% endif %}
     
@@ -26,7 +26,7 @@ def {{ target_view }}():
     # Schema-defined columns (will fail if missing)
     columns_to_select = [
         {% for col in final_columns %}
-        {{ col|py_str }}{% if not loop.last %},{% endif %}
+        {{ col|spark_column_ref|py_str }}{% if not loop.last %},{% endif %}
         {% endfor %}
     ]
     
