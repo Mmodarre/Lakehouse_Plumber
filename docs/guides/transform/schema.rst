@@ -43,7 +43,7 @@ contract needs. The file is a versioned artifact in its own right: diff it, revi
 it, and reuse it across flowgroups that share the shape.
 
 Raw headers are not always clean identifiers. When a source column's name has
-spaces or punctuation, write it in backticks and quote the entry:
+spaces or punctuation, write it in backticks and quote the list entry:
 ``"`customer name` -> customer_name: STRING"``. Only the source side takes
 backticks; the name after ``->`` is always a plain identifier.
 

@@ -9,6 +9,7 @@ import yaml
 from ..errors import ErrorFactory, codes
 from ..models.deprecations import record_deprecation
 from ..parsers.yaml_parser import YAMLParser
+from ..utils.spark_identifiers import backtick_quote
 from .yaml_loader import SAFE_LOADER
 
 logger = logging.getLogger(__name__)
@@ -44,11 +45,21 @@ _ARROW_EXAMPLE = (
 _SOURCE_TOKEN = re.compile(_SOURCE_COLUMN)
 _SOURCE_THEN_ARROW = re.compile(rf"\s*{_SOURCE_COLUMN}\s*->(?P<rest>.*)")
 _TARGET_COLUMN = re.compile(_TARGET_COLUMN_CHARS)
+_EMPTY_QUOTED_COLUMN = re.compile(r"``(?!`)")
+# A ``columns:`` header alone on its line. In plain-line form ``columns: TYPE``
+# is a cast of a column named ``columns``, so only the bare header counts.
+_COLUMNS_HEADER = re.compile(r"\s*columns\s*:\s*(?:#[^\n]*)?(?:\n|$)")
 
 
 def _explain_invalid_line(line: str) -> tuple[str, str]:
     """Return the expected-format text and example for a line no form matched."""
     text = line.strip()
+    if len(text) >= 2 and text[0] == text[-1] and text[0] in "\"'":
+        return (
+            f"{_ARROW_FORMS}. The line is wrapped in quotes; write it without "
+            "them — a plain schema_inline line is not a YAML string.",
+            _ARROW_EXAMPLE,
+        )
     arrow = _SOURCE_THEN_ARROW.fullmatch(text)
     if arrow:
         target = arrow.group("rest").partition(":")[0].strip()
@@ -60,15 +71,27 @@ def _explain_invalid_line(line: str) -> tuple[str, str]:
                 _ARROW_EXAMPLE,
             )
         return f"{_ARROW_FORMS}.", _ARROW_EXAMPLE
-    if text.startswith("`") and not _SOURCE_TOKEN.match(text):
-        return (
-            f"{_ARROW_FORMS}. A backtick-quoted column name must end with a "
-            "backtick; write a backtick inside the name as two backticks.",
-            _ARROW_EXAMPLE,
-        )
+    if text.startswith("`"):
+        token = _SOURCE_TOKEN.match(text)
+        if token is None:
+            reason = (
+                "A backtick-quoted column name cannot be empty."
+                if _EMPTY_QUOTED_COLUMN.match(text)
+                else "A backtick-quoted column name must end with a backtick; "
+                "write a backtick inside the name as two backticks."
+            )
+            return f"{_ARROW_FORMS}. {reason}", _ARROW_EXAMPLE
+        rest = text[token.end() :].strip()
+        if rest and not rest.startswith(("->", ":")):
+            return (
+                f"{_ARROW_FORMS}. A backtick-quoted column name must be followed "
+                f"by '->', ':' or the end of the line, not '{rest}'.",
+                _ARROW_EXAMPLE,
+            )
+        return f"{_ARROW_FORMS}.", _ARROW_EXAMPLE
     name = re.split(r"->|:", text, maxsplit=1)[0].strip()
     if name and not _SOURCE_TOKEN.fullmatch(name):
-        quoted = "`" + name.replace("`", "``") + "`"
+        quoted = backtick_quote(name)
         fixed = text.replace(name, quoted, 1)
         return (
             f"{_ARROW_FORMS}. A source column name other than letters, digits, '_' "
@@ -145,6 +168,19 @@ class SchemaTransformParser:
             # bandit cannot resolve the alias to a safe loader.
             parsed = yaml.load(schema_str, Loader=SAFE_LOADER)  # nosec B506
         except yaml.YAMLError as e:
+            if _COLUMNS_HEADER.match(schema_str):
+                mark = getattr(e, "problem_mark", None)
+                raise ErrorFactory.schema_syntax_error(
+                    file_path=_INLINE_SOURCE,
+                    line_content=(
+                        schema_str.splitlines()[mark.line].strip() if mark else None
+                    ),
+                    expected_format=(
+                        "A 'columns:' list must be valid YAML; quote each entry, "
+                        "and always quote one that starts with a backtick."
+                    ),
+                    example='columns:\n  - "`customer name` -> customer_name"',
+                ) from e
             # Likely plain arrow format with inconsistent colons — fall back
             logger.debug(
                 f"YAML parsing failed for inline schema, falling back to arrow format: {e}"

@@ -20,5 +20,14 @@ def spark_column_ref(name: Any) -> str:
     text = str(name)
     if text != "*" and "." not in text and "`" not in text:
         return text
-    escaped = text.replace("`", "``")
+    return backtick_quote(text)
+
+
+def backtick_quote(name: str) -> str:
+    """Return ``name`` as a Spark SQL backtick-quoted identifier.
+
+    Every backtick inside ``name`` is doubled, so the result always names
+    exactly ``name``.
+    """
+    escaped = name.replace("`", "``")
     return f"`{escaped}`"
