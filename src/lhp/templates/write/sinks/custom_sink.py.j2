@@ -1,10 +1,7 @@
 # {{ comment|py_comment }}
 
 # Register custom data sink
-try:
-    spark.dataSource.register({{ custom_sink_class }})
-except Exception:
-    pass  # Already registered
+spark.dataSource.register({{ custom_sink_class }})
 
 # Create custom sink
 dp.create_sink(

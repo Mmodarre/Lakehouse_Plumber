@@ -18,11 +18,8 @@ FLOWGROUP_ID = "helper_source_flow"
 # SOURCE VIEWS
 # ============================================================================
 
-# Try to register the custom data source
-try:
-    spark.dataSource.register(HelperBackedSource)
-except Exception:
-    pass  # Ignore if already registered
+# Register the custom data source
+spark.dataSource.register(HelperBackedSource)
 
 
 @dp.temporary_view()
