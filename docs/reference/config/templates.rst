@@ -67,11 +67,6 @@ field has a default.
      - No
      - ``[]``
      - Parameter declarations (entry schema below).
-   * - ``render_sql_files``
-     - bool
-     - No
-     - ``false``
-     - When ``true``, the ``sql_path`` files of this template's actions are rendered with the template parameters, so they can use ``{{ param }}`` too. See :ref:`template-sql-files`.
    * - ``actions``
      - list[mapping]
      - No
@@ -172,21 +167,22 @@ A flowgroup expands a template through these two fields.
 Parameters in SQL files
 -----------------------
 
-Template rendering covers the template's YAML only. A ``sql_path`` value can
-use a parameter (``sql_path: "sql/gold/{{ table }}.sql"``), but the file it
-points at is read later and gets only ``${token}`` substitution. Set
-``render_sql_files: true`` to render those files with the template parameters
-as well:
+A SQL file that a template action references through ``sql_path`` uses the
+template parameters like the template's own inline SQL. The ``sql_path`` value
+can use a parameter to choose the file, and the file can use ``{{ name }}``
+expressions, filters, loops and conditions:
 
 .. code-block:: yaml
 
+   # templates/gold_materialized_view.yaml
    name: gold_materialized_view
-   render_sql_files: true
    parameters:
      - name: table
        required: true
+     - name: group_by
+       required: true
      - name: silver_schema
-       default: silver
+       default: "${silver_schema}"
    actions:
      - name: "write_{{ table }}"
        type: write
@@ -199,36 +195,65 @@ as well:
 
 .. code-block:: text
 
-   -- sql/gold/orders.sql
-   SELECT * FROM ${catalog}.{{ silver_schema }}.orders WHERE __END_AT IS NULL
+   -- sql/gold/orders_by_period.sql
+   SELECT
+   {%- for column in group_by %}
+     o.{{ column }},
+   {%- endfor %}
+     SUM(o.total_price) AS total_revenue
+   FROM ${catalog}.{{ silver_schema }}.orders o
+   GROUP BY {{ group_by | join(', ') }}
 
-Every rendered action that references a ``sql_path`` file (an SQL load's
-``source``, an SQL transform, or a materialized view's ``write_target``) gets
-the parameters, with defaults applied, as its ``sql_parameters``. Keys the
-action sets in ``sql_parameters`` itself take precedence. A flowgroup action
-that does not come from a template can set ``sql_parameters`` directly.
+The file is rendered during template expansion when it contains ``{{``,
+``{%`` or ``{#``. Three places read a file: an SQL load's ``source.sql_path``,
+an SQL transform's ``sql_path`` and a materialized view's
+``write_target.sql_path``. The parameters are the ones the template's inline
+values receive: the flowgroup's ``template_parameters`` with the template's
+defaults applied. The rendered text becomes the action's inline ``sql`` at
+that place, and ``sql_path`` is kept to show where it came from; the template
+preview displays the rendered SQL.
 
-The file is rendered as a Jinja template first, then ``${token}`` and
-``${secret:...}`` references are substituted, so environment values keep
-coming from ``substitutions/<env>.yaml`` and a parameter value may itself hold
-a token. Rendering differs from the YAML rendering above in three ways:
+Presets, ``${token}`` and ``${secret:...}`` substitution and the
+unresolved-token check (``LHP-CFG-010``) then run on the rendered text, exactly
+as on inline SQL. Environment values therefore keep coming from
+``substitutions/<env>.yaml``, and a parameter value may itself hold a token. An
+unresolved token in rendered SQL names the file it was rendered from.
+
+Rendering a file differs from rendering the template's YAML values in three
+ways:
 
 - It is strict: a name that is not a parameter fails ``lhp validate`` and
-  ``lhp generate`` with ``LHP-CFG-071``, instead of rendering as an empty
-  string.
-- The whole file is a template, so literal ``{{``, ``{%`` or ``{#`` in the SQL
-  must be wrapped in ``{% raw %}...{% endraw %}``.
+  ``lhp generate`` with ``LHP-CFG-071``, which names the file, the line of a
+  syntax error, the template, the action and the parameters available. A file
+  that renders to empty SQL, for example because all of it sits inside a false
+  ``{% if %}``, fails the same way.
+- The whole file is a template, so literal ``{{``, ``{%`` or ``{#`` in the SQL,
+  including in comments, must be wrapped in ``{% raw %}...{% endraw %}``.
 - It runs in Jinja's immutable sandbox.
 
+These files are read as before, at generation, with ``${token}`` substitution
+only:
+
+- a file without ``{{``, ``{%`` or ``{#``;
+- a file referenced by an action that does not come from a template;
+- a file whose ``sql_path`` contains a ``${token}``, because expansion reads
+  the file before environment substitution;
+- a ``sql_path`` that a preset adds after expansion.
+
+A file that does not exist is reported by ``lhp validate`` and
+``lhp generate`` as before.
+
 Dependency analysis (``lhp dag``) parses the rendered SQL, so table references
-built from parameters still order the pipelines and flowgroups. It matches a
-reference to the table's producer by its text, without substituting
+built from parameters still order the pipelines and flowgroups, and editing
+only the ``.sql`` file still invalidates the cached graph. If a file fails to
+render, ``lhp dag`` logs a warning and analyses that flowgroup without its
+template actions; ``lhp validate`` reports ``LHP-CFG-071``. ``lhp dag``
+matches a reference to the table's producer by its text, without substituting
 ``${token}`` values, so write each table name the same way on both sides. If
 the producing write target uses ``${silver_schema}``, give the parameter that
 default (``default: "${silver_schema}"``) rather than the literal schema name;
 otherwise the reference is reported as an external source and the pipelines
-lose their ordering. A file of an action without ``sql_parameters`` is read
-exactly as before.
+lose their ordering.
 
 Rendering and authoring behavior
 --------------------------------

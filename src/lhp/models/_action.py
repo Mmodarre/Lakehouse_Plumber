@@ -79,10 +79,6 @@ class Action(BaseModel):
     transform_type: Optional[TransformType] = None
     sql: Optional[str] = None
     sql_path: Optional[str] = None
-    sql_parameters: Optional[Dict[str, Any]] = Field(
-        None,
-        description="Values for {{ name }} expressions in this action's sql_path file (load, transform or materialized view), which is then rendered as a Jinja template before ${token} substitution. Set automatically from the template parameters when the template sets render_sql_files: true.",
-    )
     operational_metadata: Optional[Union[bool, List[str]]] = None
     expectations_file: Optional[str] = None
     mode: Optional[str] = Field(

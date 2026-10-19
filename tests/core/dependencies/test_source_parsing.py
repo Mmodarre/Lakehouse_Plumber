@@ -386,3 +386,31 @@ class TestWarningStamping:
 
         assert result.sources == ["cat.sch.orders"]
         assert result.warnings == []
+
+
+@pytest.mark.unit
+class TestRenderedTemplateSqlFiles:
+    """Template expansion put a rendered file in ``sql`` and kept ``sql_path``."""
+
+    def test_inline_sql_is_parsed_and_the_file_only_recorded(self, tmp_path):
+        from lhp.core.dependencies._parse_cache import ParseCache
+
+        sql_file = tmp_path / "sql" / "gold.sql"
+        sql_file.parent.mkdir(parents=True)
+        sql_file.write_text("SELECT * FROM {{ layer }}.customers")
+        action = Action(
+            name="build_gold",
+            type=ActionType.TRANSFORM,
+            transform_type="sql",
+            source="v_in",
+            target="v_out",
+            sql="SELECT * FROM silver.customers",
+            sql_path="sql/gold.sql",
+        )
+        cache = ParseCache()
+
+        result = SourceParser({}, tmp_path, cache).extract_action_sources(action, "fg")
+
+        assert "silver.customers" in result.sources
+        assert not any("?" in source for source in result.sources)
+        assert sql_file in cache.recorded_reads()

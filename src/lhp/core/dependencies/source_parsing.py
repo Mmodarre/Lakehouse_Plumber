@@ -17,13 +17,12 @@ import logging
 from collections.abc import Callable
 from dataclasses import dataclass, replace
 from pathlib import Path, PurePath
-from typing import Any, Mapping, Optional
+from typing import Optional
 
 from lhp.models import Action
 
 from ...errors import ErrorCategory, LHPError
 from ...models.dependencies import DependencyWarning
-from ..processing.sql_parameters import render_sql_parameters
 from ._bindings import ParameterBindings
 from ._body_locator import iter_python_bodies, iter_sql_bodies
 from ._canonical import canonicalize_table_ref
@@ -31,37 +30,6 @@ from ._parse_cache import ParseCache
 from .source_extractor import extract_action_sources
 
 logger = logging.getLogger(__name__)
-
-SqlParser = Callable[[str], tuple[list[str], list[DependencyWarning]]]
-
-
-def _rendering_parser(
-    parse_sql: SqlParser,
-    parameters: Mapping[str, Any],
-    sql_path: str,
-    flowgroup_name: str,
-    action_name: str,
-) -> SqlParser:
-    """Wrap ``parse_sql`` to parse a ``sql_path`` file as generation renders it.
-
-    The file is rendered with the action's ``sql_parameters`` first. A file
-    that does not render raises inside the parser, so it is skipped like one
-    that does not parse; ``lhp validate`` and ``lhp generate`` report it as
-    ``LHP-CFG-071``.
-    """
-
-    def parse(sql_text: str) -> tuple[list[str], list[DependencyWarning]]:
-        return parse_sql(
-            render_sql_parameters(
-                sql_text,
-                parameters,
-                file=sql_path,
-                flowgroup=flowgroup_name,
-                action=action_name,
-            )
-        )
-
-    return parse
 
 
 @dataclass(frozen=True)
@@ -340,6 +308,15 @@ class SourceParser:
             )
             return [], []
 
+    def _record_rendered_file(self, sql_path: str) -> None:
+        """Read ``sql_path`` through the parse cache for its manifest entry only.
+
+        Resolves against the project root, where template expansion read it.
+        """
+        path = self.project_root / sql_path
+        if path.is_file():
+            self._parse_cache.read_text(path)
+
     def _extract_sql_sources(
         self, action: Action, flowgroup_name: str
     ) -> tuple[list[str], list[DependencyWarning]]:
@@ -383,24 +360,17 @@ class SourceParser:
                         f"Could not parse inline SQL in {flowgroup_name}.{action.name}: {e}"
                     )
 
-            if sql_path:
-                sql_parameters = getattr(action, "sql_parameters", None)
-                parse_file = (
-                    _parse_sql
-                    if sql_parameters is None
-                    else _rendering_parser(
-                        _parse_sql,
-                        sql_parameters,
-                        sql_path,
-                        flowgroup_name,
-                        action.name,
-                    )
-                )
+            if sql_path and inline_sql:
+                # Generation reads only the inline SQL (template expansion
+                # rendered the file into it); record the file so a graph-cache
+                # entry still invalidates when only the .sql file changes.
+                self._record_rendered_file(sql_path)
+            elif sql_path:
                 file_sources, file_warnings = self._resolve_and_parse_file(
                     sql_path,
                     flowgroup_name,
                     action,
-                    parse_file,
+                    _parse_sql,
                     file_type_label="SQL",
                     code_number="002",
                     path_context_key="SQL Path",

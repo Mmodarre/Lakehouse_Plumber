@@ -1,0 +1,23 @@
+name: gold_mv_template
+version: "1.0"
+description: "Gold materialized view whose sql_path file uses the template parameters"
+
+parameters:
+  - name: table
+    required: true
+  - name: group_by
+    required: true
+  - name: silver_schema
+    default: "${silver_schema}"
+
+actions:
+  - name: "write_{{ table }}"
+    type: write
+    write_target:
+      type: materialized_view
+      catalog: "${catalog}"
+      schema: "${gold_schema}"
+      table: "{{ table }}"
+      sql_path: "sql/gold/{{ table }}.sql"
+      comment: "Gold materialized view rendered from a template SQL file"
+    description: "Write {{ table }} materialized view to gold schema"

@@ -12,7 +12,6 @@ from .blueprint_expander import BlueprintExpander, BlueprintProvenance
 from .dqe import DQEParser
 from .local_variables import LocalVariableResolver
 from .namespace_normalizer import normalize_namespace_fields
-from .sql_parameters import render_sql_parameters
 from .substitution import EnhancedSubstitutionManager, SecretReference
 from .template_engine import TemplateEngine
 from .unresolved_tokens import find_unresolved_tokens, unresolved_tokens_error
@@ -31,7 +30,6 @@ __all__ = [
     "TemplateEngine",
     "find_unresolved_tokens",
     "normalize_namespace_fields",
-    "render_sql_parameters",
     "unresolved_tokens_error",
 ]
 

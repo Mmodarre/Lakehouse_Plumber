@@ -1,0 +1,39 @@
+name: gold_steps_template
+version: "1.0"
+description: "SQL load and SQL transform whose sql_path files use the template parameters"
+
+parameters:
+  - name: entity
+    required: true
+  - name: silver_schema
+    default: "${silver_schema}"
+  - name: current_only
+    default: true
+
+actions:
+  - name: "load_{{ entity }}"
+    type: load
+    source:
+      type: sql
+      sql_path: "sql/gold/{{ entity }}_load.sql"
+    target: "v_{{ entity }}_raw"
+    description: "Load {{ entity }} rows from the silver customer dimension"
+
+  - name: "shape_{{ entity }}"
+    type: transform
+    transform_type: sql
+    source: "v_{{ entity }}_raw"
+    target: "v_{{ entity }}"
+    sql_path: "sql/gold/{{ entity }}_transform.sql"
+    description: "Aggregate {{ entity }} by market segment"
+
+  - name: "write_{{ entity }}_mv"
+    type: write
+    source: "v_{{ entity }}"
+    write_target:
+      type: materialized_view
+      catalog: "${catalog}"
+      schema: "${gold_schema}"
+      table: "{{ entity }}_mv"
+      comment: "Gold materialized view built from template SQL files"
+    description: "Write {{ entity }}_mv materialized view to gold schema"

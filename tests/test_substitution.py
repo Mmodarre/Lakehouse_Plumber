@@ -177,6 +177,16 @@ class TestUnresolvedTokenValidation:
 
         assert "config.database.connection.host" in errors[0]
 
+    def test_validation_names_the_file_sql_was_rendered_from(self):
+        """Template expansion keeps sql_path beside the SQL it rendered from it."""
+        mgr = EnhancedSubstitutionManager()
+        mgr.mappings = {}
+
+        data = {"write_target": {"sql": "SELECT * FROM ${x}.t", "sql_path": "q.sql"}}
+        errors = mgr.validate_no_unresolved_tokens(data)
+
+        assert "config.write_target.sql (rendered from q.sql)" in errors[0]
+
     def test_validation_with_multiple_tokens_in_one_string(self):
         """Detect multiple unresolved tokens in single string."""
         mgr = EnhancedSubstitutionManager()
