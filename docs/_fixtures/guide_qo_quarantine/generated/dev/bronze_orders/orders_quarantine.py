@@ -175,7 +175,11 @@ def dlq_sink_v_orders_raw(batch_df, batch_id):
     dlq = DeltaTable.forName(spark, DLQ_TABLE_v_orders_raw)
     (
         dlq.alias("dlq")
-        .merge(batch.alias("new"), "dlq._dlq_sk = new._dlq_sk")
+        .merge(
+            batch.alias("new"),
+            (F.col("dlq._dlq_source_table") == F.lit(SOURCE_TABLE_v_orders_raw))
+            & (F.col("dlq._dlq_sk") == F.col("new._dlq_sk")),
+        )
         .whenNotMatchedInsertAll()
         .execute()
     )
@@ -219,7 +223,11 @@ def recycle_sink_v_orders_raw(batch_df, batch_id):
     outbox = DeltaTable.forName(spark, DLQ_OUTBOX_TABLE_v_orders_raw)
     (
         outbox.alias("out")
-        .merge(deduped.alias("new"), "out._dlq_sk = new._dlq_sk")
+        .merge(
+            deduped.alias("new"),
+            (F.col("out._dlq_source_table") == F.lit(SOURCE_TABLE_v_orders_raw))
+            & (F.col("out._dlq_sk") == F.col("new._dlq_sk")),
+        )
         .whenNotMatchedInsertAll()
         .execute()
     )
