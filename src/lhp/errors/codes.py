@@ -105,6 +105,13 @@ VAL_067 = ErrorCode(ErrorCategory.VALIDATION, "067")
 # raised by ErrorFactory.invalid_read_mode. Distinct from VAL_007, which is only
 # the "FlowGroup validation failed" wrapper around configuration errors.
 VAL_068 = ErrorCode(ErrorCategory.VALIDATION, "068")
+# VAL_069: two quarantine actions in one pipeline share a DLQ table (compared
+# case-insensitively) and the same ``source_table`` — raised by the
+# cross-flowgroup barrier (SharedDlqSourceTableValidator via
+# ValidationService.validate_cross_flowgroup), one aggregated error per pipeline.
+# The generated MERGEs and recycle reads filter on ``source_table``, so such
+# actions would share a DLQ slice and recycle each other's fixed rows.
+VAL_069 = ErrorCode(ErrorCategory.VALIDATION, "069")
 VAL_902 = ErrorCode(ErrorCategory.VALIDATION, "902")
 VAL_DUPFG = ErrorCode(ErrorCategory.VALIDATION, "DUPFG")
 
@@ -318,6 +325,7 @@ ALL_CODES: tuple[ErrorCode, ...] = (
     VAL_066,
     VAL_067,
     VAL_068,
+    VAL_069,
     VAL_902,
     VAL_DUPFG,
     IO_001,
@@ -532,6 +540,7 @@ __all__ = [
     "VAL_066",
     "VAL_067",
     "VAL_068",
+    "VAL_069",
     "VAL_902",
     "VAL_DUPFG",
     "ErrorCode",

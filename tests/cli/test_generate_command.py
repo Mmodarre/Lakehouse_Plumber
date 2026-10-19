@@ -30,6 +30,7 @@ from tests.helpers import (
     last_cli_command_line,
     parse_last_cli_command,
     project_names,
+    write_quarantine_project,
 )
 
 _FIXTURE = Path(__file__).resolve().parents[1] / "e2e" / "fixtures" / "testing_project"
@@ -93,6 +94,26 @@ def test_clean_run_generates_files_and_reports_nonzero_count(
     )
     generated_count = int(match.group(1))
     assert generated_count > 0, f"summary reports zero generated:\n{result.stderr}"
+
+
+def test_shared_dlq_source_table_conflict_blocks_generate(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Two quarantine actions in one pipeline sharing a DLQ and a source_table
+    stop generate with LHP-VAL-069 before any file is written."""
+    write_quarantine_project(
+        tmp_path,
+        [
+            ("p_orders", "orders_us", "c.s.orders"),
+            ("p_orders", "orders_eu", "c.s.orders"),
+        ],
+    )
+    monkeypatch.chdir(tmp_path)
+    result = CliRunner().invoke(generate, ["-e", "dev", "--no-bundle", "--no-progress"])
+
+    assert result.exit_code == 1, result.stderr
+    assert "LHP-VAL-069" in strip_ansi(result.stderr)
+    assert not list((tmp_path / "generated").rglob("*.py"))
 
 
 def test_removed_no_state_flag_is_a_usage_error(project_dir: Path) -> None:

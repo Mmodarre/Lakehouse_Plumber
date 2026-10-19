@@ -206,7 +206,9 @@ condition is:
 - ``source_table`` must be unique per quarantine action that shares a DLQ. Two
   actions with the same ``source_table`` filter the same slice of the DLQ and
   outbox, so their MERGEs can conflict, and each action's recycle stream also
-  picks up the other's fixed rows. LHP does not check this.
+  picks up the other's fixed rows. Within one pipeline, ``lhp validate`` and
+  ``lhp generate`` reject such duplicates with ``LHP-VAL-069``; actions in
+  different pipelines that share a DLQ are not checked.
 - The outbox MERGE uses the same condition with the alias ``out`` in place of
   ``dlq``; create the outbox (``<dlq_table>_outbox``) with the same clustering
   and deletion vectors as the inbox.

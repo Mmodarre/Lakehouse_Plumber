@@ -68,9 +68,11 @@ conflict while deletion vectors are on; without them, overlapping commits can fa
 `DELTA_CONCURRENT_APPEND`. Create the outbox with the same clustering and deletion
 vectors as the inbox. Keep `source_table` unique per action sharing a DLQ: duplicates
 filter the same slice, so their MERGEs can conflict and each action's recycle stream
-picks up the other's fixed rows; LHP does not check this. Operator `UPDATE`s marking
-rows `fixed` must filter on `_dlq_source_table = '<source_table>'` (an unscoped UPDATE
-can conflict with other sources' sinks) and run while the pipeline is idle.
+picks up the other's fixed rows. Within one pipeline `lhp validate`/`lhp generate`
+reject duplicates (`LHP-VAL-069`); actions in different pipelines sharing a DLQ are not
+checked. Operator `UPDATE`s marking rows `fixed` must filter on
+`_dlq_source_table = '<source_table>'` (an unscoped UPDATE can conflict with other
+sources' sinks) and run while the pipeline is idle.
 
 ## Correction and replay
 
