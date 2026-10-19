@@ -146,7 +146,7 @@ subsystem that the one ``mode: quarantine`` switch generated:
 .. literalinclude:: ../../_fixtures/guide_qo_quarantine/generated/dev/bronze_orders/orders_quarantine.py
    :language: python
    :caption: generated/dev/bronze_orders/orders_quarantine.py
-   :emphasize-lines: 44-49, 87-91, 185-195
+   :emphasize-lines: 44-49, 87-91, 189-199
 
 Read it top to bottom and the inbox/outbox design is all there:
 
@@ -198,7 +198,7 @@ You changed one field — ``mode: dqe`` became ``mode: quarantine`` — and adde
 four-line ``quarantine`` block. In drop mode that same ``data_quality`` action
 compiles to a single ``@dp.expect_all_or_drop`` decorator on one view. In
 quarantine mode it expands into a full dead-letter subsystem: **39 lines of YAML
-became a 296-line Lakeflow file, and roughly 230 of those lines are DLQ plumbing
+became a 304-line Lakeflow file, and roughly 240 of those lines are DLQ plumbing
 you did not write** — the ``foreach_batch_sink`` MERGE, the inverse-filter
 routing flow, the CDF recycle reader, the windowed outbox dedup, and the
 VARIANT reconstruction that re-validates recycled rows.
