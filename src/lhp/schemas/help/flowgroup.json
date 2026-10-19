@@ -3543,6 +3543,45 @@
       ]
     },
     {
+      "id": "action.sql_parameters",
+      "summary": "Render this action's sql_path file as a Jinja template with these values.",
+      "sources": [
+        {
+          "file": "docs/reference/config/templates.rst"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "sql_parameters"
+          ],
+          "subtype": "load:sql"
+        },
+        {
+          "path": [
+            "sql_parameters"
+          ],
+          "subtype": "transform:sql"
+        },
+        {
+          "path": [
+            "sql_parameters"
+          ],
+          "subtype": "write:materialized_view"
+        }
+      ],
+      "details": [
+        "The file can then use {{ name }} for each key. Rendering is strict (an undefined name fails with LHP-CFG-071) and runs before ${token} substitution.",
+        "A template with render_sql_files: true sets this from its parameters; keys set here win."
+      ],
+      "examples": [
+        {
+          "label": "YAML example",
+          "yaml": "sql_path: sql/gold/orders.sql\nsql_parameters:\n  silver_schema: silver"
+        }
+      ]
+    },
+    {
       "id": "action.write.materialized_view.write_target.comment",
       "summary": "Describe the purpose and contents of the output dataset.",
       "sources": [

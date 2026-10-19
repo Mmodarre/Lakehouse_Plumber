@@ -443,6 +443,10 @@
                     "type": "string",
                     "description": "Path to SQL file"
                 },
+                "sql_parameters": {
+                    "type": "object",
+                    "description": "Values for {{ name }} expressions in this action's sql_path file (SQL load, SQL transform or materialized view). When set, the file is rendered as a Jinja template with these values (strict: an undefined name is an error) before ${token} substitution."
+                },
                 "operational_metadata": {
                     "oneOf": [
                         {

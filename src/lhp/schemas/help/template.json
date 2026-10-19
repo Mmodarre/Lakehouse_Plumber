@@ -260,6 +260,32 @@
       ]
     },
     {
+      "id": "template.render_sql_files",
+      "summary": "Render the actions' sql_path files with the template parameters.",
+      "sources": [
+        {
+          "file": "docs/reference/config/templates.rst"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "render_sql_files"
+          ]
+        }
+      ],
+      "details": [
+        "When true, a sql_path file can use {{ parameter }} like the template itself. Each action that reads a sql_path file gets the parameters, defaults applied, as its sql_parameters.",
+        "Rendering is strict: a name that is not a parameter fails validate and generate with LHP-CFG-071. ${token} references are still substituted afterwards."
+      ],
+      "examples": [
+        {
+          "label": "YAML example",
+          "yaml": "render_sql_files: true"
+        }
+      ]
+    },
+    {
       "id": "template.actions",
       "summary": "Build the action patterns expanded by this template.",
       "sources": [

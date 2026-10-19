@@ -2,6 +2,7 @@
 
 import logging
 from pathlib import Path
+from typing import Any
 
 from lhp.errors import ErrorFactory
 from lhp.models import Action
@@ -37,7 +38,11 @@ class SQLLoadGenerator(BaseActionGenerator):
                 f"SQL load '{action.name}': source type='{sql_source_type}', target='{action.target}'"
             )
             sql_query = self._get_sql_query(
-                source_config, context.get("spec_dir"), context, action.name
+                source_config,
+                context.get("spec_dir"),
+                context,
+                action.name,
+                sql_parameters=action.sql_parameters,
             )
         else:
             raise ErrorFactory.invalid_source_format(
@@ -72,6 +77,8 @@ class SQLLoadGenerator(BaseActionGenerator):
         spec_dir: Path | None = None,
         context: dict | None = None,
         action_name: str | None = None,
+        *,
+        sql_parameters: dict[str, Any] | None = None,
     ) -> str:
         substitution_mgr = context.get("substitution_manager") if context else None
 
@@ -94,6 +101,7 @@ class SQLLoadGenerator(BaseActionGenerator):
                 pipeline=getattr(flowgroup, "pipeline", None),
                 flowgroup=getattr(flowgroup, "flowgroup", None),
                 action=action_name,
+                parameters=sql_parameters,
             )
         else:
             raise ErrorFactory.missing_required_field(

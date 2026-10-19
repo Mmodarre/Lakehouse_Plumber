@@ -67,6 +67,11 @@ field has a default.
      - No
      - ``[]``
      - Parameter declarations (entry schema below).
+   * - ``render_sql_files``
+     - bool
+     - No
+     - ``false``
+     - When ``true``, the ``sql_path`` files of this template's actions are rendered with the template parameters, so they can use ``{{ param }}`` too. See :ref:`template-sql-files`.
    * - ``actions``
      - list[mapping]
      - No
@@ -161,6 +166,69 @@ A flowgroup expands a template through these two fields.
    template_parameters:
      table_name: customer
      file_format: csv
+
+.. _template-sql-files:
+
+Parameters in SQL files
+-----------------------
+
+Template rendering covers the template's YAML only. A ``sql_path`` value can
+use a parameter (``sql_path: "sql/gold/{{ table }}.sql"``), but the file it
+points at is read later and gets only ``${token}`` substitution. Set
+``render_sql_files: true`` to render those files with the template parameters
+as well:
+
+.. code-block:: yaml
+
+   name: gold_materialized_view
+   render_sql_files: true
+   parameters:
+     - name: table
+       required: true
+     - name: silver_schema
+       default: silver
+   actions:
+     - name: "write_{{ table }}"
+       type: write
+       write_target:
+         type: materialized_view
+         catalog: "${catalog}"
+         schema: gold
+         table: "{{ table }}"
+         sql_path: "sql/gold/{{ table }}.sql"
+
+.. code-block:: text
+
+   -- sql/gold/orders.sql
+   SELECT * FROM ${catalog}.{{ silver_schema }}.orders WHERE __END_AT IS NULL
+
+Every rendered action that references a ``sql_path`` file (an SQL load's
+``source``, an SQL transform, or a materialized view's ``write_target``) gets
+the parameters, with defaults applied, as its ``sql_parameters``. Keys the
+action sets in ``sql_parameters`` itself take precedence. A flowgroup action
+that does not come from a template can set ``sql_parameters`` directly.
+
+The file is rendered as a Jinja template first, then ``${token}`` and
+``${secret:...}`` references are substituted, so environment values keep
+coming from ``substitutions/<env>.yaml`` and a parameter value may itself hold
+a token. Rendering differs from the YAML rendering above in three ways:
+
+- It is strict: a name that is not a parameter fails ``lhp validate`` and
+  ``lhp generate`` with ``LHP-CFG-071``, instead of rendering as an empty
+  string.
+- The whole file is a template, so literal ``{{``, ``{%`` or ``{#`` in the SQL
+  must be wrapped in ``{% raw %}...{% endraw %}``.
+- It runs in Jinja's immutable sandbox.
+
+Dependency analysis (``lhp dag``) parses the rendered SQL, so table references
+built from parameters still order the pipelines and flowgroups. It matches a
+reference to the table's producer by its text, without substituting
+``${token}`` values, so write each table name the same way on both sides. If
+the producing write target uses ``${silver_schema}``, give the parameter that
+default (``default: "${silver_schema}"``) rather than the literal schema name;
+otherwise the reference is reported as an external source and the pipelines
+lose their ordering. A file of an action without ``sql_parameters`` is read
+exactly as before.
 
 Rendering and authoring behavior
 --------------------------------

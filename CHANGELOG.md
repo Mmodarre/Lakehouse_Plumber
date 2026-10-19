@@ -11,6 +11,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Template parameters in `sql_path` files (`render_sql_files`, `sql_parameters`).**
+  Template rendering covered the template's YAML only: a `{{ param }}` inside the
+  file a `sql_path` points at was copied into the generated code as written. A
+  template can now set `render_sql_files: true`; every action it renders that
+  reads a `sql_path` file (SQL load, SQL transform, materialized view) gets the
+  template parameters, defaults applied, as a new action field `sql_parameters`,
+  and the file is rendered as a Jinja template with them before `${token}`
+  substitution. An action outside a template can set `sql_parameters` directly;
+  keys an action sets win over the template parameters. Rendering is strict (an
+  undefined name fails `lhp validate` and `lhp generate` with the new
+  `LHP-CFG-071` instead of rendering as an empty string) and runs in Jinja's
+  immutable sandbox. Dependency analysis parses the rendered SQL, so table
+  references built from parameters still order the graph, and the dependency
+  cache still tracks the file. Opt-in: files of actions without
+  `sql_parameters` are read exactly as before, so literal `{{` in existing SQL
+  is unaffected.
+
 - Separate ``lhp`` development and ``lhp-learn`` teaching skills in the same
   package, selected with `lhp skill ... --name lhp-learn` or the provisional
   `SkillFacade` methods' `skill_name` keyword. Both exports carry shared offline

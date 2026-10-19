@@ -129,12 +129,18 @@ class TemplateEngine:
         if template.has_raw_actions():
             for action_dict in template.actions:
                 rendered_dict = self._render_value(action_dict, final_params)
+                if template.render_sql_files:
+                    rendered_dict = self._with_sql_parameters(
+                        rendered_dict, final_params
+                    )
                 rendered_action = Action(**rendered_dict)
                 rendered_actions.append(rendered_action)
         else:
             # Action objects (backward compatibility path)
             for action in template.actions:
-                rendered_action = self._render_action(action, final_params)
+                rendered_action = self._render_action(
+                    action, final_params, template.render_sql_files
+                )
                 rendered_actions.append(rendered_action)
 
         self.logger.debug(
@@ -170,10 +176,39 @@ class TemplateEngine:
 
         return final_params
 
-    def _render_action(self, action: Action, parameters: Dict[str, Any]) -> Action:
+    def _render_action(
+        self,
+        action: Action,
+        parameters: Dict[str, Any],
+        render_sql_files: bool = False,
+    ) -> Action:
         action_dict = action.model_dump(mode="json")  # mode='json' serialises enums
         rendered_dict = self._render_value(action_dict, parameters)
+        if render_sql_files:
+            rendered_dict = self._with_sql_parameters(rendered_dict, parameters)
         return Action(**rendered_dict)
+
+    @staticmethod
+    def _with_sql_parameters(
+        action_dict: Dict[str, Any], parameters: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """Give an action that reads a ``sql_path`` file the template parameters.
+
+        The parameters become the action's ``sql_parameters``; keys the action
+        sets itself in ``sql_parameters`` win. An action without a ``sql_path``
+        (at action level, in ``source`` or in ``write_target``) is unchanged.
+        """
+        source = action_dict.get("source")
+        write_target = action_dict.get("write_target")
+        reads_sql_file = bool(
+            action_dict.get("sql_path")
+            or (isinstance(source, dict) and source.get("sql_path"))
+            or (isinstance(write_target, dict) and write_target.get("sql_path"))
+        )
+        explicit = action_dict.get("sql_parameters") or {}
+        if not reads_sql_file or not isinstance(explicit, dict):
+            return action_dict
+        return {**action_dict, "sql_parameters": {**parameters, **explicit}}
 
     def _render_value(self, value: Any, parameters: Dict[str, Any]) -> Any:
         if isinstance(value, str):
