@@ -2,7 +2,7 @@ Quarantine (DLQ) configuration
 ==============================
 
 .. meta::
-   :description: Schema reference for quarantine mode on a data_quality transform — the mode and quarantine fields, the derived outbox name, the DLQ inbox and outbox table DDL and column schema, the CDF requirement, and limits.
+   :description: Schema reference for quarantine mode on a data_quality transform — the mode and quarantine fields, the derived outbox name, the DLQ inbox and outbox table DDL and column schema, the CDF requirement, the shared-DLQ concurrency rules, operator guidance for marking rows fixed, and limits.
 
 Quarantine mode on a ``data_quality`` transform routes rows that fail
 expectations into an external Dead Letter Queue (DLQ) table instead of dropping
@@ -73,7 +73,7 @@ quarantine block
      - string
      - Yes
      - —
-     - Fully qualified name of the logical source table. Tags DLQ rows (``_dlq_source_table``) and filters the recycle stream.
+     - Fully qualified name of the logical source table. Tags DLQ rows (``_dlq_source_table``) and filters the recycle stream. It also scopes every generated MERGE, so it must be unique per action sharing a DLQ.
 
 Both values accept substitution tokens (``${catalog}``, ``${secret:scope/key}``)
 and are resolved at generation time. The outbox table name is derived by
@@ -137,9 +137,10 @@ The inbox table receives quarantined rows. Create it before the pipeline runs.
 The inbox table must have Change Data Feed and row tracking enabled: the recycle
 stream reads it with ``readChangeFeed`` and consumes ``update_postimage`` events,
 and fails at runtime when either property is off. Both the inbox and the outbox
-must also have deletion vectors enabled: without them, quarantine actions that
-share the tables fail with ``ConcurrentAppendException`` when their commits
-overlap (see `Concurrent writers and shared DLQ tables`_).
+must also have deletion vectors enabled: without them, the inbox MERGEs of
+quarantine actions that share the inbox can fail with
+``ConcurrentAppendException`` when their commits overlap (see `Concurrent
+writers and shared DLQ tables`_).
 
 DLQ outbox table schema
 -----------------------
@@ -187,8 +188,8 @@ Concurrent writers and shared DLQ tables
 
 Each quarantine action runs its own two ``foreachBatch`` sinks, which MERGE
 quarantined rows into the DLQ inbox and recycled rows into the outbox. Quarantine
-actions in one pipeline update, or in pipelines running at the same time, commit
-to a shared DLQ and outbox concurrently.
+actions in one pipeline update, or in pipelines running at the same time, can
+commit to a shared DLQ and outbox at the same time.
 
 Each generated MERGE filters the target on its own source. The inbox MERGE
 condition is:
@@ -199,15 +200,16 @@ condition is:
    & (F.col("dlq._dlq_sk") == F.col("new._dlq_sk"))
 
 - On the clustered tables above, concurrent sinks for different ``source_table``
-  values commit without conflicting only while deletion vectors are enabled.
-  Without them, sinks fail with ``ConcurrentAppendException``
-  (``DELTA_CONCURRENT_APPEND``) when their commits overlap, even though each
-  MERGE filters on its source.
+  values commit without conflicting while deletion vectors are enabled. Without
+  them, overlapping commits can fail with ``ConcurrentAppendException``
+  (``DELTA_CONCURRENT_APPEND``), even though each MERGE filters on its source.
 - ``source_table`` must be unique per quarantine action that shares a DLQ. Two
-  actions with the same ``source_table`` read and write the same rows and can
-  conflict.
-- The same rules apply to the outbox (``<dlq_table>_outbox``): its MERGE uses the
-  same condition with the alias ``out`` in place of ``dlq``.
+  actions with the same ``source_table`` filter the same slice of the DLQ and
+  outbox, so their MERGEs can conflict, and each action's recycle stream also
+  picks up the other's fixed rows. LHP does not check this.
+- The outbox MERGE uses the same condition with the alias ``out`` in place of
+  ``dlq``; create the outbox (``<dlq_table>_outbox``) with the same clustering
+  and deletion vectors as the inbox.
 
 Operating the queue safely
 --------------------------
@@ -223,11 +225,15 @@ To recycle a corrected row, an operator rewrites its payload and marks it
    WHERE _dlq_source_table = '<source_table>'
      AND _dlq_sk IN (<dlq_sk_values>);
 
-- Always include the ``_dlq_source_table`` predicate. Without it, the UPDATE can
-  conflict with every source's sink.
-- Mark rows ``fixed`` while the pipeline is idle (quarantine pipelines are
-  triggered). An UPDATE that races the same source's sink can fail either the
-  UPDATE or the pipeline's MERGE.
+``<corrected_row_data>`` is a VARIANT value, for example ``parse_json('{...}')``,
+whose field names match the source columns: recycled rows are read back by
+column name.
+
+- Always include the ``_dlq_source_table`` predicate. Without it, the UPDATE is
+  not scoped to one source and can conflict with other sources' sinks.
+- Mark rows ``fixed`` while the pipeline is idle (quarantine requires a triggered
+  pipeline; see `Limits`_). An UPDATE that races the same source's sink can fail
+  either the UPDATE or the pipeline's MERGE.
 
 Limits
 ------

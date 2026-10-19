@@ -65,8 +65,8 @@ DDL:
 - The **outbox table**, whose name Lakehouse Plumber derives by appending
   ``_outbox`` to ``dlq_table``. No YAML configures it.
 
-Both tables also need deletion vectors enabled, because quarantine actions that
-share a DLQ write to it concurrently, and both are clustered by
+Both tables also need deletion vectors enabled when several quarantine actions
+share them, because those actions can write concurrently. Both are clustered by
 ``_dlq_source_table``. The exact column schema for both tables, and the one-time
 ``CREATE TABLE`` DDL, live in the :doc:`Quarantine reference
 </reference/config/quarantine-dlq>`. Create them once per catalog and schema
@@ -93,8 +93,9 @@ The two fields carry the whole contract:
 - ``source_table`` — the fully-qualified name this flowgroup tags its rows with
   in the DLQ. It is written into the ``_dlq_source_table`` column and used to
   filter the recycle stream, so one shared DLQ table can serve many flowgroups.
-  Each generated ``MERGE`` filters on it too, so it must be unique per quarantine
-  action that shares a DLQ. Point it at the table the write action targets:
+  Because every generated ``MERGE`` and the recycle stream filter on it, it must
+  be unique per quarantine action that shares a DLQ. Point it at the table the
+  write action targets:
   ``${catalog}.${bronze_schema}.orders``.
 
 The expectations file is the same YAML you would write for drop mode:
@@ -218,9 +219,10 @@ What's next
 ===========
 
 - **Create the DLQ tables and operate the queue.** The Quarantine reference has
-  the one-time ``CREATE TABLE`` DDL (with Change Data Feed and row tracking), the
-  full column schema for the inbox and outbox, and the SQL recipes for querying
-  and marking rows fixed.
+  the one-time ``CREATE TABLE`` DDL (with Change Data Feed, row tracking and
+  deletion vectors, clustered by ``_dlq_source_table``), the full column schema
+  for the inbox and outbox, and the SQL recipes for querying and marking rows
+  fixed.
 - **Stay with drop when you don't need the row back.** If a failed row is noise
   rather than a record to recover, ``mode: dqe`` and a single
   ``@dp.expect_all_or_drop`` is the lighter choice — covered in the Get Started
