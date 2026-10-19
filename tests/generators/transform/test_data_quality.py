@@ -8,6 +8,8 @@ Moved verbatim from ``tests/test_transform_generators.py`` so the tests mirror
 ``src/lhp/generators/transform/data_quality.py`` (constitution §8.2).
 """
 
+import ast
+
 import pytest
 import yaml
 
@@ -446,10 +448,20 @@ class TestDataQualityQuarantine:
         assert code.count("my-cat") == 1
         compile(code, "<string>", "exec")
 
+    @pytest.mark.parametrize(
+        ("source_table", "rendered"),
+        [
+            ("cat.sch.o'brien", "o'brien"),
+            # The backslash is escaped in the generated literal.
+            ("cat.sch.src\\x", "src\\\\x"),
+        ],
+        ids=["quote", "backslash"],
+    )
     def test_data_quality_quarantine_filters_safe_for_quoted_source_table(
-        self, tmp_path
+        self, tmp_path, source_table, rendered
     ):
-        """A quote in source_table must not reach a SQL-string recycle/outbox filter."""
+        """A quote or backslash in source_table must not reach a SQL-string
+        recycle/outbox filter."""
         generator = DataQualityTransformGenerator()
         expectations_data = {
             "email IS NOT NULL": {"action": "drop", "name": "email_not_null"},
@@ -468,7 +480,7 @@ class TestDataQualityQuarantine:
             mode="quarantine",
             quarantine=QuarantineConfig(
                 dlq_table="cat.sch.universal_dlq",
-                source_table="cat.sch.o'brien",
+                source_table=source_table,
             ),
         )
 
@@ -477,6 +489,21 @@ class TestDataQualityQuarantine:
         compile(code, "<string>", "exec")
         assert "_dlq_source_table = '" not in code
         assert 'F.col("_dlq_source_table") == F.lit(SOURCE_TABLE_v_raw_data)' in code
+        assert (
+            code.count('F.col("_dlq_source_table") == F.lit(SOURCE_TABLE_v_raw_data)')
+            == 2
+        )
+        assert '(F.col("_dlq_status") == "fixed")' in code
         assert 'F.col("_change_type").isin("insert", "update_postimage")' in code
         # only the constant; never inlined into a filter
-        assert code.count("o'brien") == 1
+        assert code.count(rendered) == 1
+        constant = next(
+            node.value
+            for node in ast.walk(ast.parse(code))
+            if isinstance(node, ast.Assign)
+            and any(
+                isinstance(t, ast.Name) and t.id == "SOURCE_TABLE_v_raw_data"
+                for t in node.targets
+            )
+        )
+        assert ast.literal_eval(constant) == source_table

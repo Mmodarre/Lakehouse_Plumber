@@ -97,8 +97,10 @@ The two fields carry the whole contract:
   be unique per quarantine action that shares a DLQ. Within one pipeline,
   ``lhp validate`` and ``lhp generate`` reject a duplicate with
   ``LHP-VAL-069``; actions in different pipelines that share a DLQ are not
-  checked. Point it at the table the write action targets:
-  ``${catalog}.${bronze_schema}.orders``.
+  checked. Give each action a distinct value, for example the table its write
+  action targets, as here: ``${catalog}.${bronze_schema}.orders``. When several
+  quarantine actions write the same table, give each one a per-source name
+  instead.
 
 The expectations file is the same YAML you would write for drop mode:
 

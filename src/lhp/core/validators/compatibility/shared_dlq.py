@@ -17,7 +17,7 @@ family.
 """
 
 import logging
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 from lhp.models import Action, ActionType, FlowGroup, TransformType
 
@@ -37,13 +37,8 @@ def _quarantine_tables(action: Action) -> Optional[Tuple[str, str]]:
         or action.quarantine is None
     ):
         return None
-    config: Any = action.quarantine
-    if isinstance(config, dict):
-        dlq_table = config.get("dlq_table")
-        source_table = config.get("source_table")
-    else:
-        dlq_table = getattr(config, "dlq_table", None)
-        source_table = getattr(config, "source_table", None)
+    dlq_table = getattr(action.quarantine, "dlq_table", None)
+    source_table = getattr(action.quarantine, "source_table", None)
     if not isinstance(dlq_table, str) or not isinstance(source_table, str):
         return None
     if not dlq_table or not source_table:
@@ -79,7 +74,7 @@ class SharedDlqSourceTableValidator:
                 f"'{dlq_spelling[key]}' and source_table '{key[1]}'. Every "
                 f"generated DLQ MERGE and recycle read filters on source_table, "
                 f"so these actions would write the same DLQ and outbox rows and "
-                f"each would recycle the other's fixed rows. Give each action a "
+                f"each would recycle the others' fixed rows. Give each action a "
                 f"distinct source_table."
             )
         logger.debug(f"Found {len(errors)} shared-DLQ source_table conflict(s)")
