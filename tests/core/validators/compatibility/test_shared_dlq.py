@@ -6,11 +6,12 @@ filter on ``_dlq_source_table``, so two actions with the same pair would read
 and write the same DLQ slice.
 """
 
-from typing import Any, Dict, Optional, Union
+from typing import Optional
 
 import pytest
 
 from lhp.core.validators.compatibility import SharedDlqSourceTableValidator
+from lhp.errors import codes
 from lhp.models import Action, ActionType, FlowGroup, QuarantineConfig, TransformType
 
 pytestmark = pytest.mark.unit
@@ -153,36 +154,23 @@ def test_dqe_mode_actions_are_ignored():
     assert errors == []
 
 
-def test_quarantine_config_given_as_dict_is_handled():
-    raw: Dict[str, Any] = {"dlq_table": DLQ, "source_table": SOURCE}
-    dict_action = _dq_action("dq_dict")
-    dict_action.quarantine = raw  # type: ignore[assignment]
-
-    errors = _validate(
-        _fg("fg_model", _dq_action("dq_model")),
-        _fg("fg_dict", dict_action),
-    )
-
-    assert len(errors) == 1
-    assert "fg_model.dq_model" in errors[0]
-    assert "fg_dict.dq_dict" in errors[0]
-
-
 @pytest.mark.parametrize(
     "quarantine",
     [
         None,
-        {"dlq_table": DLQ},
-        {"source_table": SOURCE},
-        {"dlq_table": "", "source_table": SOURCE},
+        QuarantineConfig.model_construct(dlq_table=DLQ),
+        QuarantineConfig.model_construct(source_table=SOURCE),
+        QuarantineConfig(dlq_table="", source_table=SOURCE),
+        QuarantineConfig(dlq_table=DLQ, source_table=""),
     ],
+    ids=["none", "missing_source", "missing_dlq", "empty_dlq", "empty_source"],
 )
 def test_incomplete_quarantine_config_is_skipped(
-    quarantine: Union[None, Dict[str, Any]],
+    quarantine: Optional[QuarantineConfig],
 ):
     """Missing or empty fields are reported by the per-flowgroup validator."""
     incomplete = _dq_action("dq_incomplete")
-    incomplete.quarantine = quarantine  # type: ignore[assignment]
+    incomplete.quarantine = quarantine
 
     errors = _validate(
         _fg("fg_ok", _dq_action("dq_ok")),
@@ -194,3 +182,9 @@ def test_incomplete_quarantine_config_is_skipped(
 
 def test_no_quarantine_actions_returns_no_errors():
     assert _validate(_fg("fg_empty")) == []
+
+
+def test_val_069_is_registered():
+    assert codes.VAL_069.code == "LHP-VAL-069"
+    assert codes.VAL_069 in codes.ALL_CODES
+    assert "VAL_069" in codes.__all__

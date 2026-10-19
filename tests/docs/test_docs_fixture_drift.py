@@ -19,7 +19,9 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 DOCS_FIXTURES_DIR = REPO_ROOT / "docs" / "_fixtures"
 
 # Fixture projects whose committed ``generated/`` tree is checked against fresh
-# generator output. Add a fixture directory name here to extend coverage.
+# generator output. Adding a fixture directory name here extends coverage only
+# for plain fixtures (no sandbox profile, no bundle) whose ``generated/`` tree
+# is the only output of ``lhp generate --env dev``.
 DRIFT_CHECKED_FIXTURES = ["guide_qo_quarantine"]
 
 _MAX_DIFF_LINES = 40
@@ -72,6 +74,7 @@ def test_docs_fixture_matches_generator_output(fixture_name, tmp_path, monkeypat
 
     regenerated_dir = project_dir / "generated"
     committed_files = _relative_files(committed_dir)
+    assert committed_files, f"{committed_dir} has no committed generated files"
     regenerated_files = _relative_files(regenerated_dir)
 
     only_committed = sorted(committed_files - regenerated_files)
