@@ -249,9 +249,9 @@ def recycle_flow_v_orders_raw():
         spark.readStream.option("readChangeFeed", "true")
         .table(DLQ_TABLE_v_orders_raw)
         .filter(
-            "_dlq_status = 'fixed' "
-            "AND _change_type IN ('insert', 'update_postimage') "
-            f"AND _dlq_source_table = '{SOURCE_TABLE_v_orders_raw}'"
+            (F.col("_dlq_status") == "fixed")
+            & F.col("_change_type").isin("insert", "update_postimage")
+            & (F.col("_dlq_source_table") == F.lit(SOURCE_TABLE_v_orders_raw))
         )
     )
 
@@ -265,7 +265,7 @@ def _recycled_v_orders_raw():
     return (
         spark.readStream.option("skipChangeCommits", "true")
         .table(DLQ_OUTBOX_TABLE_v_orders_raw)
-        .filter(f"_dlq_source_table = '{SOURCE_TABLE_v_orders_raw}'")
+        .filter(F.col("_dlq_source_table") == F.lit(SOURCE_TABLE_v_orders_raw))
         .select(
             [
                 F.try_variant_get(
