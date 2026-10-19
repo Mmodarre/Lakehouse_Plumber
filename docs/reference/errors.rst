@@ -178,6 +178,9 @@ Configuration errors (LHP-CFG)
    * - LHP-CFG-070
      - A selected operational-metadata ``expression`` in ``lhp.yaml`` references a secret (``${secret:...}``, directly or through a token value). The expression's result is written into table data, so the secret would be stored in every row. Raised by both ``lhp validate`` and ``lhp generate``.
      - Remove the secret. Use a ``${token}`` from ``substitutions/<env>.yaml`` for non-secret per-environment values, or a transform action for per-table logic.
+   * - LHP-CFG-071
+     - A ``sql_path`` file rendered with its action's ``sql_parameters`` (set directly, or by a template with ``render_sql_files: true``) is not a valid Jinja template, or uses a name the parameters do not define. Rendering is strict, so an undefined name is an error rather than an empty string. Raised by both ``lhp validate`` and ``lhp generate``.
+     - Fix the ``{{ name }}`` expression, or declare the name as a template parameter (with a default) or in ``sql_parameters``. Wrap literal ``{{``, ``{%`` or ``{#`` in ``{% raw %}...{% endraw %}``.
 
 Validation errors (LHP-VAL)
 ===========================

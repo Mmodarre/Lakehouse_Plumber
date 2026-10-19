@@ -10,7 +10,7 @@ UC ``tags_file`` the tagging hook reads. Python files are not checked.
 import copy
 import logging
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable, Optional
+from typing import TYPE_CHECKING, Any, Callable, Mapping, Optional
 
 from lhp.models import Action, ActionType, FlowGroup
 
@@ -22,9 +22,11 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 #: Reads one ``sql_path`` file as generation renders it:
-#: ``(sql_path, project_root, substitution_mgr, pipeline, flowgroup, action)``
-#: to the substituted text, raising ``LHP-CFG-010`` for a leftover token. The
-#: composition root injects ``lhp.core.loaders.load_sql_file``.
+#: ``(sql_path, project_root, substitution_mgr, pipeline, flowgroup, action,
+#: sql_parameters)`` to the rendered and substituted text, raising
+#: ``LHP-CFG-071`` for a file that does not render and ``LHP-CFG-010`` for a
+#: leftover token. The composition root injects
+#: ``lhp.core.loaders.load_sql_file``.
 SqlFileLoader = Callable[
     [
         str,
@@ -33,6 +35,7 @@ SqlFileLoader = Callable[
         Optional[str],
         Optional[str],
         Optional[str],
+        Optional[Mapping[str, Any]],
     ],
     str,
 ]
@@ -76,7 +79,9 @@ class ExternalFileTokenValidator:
         substituting are not recorded on ``substitution_mgr``; generation
         records them when it reads the same files.
 
-        :raises LHPConfigError: ``LHP-CFG-010`` when a plain ``${name}`` is
+        :raises LHPConfigError: ``LHP-CFG-071`` when a ``sql_path`` file does
+            not render with the action's ``sql_parameters``;
+            ``LHP-CFG-010`` when a plain ``${name}`` is
             unresolved in a ``sql_path`` file or a ``tags_file``;
             ``LHP-CFG-008`` / ``LHP-CFG-059`` for a ``${secret:...}`` in a
             ``sql_path`` file or tags file without a default scope or with an
@@ -102,6 +107,7 @@ class ExternalFileTokenValidator:
                     flowgroup.pipeline,
                     flowgroup.flowgroup,
                     action.name,
+                    action.sql_parameters,
                 )
                 logger.debug(f"sql_path tokens resolve for action '{action.name}'")
             self._check_tags_file(

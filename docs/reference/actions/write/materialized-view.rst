@@ -66,6 +66,11 @@ key (for example ``mypipeline.start_date``) and reference it as
 ``${mypipeline.start_date}``; a plain ``${start_date}`` fails even when the
 configuration defines it.
 
+Set the action-level mapping ``sql_parameters`` to render the ``sql_path`` file
+as a Jinja template (``{{ name }}``) before substitution; a template with
+``render_sql_files: true`` sets it from its parameters. See
+:ref:`template-sql-files`.
+
 .. include:: /_includes/write-target-common.rst
 
 .. include:: /_includes/write-common.rst

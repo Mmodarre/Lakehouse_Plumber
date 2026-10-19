@@ -132,6 +132,7 @@ ACTION_FIELDS = {
     "transform_type",
     "sql",
     "sql_path",
+    "sql_parameters",
     "operational_metadata",
     "expectations_file",
     "mode",

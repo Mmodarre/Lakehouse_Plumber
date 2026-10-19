@@ -89,6 +89,31 @@ actions:
         AND region = '${default_region}'          -- ${ } resolves after (step 3)
 ```
 
+### SQL files parametrized with Jinja (`render_sql_files`)
+
+A `sql_path` **file** is not part of the template's YAML, so by default it gets only `${token}` substitution — a `{{ param }}` inside it stays literal. Set `render_sql_files: true` on the template to render each action's `sql_path` file with the template parameters (defaults applied) before `${token}` substitution. LHP passes them as the action's `sql_parameters` (keys the action sets in `sql_parameters` win; a non-template action can set `sql_parameters` directly).
+
+```yaml
+name: gold_materialized_view
+render_sql_files: true
+parameters:
+  - name: table
+    required: true
+  - name: silver_schema
+    default: silver
+actions:
+  - name: "write_{{ table }}"
+    type: write
+    write_target:
+      type: materialized_view
+      catalog: "${catalog}"
+      schema: gold
+      table: "{{ table }}"
+      sql_path: "sql/gold/{{ table }}.sql"   # file: SELECT * FROM ${catalog}.{{ silver_schema }}.orders
+```
+
+Differences from YAML rendering: strict (an undefined name → `LHP-CFG-071` from `lhp validate` and `lhp generate`, not an empty string); the whole file is a template (wrap literal `{{` / `{%` / `{#` in `{% raw %}…{% endraw %}`); Jinja's immutable sandbox. `lhp dag` parses the rendered SQL, so table names built from parameters still order the graph — but it matches names as text without substituting `${token}`s, so spell a table the same way on the producing and consuming side (if the producer writes `${silver_schema}`, default the parameter to `"${silver_schema}"`, not the literal schema).
+
 ### Using Templates in FlowGroups
 
 ```yaml

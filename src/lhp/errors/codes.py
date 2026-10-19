@@ -249,6 +249,13 @@ CFG_069 = ErrorCode(ErrorCategory.CONFIG, "069")
 # (core/codegen/operational_metadata/expression.py) on both the validate and
 # generate paths, via ErrorFactory.config_error(codes.CFG_070, ...).
 CFG_070 = ErrorCode(ErrorCategory.CONFIG, "070")
+# CFG_071: a ``sql_path`` file rendered with an action's ``sql_parameters`` is
+# not a valid Jinja template, or references a name ``sql_parameters`` does not
+# define (rendering uses strict undefined, so a typo is an error, not an empty
+# string). Raised by the shared renderer
+# (core/processing/sql_parameters.py) on the validate and generate paths, via
+# ErrorFactory.config_error(codes.CFG_071, ...).
+CFG_071 = ErrorCode(ErrorCategory.CONFIG, "071")
 
 DEP_001 = ErrorCode(ErrorCategory.DEPENDENCY, "001")
 # DEP_002: dependency extraction found a recognized table-read in Python code
@@ -398,6 +405,7 @@ ALL_CODES: tuple[ErrorCode, ...] = (
     CFG_068,
     CFG_069,
     CFG_070,
+    CFG_071,
     DEP_001,
     DEP_002,
     DEP_003,
@@ -471,6 +479,7 @@ __all__ = [
     "CFG_068",
     "CFG_069",
     "CFG_070",
+    "CFG_071",
     "DEPR_001",
     "DEPR_002",
     "DEPR_003",
