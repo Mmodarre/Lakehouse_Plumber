@@ -28,7 +28,8 @@ warn/fail rules produce a validation warning. At least one rule is required.
 
 Create both tables before runtime; LHP generates consumers, not their DDL. Replace
 the example identifiers with the configured fully qualified names. The supported
-contract uses CDF and row tracking on the inbox and row tracking on the outbox.
+contract uses CDF, row tracking and deletion vectors on the inbox and row tracking
+and deletion vectors on the outbox, both clustered by `_dlq_source_table`.
 
 ```sql
 CREATE TABLE IF NOT EXISTS example_catalog.ops.orders_dlq (
@@ -39,21 +40,33 @@ CREATE TABLE IF NOT EXISTS example_catalog.ops.orders_dlq (
   _dlq_failed_rules ARRAY<STRUCT<name: STRING, rule: STRING>>,
   _dlq_rescued_data STRING,
   _row_data VARIANT NOT NULL
-) TBLPROPERTIES (
+) CLUSTER BY (_dlq_source_table) TBLPROPERTIES (
   'delta.enableChangeDataFeed' = 'true',
-  'delta.enableRowTracking' = 'true'
+  'delta.enableRowTracking' = 'true',
+  'delta.enableDeletionVectors' = 'true'
 );
 CREATE TABLE IF NOT EXISTS example_catalog.ops.orders_dlq_outbox (
   _dlq_sk STRING NOT NULL,
   _dlq_source_table STRING NOT NULL,
   _row_data VARIANT NOT NULL,
   _dlq_recycled_at TIMESTAMP NOT NULL
-) TBLPROPERTIES ('delta.enableRowTracking' = 'true');
+) CLUSTER BY (_dlq_source_table) TBLPROPERTIES (
+  'delta.enableRowTracking' = 'true',
+  'delta.enableDeletionVectors' = 'true'
+);
 ```
 
 Use triggered, non-continuous pipeline execution. Required runtime functions
 include VARIANT reconstruction and foreach-batch sinks. Verify runtime support,
 permissions and source availability before execution.
+
+## Shared DLQ and concurrency
+
+Each action's inbox and outbox MERGEs filter the target on its own `_dlq_source_table`,
+so actions sharing a DLQ commit concurrently without conflict only while deletion
+vectors stay on (otherwise `DELTA_CONCURRENT_APPEND`). Keep `source_table` unique per
+action sharing a DLQ. Operator `UPDATE`s marking rows `fixed` must filter on
+`_dlq_source_table = '<source_table>'` and run while the pipeline is idle.
 
 ## Correction and replay
 

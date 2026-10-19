@@ -109,7 +109,9 @@ Each ``action`` maps to a Lakeflow expectation decorator (``dqe`` mode):
 
 In ``quarantine`` mode every rule is coerced to ``drop`` regardless of its
 configured ``action``; ``warn`` / ``fail`` rules trigger a validation warning. The
-DLQ outbox table is derived as ``<dlq_table>_outbox``.
+DLQ outbox table is derived as ``<dlq_table>_outbox``. Create both tables with the
+DDL in :doc:`/reference/config/quarantine-dlq`, which clusters them by
+``_dlq_source_table`` and enables deletion vectors.
 
 .. code-block:: yaml
 
