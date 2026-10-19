@@ -309,6 +309,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   outbox at the same time. The documented DLQ and outbox DDL now enables deletion
   vectors, which concurrent writers require, and clusters both tables by
   `_dlq_source_table`.
+- **Quarantine `source_table` values containing a single quote no longer break the
+  recycle and outbox filters (#332).** The generated recycle and outbox reads
+  interpolated `source_table` into a SQL string filter, so a `'` (or a backslash) in
+  the name broke or changed that filter. Both filters now compare with Column
+  expressions (`F.col(...) == F.lit(...)`) instead of interpolated SQL strings.
 
 ## [0.9.2] — 2026-09-22
 

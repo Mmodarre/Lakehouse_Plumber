@@ -445,3 +445,38 @@ class TestDataQualityQuarantine:
         # only the constant; never inlined into a condition
         assert code.count("my-cat") == 1
         compile(code, "<string>", "exec")
+
+    def test_data_quality_quarantine_filters_safe_for_quoted_source_table(
+        self, tmp_path
+    ):
+        """A quote in source_table must not reach a SQL-string recycle/outbox filter."""
+        generator = DataQualityTransformGenerator()
+        expectations_data = {
+            "email IS NOT NULL": {"action": "drop", "name": "email_not_null"},
+            "age >= 18": {"action": "drop", "name": "age_check"},
+        }
+        exp_file = self._create_expectations_file(tmp_path, expectations_data)
+
+        action = Action(
+            name="validate_orders",
+            type=ActionType.TRANSFORM,
+            transform_type=TransformType.DATA_QUALITY,
+            source="v_raw_data",
+            target="v_validated",
+            readMode="stream",
+            expectations_file=exp_file,
+            mode="quarantine",
+            quarantine=QuarantineConfig(
+                dlq_table="cat.sch.universal_dlq",
+                source_table="cat.sch.o'brien",
+            ),
+        )
+
+        code = generator.generate(action, {"spec_dir": tmp_path})
+
+        compile(code, "<string>", "exec")
+        assert "_dlq_source_table = '" not in code
+        assert 'F.col("_dlq_source_table") == F.lit(SOURCE_TABLE_v_raw_data)' in code
+        assert 'F.col("_change_type").isin("insert", "update_postimage")' in code
+        # only the constant; never inlined into a filter
+        assert code.count("o'brien") == 1
