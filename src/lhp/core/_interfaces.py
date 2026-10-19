@@ -60,6 +60,7 @@ class CrossFlowgroupCheckResult:
 
     table_creation_errors: List[str] = field(default_factory=list)
     cdc_fanin_errors: List[str] = field(default_factory=list)
+    shared_dlq_errors: List[str] = field(default_factory=list)
 
 
 if TYPE_CHECKING:
@@ -186,8 +187,9 @@ class BaseValidationService(ABC):
         *,
         pipeline_filter: Optional[str] = None,
     ) -> CrossFlowgroupCheckResult:
-        """Runs only the table-creation and CDC fan-in compatibility
-        validators, omitting the per-flowgroup :class:`ConfigValidator` pass.
+        """Runs only the cross-flowgroup validators (table creation, CDC and
+        replace fan-in, shared-DLQ ``source_table`` uniqueness), omitting the
+        per-flowgroup :class:`ConfigValidator` pass.
 
         LHPError exceptions raised by the underlying validators are NOT
         caught — they propagate to the caller (the worker's catch-and-convert

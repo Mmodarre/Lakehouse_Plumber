@@ -2,6 +2,7 @@
 
 from .contexts import process_unwrap, wrap_in_ctx
 from .generation import read_generated_pipeline
+from .quarantine import write_quarantine_project
 from .telemetry import (
     assert_no_names_in_values,
     last_cli_command_line,
@@ -17,4 +18,5 @@ __all__ = [
     "project_names",
     "read_generated_pipeline",
     "wrap_in_ctx",
+    "write_quarantine_project",
 ]

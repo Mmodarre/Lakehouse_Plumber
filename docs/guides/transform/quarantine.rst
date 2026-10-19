@@ -94,8 +94,10 @@ The two fields carry the whole contract:
   in the DLQ. It is written into the ``_dlq_source_table`` column and used to
   filter the recycle stream, so one shared DLQ table can serve many flowgroups.
   Because every generated ``MERGE`` and the recycle stream filter on it, it must
-  be unique per quarantine action that shares a DLQ. Point it at the table the
-  write action targets:
+  be unique per quarantine action that shares a DLQ. Within one pipeline,
+  ``lhp validate`` and ``lhp generate`` reject a duplicate with
+  ``LHP-VAL-069``; actions in different pipelines that share a DLQ are not
+  checked. Point it at the table the write action targets:
   ``${catalog}.${bronze_schema}.orders``.
 
 The expectations file is the same YAML you would write for drop mode:

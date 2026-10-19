@@ -9,6 +9,7 @@
 from ._base import BaseActionValidator
 from .compatibility.cdc_fanin import CdcFanInCompatibilityValidator
 from .compatibility.replace_fanin import ReplaceFanInCompatibilityValidator
+from .compatibility.shared_dlq import SharedDlqSourceTableValidator
 from .action.load import LoadActionValidator
 from .action.transform import TransformActionValidator
 from .action.write import WriteActionValidator
@@ -50,6 +51,7 @@ __all__ = [
     "PipelineSettings",
     "ReplaceFanInCompatibilityValidator",
     "SecretValidator",
+    "SharedDlqSourceTableValidator",
     "SnapshotCdcConfigValidator",
     "TableCreationValidator",
     "TestActionValidator",
