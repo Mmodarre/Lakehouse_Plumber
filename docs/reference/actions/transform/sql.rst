@@ -61,10 +61,9 @@ key (for example ``mypipeline.start_date``) and reference it as
 configuration defines it.
 Wrap a source in ``stream(view_name)`` inside the query to read it as a stream.
 
-Set the action-level mapping ``sql_parameters`` to render the ``sql_path`` file
-as a Jinja template (``{{ name }}``) before substitution; a template with
-``render_sql_files: true`` sets it from its parameters. See
-:ref:`template-sql-files`.
+In a template action, a ``sql_path`` file that contains ``{{``, ``{%`` or
+``{#`` is rendered with the template parameters before substitution, like the
+template's inline SQL. See :ref:`template-sql-files`.
 
 .. include:: /_includes/transform-common.rst
 

@@ -36,7 +36,11 @@ def build_facade_orchestrator(
     from lhp.core.codegen import OperationalMetadataService, check_tags_file_tokens
     from lhp.core.coordination.orchestrator import ActionOrchestrator
     from lhp.core.coordination.validation_service import ValidationService
-    from lhp.core.loaders import ProjectConfigLoader, load_sql_file
+    from lhp.core.loaders import (
+        ProjectConfigLoader,
+        load_sql_file,
+        read_sql_file,
+    )
     from lhp.core.processing import TemplateEngine
     from lhp.core.processing.flowgroup_resolver import FlowgroupResolutionService
     from lhp.core.registry import ActionRegistry
@@ -49,7 +53,7 @@ def build_facade_orchestrator(
     from lhp.presets.preset_manager import PresetManager
 
     project_config = ProjectConfigLoader(project_root).load_project_config()
-    template_engine = TemplateEngine(project_root / "templates")
+    template_engine = TemplateEngine.for_project(project_root, read_sql_file)
     preset_manager = PresetManager(project_root / "presets")
     config_validator = ConfigValidator(project_root, project_config)
     secret_validator = SecretValidator()

@@ -111,9 +111,8 @@
       ]
     },
     "docs/reference/config/templates.rst": {
-      "sha256": "0362da69dfc28d3dff2a7bf90f300fb498b4bd0e28682b428a913fc76cc99b4e",
+      "sha256": "049ac4401cfbaeb4873c50e57d64983ab85be9a3c6f491678fd30c4d0d375347",
       "entryIds": [
-        "action.sql_parameters",
         "flowgroup.template_parameters",
         "flowgroup.use_template",
         "template.actions",
@@ -126,7 +125,6 @@
         "template.parameters.*.required",
         "template.parameters.*.type",
         "template.presets",
-        "template.render_sql_files",
         "template.version"
       ]
     },
@@ -221,7 +219,7 @@
       ]
     },
     "src/lhp/resources/skills/lhp/references/actions-load-sql.md": {
-      "sha256": "9d9d618c069b1baefebd62461cc9656560eddacbd5ce22f02acab52de8e0c43e",
+      "sha256": "8a8777c0eee210393d7d2a7586e47b25cdb0cdcb73be87a686cb91b7c5bfda12",
       "entryIds": [
         "action.load.sql.overview",
         "action.load.sql.source.sql",
@@ -377,7 +375,7 @@
       ]
     },
     "src/lhp/resources/skills/lhp/references/actions-transform-sql.md": {
-      "sha256": "484c29fb15e59b94e9912950e3bb47dddceade8e8396e4d82e4cad83bdc45001",
+      "sha256": "9e1cae289cbd66c12e76c96ee46e6bc3bf89409c27fe7300cad6f85d578242ff",
       "entryIds": [
         "action.transform.sql.overview",
         "action.transform.sql.source",
@@ -397,7 +395,7 @@
       ]
     },
     "src/lhp/resources/skills/lhp/references/actions-write-materialized-view.md": {
-      "sha256": "f319e67263d133af4ed1832a41809bf335cf4f7d7328c6be741f6fc2623ded9e",
+      "sha256": "b30249d4cad2d51a1c060e00a510dada1cdf2a3823c5bced5ccc5e2d38c915ac",
       "entryIds": [
         "action.write.materialized_view.overview",
         "action.write.materialized_view.source",

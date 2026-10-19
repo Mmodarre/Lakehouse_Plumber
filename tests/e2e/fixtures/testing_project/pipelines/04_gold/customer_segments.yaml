@@ -1,0 +1,8 @@
+# Template-driven load and transform: both sql_path files use {{ }} template
+# parameters (a conditional on a boolean default) alongside ${} tokens.
+pipeline: gold_load
+flowgroup: customer_segments
+#job_name: j_four
+use_template: gold_steps_template
+template_parameters:
+  entity: customer_segments

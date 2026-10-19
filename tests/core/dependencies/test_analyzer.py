@@ -1499,13 +1499,12 @@ class TestWriteTargetExtraction:
         assert "silver.customers" not in external
 
     @patch("lhp.core.dependencies.service.DependencyAnalysisService.get_flowgroups")
-    def test_sql_path_file_rendered_with_sql_parameters_produces_internal_edge(
-        self, mockget_flowgroups
-    ):
-        """A sql_path file that names its input with {{ }} is parsed as
-        generation renders it, so the edge to the producer still forms."""
+    def test_rendered_sql_wins_over_its_sql_path_file(self, mockget_flowgroups):
+        """Template expansion put the rendered file into ``sql`` and kept
+        ``sql_path``; like generation, extraction parses only the inline SQL,
+        so the raw ``{{ }}`` file never yields a bogus table."""
         yaml_path = self.temp_dir / "pipelines" / "medallion.yaml"
-        sql_file = yaml_path.parent / "sql" / "gold.sql"
+        sql_file = self.temp_dir / "sql" / "gold.sql"
         sql_file.parent.mkdir(parents=True, exist_ok=True)
         sql_file.write_text("SELECT * FROM {{ layer }}.customers")
 
@@ -1516,9 +1515,9 @@ class TestWriteTargetExtraction:
             name="build_gold",
             type=ActionType.TRANSFORM,
             target="gold.customers",
+            sql="SELECT * FROM silver.customers",
             sql_path="sql/gold.sql",
         )
-        downstream.sql_parameters = {"layer": "silver"}
 
         flowgroup = Mock(spec=FlowGroup)
         flowgroup.flowgroup = "medallion_fg"
@@ -1527,43 +1526,17 @@ class TestWriteTargetExtraction:
         mockget_flowgroups.return_value = [flowgroup]
         self.analyzer._flowgroup_file_paths["medallion_fg"] = yaml_path
 
-        graphs = self.analyzer.build_graphs(self.analyzer.get_flowgroups())
-
-        assert graphs.action_graph.has_edge(
-            "medallion_pipeline.medallion_fg.build_silver",
-            "medallion_pipeline.medallion_fg.build_gold",
-        )
-
-    @patch("lhp.core.dependencies.service.DependencyAnalysisService.get_flowgroups")
-    def test_sql_path_file_that_does_not_render_is_skipped(self, mockget_flowgroups):
-        """An undefined name is reported by generate/validate (LHP-CFG-071);
-        dependency extraction skips the file like one that does not parse."""
-        yaml_path = self.temp_dir / "pipelines" / "medallion.yaml"
-        sql_file = yaml_path.parent / "sql" / "gold.sql"
-        sql_file.parent.mkdir(parents=True, exist_ok=True)
-        sql_file.write_text("SELECT * FROM {{ missing }}.customers")
-
-        downstream = self._make_action(
-            name="build_gold",
-            type=ActionType.TRANSFORM,
-            target="gold.customers",
-            sql_path="sql/gold.sql",
-        )
-        downstream.sql_parameters = {"layer": "silver"}
-
-        flowgroup = Mock(spec=FlowGroup)
-        flowgroup.flowgroup = "medallion_fg"
-        flowgroup.pipeline = "medallion_pipeline"
-        flowgroup.actions = [downstream]
-        mockget_flowgroups.return_value = [flowgroup]
-        self.analyzer._flowgroup_file_paths["medallion_fg"] = yaml_path
-
+        self.analyzer._builder.reset_body_read_recording()
         graphs = self.analyzer.build_graphs(self.analyzer.get_flowgroups())
 
         downstream_id = "medallion_pipeline.medallion_fg.build_gold"
+        assert graphs.action_graph.has_edge(
+            "medallion_pipeline.medallion_fg.build_silver", downstream_id
+        )
         assert (
             graphs.action_graph.nodes[downstream_id].get("external_sources", []) == []
         )
+        assert sql_file in self.analyzer._builder.recorded_body_reads()
 
 
 class TestExtractionWarningPlumbing:

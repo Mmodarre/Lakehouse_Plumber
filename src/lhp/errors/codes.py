@@ -242,12 +242,12 @@ CFG_069 = ErrorCode(ErrorCategory.CONFIG, "069")
 # (core/codegen/operational_metadata/expression.py) on both the validate and
 # generate paths, via ErrorFactory.config_error(codes.CFG_070, ...).
 CFG_070 = ErrorCode(ErrorCategory.CONFIG, "070")
-# CFG_071: a ``sql_path`` file rendered with an action's ``sql_parameters`` is
-# not a valid Jinja template, or references a name ``sql_parameters`` does not
-# define (rendering uses strict undefined, so a typo is an error, not an empty
-# string). Raised by the shared renderer
-# (core/processing/sql_parameters.py) on the validate and generate paths, via
-# ErrorFactory.config_error(codes.CFG_071, ...).
+# CFG_071: a template action's ``sql_path`` file, rendered with the template
+# parameters at template expansion, is not a valid Jinja template, references a
+# name the parameters do not define (rendering uses strict undefined, so a typo
+# is an error, not an empty string) or uses something the sandbox blocks.
+# Raised by core/processing/template_sql_files.py during expansion, so on the
+# validate and generate paths alike, via ErrorFactory.config_error(codes.CFG_071, ...).
 CFG_071 = ErrorCode(ErrorCategory.CONFIG, "071")
 
 DEP_001 = ErrorCode(ErrorCategory.DEPENDENCY, "001")

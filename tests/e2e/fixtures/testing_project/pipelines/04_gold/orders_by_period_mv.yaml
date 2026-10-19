@@ -1,0 +1,11 @@
+# Template-driven materialized view: the template's sql_path file uses {{ }}
+# template parameters (a loop over group_by) alongside ${} environment tokens.
+pipeline: gold_load
+flowgroup: orders_by_period_mv
+#job_name: j_four
+use_template: gold_mv_template
+template_parameters:
+  table: orders_by_period_mv
+  group_by:
+    - order_year
+    - order_month

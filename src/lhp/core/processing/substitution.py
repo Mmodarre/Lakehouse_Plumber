@@ -297,10 +297,14 @@ class EnhancedSubstitutionManager:
                     f"Check substitutions/{self.env}.yaml for missing value(s)."
                 )
         elif isinstance(data, dict):
+            sql_path = data.get("sql_path")
             for key, value in data.items():
-                errors.extend(
-                    self.validate_no_unresolved_tokens(value, f"{path}.{key}")
-                )
+                child = f"{path}.{key}"
+                if key == "sql" and isinstance(sql_path, str):
+                    # Template expansion keeps sql_path beside the SQL it
+                    # rendered from it, so the user can find the file to fix.
+                    child = f"{child} (rendered from {sql_path})"
+                errors.extend(self.validate_no_unresolved_tokens(value, child))
         elif isinstance(data, list):
             for i, item in enumerate(data):
                 errors.extend(self.validate_no_unresolved_tokens(item, f"{path}[{i}]"))

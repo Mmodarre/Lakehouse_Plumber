@@ -82,6 +82,21 @@ class DependencySnapshot:
             self._files[key] = self._state(key)
         return path
 
+    def read_sql_file(self, value: str) -> str | None:
+        """Watch and read a ``sql_path`` that template expansion renders.
+
+        Matches :func:`lhp.core.loaders.read_sql_file`: ``None`` for a file
+        that does not exist, so the action is left to generation.
+
+        :raises PermissionError: when the path leaves the project.
+        :raises ValueError: when the path is not a file or exceeds the size limit.
+        :raises SourceChangedError: when the file changes while it is read.
+        """
+        path = self.watch(value)
+        if not path.is_file():
+            return None
+        return path.read_text(encoding="utf-8")
+
     def preset_paths(self) -> list[Path]:
         directory = self.path("presets")
         names = tuple(
@@ -144,8 +159,13 @@ class PreviewConfigValidator(ConfigValidator):
                 value = raw.get(key)
                 if isinstance(value, str) and value:
                     self.snapshot.watch(value)
+            source = raw.get("source")
+            if isinstance(source, dict) and isinstance(source.get("sql_path"), str):
+                self.snapshot.watch(source["sql_path"])
             target = raw.get("write_target")
             if isinstance(target, dict):
+                if isinstance(target.get("sql_path"), str):
+                    self.snapshot.watch(target["sql_path"])
                 schema = target.get("table_schema")
                 if isinstance(schema, str) and schema and is_file_path(schema):
                     self.snapshot.watch(schema)

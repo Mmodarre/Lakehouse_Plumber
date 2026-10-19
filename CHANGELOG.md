@@ -11,22 +11,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **Template parameters in `sql_path` files (`render_sql_files`, `sql_parameters`).**
-  Template rendering covered the template's YAML only: a `{{ param }}` inside the
-  file a `sql_path` points at was copied into the generated code as written. A
-  template can now set `render_sql_files: true`; every action it renders that
-  reads a `sql_path` file (SQL load, SQL transform, materialized view) gets the
-  template parameters, defaults applied, as a new action field `sql_parameters`,
-  and the file is rendered as a Jinja template with them before `${token}`
-  substitution. An action outside a template can set `sql_parameters` directly;
-  keys an action sets win over the template parameters. Rendering is strict (an
+- **Template parameters in `sql_path` files.** A SQL file referenced by a
+  template action (an SQL load's `source.sql_path`, an SQL transform's
+  `sql_path` or a materialized view's `write_target.sql_path`) now uses the
+  template parameters like the template's inline SQL. Template expansion
+  renders the file when it contains `{{`, `{%` or `{#`, with the flowgroup's
+  `template_parameters` and the template's defaults, and puts the result in the
+  action's inline `sql`, keeping `sql_path` as its provenance. Presets,
+  `${token}` substitution and the unresolved-token check then run on it as on
+  inline SQL, and an unresolved token names the file. Rendering is strict (an
   undefined name fails `lhp validate` and `lhp generate` with the new
-  `LHP-CFG-071` instead of rendering as an empty string) and runs in Jinja's
-  immutable sandbox. Dependency analysis parses the rendered SQL, so table
-  references built from parameters still order the graph, and the dependency
-  cache still tracks the file. Opt-in: files of actions without
-  `sql_parameters` are read exactly as before, so literal `{{` in existing SQL
-  is unaffected.
+  `LHP-CFG-071`, naming the file, line, template and action; so does a file
+  that renders to empty SQL) and runs in Jinja's immutable sandbox. `lhp dag`
+  and the template preview see the rendered SQL, and the dependency-graph
+  cache still tracks the file. No new template or action field is involved.
 
 - Separate ``lhp`` development and ``lhp-learn`` teaching skills in the same
   package, selected with `lhp skill ... --name lhp-learn` or the provisional
@@ -86,6 +84,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   written as-is.
 
 ### Changed
+
+- **A template's SQL files that contain `{{`, `{%` or `{#` are now rendered as
+  Jinja.** Such text was previously copied into the generated code as written.
+  Wrap literal delimiters, including any in SQL comments, in
+  `{% raw %}...{% endraw %}`. Files without them, files of non-template
+  actions, a `sql_path` containing a `${token}` and a `sql_path` added by a
+  preset are read at generation as before.
+- **`lhp dag` reads only an action's inline SQL when it also sets `sql_path`**,
+  as generation does; it still records the file for the graph cache.
+- **The template preview's expanded stage reports its saved dependencies**,
+  including the SQL files it rendered, and checks them for changes. Resolved
+  preview also watches `source.sql_path` and `write_target.sql_path`.
 
 - **`partition_columns` can no longer be combined with liquid clustering (#297).** On
   streaming-table (every mode) and materialized-view write targets, setting
