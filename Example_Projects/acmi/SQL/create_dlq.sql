@@ -7,9 +7,11 @@ CREATE TABLE IF NOT EXISTS acme_edw_dev.edw_raw.universal_dlq (
     _dlq_rescued_data  STRING,
     _row_data          VARIANT   NOT NULL
 )
+CLUSTER BY (_dlq_source_table)
 TBLPROPERTIES (
     'delta.enableChangeDataFeed' = 'true',
     'delta.enableRowTracking' = 'true',
+    'delta.enableDeletionVectors' = 'true',
     'delta.deletedFileRetentionDuration' = 'interval 90 days'
 );
 
@@ -19,6 +21,8 @@ CREATE TABLE IF NOT EXISTS acme_edw_dev.edw_raw.universal_dlq_outbox (
     _row_data          VARIANT   NOT NULL,
     _dlq_recycled_at   TIMESTAMP NOT NULL
 )
+CLUSTER BY (_dlq_source_table)
 TBLPROPERTIES (
-    'delta.enableRowTracking' = 'true'
+    'delta.enableRowTracking' = 'true',
+    'delta.enableDeletionVectors' = 'true'
 );
