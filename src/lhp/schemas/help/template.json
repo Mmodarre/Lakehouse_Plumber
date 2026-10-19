@@ -114,7 +114,7 @@
         }
       ],
       "details": [
-        "Each parameter has a name and can declare required, default and descriptive metadata. Reference it with {{ name }} in action string values."
+        "Each parameter has a name and can declare required, default and descriptive metadata. Reference it with {{ name }} in action string values and in the SQL files those actions reference through sql_path."
       ],
       "examples": [
         {
@@ -260,32 +260,6 @@
       ]
     },
     {
-      "id": "template.render_sql_files",
-      "summary": "Render the actions' sql_path files with the template parameters.",
-      "sources": [
-        {
-          "file": "docs/reference/config/templates.rst"
-        }
-      ],
-      "bindings": [
-        {
-          "path": [
-            "render_sql_files"
-          ]
-        }
-      ],
-      "details": [
-        "When true, a sql_path file can use {{ parameter }} like the template itself. Each action that reads a sql_path file gets the parameters, defaults applied, as its sql_parameters.",
-        "Rendering is strict: a name that is not a parameter fails validate and generate with LHP-CFG-071. ${token} references are still substituted afterwards."
-      ],
-      "examples": [
-        {
-          "label": "YAML example",
-          "yaml": "render_sql_files: true"
-        }
-      ]
-    },
-    {
       "id": "template.actions",
       "summary": "Build the action patterns expanded by this template.",
       "sources": [
@@ -301,7 +275,7 @@
         }
       ],
       "details": [
-        "Use {{ parameter }} inside supported action string values. The engine renders those values, not mapping keys or arbitrary whole-document Jinja control flow. Preview with representative inputs."
+        "Use {{ parameter }} inside supported action string values. The engine renders those values, not mapping keys or arbitrary whole-document Jinja control flow. A sql_path file that contains {{, {% or {# is rendered with the same parameters, strictly. Preview with representative inputs."
       ],
       "examples": [
         {

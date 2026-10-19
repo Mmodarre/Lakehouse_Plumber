@@ -472,3 +472,42 @@ def test_raw_schema_allows_test_actions_and_templated_enum_values():
         ],
     }
     assert list(Draft7Validator(schema).iter_errors(raw)) == []
+
+
+SQL_FILE_TEMPLATE = """name: display_name
+parameters:
+  - name: entity
+    required: true
+actions:
+  - name: clean_{{ entity }}
+    type: transform
+    transform_type: sql
+    source: v_{{ entity }}_raw
+    target: v_{{ entity }}
+    sql_path: sql/clean_{{ entity }}.sql
+"""
+
+
+def test_expanded_preview_shows_rendered_sql_file_and_watches_it(project):
+    sql_file = project / "sql" / "clean_orders.sql"
+    sql_file.parent.mkdir(parents=True, exist_ok=True)
+    sql_file.write_text("SELECT * FROM stream(v_{{ entity }}_raw)\n")
+
+    result = run_preview(project, request(SQL_FILE_TEMPLATE))
+
+    assert result["status"] == "ready", result
+    (action,) = result["expanded_actions"]
+    assert action["sql"] == "SELECT * FROM stream(v_orders_raw)"
+    assert action["sql_path"] == "sql/clean_orders.sql"
+    assert "sql/clean_orders.sql" in [d["path"] for d in result["saved_dependencies"]]
+
+
+def test_expanded_preview_reports_undefined_name_in_sql_file(project):
+    sql_file = project / "sql" / "clean_orders.sql"
+    sql_file.parent.mkdir(parents=True, exist_ok=True)
+    sql_file.write_text("SELECT * FROM {{ missing }}")
+
+    result = run_preview(project, request(SQL_FILE_TEMPLATE))
+
+    assert result["status"] == "invalid"
+    assert result["diagnostics"][-1]["code"] == "LHP-CFG-071"

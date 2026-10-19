@@ -31,7 +31,7 @@ from .._interfaces import BaseDependencyAnalysisService
 from ..coordination import ValidationService
 from ..discovery.blueprint_discoverer import BlueprintDiscoverer
 from ..discovery.flowgroup_discoverer import FlowgroupDiscoveryService
-from ..loaders import ProjectConfigLoader
+from ..loaders import ProjectConfigLoader, read_sql_file
 from ..processing import TemplateEngine
 from ..processing.blueprint_expander import BlueprintExpander, BlueprintProvenance
 from ..processing.flowgroup_resolver import FlowgroupResolutionService
@@ -123,7 +123,7 @@ class DependencyAnalysisService(BaseDependencyAnalysisService):
         )
         self._blueprint_expander = BlueprintExpander()
 
-        template_engine = TemplateEngine(project_root / "templates")
+        template_engine = TemplateEngine.for_project(project_root, read_sql_file)
         preset_manager = PresetManager(project_root / "presets")
         secret_validator = SecretValidator()
 

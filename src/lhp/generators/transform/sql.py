@@ -74,7 +74,6 @@ class SQLTransformGenerator(BaseActionGenerator):
                 pipeline=getattr(flowgroup, "pipeline", None),
                 flowgroup=getattr(flowgroup, "flowgroup", None),
                 action=action.name,
-                parameters=action.sql_parameters,
             )
         else:
             raise ErrorFactory.missing_required_field(

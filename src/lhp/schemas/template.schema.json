@@ -62,11 +62,6 @@
             },
             "default": []
         },
-        "render_sql_files": {
-            "type": "boolean",
-            "default": false,
-            "description": "Render the sql_path files of this template's actions as Jinja templates with the template parameters (defaults applied), so a SQL file can use {{ name }} like the template. Each such action gets the parameters as its sql_parameters. An undefined name is an error (LHP-CFG-071)."
-        },
         "actions": {
             "type": "array",
             "description": "List of actions in the template",
@@ -188,7 +183,7 @@
                                 },
                                 "sql_path": {
                                     "type": "string",
-                                    "description": "Path to SQL file (can use template parameters with {{ }})"
+                                    "description": "Path to SQL file. The path, and the file's contents when they contain {{, {% or {#, can use template parameters"
                                 },
                                 "url": {
                                     "type": "string",
@@ -418,11 +413,7 @@
                 },
                 "sql_path": {
                     "type": "string",
-                    "description": "Path to SQL file (can use template parameters with {{ }})"
-                },
-                "sql_parameters": {
-                    "type": "object",
-                    "description": "Values for {{ name }} expressions in this action's sql_path file. With render_sql_files: true the template parameters are added automatically; keys set here win."
+                    "description": "Path to SQL file. The path, and the file's contents when they contain {{, {% or {#, can use template parameters"
                 },
                 "operational_metadata": {
                     "oneOf": [
@@ -913,7 +904,7 @@
                 },
                 "sql_path": {
                     "type": "string",
-                    "description": "Path to SQL file for materialized views (can use template parameters with {{ }})"
+                    "description": "Path to SQL file for materialized views. The path, and the file's contents when they contain {{, {% or {#, can use template parameters"
                 },
                 "sink_type": {
                     "type": "string",

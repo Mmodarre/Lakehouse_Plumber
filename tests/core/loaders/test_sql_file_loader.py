@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from lhp.core.loaders import load_sql_file
+from lhp.core.loaders import load_sql_file, read_sql_file
 from lhp.core.processing import EnhancedSubstitutionManager
 from lhp.errors import LHPError
 
@@ -124,48 +124,6 @@ def test_unresolved_token_error_title_names_the_file_and_the_token(tmp_path):
     assert any("${mypipeline.start_date}" in s for s in error.suggestions)
 
 
-def test_parameters_are_rendered_before_tokens_are_substituted(tmp_path):
-    path = _sql(tmp_path, "\nSELECT * FROM ${catalog}.{{ schema }}.{{ table }}\n")
-
-    text = load_sql_file(
-        path, tmp_path, _mgr(tmp_path), parameters={"schema": "s", "table": "t"}
-    )
-
-    assert text == "SELECT * FROM main.s.t"
-
-
-def test_a_parameter_value_may_hold_a_token(tmp_path):
-    path = _sql(tmp_path, "SELECT * FROM {{ source }}.t")
-
-    text = load_sql_file(
-        path, tmp_path, _mgr(tmp_path), parameters={"source": "${catalog}.raw"}
-    )
-
-    assert text == "SELECT * FROM main.raw.t"
-
-
-def test_without_parameters_braces_are_left_as_written(tmp_path):
-    path = _sql(tmp_path, "SELECT '{{ x }}' AS literal")
-
-    assert (
-        load_sql_file(path, tmp_path, _mgr(tmp_path)) == "SELECT '{{ x }}' AS literal"
-    )
-
-
-def test_undefined_parameter_raises_cfg_071_with_project_relative_file(tmp_path):
-    path = tmp_path / _sql(tmp_path, "SELECT * FROM {{ missing }}")
-
-    with pytest.raises(LHPError) as excinfo:
-        load_sql_file(
-            path, tmp_path, _mgr(tmp_path), action="write_q", parameters={"t": "x"}
-        )
-
-    error = excinfo.value
-    assert error.code == "LHP-CFG-071"
-    assert error.context["File"] == "sql/q.sql"
-    assert error.context["Action"] == "write_q"
-
-
 def test_unresolved_token_title_is_project_relative_for_an_absolute_path(tmp_path):
     path = tmp_path / _sql(tmp_path, "SELECT ${missing}")
 
@@ -176,3 +134,22 @@ def test_unresolved_token_title_is_project_relative_for_an_absolute_path(tmp_pat
         excinfo.value.title
         == "Unresolved substitution token(s) ${missing} in sql/q.sql"
     )
+
+
+def test_read_sql_file_returns_the_raw_text(tmp_path):
+    path = _sql(tmp_path, "SELECT * FROM {{ t }} -- ${catalog}\n")
+
+    assert read_sql_file(tmp_path, path) == "SELECT * FROM {{ t }} -- ${catalog}\n"
+
+
+def test_read_sql_file_returns_none_for_a_missing_file(tmp_path):
+    assert read_sql_file(tmp_path, "sql/missing.sql") is None
+
+
+def test_read_sql_file_raises_io_004_for_invalid_utf8(tmp_path):
+    (tmp_path / "bad.sql").write_bytes(b"SELECT '\xff'")
+
+    with pytest.raises(LHPError) as excinfo:
+        read_sql_file(tmp_path, "bad.sql")
+
+    assert excinfo.value.code == "LHP-IO-004"

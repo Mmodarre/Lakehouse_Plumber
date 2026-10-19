@@ -1,8 +1,9 @@
 """Template engine for LakehousePlumber YAML templates."""
 
+import functools
 import logging
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Callable, Dict, List, Optional, Set
 
 from jinja2 import Environment, Template
 
@@ -15,6 +16,7 @@ from ...errors import (
     codes,
 )
 from ...parsers.yaml_parser import YAMLParser
+from .template_sql_files import SqlFileReader, inline_template_sql_files
 
 
 class TemplateEngine:
@@ -23,8 +25,12 @@ class TemplateEngine:
         templates_dir: Path | None = None,
         *,
         jinja_environment: Environment | None = None,
+        sql_file_reader: SqlFileReader | None = None,
     ):
         self.templates_dir = templates_dir
+        # Reads the sql_path files rendered at expansion; ``None`` leaves every
+        # file to generation (the composition roots always inject one).
+        self._sql_file_reader = sql_file_reader
         self.logger = logging.getLogger(__name__)
         self.yaml_parser = YAMLParser()
         self._template_cache: Dict[str, TemplateModel] = {}
@@ -38,6 +44,25 @@ class TemplateEngine:
         self._available_templates: Set[str] = set()
         if templates_dir and templates_dir.exists():
             self._discover_template_files()
+
+    @classmethod
+    def for_project(
+        cls,
+        project_root: Path,
+        read_sql_file: Callable[[Path, str], Optional[str]],
+    ) -> "TemplateEngine":
+        """Build the engine for ``project_root``: its ``templates/`` directory, and
+        ``read_sql_file`` bound to the root for the ``sql_path`` files that
+        expansion renders.
+
+        The composition roots pass ``lhp.core.loaders.read_sql_file``;
+        it is injected, not imported, because ``core/loaders`` imports this
+        package. The bound reader stays picklable for the worker pool.
+        """
+        return cls(
+            project_root / "templates",
+            sql_file_reader=functools.partial(read_sql_file, project_root),
+        )
 
     def __getstate__(self) -> Dict[str, Any]:
         """Drop the compiled-template memo when pickling (spawn boundary).
@@ -129,17 +154,16 @@ class TemplateEngine:
         if template.has_raw_actions():
             for action_dict in template.actions:
                 rendered_dict = self._render_value(action_dict, final_params)
-                if template.render_sql_files:
-                    rendered_dict = self._with_sql_parameters(
-                        rendered_dict, final_params
-                    )
+                rendered_dict = self._with_sql_files(
+                    rendered_dict, final_params, template_name
+                )
                 rendered_action = Action(**rendered_dict)
                 rendered_actions.append(rendered_action)
         else:
             # Action objects (backward compatibility path)
             for action in template.actions:
                 rendered_action = self._render_action(
-                    action, final_params, template.render_sql_files
+                    action, final_params, template_name
                 )
                 rendered_actions.append(rendered_action)
 
@@ -177,38 +201,24 @@ class TemplateEngine:
         return final_params
 
     def _render_action(
-        self,
-        action: Action,
-        parameters: Dict[str, Any],
-        render_sql_files: bool = False,
+        self, action: Action, parameters: Dict[str, Any], template_name: str
     ) -> Action:
         action_dict = action.model_dump(mode="json")  # mode='json' serialises enums
         rendered_dict = self._render_value(action_dict, parameters)
-        if render_sql_files:
-            rendered_dict = self._with_sql_parameters(rendered_dict, parameters)
+        rendered_dict = self._with_sql_files(rendered_dict, parameters, template_name)
         return Action(**rendered_dict)
 
-    @staticmethod
-    def _with_sql_parameters(
-        action_dict: Dict[str, Any], parameters: Dict[str, Any]
+    def _with_sql_files(
+        self, action_dict: Dict[str, Any], parameters: Dict[str, Any], template: str
     ) -> Dict[str, Any]:
-        """Give an action that reads a ``sql_path`` file the template parameters.
-
-        The parameters become the action's ``sql_parameters``; keys the action
-        sets itself in ``sql_parameters`` win. An action without a ``sql_path``
-        (at action level, in ``source`` or in ``write_target``) is unchanged.
-        """
-        source = action_dict.get("source")
-        write_target = action_dict.get("write_target")
-        reads_sql_file = bool(
-            action_dict.get("sql_path")
-            or (isinstance(source, dict) and source.get("sql_path"))
-            or (isinstance(write_target, dict) and write_target.get("sql_path"))
-        )
-        explicit = action_dict.get("sql_parameters") or {}
-        if not reads_sql_file or not isinstance(explicit, dict):
+        if self._sql_file_reader is None:
             return action_dict
-        return {**action_dict, "sql_parameters": {**parameters, **explicit}}
+        return inline_template_sql_files(
+            action_dict,
+            parameters,
+            read_sql_file=self._sql_file_reader,
+            template=template,
+        )
 
     def _render_value(self, value: Any, parameters: Dict[str, Any]) -> Any:
         if isinstance(value, str):

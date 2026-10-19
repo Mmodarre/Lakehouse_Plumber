@@ -90,7 +90,6 @@ class MaterializedViewWriteGenerator(BaseActionGenerator):
                 pipeline=getattr(flowgroup, "pipeline", None),
                 flowgroup=getattr(flowgroup, "flowgroup", None),
                 action=action.name,
-                parameters=action.sql_parameters,
             )
 
         if sql_query and substitution_mgr is not None:

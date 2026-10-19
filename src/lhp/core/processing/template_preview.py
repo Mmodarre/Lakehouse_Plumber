@@ -37,8 +37,13 @@ from .template_preview_dependencies import (
 class DraftTemplateEngine(TemplateEngine):
     """An isolated provider for exactly one supplied template model."""
 
-    def __init__(self, reference: str, model: Template) -> None:
-        super().__init__(jinja_environment=ImmutableSandboxedEnvironment())
+    def __init__(
+        self, reference: str, model: Template, snapshot: DependencySnapshot
+    ) -> None:
+        super().__init__(
+            jinja_environment=ImmutableSandboxedEnvironment(),
+            sql_file_reader=snapshot.read_sql_file,
+        )
         self.effective_parameters: dict[str, Any] = {}
         self.reference = reference
         self.model = model
@@ -113,12 +118,14 @@ def run_preview(root: Path, request: dict[str, Any]) -> dict[str, Any]:
         effective.update(parameters)
         result["effective_parameters"] = effective
         reference = Path(path).relative_to("templates").with_suffix("").as_posix()
-        engine = DraftTemplateEngine(reference, model)
+        engine = DraftTemplateEngine(reference, model, snapshot)
         if stage == "expanded":
             result["expanded_actions"] = [
                 action.model_dump(mode="json", exclude_none=True)
                 for action in engine.render_model(model, parameters)
             ]
+            snapshot.assert_current()
+            result["saved_dependencies"] = snapshot.views()
             return result
         context = request.get("context") or {}
         if not all(

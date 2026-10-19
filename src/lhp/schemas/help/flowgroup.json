@@ -631,7 +631,8 @@
         }
       ],
       "details": [
-        "Use this for a query maintained separately from the flowgroup. Remove source.sql when choosing the file form."
+        "Use this for a query maintained separately from the flowgroup. Remove source.sql when choosing the file form.",
+        "In a template action, a file containing {{, {% or {# is rendered with the template parameters during template expansion, before ${token} substitution."
       ],
       "examples": [
         {
@@ -1394,7 +1395,8 @@
         }
       ],
       "details": [
-        "Choose a reusable .sql file and remove the inline sql key. Substitution tokens are supported in the file."
+        "Choose a reusable .sql file and remove the inline sql key. Substitution tokens are supported in the file.",
+        "In a template action, a file containing {{, {% or {# is rendered with the template parameters during template expansion, before ${token} substitution."
       ],
       "examples": [
         {
@@ -3533,51 +3535,13 @@
         }
       ],
       "details": [
-        "Choose this instead of an action source view or inline SQL. A file keeps larger queries readable and reusable."
+        "Choose this instead of an action source view or inline SQL. A file keeps larger queries readable and reusable.",
+        "In a template action, a file containing {{, {% or {# is rendered with the template parameters during template expansion, before ${token} substitution."
       ],
       "examples": [
         {
           "label": "YAML example",
           "yaml": "write_target:\n  sql_path: sql/customer_totals.sql"
-        }
-      ]
-    },
-    {
-      "id": "action.sql_parameters",
-      "summary": "Render this action's sql_path file as a Jinja template with these values.",
-      "sources": [
-        {
-          "file": "docs/reference/config/templates.rst"
-        }
-      ],
-      "bindings": [
-        {
-          "path": [
-            "sql_parameters"
-          ],
-          "subtype": "load:sql"
-        },
-        {
-          "path": [
-            "sql_parameters"
-          ],
-          "subtype": "transform:sql"
-        },
-        {
-          "path": [
-            "sql_parameters"
-          ],
-          "subtype": "write:materialized_view"
-        }
-      ],
-      "details": [
-        "The file can then use {{ name }} for each key. Rendering is strict (an undefined name fails with LHP-CFG-071) and runs before ${token} substitution.",
-        "A template with render_sql_files: true sets this from its parameters; keys set here win."
-      ],
-      "examples": [
-        {
-          "label": "YAML example",
-          "yaml": "sql_path: sql/gold/orders.sql\nsql_parameters:\n  silver_schema: silver"
         }
       ]
     },

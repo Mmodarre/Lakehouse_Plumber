@@ -84,23 +84,22 @@ actions:
     target: "v_{{ table_name }}_clean"
     sql: |
       SELECT *
-      FROM stream(v_{{ table_name }}_raw)         -- {{ }} resolves first (step 2)
+      FROM stream(v_{{ table_name }}_raw)         -- template params resolve first (step 2)
       WHERE status = '{{ filter_status }}'
-        AND region = '${default_region}'          -- ${ } resolves after (step 3)
+        AND region = '${default_region}'          -- env tokens resolve after (step 3)
 ```
 
-### SQL files parametrized with Jinja (`render_sql_files`)
+### SQL files parametrized with Jinja
 
-A `sql_path` **file** is not part of the template's YAML, so by default it gets only `${token}` substitution — a `{{ param }}` inside it stays literal. Set `render_sql_files: true` on the template to render each action's `sql_path` file with the template parameters (defaults applied) before `${token}` substitution. LHP passes them as the action's `sql_parameters` (keys the action sets in `sql_parameters` win; a non-template action can set `sql_parameters` directly).
+A template action's `sql_path` **file** uses the template parameters like the template's inline SQL. Template expansion renders the file when it contains `{{`, `{%` or `{#`, at the three places a file is read: SQL load `source.sql_path`, SQL transform `sql_path`, materialized view `write_target.sql_path`. Parameters are the flowgroup's `template_parameters` with the template's defaults applied. The rendered text becomes the action's inline `sql` there; `sql_path` stays as provenance (the template preview shows the rendered SQL). Presets, `${token}`/`${secret:...}` substitution and the `LHP-CFG-010` check then run on it as on inline SQL; an unresolved token names the file it was rendered from. No switch or extra field is involved.
 
 ```yaml
 name: gold_materialized_view
-render_sql_files: true
 parameters:
   - name: table
     required: true
   - name: silver_schema
-    default: silver
+    default: "${silver_schema}"
 actions:
   - name: "write_{{ table }}"
     type: write
@@ -112,7 +111,11 @@ actions:
       sql_path: "sql/gold/{{ table }}.sql"   # file: SELECT * FROM ${catalog}.{{ silver_schema }}.orders
 ```
 
-Differences from YAML rendering: strict (an undefined name → `LHP-CFG-071` from `lhp validate` and `lhp generate`, not an empty string); the whole file is a template (wrap literal `{{` / `{%` / `{#` in `{% raw %}…{% endraw %}`); Jinja's immutable sandbox. `lhp dag` parses the rendered SQL, so table names built from parameters still order the graph — but it matches names as text without substituting `${token}`s, so spell a table the same way on the producing and consuming side (if the producer writes `${silver_schema}`, default the parameter to `"${silver_schema}"`, not the literal schema).
+Differences from YAML rendering: strict (an undefined name → `LHP-CFG-071` from `lhp validate` and `lhp generate`, naming file, line, template, action and the available parameters — not an empty string; a file that renders to empty SQL is `LHP-CFG-071` too); the whole file is a template (wrap literal `{{` / `{%` / `{#`, including in SQL comments, in `{% raw %}…{% endraw %}`); Jinja's immutable sandbox.
+
+Not rendered (read at generation with `${token}` substitution only, as before): a file without Jinja delimiters; a file of a non-template action; a `sql_path` containing `${token}` (read before substitution); a `sql_path` a preset adds after expansion. A missing file is still reported by `lhp validate`/`lhp generate`.
+
+`lhp dag` parses the rendered SQL (editing only the `.sql` file still invalidates its cache); a file that fails to render is logged as a warning and that flowgroup is analysed without its template actions. `lhp dag` matches table names as text without substituting `${token}`s, so spell a table the same way on the producing and consuming side (if the producer writes `${silver_schema}`, default the parameter to `"${silver_schema}"`, not the literal schema).
 
 ### Using Templates in FlowGroups
 

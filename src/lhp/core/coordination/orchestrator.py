@@ -85,7 +85,6 @@ from ..discovery.blueprint_discoverer import BlueprintDiscoverer
 from ..discovery.flowgroup_discoverer import FlowgroupDiscoveryService
 from ..loaders import PipelineConfigLoader, ProjectConfigLoader
 from ..loaders.version_enforcement import enforce_version_requirements
-from ..processing import TemplateEngine
 from ..processing.blueprint_expander import BlueprintExpander
 from ..registry import ActionRegistry, OrchestrationDependencies
 from ..validators import ConfigValidator, SecretValidator
@@ -250,7 +249,6 @@ class ActionOrchestrator:
             self.yaml_parser, persistent_cache=self._persistent_parse_cache
         )
         self.preset_manager = PresetManager(project_root / "presets")
-        self.template_engine = TemplateEngine(project_root / "templates")
         self.project_config_loader = ProjectConfigLoader(project_root)
         self.action_registry = ActionRegistry()
         self.secret_validator = SecretValidator()
