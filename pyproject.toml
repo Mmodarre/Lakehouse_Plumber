@@ -236,6 +236,7 @@ extend-exclude = [
     "tests/baselines",            # generated DLT baselines (reference dp/spark globals → F821)
     "tests/performance/baselines",
     "src/lhp/templates/init_sample",  # packaged sample-project data — notebook-source .py referencing spark/dbutils globals; never lint/format
+    "docs/_fixtures",             # docs fixture projects — generated/ is literalincluded and drift-checked byte-for-byte; never lint/format
 ]
 
 [tool.ruff.lint]
