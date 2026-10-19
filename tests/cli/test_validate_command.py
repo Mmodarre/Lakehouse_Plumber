@@ -215,7 +215,7 @@ def test_shared_dlq_source_table_across_pipelines_is_not_checked(
     result = CliRunner().invoke(validate_command, ["--env", "dev", "--no-bundle"])
 
     assert result.exit_code == 0, result.stderr
-    assert "LHP-VAL-069" not in result.stderr
+    assert "LHP-VAL-069" not in strip_ansi(result.stderr)
 
 
 def _mock_built_facade(monkeypatch: pytest.MonkeyPatch) -> "MagicMock":

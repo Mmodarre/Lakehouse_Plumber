@@ -110,6 +110,8 @@ def test_shared_dlq_only_returns_single_val_069():
     assert error.title == "Quarantine DLQ source_table conflict"
     assert message in error.details
     assert any("source_table" in s for s in error.suggestions)
+    # Fan-in: several actions writing one table cannot all use that table's name.
+    assert any("per-source name" in s for s in error.suggestions)
     assert error.context["Pipeline"] == PIPELINE
     assert error.context["Error Count"] == 1
 

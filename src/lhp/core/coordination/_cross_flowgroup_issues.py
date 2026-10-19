@@ -48,7 +48,8 @@ _CDC_FANIN_SUGGESTIONS: List[str] = [
 
 _SHARED_DLQ_SUGGESTIONS: List[str] = [
     "Give each quarantine action that shares a dlq_table a distinct "
-    "source_table, for example the table its write action targets",
+    "source_table, for example the table its write action targets, or a "
+    "per-source name when several actions write the same table",
     "Or point the actions at different dlq_table values",
     "Run 'lhp validate' for detailed diagnostics",
 ]
