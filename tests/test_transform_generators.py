@@ -1958,6 +1958,12 @@ class TestDataQualityQuarantine:
 
         assert 'SOURCE_TABLE_v_raw_data = "`my-cat`.silver.orders"' in code
         assert "F.lit(SOURCE_TABLE_v_raw_data)" in code
+        assert (
+            '(F.col("dlq._dlq_source_table") == F.lit(SOURCE_TABLE_v_raw_data))' in code
+        )
+        assert (
+            '(F.col("out._dlq_source_table") == F.lit(SOURCE_TABLE_v_raw_data))' in code
+        )
         # only the constant; never inlined into a condition
         assert code.count("my-cat") == 1
         compile(code, "<string>", "exec")

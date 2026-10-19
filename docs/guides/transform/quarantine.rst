@@ -66,11 +66,11 @@ DDL:
   ``_outbox`` to ``dlq_table``. No YAML configures it.
 
 Both tables also need deletion vectors enabled when several quarantine actions
-share them, because those actions can write concurrently. Both are clustered by
-``_dlq_source_table``. The exact column schema for both tables, and the one-time
-``CREATE TABLE`` DDL, live in the :doc:`Quarantine reference
-</reference/config/quarantine-dlq>`. Create them once per catalog and schema
-before the pipeline runs.
+share them, because those actions can write concurrently. The documented DDL
+clusters both by ``_dlq_source_table``. The exact column schema for both
+tables, and the one-time ``CREATE TABLE`` DDL, live in the :doc:`Quarantine
+reference </reference/config/quarantine-dlq>`. Create them once per catalog
+and schema before the pipeline runs.
 
 Declare the quarantine
 ======================
@@ -185,11 +185,13 @@ Read it top to bottom and the inbox/outbox design is all there:
 
 .. note::
 
-   The recycle loop has a one-run lag by design: a row you mark ``fixed`` during
-   run *N* is read from the CDF, deduped into the outbox, and re-joined to the
-   output on run *N+1*. This follows from the streaming checkpoint model, and it
-   is why quarantine runs in triggered (non-continuous) pipelines. The full list
-   of limitations is in the Quarantine reference.
+   The recycle loop has a one-run lag by design: once you mark a row ``fixed``,
+   one run (run *N*) reads it from the CDF and dedups it into the outbox, and the
+   next run (run *N+1*) re-joins it to the output. This follows from the
+   streaming checkpoint model, and it is why quarantine runs in triggered
+   (non-continuous) pipelines. The full list of limitations is in the Quarantine
+   reference. Mark rows ``fixed`` only while the pipeline is idle — see
+   :doc:`/reference/config/quarantine-dlq`.
 
 To operate the queue — query quarantined rows, see which rule each one broke,
 and mark a corrected row ``fixed`` so it recycles — you work directly against the
