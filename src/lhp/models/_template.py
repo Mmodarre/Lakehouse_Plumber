@@ -13,6 +13,10 @@ class Template(BaseModel):
     description: Optional[str] = None
     presets: List[str] = []
     parameters: List[Dict[str, Any]] = []
+    # When true, every rendered action that references a sql_path file gets the
+    # template parameters (defaults applied) as its sql_parameters, so the file
+    # can use {{ name }} like the template itself.
+    render_sql_files: bool = False
     actions: Union[List[Action], List[Dict[str, Any]]] = []
     _raw_actions: bool = (
         False  # True when actions are raw dicts (not validated Action objects)
