@@ -1890,6 +1890,78 @@ class TestDataQualityQuarantine:
 
         assert r"status = \"active\"" in code
 
+    def test_data_quality_quarantine_merges_scoped_to_source_table(self, tmp_path):
+        """Both DLQ MERGEs must scope the target side to this action's source table."""
+        generator = DataQualityTransformGenerator()
+        expectations_data = {
+            "email IS NOT NULL": {"action": "drop", "name": "email_not_null"},
+            "age >= 18": {"action": "drop", "name": "age_check"},
+        }
+        exp_file = self._create_expectations_file(tmp_path, expectations_data)
+
+        action = Action(
+            name="validate_orders",
+            type=ActionType.TRANSFORM,
+            transform_type=TransformType.DATA_QUALITY,
+            source="v_raw_data",
+            target="v_validated",
+            readMode="stream",
+            expectations_file=exp_file,
+            mode="quarantine",
+            quarantine=QuarantineConfig(
+                dlq_table="cat.sch.universal_dlq",
+                source_table="cat.sch.bronze_orders",
+            ),
+        )
+
+        code = generator.generate(action, {"spec_dir": tmp_path})
+
+        assert (
+            '(F.col("dlq._dlq_source_table") == F.lit(SOURCE_TABLE_v_raw_data))' in code
+        )
+        assert '& (F.col("dlq._dlq_sk") == F.col("new._dlq_sk"))' in code
+        assert (
+            '(F.col("out._dlq_source_table") == F.lit(SOURCE_TABLE_v_raw_data))' in code
+        )
+        assert '& (F.col("out._dlq_sk") == F.col("new._dlq_sk"))' in code
+        assert '"dlq._dlq_sk = new._dlq_sk"' not in code
+        assert '"out._dlq_sk = new._dlq_sk"' not in code
+        compile(code, "<string>", "exec")
+
+    def test_data_quality_quarantine_merge_scoped_with_backtick_source_table(
+        self, tmp_path
+    ):
+        """A backtick-quoted source_table is referenced via its constant only."""
+        generator = DataQualityTransformGenerator()
+        expectations_data = {
+            "email IS NOT NULL": {"action": "drop", "name": "email_not_null"},
+            "age >= 18": {"action": "drop", "name": "age_check"},
+        }
+        exp_file = self._create_expectations_file(tmp_path, expectations_data)
+
+        action = Action(
+            name="validate_orders",
+            type=ActionType.TRANSFORM,
+            transform_type=TransformType.DATA_QUALITY,
+            source="v_raw_data",
+            target="v_validated",
+            readMode="stream",
+            expectations_file=exp_file,
+            mode="quarantine",
+            quarantine=QuarantineConfig(
+                dlq_table="cat.sch.universal_dlq",
+                source_table="`my-cat`.silver.orders",
+            ),
+        )
+
+        code = generator.generate(action, {"spec_dir": tmp_path})
+
+        assert 'SOURCE_TABLE_v_raw_data = "`my-cat`.silver.orders"' in code
+        assert "F.lit(SOURCE_TABLE_v_raw_data)" in code
+        # only the constant; never inlined into a condition
+        assert code.count("my-cat") == 1
+        compile(code, "<string>", "exec")
+
 
 class TestDQEParserQuarantine:
     """Test DQEParser.get_all_expectations_as_drop()."""
