@@ -39,7 +39,8 @@ and trace the clean, quarantine, recycle and final union paths. Save the substep
 
 ## quality.5 — Understand replay and full refresh
 
-Explain the insert-only MERGEs keyed by `_dlq_sk` and the external outbox ledger.
+Explain the insert-only MERGEs keyed by `_dlq_sk` and filtered to the action's
+`_dlq_source_table`, and the external outbox ledger.
 Retained tables support correction replay after resetting the pipeline; clearing
 those tables discards that history. Full-refresh outcomes also depend on retained
 source data and stable row identity, so do not promise blanket deduplication across

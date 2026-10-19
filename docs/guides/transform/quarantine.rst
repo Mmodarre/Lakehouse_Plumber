@@ -65,9 +65,12 @@ DDL:
 - The **outbox table**, whose name Lakehouse Plumber derives by appending
   ``_outbox`` to ``dlq_table``. No YAML configures it.
 
-The exact column schema for both tables, and the one-time ``CREATE TABLE`` DDL,
-live in the Quarantine reference. Create them once per catalog and schema before
-the pipeline runs.
+Both tables also need deletion vectors enabled, because quarantine actions that
+share a DLQ write to it concurrently, and both are clustered by
+``_dlq_source_table``. The exact column schema for both tables, and the one-time
+``CREATE TABLE`` DDL, live in the :doc:`Quarantine reference
+</reference/config/quarantine-dlq>`. Create them once per catalog and schema
+before the pipeline runs.
 
 Declare the quarantine
 ======================
@@ -90,7 +93,9 @@ The two fields carry the whole contract:
 - ``source_table`` — the fully-qualified name this flowgroup tags its rows with
   in the DLQ. It is written into the ``_dlq_source_table`` column and used to
   filter the recycle stream, so one shared DLQ table can serve many flowgroups.
-  Point it at the table the write action targets: ``${catalog}.${bronze_schema}.orders``.
+  Each generated ``MERGE`` filters on it too, so it must be unique per quarantine
+  action that shares a DLQ. Point it at the table the write action targets:
+  ``${catalog}.${bronze_schema}.orders``.
 
 The expectations file is the same YAML you would write for drop mode:
 
@@ -223,7 +228,9 @@ What's next
 - **Share one DLQ across flowgroups.** Because every row is tagged with its
   ``source_table``, several flowgroups can point ``dlq_table`` at the same
   dead-letter table and still recycle independently. Set the shared ``dlq_table``
-  in a preset and let each flowgroup supply its own ``source_table``.
+  in a preset and let each flowgroup supply its own ``source_table``. Create the
+  shared tables with the documented DDL: its deletion vectors let the actions
+  write concurrently. See :doc:`/reference/config/quarantine-dlq`.
 
 Syntax and options
 ------------------

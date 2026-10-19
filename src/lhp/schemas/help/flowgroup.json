@@ -1705,7 +1705,7 @@
         }
       ],
       "details": [
-        "Use a fully qualified DLQ table name. LHP derives the outbox name by appending _outbox. Recycling fixed rows requires Change Data Feed on the DLQ table."
+        "Use a fully qualified DLQ table name. LHP derives the outbox name by appending _outbox. Recycling fixed rows requires Change Data Feed on the DLQ table. Enable deletion vectors and cluster the DLQ and its outbox by _dlq_source_table when several actions share it."
       ],
       "examples": [
         {
@@ -1735,7 +1735,7 @@
         }
       ],
       "details": [
-        "Use a fully qualified catalog.schema.table name. This is the business source table identity, not the temporary view consumed by the action."
+        "Use a fully qualified catalog.schema.table name. This is the business source table identity, not the temporary view consumed by the action. Generated MERGEs filter on it, so keep it unique per quarantine action sharing a DLQ."
       ],
       "examples": [
         {

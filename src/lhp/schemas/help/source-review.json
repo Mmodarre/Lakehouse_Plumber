@@ -339,7 +339,7 @@
       ]
     },
     "src/lhp/resources/skills/lhp/references/actions-transform-data-quality.md": {
-      "sha256": "b28f49bddec17d7a44e31ad0b15760e2c35e1f30de89a41b52fbd0a87f39c75e",
+      "sha256": "541e61e2e1a83cf08c40ebef918864101a1e4941a096b8e6a18ffaffdebacebb",
       "entryIds": [
         "action.transform.data_quality.expectations_file",
         "action.transform.data_quality.mode",

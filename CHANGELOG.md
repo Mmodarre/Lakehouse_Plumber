@@ -302,6 +302,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   name, a plain `schema_inline` line wrapped in quotes, and an inline `columns:` list
   that is not valid YAML are each reported as such. The message names the schema
   file, or `schema_inline`, instead of `<schema>`.
+- **Quarantine actions sharing one DLQ table no longer fail with
+  `DELTA_CONCURRENT_APPEND.WHOLE_TABLE_READ` (#332).** The generated inbox and outbox
+  MERGEs now filter the target on the action's `_dlq_source_table`, so the
+  `foreachBatch` sinks of several quarantine actions can commit to the same DLQ and
+  outbox at the same time. The documented DLQ and outbox DDL now enables deletion
+  vectors, which concurrent writers require, and clusters both tables by
+  `_dlq_source_table`.
 
 ## [0.9.2] — 2026-09-22
 
