@@ -108,6 +108,9 @@ jobs:
         with:
           ref: ${{ env.SOURCE_SHA }}
           persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.12'
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: dist
@@ -128,11 +131,15 @@ jobs:
           subject-path: release-assets/*
       - name: Stage all assets in a draft release
         run: |
-          tag_sha=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/v$VERSION" --jq '.object.sha' 2>/dev/null || true)
+          # matching-refs answers an absent tag with [] (HTTP 200); git/ref answers
+          # with a 404 whose body gh writes to stdout. Lookup errors stop the step.
+          tag_sha=$(gh api "repos/$GITHUB_REPOSITORY/git/matching-refs/tags/v$VERSION" \
+            --jq ".[] | select(.ref == \"refs/tags/v$VERSION\") | .object.sha")
           if [ -z "$tag_sha" ]; then
             gh api "repos/$GITHUB_REPOSITORY/git/refs" --method POST -f ref="refs/tags/v$VERSION" -f sha="$SOURCE_SHA"
-          else
-            test "$tag_sha" = "$SOURCE_SHA"
+          elif [ "$tag_sha" != "$SOURCE_SHA" ]; then
+            echo "::error::Tag v$VERSION points at $tag_sha, not the tested commit $SOURCE_SHA"
+            exit 1
           fi
           if ! gh release view "v$VERSION" >/dev/null 2>&1; then
             gh release create "v$VERSION" --verify-tag --draft --title "LHP $VERSION" --generate-notes
