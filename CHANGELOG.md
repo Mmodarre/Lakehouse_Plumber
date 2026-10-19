@@ -5,13 +5,11 @@ All notable changes to Lakehouse Plumber are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
-
-## [0.9.3] — Unreleased
+## [0.9.3] — 2026-10-20
 
 ### Added
 
-- **Template parameters in `sql_path` files.** A SQL file referenced by a
+- **Template parameters in `sql_path` files (#334).** A SQL file referenced by a
   template action (an SQL load's `source.sql_path`, an SQL transform's
   `sql_path` or a materialized view's `write_target.sql_path`) now uses the
   template parameters like the template's inline SQL. Template expansion
@@ -19,50 +17,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `template_parameters` and the template's defaults, and puts the result in the
   action's inline `sql`, keeping `sql_path` as its provenance. Presets,
   `${token}` substitution and the unresolved-token check then run on it as on
-  inline SQL, and an unresolved token names the file. Rendering is strict (an
-  undefined name fails `lhp validate` and `lhp generate` with the new
-  `LHP-CFG-071`, naming the file, line, template and action; so does a file
-  that renders to empty SQL) and runs in Jinja's immutable sandbox. `lhp dag`
-  and the template preview see the rendered SQL, and the dependency-graph
-  cache still tracks the file. No new template or action field is involved.
-
-- Separate ``lhp`` development and ``lhp-learn`` teaching skills in the same
-  package, selected with `lhp skill ... --name lhp-learn` or the provisional
-  `SkillFacade` methods' `skill_name` keyword. Both exports carry shared offline
-  technical references; development installs contain no course lessons.
-- Self-contained build/learning prompts selecting the appropriate skill, plus a
-  teaching course with Lesson 0 capability summaries, learner-authored exercises,
-  explicit checkpoint pauses, saved project progress and advanced topic lessons.
-- Documentation agent buttons copy the complete build or learning prompt from
-  the current docs build, so coding agents do not need website access to set up LHP.
-- `lhp skill export --output PATH` and `lhp skill install --agent genie`, also
-  available through the provisional `SkillFacade.export_skill` and
-  `install_genie_skill` methods. Portable/Genie installs verify content and preserve
-  conflicting files. `SkillFacade()` supports these operations before scaffolding;
-  existing Claude project installation remains available. Installation failures
-  use `LHP-IO-029`; optional SDK dependencies are in the `genie` extra.
-- CI-built offline release archives with pinned, hashed wheels for Python 3.12
-  across Linux x86_64/ARM64, macOS Apple Silicon and Windows x86_64. CI performs
-  native installation and sample-generation checks, then stages all distributions,
-  checksums and archives in a GitHub release before PyPI publication. Release
-  artifacts receive GitHub build-provenance attestations. Web extras are excluded.
-- Both agent setup prompts select a complete platform/Python offline ZIP when
-  pip cannot supply a usable installation, with exact asset/checksum links and
-  environment-specific transfer instructions instead of a standalone-wheel handoff.
-
-- **Provisional sandbox editor APIs.** `inspect_editor_project`,
-  `validate_editor_project`, `preview_editor_project` and
-  `GenerationFacade.plan_generation` accept additive `sandbox=False` keywords.
-  Unsaved profile, policy, environment and source drafts resolve together in a
-  bounded mirror that copies only `.lhp/profile.yaml` from private state.
-  Sandbox source preview shares generation's SQL/Python/module/shim transforms
-  and warnings; preview also accepts `include_tests=False`. Snapshots keep the
-  full authored graph and report effective sandbox scope, strategy and table
-  pattern. Missing/invalid sandbox inputs cannot fall back to ordinary output.
-- **Template resource provenance.** Editor catalogues report declared resource
-  references for all templates, including unused definitions, so clients can
-  distinguish concrete file usages from unresolved parameter paths.
-
+  inline SQL; an unresolved token's error names the file in its details.
+  Rendering is strict and runs in Jinja's immutable sandbox: an undefined name,
+  invalid Jinja, access the sandbox blocks, or a file that renders to empty SQL
+  fails `lhp validate` and `lhp generate` with the new `LHP-CFG-071`, naming the
+  file, template, action and available parameters, plus the line for a syntax
+  error. `lhp dag` and the template preview see the rendered SQL, and the
+  dependency-graph cache still tracks the file. No new template or action field
+  is involved.
 - **`mode: replace` for streaming-table writes (Databricks REPLACE USING).** A new
   streaming-table write mode that generates `@dp.replace_flow`: on each update it
   replaces every target row whose `replace_using` key columns match an incoming batch,
@@ -73,8 +35,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`create_table` is forced `true`), the source must be a streaming read
   (`readMode: batch` is rejected), and the target must be served by this single flow
   (it cannot share its table with any other write action). Sits alongside `cdc` and
-  `snapshot_cdc`; a batch-read sibling `mode: replace_where` is planned. See the write
-  action reference and the "Keep a current-state table with a REPLACE USING flow" guide.
+  `snapshot_cdc`; a batch-read sibling `mode: replace_where` is planned. Errors in the
+  action's own configuration are reported inside `LHP-VAL-007`, and a second action
+  creating the same table raises `LHP-CFG-004`. `StatsResult.action_counts_by_type`
+  counts the mode as `write_mode_replace`, and `ActionView.write_mode` can be
+  `"replace"` (both provisional). See the write action reference and the "Replace all
+  rows that match a grouping key" guide.
 - **Schema transforms accept backtick-quoted source column names (#324).** A source
   column whose name has spaces or punctuation is written in backticks, Spark SQL
   style: `` "`customer name` -> CUSTOMER_NAME" ``. Quoting works for rename sources,
@@ -82,6 +48,68 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   targets stay plain identifiers. In a `columns:` list, quote the entry, since YAML
   cannot start an unquoted value with a backtick; plain `schema_inline` lines are
   written as-is.
+- **Provisional editor API for IDE integrations.** New `lhp.api` functions inspect,
+  validate and preview a project, including unsaved documents, without writing to it.
+  `inspect_editor_project` returns one `EditorProjectView` snapshot: raw and resolved
+  flowgroups and actions with zero-based UTF-16 YAML source ranges, template and
+  blueprint origin, related SQL, Python, schema, expectations and config files,
+  dependency analysis and diagnostics (operational-metadata expression errors point
+  at `lhp.yaml`). `inspect_editor_document` checks one unsaved YAML document;
+  `editor_catalog` lists installed schemas, action field help, templates, presets and
+  blueprints; `validate_editor_project` and `preview_editor_project` stream the
+  canonical validation and source-mode generation-plan events;
+  `scaffold_editor_instance` and `scaffold_editor_bronze` return template, blueprint
+  or CloudFiles-bronze flowgroup YAML without saving it. Unsaved text is passed as
+  `EditorDocumentOverlay` objects and applied to a temporary project copy (2 MiB per
+  document, 256 MiB or 20,000 files per project; `.git`, `.lhp`, `generated/` and
+  virtualenvs are not copied). Symlinks and paths outside the project raise
+  `ValueError`. Invalid unsaved YAML keeps the last saved graph with `stale=True` and
+  a source diagnostic. Preview excludes bundle resources and monitoring finalisation,
+  and a wheel-packaged project raises `ValueError`. The seven functions and the ten
+  `Editor*` DTOs are provisional.
+- **Sandbox support in the editor API and generation planning.** The editor functions
+  take `sandbox=False`, and `GenerationFacade.plan_generation` gains an additive
+  `sandbox=False` keyword (combining it with `pipeline_filter` or `pipeline_fields`
+  raises `ValueError`). Unsaved profile, policy, environment and source drafts resolve
+  together in a bounded mirror that copies only `.lhp/profile.yaml` from private
+  state; a profile reached through a symlink or junction is rejected. Sandbox source
+  preview shares generation's SQL/Python/module/shim transforms and warnings;
+  `preview_editor_project` also accepts `include_tests` (default `False`). Snapshots
+  keep the full authored graph and report effective sandbox scope, strategy and table
+  pattern. Missing or invalid sandbox inputs cannot fall back to ordinary output.
+  `SandboxScopeResult` (provisional) gains `strategy` and `table_pattern`, the
+  effective `lhp.yaml` `sandbox:` policy with defaults, returned by
+  `SandboxFacade.describe_scope()` even when no `.lhp/profile.yaml` exists.
+- **Template resource provenance.** Editor catalogues report declared resource
+  references for all templates, including unused definitions, so clients can
+  distinguish concrete file usages from unresolved parameter paths.
+- **New `lhp-learn` teaching skill beside the `lhp` development skill.** Both ship in
+  one package; pick one with `--name lhp-learn` on any `lhp skill` subcommand or the
+  provisional `SkillFacade` methods' `skill_name` keyword. Both exports carry the
+  shared offline technical references (new: `quarantine`, `setup`, `test-reporting`,
+  `uc-tags`, `web-authoring`); development installs contain no lessons. The course has
+  Lesson 0 capability summaries, learner-authored exercises, a pause at every
+  checkpoint, progress saved in the project and advanced topic lessons. The
+  `CLAUDE.md` routing block defers to the teaching skill during a requested lesson.
+- **`lhp skill export --output PATH` and `lhp skill install --agent genie`.** Export
+  writes the skill into an exact directory for any agent. The Genie install uploads it
+  to the user's `/Users/<user>/.assistant/skills/<name>` workspace folder and rejects
+  `--user`/`--force`. Both are also available as the provisional
+  `SkillFacade.export_skill` and `install_genie_skill`, and `SkillFacade()` needs no
+  project root, so they work before scaffolding; Claude project installation remains.
+  Both verify every file and preserve differing ones: a conflict raises `LHP-IO-020`,
+  other failures the new `LHP-IO-029`. The SDK is in the new `genie` extra.
+- **Self-contained agent setup and learning prompts.** Each prompt selects the
+  matching skill. The docs' "Start with your agent" dialog copies the complete prompt
+  embedded in the current docs build, so the agent needs no website access. When pip
+  cannot supply a usable installation, both prompts pick the complete platform/Python
+  offline ZIP, with exact asset and checksum links and environment-specific transfer
+  steps, not a standalone wheel.
+- **Offline release archives.** CI builds pinned, hash-checked wheel archives for
+  Python 3.12 on Linux x86_64/ARM64, macOS Apple Silicon and Windows x86_64, then
+  installs each natively and generates the sample project. The release stages all
+  distributions, checksums and archives in a GitHub release before PyPI publication,
+  with GitHub build-provenance attestations. Web extras are excluded.
 
 ### Changed
 
@@ -90,13 +118,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Wrap literal delimiters, including any in SQL comments, in
   `{% raw %}...{% endraw %}`. Files without them, files of non-template
   actions, a `sql_path` containing a `${token}` and a `sql_path` added by a
-  preset are read at generation as before.
+  preset are read at generation as before. **Behaviour change:** a rendered file is
+  checked like inline SQL, so a bare `{word}` left after substitution, such as the
+  quantifier in `RLIKE '^[0-9]{8}$'`, now fails with `LHP-CFG-010`; a file read at
+  generation is checked only for `${name}`. The error is the flowgroup's "Unresolved
+  substitution tokens detected", and it names the file in its details
+  (`… sql (rendered from sql/q.sql)`), not in its title.
 - **`lhp dag` reads only an action's inline SQL when it also sets `sql_path`**,
   as generation does; it still records the file for the graph cache.
 - **The template preview's expanded stage reports its saved dependencies**,
   including the SQL files it rendered, and checks them for changes. Resolved
   preview also watches `source.sql_path` and `write_target.sql_path`.
-
 - **`partition_columns` can no longer be combined with liquid clustering (#297).** On
   streaming-table (every mode) and materialized-view write targets, setting
   `partition_columns` together with `cluster_columns` or `cluster_by_auto: true` is now
@@ -121,7 +153,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `LHP-CFG-010` from both `lhp validate` and `lhp generate`. The error title names the
   token and the file, for example
   `Unresolved substitution token(s) ${order_suffix} in sql/q.sql`, so `lhp validate`'s
-  one-line summary and the web IDE show where to look. This covers the `sql_path` of
+  one-line summary and the web IDE show where to look (a template action's file that
+  template expansion rendered is checked as inline SQL instead; see the template SQL
+  entry above). This covers the `sql_path` of
   SQL loads, SQL transforms and materialized views, and the tag keys and values of a
   UC `tags_file`. Before, the token was left in the generated code as written: in SQL,
   unless a pipeline `configuration:` value or a Spark conf defined it at runtime, Spark
@@ -183,15 +217,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `dlq_table` values. `dlq_table` is compared case-insensitively and `source_table`
   exactly, after templates and substitutions are applied. Quarantine actions in
   different pipelines that share a DLQ are not checked.
-
-### Security
-
-- Restrict release metadata requests to the fixed PyPI HTTPS endpoint, reject
-  redirects, and stop publication on network, HTTP or invalid-response errors.
-  Only a direct 404 response is treated as an unpublished version.
-- Deny GitHub Actions cache reads and writes in release and offline-bundle
-  workflows, and disable npm caching in the release build, to isolate release
-  artifacts from shared dependency caches.
+- **`lhp diff` and `GenerationFacade.plan_generation` report run warnings.** The plan
+  stream now emits `WarningEmitted` for deprecations (`LHP-DEPR-002` to
+  `LHP-DEPR-004`) and sandbox rewrite warnings (`LHP-VAL-065` / `LHP-VAL-066`), as
+  `generate_pipelines` does. A discovery or generation failure now closes its phase
+  with `PhaseCompleted(success=False)` before `ErrorEmitted`.
+- **Reorganized documentation site.** New Build (first pipeline, configure, compose,
+  metadata), Develop (bundles, jobs) and Operate (monitoring, adjusting monitoring,
+  troubleshooting) sections. The load, transform, write and test references are split
+  into one page per sub-type, and `reference/config/` gains pages for the project,
+  flowgroups, pipeline config, jobs, the monitoring job, schema files, UC tagging, test
+  reporting, expectations, features and presets. Existing page URLs are kept; the four
+  action references become index pages. The site uses an LHP theme over Furo, and
+  illustrations replace its Mermaid diagrams, adding quarantine recovery, CDC
+  timelines, environment resolution, monitoring and a capability overview. The README
+  uses the new flow-cube logo.
+- **Release workflow rebuilt (contributors).** `Build and Publish to PyPI` checks out
+  the exact commit whose main-branch CI passed (manual dispatch: `main` only, same
+  check) and runs one release at a time. A commit whose version is already on PyPI
+  does not rebuild the release unless that version's tag points at it, and an
+  unpublished version whose tag belongs to another commit fails. It tags the commit
+  before publishing, replaces the SLSA generic generator with GitHub build-provenance
+  attestations, and makes the GitHub release public only after PyPI succeeds. `Tests`
+  now runs the four-job offline-archive matrix on pull requests. `CONTRIBUTING.md`
+  documents both.
 
 ### Fixed
 
@@ -219,7 +268,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `TimestampType`), including `DecimalType(10, 2)` with arguments. Expressions such as
   `.cast(LongType())` used to compile only when a schema's blanket import happened to
   be in the same file.
-- **Two CloudFiles schema loads in one flowgroup no longer share one variable.** The
+- **Two CloudFiles schema loads in one flowgroup no longer share one variable (#287,
+  #288).** The
   `StructType` variable is now named after the load's target view (`<target>_schema`)
   instead of the schema file's `name`. Every schema file keyed by `table:` used to
   become `schema_schema`, so the first view silently read the second view's schema; a
@@ -254,13 +304,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `additional_imports` from `lhp.yaml`), those lines are now split into one line per
   name and the repeat is dropped. Lines that share no name are unchanged, so flowgroups
   without the overlap generate byte-identical code.
-- **The editor API points operational-metadata expression errors at `lhp.yaml` (#299).**
-  `inspect_editor_project` (provisional) attributed an `LHP-CFG-010` unresolved token or
-  `LHP-CFG-070` secret reference in an `lhp.yaml` operational-metadata `expression` to
-  the flowgroup file, line 0. The diagnostic's source is now `lhp.yaml` at
-  `operational_metadata.columns.<column>.expression`, with that line, including a secret
-  that arrives through a token value. A flowgroup's own unresolved tokens still point at
-  the flowgroup file. No DTO fields changed.
 - **Generated Python escapes user strings (#296).** In load (`cloudfiles`, `delta`,
   `jdbc`, `kafka`, `custom_datasource`, `python`, `sql`), transform, write (streaming
   table in every mode, materialized view, `delta` / `kafka` / `custom` / `foreachbatch`
@@ -330,8 +373,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (#324).** A `type_casting` key such as `"a.b"` generated `F.col("a.b")`, which Spark
   reads as field `b` of a struct `a`, so a cast or `strict` selection of a top-level
   column named `a.b` failed at pipeline start with `UNRESOLVED_COLUMN`. Such names are
-  now backtick-quoted in the generated `F.col(...)` and `select(...)` references;
-  every other name generates byte-identical code.
+  now backtick-quoted in the generated `F.col(...)` and `select(...)` references, as is
+  a column named `*`; every other name generates byte-identical code.
 - **`LHP-VAL-011` for schema transforms names the failing part of the line (#324).**
   An invalid source name now gets its backtick-quoted spelling instead of the
   rename-target rule. An unclosed or empty backtick-quoted name, text after a quoted
@@ -344,12 +387,55 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `foreachBatch` sinks of several quarantine actions can commit to the same DLQ and
   outbox at the same time. The documented DLQ and outbox DDL now enables deletion
   vectors, which concurrent writers require, and clusters both tables by
-  `_dlq_source_table`.
+  `_dlq_source_table`. On an existing DLQ or outbox shared by concurrently running
+  quarantine actions, enable deletion vectors too: without them, overlapping commits
+  can still fail with `ConcurrentAppendException`.
 - **Quarantine `source_table` values containing a single quote no longer break the
   recycle and outbox filters (#332).** The generated recycle and outbox reads
   interpolated `source_table` into a SQL string filter, so a `'` (or a backslash) in
   the name broke or changed that filter. Both filters now compare with Column
   expressions (`F.col(...) == F.lit(...)`) instead of interpolated SQL strings.
+- **Editor JSON schemas match the fields LHP accepts.** The flowgroup, template and
+  substitution schemas that `lhp init` copies to `.vscode/schemas/` and the web IDE
+  validates against add flowgroup `variables`; the action fields `test_type`,
+  `test_id` and `custom_datasource_class`; `mode: standard`; a list for CDC
+  `sequence_by`; a `{file: ...}` mapping for `source.schema`; a list for delta
+  `where_clause`; an integer `stored_as_scd_type` for snapshot CDC; and a root-level
+  `secrets` block. The template schema also gains data-quality `mode`, `quarantine`,
+  `depends_on` and `on_violation`. A flowgroup's `job_name` is a string only, and
+  `cdc_config` no longer offers `stored_as_scd_type`.
+- **Web IDE field help corrected.** SQL load examples set `type: sql`; SQL transform
+  help no longer says a bare `{source}` refers to the source view; transform defaults
+  no longer claim a preset can supply them; entries cite the reorganized reference
+  pages.
+- **Legacy docs URLs under a subdirectory redirect correctly.** A redirect from a
+  retired nested page such as `guides/quality-and-ops/monitoring` resolved its target
+  against the old URL and reached a missing page; targets are now relative to each
+  retired URL. `troubleshooting` now redirects to the new troubleshooting page, and
+  `guides/quality-and-ops/test-reporting` to the test-reporting guide.
+
+### Removed
+
+- **The tracked `Example_Projects/performance_testing/.claude/skills/lhp/` copy of the
+  `lhp` skill.** It had fallen behind the packaged skill; the directory is now
+  gitignored.
+
+### Security
+
+- **PyPI metadata requests are HTTPS-only.** Release metadata requests go only to the
+  fixed PyPI HTTPS endpoint, reject redirects, and stop publication on network, HTTP
+  or invalid-response errors. Only a direct 404 response is treated as an unpublished
+  version.
+- **Release builds use no shared caches.** GitHub Actions cache reads and writes are
+  denied in the release and offline-bundle workflows, and npm caching is disabled in
+  the release build, to isolate release artifacts from shared dependency caches.
+
+### Dependencies
+
+- Add the optional `genie` extra (`databricks-sdk>=0.120,<1.0`).
+- Drop `sphinxcontrib-mermaid` from the docs requirements.
+- Dependabot bumps: the lock moves `pyjwt` to 2.15.0; `web_app` npm moves `undici` to
+  7.30.0, `ip-address` to 10.7.2 and `brace-expansion` to 1.1.21, 2.1.7 and 5.0.12.
 
 ## [0.9.2] — 2026-09-22
 
