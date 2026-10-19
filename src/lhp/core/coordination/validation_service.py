@@ -9,7 +9,9 @@ import those modules directly.
 
 This class is the sole composer of the cross-flowgroup validators
 (:class:`TableCreationValidator`,
-:class:`CdcFanInCompatibilityValidator`). :class:`ConfigValidator` sees
+:class:`CdcFanInCompatibilityValidator`,
+:class:`ReplaceFanInCompatibilityValidator`,
+:class:`SharedDlqSourceTableValidator`). :class:`ConfigValidator` sees
 one flowgroup at a time and therefore does not — and must not — delegate
 to them.
 
@@ -37,6 +39,7 @@ from lhp.core.validators import (
     ConfigValidator,
     LoadActionValidator,
     ReplaceFanInCompatibilityValidator,
+    SharedDlqSourceTableValidator,
     TableCreationValidator,
     TestActionValidator,
     TransformActionValidator,
@@ -55,7 +58,9 @@ class ValidationService(BaseValidationService):
     ``core/validators/*`` from anywhere else are prohibited.
 
     Cross-flowgroup validators (:class:`TableCreationValidator`,
-    :class:`CdcFanInCompatibilityValidator`) are composed exclusively here.
+    :class:`CdcFanInCompatibilityValidator`,
+    :class:`ReplaceFanInCompatibilityValidator`,
+    :class:`SharedDlqSourceTableValidator`) are composed exclusively here.
     The action validator class slots held in :meth:`__init__` exist so
     external code never needs to import those class names directly —
     :class:`ConfigValidator` composes the live action validator instances
@@ -111,6 +116,7 @@ class ValidationService(BaseValidationService):
         self._table_creation_validator = TableCreationValidator()
         self._fanin_validator = CdcFanInCompatibilityValidator()
         self._replace_fanin_validator = ReplaceFanInCompatibilityValidator()
+        self._shared_dlq_validator = SharedDlqSourceTableValidator()
 
     def build_duplicate_issue(
         self, flowgroups: Sequence[FlowGroup]
@@ -164,9 +170,9 @@ class ValidationService(BaseValidationService):
     ) -> CrossFlowgroupCheckResult:
         """Run only the cross-flowgroup compatibility checks.
 
-        Runs the :class:`TableCreationValidator` and
-        :class:`CdcFanInCompatibilityValidator` only. The per-flowgroup
-        :class:`ConfigValidator` pass is intentionally omitted —
+        Runs the :class:`TableCreationValidator`, the CDC and replace fan-in
+        validators and :class:`SharedDlqSourceTableValidator` only. The
+        per-flowgroup :class:`ConfigValidator` pass is intentionally omitted —
         per-flowgroup validation is already handled by
         :class:`FlowgroupResolutionService`.
 
@@ -182,8 +188,9 @@ class ValidationService(BaseValidationService):
 
         Returns:
             :class:`CrossFlowgroupCheckResult` with separate
-            ``table_creation_errors`` and ``cdc_fanin_errors`` so the
-            caller can re-raise with the right error code/category.
+            ``table_creation_errors``, ``cdc_fanin_errors`` and
+            ``shared_dlq_errors`` so the caller can re-raise with the right
+            error code/category.
         """
         target_flowgroups: List[FlowGroup] = (
             [fg for fg in flowgroups if fg.pipeline == pipeline_filter]
@@ -197,8 +204,10 @@ class ValidationService(BaseValidationService):
         cdc_errors = list(self._fanin_validator.validate(target_flowgroups)) + list(
             self._replace_fanin_validator.validate(target_flowgroups)
         )
+        shared_dlq_errors = list(self._shared_dlq_validator.validate(target_flowgroups))
 
         return CrossFlowgroupCheckResult(
             table_creation_errors=table_errors,
             cdc_fanin_errors=cdc_errors,
+            shared_dlq_errors=shared_dlq_errors,
         )

@@ -30,6 +30,7 @@ from tests.helpers import (
     last_cli_command_line,
     parse_last_cli_command,
     project_names,
+    write_quarantine_project,
 )
 
 pytestmark = pytest.mark.unit
@@ -166,6 +167,55 @@ def test_pipeline_filter_validates_named_pipeline():
 
     assert result.exit_code == 1, result.stderr
     assert "LHP-VAL-007" in result.stderr
+
+
+def test_shared_dlq_source_table_conflict_in_one_pipeline_reports_val_069(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Two quarantine actions in one pipeline that share a DLQ and a
+    source_table fail validate with LHP-VAL-069 naming both actions
+    (``--show-details`` prints the message). One flowgroup spells the
+    source_table with tokens, so the check must run on the substituted
+    (resolved) flowgroups to see the clash.
+    """
+    write_quarantine_project(
+        tmp_path,
+        [
+            ("p_orders", "orders_us", "${catalog}.${schema}.orders"),
+            ("p_orders", "orders_eu", "c.s.orders"),
+        ],
+    )
+    monkeypatch.chdir(tmp_path)
+    result = CliRunner().invoke(
+        validate_command, ["--env", "dev", "--no-bundle", "--show-details"]
+    )
+
+    assert result.exit_code == 1, result.stderr
+    err = strip_ansi(result.stderr)
+    assert "LHP-VAL-069" in err
+    assert "orders_eu.dq_orders_eu" in err
+    assert "orders_us.dq_orders_us" in err
+    assert "c.s.orders_dlq" in err
+
+
+def test_shared_dlq_source_table_across_pipelines_is_not_checked(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The check runs per pipeline: the same DLQ and source_table used from
+    two different pipelines is not reported.
+    """
+    write_quarantine_project(
+        tmp_path,
+        [
+            ("p_orders_us", "orders_us", "c.s.orders"),
+            ("p_orders_eu", "orders_eu", "c.s.orders"),
+        ],
+    )
+    monkeypatch.chdir(tmp_path)
+    result = CliRunner().invoke(validate_command, ["--env", "dev", "--no-bundle"])
+
+    assert result.exit_code == 0, result.stderr
+    assert "LHP-VAL-069" not in result.stderr
 
 
 def _mock_built_facade(monkeypatch: pytest.MonkeyPatch) -> "MagicMock":

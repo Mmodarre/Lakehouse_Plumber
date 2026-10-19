@@ -67,6 +67,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   targets stay plain identifiers. In a `columns:` list, quote the entry, since YAML
   cannot start an unquoted value with a backtick; plain `schema_inline` lines are
   written as-is.
+- **`lhp validate`/`lhp generate` reject two quarantine actions in one pipeline that
+  share a DLQ and `source_table` (`LHP-VAL-069`) (#332).** Such actions filter the
+  same slice of the DLQ and outbox, so their MERGEs can conflict and each action's
+  recycle stream picks up the other's fixed rows. `dlq_table` is compared
+  case-insensitively and `source_table` exactly, after templates and substitutions
+  are applied. Quarantine actions in different pipelines that share a DLQ are not
+  checked.
 
 ### Changed
 

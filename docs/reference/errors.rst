@@ -312,6 +312,9 @@ Validation errors (LHP-VAL)
    * - LHP-VAL-068
      - Invalid ``readMode`` — the action does not accept that mode. ``cloudfiles`` and ``kafka`` loads and ``data_quality`` transforms accept only ``stream``.
      - Set ``readMode: stream``, or remove ``readMode`` (these actions default to ``stream``).
+   * - LHP-VAL-069
+     - Two quarantine actions in one pipeline share a ``dlq_table`` (compared case-insensitively) and the same ``source_table``. The generated MERGEs and recycle reads filter on ``source_table``, so the actions would write the same DLQ and outbox rows and recycle each other's fixed rows. Raised by both ``lhp validate`` and ``lhp generate``; actions in different pipelines are not checked.
+     - Give each action that shares the DLQ a distinct ``source_table``, or point the actions at different ``dlq_table`` values.
    * - LHP-VAL-902
      - All-or-nothing aggregator — one or more flowgroups failed in a parallel ``lhp generate`` run; no files were written.
      - Fix every listed failure; re-run with ``--verbose`` or ``--log-file``.
