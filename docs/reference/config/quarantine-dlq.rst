@@ -98,7 +98,7 @@ The inbox table receives quarantined rows. Create it before the pipeline runs.
      - Surrogate key: ``xxhash64`` of ``source_table`` + row JSON, cast to string. MERGE key.
    * - ``_dlq_source_table``
      - STRING
-     - Fully qualified source table name (from ``quarantine.source_table``).
+     - Fully qualified source table name (from ``quarantine.source_table``). Clustering column; every generated MERGE filters on it.
    * - ``_dlq_status``
      - STRING
      - Row status: ``quarantined`` on insert; set to ``fixed`` by an operator to recycle.
@@ -127,14 +127,19 @@ The inbox table receives quarantined rows. Create it before the pipeline runs.
        _dlq_rescued_data  STRING,
        _row_data          VARIANT   NOT NULL
    )
+   CLUSTER BY (_dlq_source_table)
    TBLPROPERTIES (
        'delta.enableChangeDataFeed' = 'true',
-       'delta.enableRowTracking' = 'true'
+       'delta.enableRowTracking' = 'true',
+       'delta.enableDeletionVectors' = 'true'
    );
 
 The inbox table must have Change Data Feed and row tracking enabled: the recycle
 stream reads it with ``readChangeFeed`` and consumes ``update_postimage`` events,
-and fails at runtime when either property is off.
+and fails at runtime when either property is off. Both the inbox and the outbox
+must also have deletion vectors enabled: without them, quarantine actions that
+share the tables fail with ``ConcurrentAppendException`` when their commits
+overlap (see `Concurrent writers and shared DLQ tables`_).
 
 DLQ outbox table schema
 -----------------------
@@ -154,7 +159,7 @@ The outbox table is the deduplicated "already recycled" ledger. Its name is
      - Surrogate key, carried over from the inbox. MERGE key.
    * - ``_dlq_source_table``
      - STRING
-     - Fully qualified source table name.
+     - Fully qualified source table name. Clustering column; every generated MERGE filters on it.
    * - ``_row_data``
      - VARIANT
      - Full row payload.
@@ -171,9 +176,58 @@ The outbox table is the deduplicated "already recycled" ledger. Its name is
        _row_data          VARIANT   NOT NULL,
        _dlq_recycled_at   TIMESTAMP NOT NULL
    )
+   CLUSTER BY (_dlq_source_table)
    TBLPROPERTIES (
-       'delta.enableRowTracking' = 'true'
+       'delta.enableRowTracking' = 'true',
+       'delta.enableDeletionVectors' = 'true'
    );
+
+Concurrent writers and shared DLQ tables
+----------------------------------------
+
+Each quarantine action runs its own two ``foreachBatch`` sinks, which MERGE
+quarantined rows into the DLQ inbox and recycled rows into the outbox. Quarantine
+actions in one pipeline update, or in pipelines running at the same time, commit
+to a shared DLQ and outbox concurrently.
+
+Each generated MERGE filters the target on its own source. The inbox MERGE
+condition is:
+
+.. code-block:: python
+
+   (F.col("dlq._dlq_source_table") == F.lit(SOURCE_TABLE_<view>))
+   & (F.col("dlq._dlq_sk") == F.col("new._dlq_sk"))
+
+- On the clustered tables above, concurrent sinks for different ``source_table``
+  values commit without conflicting only while deletion vectors are enabled.
+  Without them, sinks fail with ``ConcurrentAppendException``
+  (``DELTA_CONCURRENT_APPEND``) when their commits overlap, even though each
+  MERGE filters on its source.
+- ``source_table`` must be unique per quarantine action that shares a DLQ. Two
+  actions with the same ``source_table`` read and write the same rows and can
+  conflict.
+- The same rules apply to the outbox (``<dlq_table>_outbox``): its MERGE uses the
+  same condition with the alias ``out`` in place of ``dlq``.
+
+Operating the queue safely
+--------------------------
+
+To recycle a corrected row, an operator rewrites its payload and marks it
+``fixed`` in the DLQ inbox:
+
+.. code-block:: sql
+
+   UPDATE <dlq_table>
+   SET _dlq_status = 'fixed',
+       _row_data   = <corrected_row_data>
+   WHERE _dlq_source_table = '<source_table>'
+     AND _dlq_sk IN (<dlq_sk_values>);
+
+- Always include the ``_dlq_source_table`` predicate. Without it, the UPDATE can
+  conflict with every source's sink.
+- Mark rows ``fixed`` while the pipeline is idle (quarantine pipelines are
+  triggered). An UPDATE that races the same source's sink can fail either the
+  UPDATE or the pipeline's MERGE.
 
 Limits
 ------
@@ -182,6 +236,7 @@ Limits
 - The expectations file must contain at least one rule.
 - The inbox and outbox tables are user-managed DDL and must exist before the pipeline runs.
 - Recycling uses Change Data Feed and a ``foreachBatch`` sink, so it requires a triggered (non-continuous) pipeline.
+- Deletion vectors must stay enabled on a DLQ (and its outbox) shared by concurrently running quarantine actions.
 
 Minimal example
 ----------------
