@@ -399,16 +399,14 @@ class TestDataQualityQuarantine:
 
         code = generator.generate(action, {"spec_dir": tmp_path})
 
-        assert (
-            '(F.col("dlq._dlq_source_table") == F.lit(SOURCE_TABLE_v_raw_data))' in code
-        )
-        assert '& (F.col("dlq._dlq_sk") == F.col("new._dlq_sk"))' in code
-        assert (
-            '(F.col("out._dlq_source_table") == F.lit(SOURCE_TABLE_v_raw_data))' in code
-        )
-        assert '& (F.col("out._dlq_sk") == F.col("new._dlq_sk"))' in code
-        assert '"dlq._dlq_sk = new._dlq_sk"' not in code
-        assert '"out._dlq_sk = new._dlq_sk"' not in code
+        # SQL MERGE scopes via the batch column (set with F.lit(SOURCE_TABLE_…)),
+        # not by interpolating the table name into a SQL string literal.
+        assert "dlq._dlq_source_table = new._dlq_source_table" in code
+        assert "dlq._dlq_sk = new._dlq_sk" in code
+        assert "out._dlq_source_table = new._dlq_source_table" in code
+        assert "out._dlq_sk = new._dlq_sk" in code
+        assert "F.lit(SOURCE_TABLE_v_raw_data)" in code
+        assert "_dlq_source_table = '" not in code
         compile(code, "<string>", "exec")
 
     def test_data_quality_quarantine_merge_scoped_with_backtick_source_table(
@@ -441,14 +439,11 @@ class TestDataQualityQuarantine:
 
         assert 'SOURCE_TABLE_v_raw_data = "`my-cat`.silver.orders"' in code
         assert "F.lit(SOURCE_TABLE_v_raw_data)" in code
-        assert (
-            '(F.col("dlq._dlq_source_table") == F.lit(SOURCE_TABLE_v_raw_data))' in code
-        )
-        assert (
-            '(F.col("out._dlq_source_table") == F.lit(SOURCE_TABLE_v_raw_data))' in code
-        )
-        # only the constant; never inlined into a condition
+        assert "dlq._dlq_source_table = new._dlq_source_table" in code
+        assert "out._dlq_source_table = new._dlq_source_table" in code
+        # only the constant; never inlined into a SQL string condition
         assert code.count("my-cat") == 1
+        assert "_dlq_source_table = '" not in code
         compile(code, "<string>", "exec")
 
     @pytest.mark.parametrize(

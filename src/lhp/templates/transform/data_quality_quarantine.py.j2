@@ -114,13 +114,15 @@ def dlq_sink_{{ safe_source_view }}(batch_df, batch_id):
     # "original Spark session is being accessed instead of the per-flow cloned session"
     # even when spark = batch_df.sparkSession (Databricks serverless + shared DLQ).
     # See https://github.com/Mmodarre/Lakehouse_Plumber/issues/355
+    # Scope via new._dlq_source_table (already F.lit(SOURCE_TABLE_…)), never
+    # interpolate the table name into a SQL string literal (#355 / quote safety).
     _view = f"_lhp_dlq_batch_{{ safe_source_view }}_{batch_id}"
     batch.createOrReplaceTempView(_view)
     spark.sql(
         f"""
         MERGE INTO {DLQ_TABLE_{{ safe_source_view }}} AS dlq
         USING {_view} AS new
-        ON dlq._dlq_source_table = '{SOURCE_TABLE_{{ safe_source_view }}}'
+        ON dlq._dlq_source_table = new._dlq_source_table
            AND dlq._dlq_sk = new._dlq_sk
         WHEN NOT MATCHED THEN INSERT *
         """
@@ -167,7 +169,7 @@ def recycle_sink_{{ safe_source_view }}(batch_df, batch_id):
         f"""
         MERGE INTO {DLQ_OUTBOX_TABLE_{{ safe_source_view }}} AS out
         USING {_view} AS new
-        ON out._dlq_source_table = '{SOURCE_TABLE_{{ safe_source_view }}}'
+        ON out._dlq_source_table = new._dlq_source_table
            AND out._dlq_sk = new._dlq_sk
         WHEN NOT MATCHED THEN INSERT *
         """
