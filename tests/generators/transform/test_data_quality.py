@@ -83,8 +83,11 @@ class TestDataQualityQuarantine:
 
         assert "dlq_sink_v_raw_data" in code
         assert "@dp.foreach_batch_sink" in code
-        assert "DeltaTable.forName" in code
-        assert ".whenNotMatchedInsertAll()" in code
+        assert "MERGE INTO" in code
+        assert "WHEN NOT MATCHED THEN INSERT *" in code
+        assert "dlq = DeltaTable.forName" not in code
+        assert "outbox = DeltaTable.forName" not in code
+        assert ".whenNotMatchedInsertAll()" not in code
 
         assert "quarantine_flow_v_raw_data" in code
         assert "@dp.append_flow" in code
@@ -93,7 +96,7 @@ class TestDataQualityQuarantine:
         assert "recycle_sink_v_raw_data" in code
         assert "Window.partitionBy" in code
         assert "row_number" in code
-        assert "whenNotMatchedInsertAll" in code
+        assert "DLQ_OUTBOX_TABLE" in code
 
         # CDF from DLQ
         assert "recycle_flow_v_raw_data" in code
@@ -195,7 +198,7 @@ class TestDataQualityQuarantine:
         assert "foreach_batch_sink" not in code
 
     def test_data_quality_quarantine_imports(self, tmp_path):
-        """Verify quarantine adds json, DeltaTable, F imports."""
+        """Verify quarantine adds F/Window imports (SQL MERGE, not DeltaTable)."""
         generator = DataQualityTransformGenerator()
         expectations_data = {
             "id IS NOT NULL": {"action": "drop", "name": "id_check"},
@@ -219,7 +222,7 @@ class TestDataQualityQuarantine:
         generator.generate(action, {"spec_dir": tmp_path})
 
         imports = generator.imports
-        assert "from delta.tables import DeltaTable" in imports
+        assert "from delta.tables import DeltaTable" not in imports
         assert "from pyspark.sql import functions as F" in imports
         assert "from pyspark.sql.types import MapType, StringType" in imports
         assert "from pyspark.sql.window import Window" in imports

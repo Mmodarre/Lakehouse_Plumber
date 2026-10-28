@@ -6,7 +6,6 @@ from pyspark.sql import functions as F
 from pyspark.sql.types import MapType, StringType
 from pyspark.sql.window import Window
 from pyspark import pipelines as dp
-from delta.tables import DeltaTable
 
 # Pipeline Configuration
 PIPELINE_ID = "acmi_edw_bronze"
@@ -181,16 +180,21 @@ def dlq_sink_v_orders_raw(batch_df, batch_id):
         "_row_data",
     )
 
-    dlq = DeltaTable.forName(spark, DLQ_TABLE_v_orders_raw)
-    (
-        dlq.alias("dlq")
-        .merge(
-            batch.alias("new"),
-            (F.col("dlq._dlq_source_table") == F.lit(SOURCE_TABLE_v_orders_raw))
-            & (F.col("dlq._dlq_sk") == F.col("new._dlq_sk")),
-        )
-        .whenNotMatchedInsertAll()
-        .execute()
+    # Prefer SQL MERGE over the Delta Python API: under Lakeflow parallel flow
+    # analysis, DeltaTable.forName touches spark._jsparkSession and can raise
+    # "original Spark session is being accessed instead of the per-flow cloned session"
+    # even when spark = batch_df.sparkSession (Databricks serverless + shared DLQ).
+    # See https://github.com/Mmodarre/Lakehouse_Plumber/issues/355
+    _view = f"_lhp_dlq_batch_v_orders_raw_{batch_id}"
+    batch.createOrReplaceTempView(_view)
+    spark.sql(
+        f"""
+        MERGE INTO {DLQ_TABLE_v_orders_raw} AS dlq
+        USING {_view} AS new
+        ON dlq._dlq_source_table = '{SOURCE_TABLE_v_orders_raw}'
+           AND dlq._dlq_sk = new._dlq_sk
+        WHEN NOT MATCHED THEN INSERT *
+        """
     )
     return
 
@@ -229,16 +233,16 @@ def recycle_sink_v_orders_raw(batch_df, batch_id):
         )
     )
 
-    outbox = DeltaTable.forName(spark, DLQ_OUTBOX_TABLE_v_orders_raw)
-    (
-        outbox.alias("out")
-        .merge(
-            deduped.alias("new"),
-            (F.col("out._dlq_source_table") == F.lit(SOURCE_TABLE_v_orders_raw))
-            & (F.col("out._dlq_sk") == F.col("new._dlq_sk")),
-        )
-        .whenNotMatchedInsertAll()
-        .execute()
+    _view = f"_lhp_dlq_outbox_batch_v_orders_raw_{batch_id}"
+    deduped.createOrReplaceTempView(_view)
+    spark.sql(
+        f"""
+        MERGE INTO {DLQ_OUTBOX_TABLE_v_orders_raw} AS out
+        USING {_view} AS new
+        ON out._dlq_source_table = '{SOURCE_TABLE_v_orders_raw}'
+           AND out._dlq_sk = new._dlq_sk
+        WHEN NOT MATCHED THEN INSERT *
+        """
     )
 
 

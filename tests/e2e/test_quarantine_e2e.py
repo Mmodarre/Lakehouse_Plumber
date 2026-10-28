@@ -123,10 +123,13 @@ class TestQuarantineE2E:
         assert "@dp.expect_all_or_drop(_EXPECTATIONS_v_orders_raw)" in code
         assert "def _clean_v_orders_raw():" in code
 
-        # Verify DLQ sink
+        # Verify DLQ sink uses SQL MERGE (not DeltaTable.forName)
         assert "@dp.foreach_batch_sink" in code
-        assert "DeltaTable.forName" in code
-        assert ".whenNotMatchedInsertAll()" in code
+        assert "MERGE INTO" in code
+        assert "WHEN NOT MATCHED THEN INSERT *" in code
+        assert "dlq = DeltaTable.forName" not in code
+        assert "outbox = DeltaTable.forName" not in code
+        assert ".whenNotMatchedInsertAll()" not in code
 
         # Verify append flow for quarantine
         assert "quarantine_flow_v_orders_raw" in code
@@ -155,8 +158,8 @@ class TestQuarantineE2E:
         assert "map_filter" in code
         assert "from_json" in code
 
-        # Verify imports
-        assert "from delta.tables import DeltaTable" in code
+        # Verify imports (SQL MERGE — no DeltaTable)
+        assert "from delta.tables import DeltaTable" not in code
         assert "from pyspark.sql import functions as F" in code
         assert "from pyspark.sql.types import MapType, StringType" in code
         assert "from pyspark.sql.window import Window" in code

@@ -127,7 +127,8 @@ class DataQualityTransformGenerator(BaseActionGenerator):
         """Generate quarantine mode code with DLQ recycling."""
         logger.debug(f"Generating quarantine mode for action '{action.name}'")
 
-        self.add_import("from delta.tables import DeltaTable")
+        # SQL MERGE (not DeltaTable.forName) — avoids serverless per-flow session clone
+        # errors; see data_quality_quarantine.py.j2 and issue #355.
         self.add_import("from pyspark.sql import functions as F")
         self.add_import("from pyspark.sql.types import MapType, StringType")
         self.add_import("from pyspark.sql.window import Window")
