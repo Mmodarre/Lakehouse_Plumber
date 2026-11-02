@@ -8,7 +8,24 @@ class DQEParser:
     def __init__(self):
         self.logger = logging.getLogger(__name__)
 
-    def parse_expectations(self, expectations: List[Dict]) -> Tuple[Dict, Dict, Dict]:
+    def parse_expectations(
+        self, expectations: Union[List[Dict], Dict[str, Any]]
+    ) -> Tuple[Dict, Dict, Dict]:
+        """Split expectations into their DLT categories.
+
+        Returns ``(expect_all, expect_all_or_drop, expect_all_or_fail)``, each
+        mapping an expectation name to its constraint. Accepts both
+        expectation-file formats:
+
+        - a list of dicts with ``constraint``/``expression``, ``failureAction``
+          or ``type``, and ``message``/``name``;
+        - a dict mapping each constraint to its ``action`` and ``name``. An
+          ``action`` other than ``fail`` or ``drop`` (or none) warns, and the
+          name defaults to the constraint.
+        """
+        if not isinstance(expectations, list):
+            return _parse_constraint_mapping(expectations)
+
         self.logger.debug(
             f"Parsing {len(expectations)} expectation(s) into DLT categories"
         )
@@ -73,3 +90,24 @@ class DQEParser:
                 name = exp_config.get("name", constraint)
                 result[name] = constraint
         return result
+
+
+def _parse_constraint_mapping(
+    expectations: Dict[str, Any],
+) -> Tuple[Dict[str, str], Dict[str, str], Dict[str, str]]:
+    expect_all: Dict[str, str] = {}
+    expect_all_or_drop: Dict[str, str] = {}
+    expect_all_or_fail: Dict[str, str] = {}
+
+    for constraint, exp_config in expectations.items():
+        action_type = exp_config.get("action", "warn").lower()
+        name = exp_config.get("name", constraint)
+
+        if action_type == "fail":
+            expect_all_or_fail[name] = constraint
+        elif action_type == "drop":
+            expect_all_or_drop[name] = constraint
+        else:
+            expect_all[name] = constraint
+
+    return expect_all, expect_all_or_drop, expect_all_or_fail
