@@ -2,6 +2,8 @@
 
 import logging
 
+import pytest
+
 from lhp.core.processing.dqe import DQEParser
 
 
@@ -27,8 +29,9 @@ class TestDQEParseExpectationsEdgeCases:
         assert "Expectation missing constraint/expression" in caplog.text
         assert "Test expectation without constraint" in caplog.text
 
-    def test_parse_expectations_unknown_type(self, caplog):
-        """Test handling of unknown expectation types."""
+    def test_parse_expectations_unknown_type(self):
+        """An unknown type is rejected by the validator (LHP-VAL-006) before
+        parsing, so reaching the parser is an internal error, not a warning."""
         parser = DQEParser()
 
         expectations = [
@@ -40,15 +43,8 @@ class TestDQEParseExpectationsEdgeCases:
             {"type": "expect", "constraint": "col > 0", "message": "Valid expectation"},
         ]
 
-        with caplog.at_level(logging.WARNING):
-            expect_all, expect_drop, expect_fail = parser.parse_expectations(
-                expectations
-            )
-
-        assert len(expect_all) == 1
-        assert "Valid expectation" in expect_all
-
-        assert "Unknown expectation type: unknown_type" in caplog.text
+        with pytest.raises(AssertionError, match="type='unknown_type'"):
+            parser.parse_expectations(expectations)
 
     def test_parse_expectations_failure_action_mapping(self):
         parser = DQEParser()

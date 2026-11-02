@@ -9,14 +9,15 @@ from typing import List, Optional
 
 from lhp.models import Action
 
+from .._base import ValidationError
 from ..field import validate_expectations_file
 from ._name_checks import require_three_part_name
 
 
 def validate_data_quality_transform(
     action: Action, prefix: str, project_root: Optional[Path]
-) -> List[str]:
-    errors = []
+) -> List[ValidationError]:
+    errors: List[ValidationError] = []
     if not action.source:
         errors.append(f"{prefix}: Data quality transform must have 'source'")
 
@@ -58,15 +59,6 @@ def validate_data_quality_transform(
                         if err:
                             errors.append(err)
 
-        errors.extend(
-            validate_expectations_file(
-                getattr(action, "expectations_file", None),
-                project_root,
-                prefix,
-                quarantine=True,
-            )
-        )
-
     elif dq_mode is None or dq_mode == "dqe":
         quarantine_config = getattr(action, "quarantine", None)
         if quarantine_config is not None:
@@ -74,5 +66,14 @@ def validate_data_quality_transform(
                 f"{prefix}: 'quarantine' configuration block is only valid "
                 "when mode='quarantine'"
             )
+
+    errors.extend(
+        validate_expectations_file(
+            getattr(action, "expectations_file", None),
+            project_root,
+            prefix,
+            quarantine=dq_mode == "quarantine",
+        )
+    )
 
     return errors

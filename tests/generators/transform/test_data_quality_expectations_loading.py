@@ -1,15 +1,15 @@
 """How the data_quality generator finds and reads its expectations.
 
-The file is read through ``load_expectations_file``. A file whose document is
-neither a mapping nor a list is logged and generates a view with no rules.
+The file is read through ``load_expectations_file``. ``lhp validate`` rejects a
+malformed file first; if one reaches the generator anyway, the loader's
+LHP-VAL-008 propagates instead of generating a view with no rules.
 Real files on disk, no mocks.
 """
-
-import logging
 
 import pytest
 import yaml
 
+from lhp.errors import LHPValidationError
 from lhp.generators.transform.data_quality import DataQualityTransformGenerator
 from lhp.models import Action, ActionType, TransformType
 
@@ -51,20 +51,21 @@ def test_relative_file_resolves_against_cwd_without_spec_dir(tmp_path, monkeypat
     assert '@dp.expect_all_or_fail({"id_check": "id IS NOT NULL"})' in code
 
 
-def test_scalar_file_is_logged_and_generates_no_rules(tmp_path, caplog):
-    (tmp_path / "rules.yaml").write_text("just a string\n")
+@pytest.mark.parametrize(
+    ("text", "actual_type"),
+    [("just a string\n", "str"), ("expectations: null\n", "NoneType")],
+    ids=["scalar-document", "wrapped-null"],
+)
+def test_malformed_file_raises_instead_of_generating_no_rules(
+    tmp_path, text, actual_type
+):
+    (tmp_path / "rules.yaml").write_text(text)
 
-    with caplog.at_level(logging.WARNING):
-        code = DataQualityTransformGenerator().generate(
-            _dq_action(), {"spec_dir": tmp_path}
-        )
+    with pytest.raises(LHPValidationError) as exc_info:
+        DataQualityTransformGenerator().generate(_dq_action(), {"spec_dir": tmp_path})
 
-    assert "def v_out():" in code
-    assert "@dp.expect" not in code
-    assert (
-        "Expectations file 'rules.yaml' has unexpected format "
-        "(expected dict or list, got str), proceeding with empty expectations"
-    ) in [record.getMessage() for record in caplog.records]
+    assert exc_info.value.code == "LHP-VAL-008"
+    assert exc_info.value.context["Actual Type"] == actual_type
 
 
 def test_inline_expectations_take_precedence_over_the_file(tmp_path):
