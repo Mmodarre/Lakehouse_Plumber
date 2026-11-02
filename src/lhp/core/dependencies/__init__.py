@@ -1,6 +1,7 @@
 """Public surface of the dependency-analysis sub-package."""
 
 from ._producers import build_producer_indexes, match_produced_table
+from ._read_modes import ProducerKind, producer_kind
 from ._table_sites import PythonTableSite, PythonTableSitesResult, SourceSpan
 from .analyzer import DependencyAnalyzer
 from .builder import DependencyGraphBuilder
@@ -19,10 +20,12 @@ __all__ = [
     "DependencyOutputWriter",
     "DependencyResolver",
     "PersistentGraphCache",
+    "ProducerKind",
     "PythonTableSite",
     "PythonTableSitesResult",
     "SourceSpan",
     "build_producer_indexes",
     "collect_python_table_sites",
     "match_produced_table",
+    "producer_kind",
 ]

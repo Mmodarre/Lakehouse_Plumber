@@ -17,6 +17,7 @@ logger = logging.getLogger(__name__)
 
 class DataQualityTransformGenerator(BaseActionGenerator):
     renders_operational_metadata = True
+    default_read_mode = "stream"
 
     def __init__(self):
         super().__init__()
@@ -27,12 +28,12 @@ class DataQualityTransformGenerator(BaseActionGenerator):
         logger.debug(
             f"Generating data quality transform for target '{action.target}', action '{action.name}'"
         )
-        readMode = action.readMode or "stream"
+        readMode = self.read_mode(action)
         if readMode != "stream":
             raise ErrorFactory.invalid_read_mode(
                 action_name=action.name,
                 action_type="data_quality",
-                provided=readMode,
+                provided=str(readMode),
                 valid_modes=["stream"],
             )
 
@@ -70,7 +71,7 @@ class DataQualityTransformGenerator(BaseActionGenerator):
     def _generate_dqe_mode(
         self, action: Action, expectations, flowgroup_config: Dict[str, Any]
     ) -> str:
-        readMode = action.readMode or "stream"
+        readMode = self.read_mode(action)
 
         warn_expectations, drop_expectations, fail_expectations = (
             self.dqe_parser.parse_expectations(expectations or {})

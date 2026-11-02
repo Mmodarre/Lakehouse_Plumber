@@ -11,6 +11,7 @@ caches here hold exactly the bindings-INDEPENDENT artifacts:
 - SQL extraction results by content hash
   (:class:`~lhp.core.dependencies.sql_extraction.SqlExtractionResult` is
   treated as immutable; consumers stamp copies via ``dataclasses.replace``),
+- whether a SQL body reads a stream, by content hash,
 - Python extraction results by ``(content hash, frozen bindings)`` — the
   one bindings-DEPENDENT artifact. Extraction is a pure function of the
   (normalized) source text and the YAML parameter bindings, so actions
@@ -33,7 +34,11 @@ from typing import TYPE_CHECKING, Dict, Optional, Tuple
 
 from ._bindings import ParameterBindings, freeze_bindings
 from ._function_index import FunctionIndex
-from .sql_extraction import SqlExtractionResult, extract_tables_from_sql
+from .sql_extraction import (
+    SqlExtractionResult,
+    extract_tables_from_sql,
+    sql_reads_stream,
+)
 
 if TYPE_CHECKING:
     from .python_parser import PythonExtractionResult
@@ -53,6 +58,7 @@ class ParseCache:
         # the pre-cache behavior).
         self._py_parsed: Dict[str, Optional[Tuple[ast.Module, FunctionIndex]]] = {}
         self._sql_result: Dict[str, SqlExtractionResult] = {}
+        self._sql_stream: Dict[str, Optional[bool]] = {}
         self._py_extraction: Dict[Tuple[str, object], "PythonExtractionResult"] = {}
         # ``(mtime_ns, size)`` captured at the moment each path's bytes were
         # actually read. Lives as long as ``_file_content`` (the bytes it
@@ -121,6 +127,13 @@ class ParseCache:
         if key not in self._sql_result:
             self._sql_result[key] = extract_tables_from_sql(sql_text)
         return self._sql_result[key]
+
+    def sql_reads_stream(self, sql_text: str) -> Optional[bool]:
+        """Run (or reuse) :func:`~.sql_extraction.sql_reads_stream` for ``sql_text``."""
+        key = _content_hash(sql_text)
+        if key not in self._sql_stream:
+            self._sql_stream[key] = sql_reads_stream(sql_text)
+        return self._sql_stream[key]
 
     def extract_python(
         self, code: str, bindings: Optional[ParameterBindings]
