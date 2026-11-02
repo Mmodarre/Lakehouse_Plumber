@@ -40,7 +40,7 @@ def load_expectations_file(
     * a mapping from each constraint to its ``action`` and ``name``, returned
       as it is;
     * a mapping with a top-level ``expectations`` key (the older wrapped
-      format), whose value is returned without checking its type.
+      format), whose value must itself be a list or a mapping.
 
     ``error_context`` names the file in YAML-parse and document-count errors.
 
@@ -49,22 +49,20 @@ def load_expectations_file(
     :raises MultiDocumentError: ``LHP-IO-003`` when the file holds no document
         or more than one.
     :raises LHPConfigError: ``LHP-CFG-009`` when the file is not valid YAML.
-    :raises LHPValidationError: ``LHP-VAL-008`` when the document is neither a
-        mapping nor a list; ``context["Actual Type"]`` names the type found.
+    :raises LHPValidationError: ``LHP-VAL-008`` when the document, or the value
+        of its ``expectations`` key, is neither a mapping nor a list;
+        ``context["Actual Type"]`` names the type found.
     """
     resolved_path = resolve_external_file_path(
         expectations_file, project_root, file_type="expectations file"
     )
     data: object = load_yaml_file(resolved_path, error_context=error_context)
 
-    if isinstance(data, dict):
-        if "expectations" in data:
-            # Not type-checked: both readers accept whatever the key holds
-            # (an empty or null value means no rules).
-            wrapped: Expectations = data["expectations"]
-            return wrapped
-        return data
-    if isinstance(data, list):
+    holder = "it holds"
+    if isinstance(data, dict) and "expectations" in data:
+        data = data["expectations"]
+        holder = "its 'expectations' key holds"
+    if isinstance(data, (dict, list)):
         return data
 
     actual_type = type(data).__name__
@@ -73,7 +71,7 @@ def load_expectations_file(
         title="Invalid expectations file format",
         details=(
             f"Expectations file '{expectations_file}' must hold a mapping or a "
-            f"list of expectations, but it holds a {actual_type}."
+            f"list of expectations, but {holder} a {actual_type}."
         ),
         suggestions=[
             "Map each constraint to its 'action' and 'name' (see the example)",
