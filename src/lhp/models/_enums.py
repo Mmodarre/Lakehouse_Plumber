@@ -57,15 +57,6 @@ class DQMode(str, Enum):
     QUARANTINE = "quarantine"
 
 
-class StreamingTableMode(str, Enum):
-    """Write modes of a ``streaming_table`` write target."""
-
-    STANDARD = "standard"
-    CDC = "cdc"
-    SNAPSHOT_CDC = "snapshot_cdc"
-    REPLACE = "replace"
-
-
 class WriteTargetType(str, Enum):
     STREAMING_TABLE = "streaming_table"
     MATERIALIZED_VIEW = "materialized_view"
