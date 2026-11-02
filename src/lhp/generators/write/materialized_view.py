@@ -2,15 +2,49 @@
 
 import logging
 from pathlib import Path
+from typing import Any, Dict, List, Sequence, Set, Tuple, Union, cast
 
 from lhp.models import Action
 
-from ...core.loaders import load_sql_file, resolve_table_schema
+from ...core.loaders import load_expectations_file, load_sql_file, resolve_table_schema
+from ...core.processing import DQEParser
 from ...core.registry import BaseActionGenerator
 from ...errors import ErrorFactory, codes
 from ._schema_tags_warning import warn_if_schema_tags_dropped
 
 logger = logging.getLogger(__name__)
+
+#: One set of expectations, in an expectations file's own format (a list of
+#: rules or a mapping from constraint to rule).
+ExpectationSource = Union[List[Any], Dict[str, Any]]
+
+
+def assemble_expectations(
+    sources: Sequence[ExpectationSource],
+) -> Tuple[Dict[str, str], Dict[str, str], Dict[str, str]]:
+    """Merge expectation sources into the view's three decorator mappings.
+
+    Returns ``(expect_all, expect_all_or_drop, expect_all_or_fail)``, each
+    mapping an expectation name to its constraint, in source order. Every
+    source must already be validated, names included (the validators reject a
+    name two rules share). A name met again in another category or a later
+    source is an internal error here.
+    """
+    merged: Tuple[Dict[str, str], Dict[str, str], Dict[str, str]] = ({}, {}, {})
+    seen: Set[str] = set()
+    parser = DQEParser()
+    for source in sources:
+        for bucket, parsed in zip(
+            merged, parser.parse_expectations(source), strict=True
+        ):
+            for name, constraint in parsed.items():
+                if name in seen:
+                    raise AssertionError(
+                        f"Unvalidated duplicate expectation name {name!r}"
+                    )
+                seen.add(name)
+                bucket[name] = constraint
+    return merged
 
 
 class MaterializedViewWriteGenerator(BaseActionGenerator):
@@ -110,6 +144,15 @@ class MaterializedViewWriteGenerator(BaseActionGenerator):
         metadata_columns = {}
         flowgroup = context.get("flowgroup")
 
+        # Action keeps write_target as the plain mapping it was given.
+        expectation_sources = _expectation_sources(
+            cast(Dict[str, Any], target_config),
+            context.get("project_root", Path.cwd()),
+        )
+        expect_all, expect_all_or_drop, expect_all_or_fail = assemble_expectations(
+            expectation_sources
+        )
+
         template_context = {
             "action_name": action.name,
             "table_name": table.replace(".", "_"),  # Function name safe
@@ -134,6 +177,9 @@ class MaterializedViewWriteGenerator(BaseActionGenerator):
             "add_operational_metadata": bool(metadata_columns),
             "metadata_columns": metadata_columns,
             "flowgroup": flowgroup,
+            "expect_all": expect_all,
+            "expect_all_or_drop": expect_all_or_drop,
+            "expect_all_or_fail": expect_all_or_fail,
         }
 
         return self.render_template("write/materialized_view.py.j2", template_context)
@@ -163,3 +209,13 @@ class MaterializedViewWriteGenerator(BaseActionGenerator):
             ],
             context={"Source Type": type(source).__name__},
         )
+
+
+def _expectation_sources(
+    target_config: Dict[str, Any], project_root: Path
+) -> List[ExpectationSource]:
+    expectations_file = target_config.get("expectations_file")
+    if not expectations_file:
+        return []
+    # WriteActionValidator has already checked the file and its rules.
+    return [load_expectations_file(expectations_file, project_root)]

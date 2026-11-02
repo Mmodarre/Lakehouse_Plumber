@@ -43,6 +43,8 @@ class WriteTarget(BaseModel):
     refresh_policy: Optional[str] = None
     sql: Optional[str] = None
     sql_path: Optional[str] = None
+    # Data-quality expectations rendered as @dp.expect_all* on the view
+    expectations_file: Optional[str] = None
 
     # Sink-specific fields
     sink_type: Optional[str] = None  # delta, kafka, custom, foreachbatch
@@ -169,6 +171,7 @@ class Action(BaseModel):
                 "sql_path",
                 "module_path",
                 "tags_file",
+                "expectations_file",
             ]:
                 if schema_field in self.write_target and isinstance(
                     self.write_target[schema_field], str

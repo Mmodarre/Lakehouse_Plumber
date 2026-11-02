@@ -410,6 +410,64 @@ class TestWriteTargetTagsFile:
         assert result == []
 
 
+class TestWriteTargetExpectationsFile:
+    """Extracts a materialized view's write_target.expectations_file."""
+
+    @staticmethod
+    def _mv(expectations_file: str) -> dict:
+        return _make_action(
+            name="write_gate",
+            type="write",
+            write_target={
+                "type": "materialized_view",
+                "sql_path": "sql/gate.sql",
+                "expectations_file": expectations_file,
+            },
+        )
+
+    def test_extracts_write_target_expectations_file(self, tmp_path: Path):
+        (tmp_path / "expectations").mkdir()
+        (tmp_path / "expectations" / "gate.yaml").write_text("[]")
+
+        result = extract_related_files(
+            _make_fg([self._mv("expectations/gate.yaml")]), tmp_path
+        )
+
+        assert [(r.path, r.category, r.field) for r in result] == [
+            ("sql/gate.sql", "sql", "write_target.sql_path"),
+            (
+                "expectations/gate.yaml",
+                "expectations",
+                "write_target.expectations_file",
+            ),
+        ]
+        assert result[1].action_name == "write_gate"
+        assert result[1].exists is True
+
+    def test_missing_expectations_file_marked_false(self, tmp_path: Path):
+        result = extract_related_files(
+            _make_fg([self._mv("expectations/absent.yaml")]), tmp_path
+        )
+
+        [ref] = [r for r in result if r.category == "expectations"]
+        assert ref.path == "expectations/absent.yaml"
+        assert ref.exists is False
+
+    def test_shared_with_a_data_quality_action_is_listed_once(self, tmp_path: Path):
+        dq = _make_action(
+            name="dq",
+            type="transform",
+            expectations_file="expectations/shared.yaml",
+        )
+
+        result = extract_related_files(
+            _make_fg([dq, self._mv("expectations/shared.yaml")]), tmp_path
+        )
+
+        [ref] = [r for r in result if r.category == "expectations"]
+        assert (ref.action_name, ref.field) == ("dq", "expectations_file")
+
+
 class TestSqlAndPythonTogether:
     """A flowgroup referencing both a SQL file and a python source."""
 

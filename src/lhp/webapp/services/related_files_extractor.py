@@ -247,6 +247,15 @@ def _extract_from_write_target(
         seen,
         results,
     )
+    _check_field(
+        wt.get("expectations_file"),
+        action_name,
+        "write_target.expectations_file",
+        "expectations",
+        project_root,
+        seen,
+        results,
+    )
 
     # snapshot_cdc_config.source_function.file
     cdc = wt.get("snapshot_cdc_config")
