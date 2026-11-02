@@ -23,7 +23,9 @@ FLOWGROUP_ID = "helper_sink_flow"
 @dp.temporary_view()
 def v_helper_sink_seed():
     """Seed rows for the helper-backed custom sink"""
-    df = spark.sql("""SELECT 1 AS id, '  alpha  ' AS name""")
+    df = spark.sql(
+        """SELECT 1 AS id, '  alpha  ' AS name FROM STREAM(acme_edw_dev.edw_old.customer)"""
+    )
 
     return df
 

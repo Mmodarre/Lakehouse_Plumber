@@ -32,7 +32,10 @@ class TestPipelineFieldFunctionality:
                             "name": "load_customers",
                             "type": "load",
                             "target": "v_customers",
-                            "source": {"type": "sql", "sql": "SELECT * FROM customers"},
+                            "source": {
+                                "type": "sql",
+                                "sql": "SELECT * FROM STREAM(customers)",
+                            },
                         },
                         {
                             "name": "write_customers",

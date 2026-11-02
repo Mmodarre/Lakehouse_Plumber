@@ -95,6 +95,8 @@ class TestValidateEmptyPipelinesGuard:
                 "  - name: write_table\n"
                 "    type: write\n"
                 "    source: v_raw\n"
+                "    readMode: batch\n"
+                "    once: true\n"
                 "    write_target:\n"
                 "      type: streaming_table\n"
                 "      database: '{catalog}.bronze'\n"

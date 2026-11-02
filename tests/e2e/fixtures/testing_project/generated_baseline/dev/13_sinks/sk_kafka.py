@@ -40,7 +40,7 @@ def v_orders_for_kafka():
     total_price,
     current_timestamp() AS event_timestamp
   )) AS value
-FROM v_orders_for_kafka_raw""")
+FROM STREAM(v_orders_for_kafka_raw)""")
 
     return df
 

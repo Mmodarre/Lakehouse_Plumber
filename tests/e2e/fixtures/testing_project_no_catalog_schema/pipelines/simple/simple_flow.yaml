@@ -16,6 +16,8 @@ actions:
   - name: write_static
     type: write
     source: v_simple_raw
+    readMode: batch
+    once: true
     write_target:
       type: streaming_table
       database: "main.default"

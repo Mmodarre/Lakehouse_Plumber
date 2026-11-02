@@ -26,7 +26,7 @@ actions:
     source: "v_%{entity}_raw"
     target: "v_%{entity}_cleaned"
     sql: |
-      SELECT * FROM v_%{entity}_raw
+      SELECT * FROM STREAM(v_%{entity}_raw)
 
   - name: "write_%{entity}_bronze"
     type: write

@@ -144,6 +144,7 @@ flowgroup: flowgroup_{i}
 actions:
   - name: load_{i}
     type: load
+    readMode: stream
     source:
       type: delta
       database: "{{catalog}}.raw"
@@ -359,6 +360,7 @@ flowgroup: test_flowgroup
 actions:
   - name: test_load
     type: load
+    readMode: stream
     source:
       type: delta
       database: "{catalog}.{raw_schema}"
@@ -519,6 +521,7 @@ flowgroup: flowgroup_{i:02d}
 actions:
   - name: load_{i:02d}
     type: load
+    readMode: stream
     source:
       type: delta
       database: "{{catalog}}.raw"
@@ -659,6 +662,7 @@ class TestConsolidatedGenerateStream:
             "actions:\n"
             "  - name: load_t\n"
             "    type: load\n"
+            "    readMode: stream\n"
             "    source:\n"
             "      type: delta\n"
             '      database: "{catalog}.{raw_schema}"\n'

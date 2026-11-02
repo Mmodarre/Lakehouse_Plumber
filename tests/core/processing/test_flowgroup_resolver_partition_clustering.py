@@ -48,6 +48,8 @@ def _ctx(write_type: str, **table_options) -> FlowGroupContext:
                 name="write_orders",
                 type=ActionType.WRITE,
                 source="v_orders",
+                readMode="batch",
+                once=True,
                 write_target={
                     "type": write_type,
                     "catalog": "cat",

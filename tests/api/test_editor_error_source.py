@@ -25,6 +25,7 @@ operational_metadata: ["_tag"]
 actions:
   - name: load
     type: load
+    readMode: stream
     source:
       type: delta
       catalog: cat

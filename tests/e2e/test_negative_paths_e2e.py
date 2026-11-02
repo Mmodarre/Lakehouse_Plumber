@@ -511,6 +511,7 @@ class TestNegativePathsE2E:
             "    type: transform\n"
             "    transform_type: python\n"
             "    source: v_collision_a_raw\n"
+            "    readMode: stream\n"
             '    module_path: "py_functions/collision_a/shared_util.py"\n'
             '    function_name: "transform_passthrough"\n'
             "    parameters:\n"
@@ -544,6 +545,7 @@ class TestNegativePathsE2E:
             "    type: transform\n"
             "    transform_type: python\n"
             "    source: v_collision_b_raw\n"
+            "    readMode: stream\n"
             '    module_path: "py_functions/collision_b/shared_util.py"\n'
             '    function_name: "transform_passthrough"\n'
             "    parameters:\n"

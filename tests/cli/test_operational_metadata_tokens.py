@@ -37,6 +37,8 @@ actions:
   - name: write_raw
     type: write
     source: v_raw
+    readMode: batch
+    once: true
     write_target:
       type: streaming_table
       catalog: c
@@ -190,6 +192,8 @@ actions:
   - name: write_raw
     type: write
     source: v_raw
+    readMode: batch
+    once: true
     operational_metadata: [_source]
     write_target:
       type: streaming_table

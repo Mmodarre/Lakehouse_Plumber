@@ -329,6 +329,7 @@ class TestBlueprintE2E:
             "actions:\n"
             "  - name: collision_load\n"
             "    type: load\n"
+            "    readMode: stream\n"
             "    source:\n"
             "      type: delta\n"
             '      database: "{catalog}.{raw_schema}"\n'
