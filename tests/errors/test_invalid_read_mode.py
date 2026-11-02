@@ -10,7 +10,11 @@ action accepts: the cloudfiles, kafka and data_quality generators accept only
 import pytest
 
 from lhp.core.registry import ActionRegistry
-from lhp.core.validators import ConfigFieldValidator, LoadActionValidator
+from lhp.core.validators import (
+    ConfigFieldValidator,
+    LoadActionValidator,
+    TransformActionValidator,
+)
 from lhp.errors import LHPError, codes
 from lhp.errors.factory import ErrorFactory
 from lhp.generators.load.cloudfiles import CloudFilesLoadGenerator
@@ -75,7 +79,7 @@ def _kafka_batch():
     )
 
 
-def _data_quality_batch():
+def _data_quality_batch(**fields):
     return DataQualityTransformGenerator(), Action(
         name="dq_batch",
         type=ActionType.TRANSFORM,
@@ -83,7 +87,8 @@ def _data_quality_batch():
         source="v_source",
         target="v_validated",
         readMode="batch",
-        expectations_file="expectations/q.yaml",
+        expectations_file="q.yaml",
+        **fields,
     )
 
 
@@ -107,16 +112,35 @@ def test_stream_only_loads_raise_val_068_at_validate(build):
         generator.generate(action, {})
 
 
-@pytest.mark.parametrize(
-    "build",
-    [_data_quality_batch],
-    ids=["data_quality"],
-)
-def test_stream_only_generators_raise_val_068(build):
-    generator, action = build()
+def test_data_quality_dqe_reads_batch(tmp_path):
+    # Issue #310: a dqe data_quality action may read a batch, so validation
+    # passes it and generation renders spark.read.
+    (tmp_path / "q.yaml").write_text('{"id IS NOT NULL": {"action": "warn"}}')
+    generator, action = _data_quality_batch()
+    validator = TransformActionValidator(ActionRegistry(), ConfigFieldValidator())
 
-    with pytest.raises(LHPError) as excinfo:
+    assert validator.validate(action, f"Action[0] '{action.name}'") == []
+    code = generator.generate(action, {"spec_dir": tmp_path})
+    assert 'df = spark.read.table("v_source")' in code
+    assert "readStream" not in code
+
+
+def test_data_quality_quarantine_raises_val_068_at_validate():
+    # Quarantine mode reads only a stream (its dead-letter recycling is a
+    # streaming flow). The transform validator reports the error; the
+    # generator only asserts the invariant for input that skipped validation.
+    generator, action = _data_quality_batch(
+        mode="quarantine",
+        quarantine={"dlq_table": "c.s.dlq", "source_table": "c.s.src"},
+    )
+    validator = TransformActionValidator(ActionRegistry(), ConfigFieldValidator())
+
+    [error] = validator.validate(action, f"Action[0] '{action.name}'")
+
+    assert isinstance(error, LHPError)
+    assert error.code == "LHP-VAL-068"
+    assert not any("batch" in suggestion for suggestion in error.suggestions)
+    with pytest.raises(
+        AssertionError, match=r"Unvalidated data_quality readMode 'batch'"
+    ):
         generator.generate(action, {})
-
-    assert excinfo.value.code == "LHP-VAL-068"
-    assert not any("batch" in suggestion for suggestion in excinfo.value.suggestions)

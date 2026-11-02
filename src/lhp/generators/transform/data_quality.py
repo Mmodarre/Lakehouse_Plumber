@@ -2,17 +2,21 @@
 
 import logging
 from pathlib import Path
-from typing import Any, Dict, List, Union
+from typing import Any, Dict, List, Optional, Union
 
 from lhp.models import Action
 
 from ...core.loaders import Expectations, load_expectations_file
 from ...core.processing.dqe import DQEParser
-from ...core.registry import BaseActionGenerator
+from ...core.registry import BaseActionGenerator, ReadMode
 from ...errors import ErrorFactory, codes
 from ...utils.identifiers import replace_non_identifier_chars
 
 logger = logging.getLogger(__name__)
+
+# The reads the dqe template renders; validate_data_quality_transform rejects
+# any other readMode (and any but stream in quarantine mode) with LHP-VAL-068.
+_DQE_READ_MODES = ("stream", "batch")
 
 
 class DataQualityTransformGenerator(BaseActionGenerator):
@@ -24,17 +28,29 @@ class DataQualityTransformGenerator(BaseActionGenerator):
         self.add_import("from pyspark import pipelines as dp")
         self.dqe_parser = DQEParser()
 
+    @classmethod
+    def consumer_read_mode(cls, action: Action) -> Optional[ReadMode]:
+        """``stream`` in ``quarantine`` mode, else the action's ``readMode``.
+
+        Quarantine always reads with ``spark.readStream``: its dead-letter
+        recycling is a streaming flow. A ``dqe`` action with no ``readMode``
+        reads its in-flowgroup producer's kind, which code generation passes
+        in the context as ``effective_read_mode``.
+        """
+        if action.mode == "quarantine":
+            return "stream"
+        return super().consumer_read_mode(action)
+
     def generate(self, action: Action, flowgroup_config: Dict[str, Any]) -> str:
         logger.debug(
             f"Generating data quality transform for target '{action.target}', action '{action.name}'"
         )
-        readMode = self.read_mode(action)
-        if readMode != "stream":
-            raise ErrorFactory.invalid_read_mode(
-                action_name=action.name,
-                action_type="data_quality",
-                provided=str(readMode),
-                valid_modes=["stream"],
+        requested = self.read_mode(action)
+        valid_modes = ("stream",) if action.mode == "quarantine" else _DQE_READ_MODES
+        if requested not in valid_modes:
+            raise AssertionError(
+                f"Unvalidated data_quality readMode {requested!r} in action "
+                f"'{action.name}'"
             )
 
         expectations_file = action.expectations_file
@@ -71,7 +87,10 @@ class DataQualityTransformGenerator(BaseActionGenerator):
     def _generate_dqe_mode(
         self, action: Action, expectations, flowgroup_config: Dict[str, Any]
     ) -> str:
-        readMode = self.read_mode(action)
+        # Code generation passes the effective read, which follows the source
+        # view's kind when the action sets no readMode; a context without it
+        # (a generator called on its own) reads what the action asks for.
+        readMode = flowgroup_config.get("effective_read_mode") or self.read_mode(action)
 
         warn_expectations, drop_expectations, fail_expectations = (
             self.dqe_parser.parse_expectations(expectations or {})

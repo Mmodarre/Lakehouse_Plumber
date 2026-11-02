@@ -9,6 +9,7 @@ from typing import List, Optional
 
 from lhp.models import Action
 
+from ....errors import ErrorFactory
 from .._base import ValidationError
 from ..field import validate_expectation_rules, validate_expectations_file
 from ._name_checks import require_three_part_name
@@ -96,5 +97,28 @@ def validate_data_quality_transform(
                 quarantine=quarantine,
             )
         )
+    errors.extend(_read_mode_errors(action, quarantine=quarantine))
 
     return errors
+
+
+def _read_mode_errors(action: Action, *, quarantine: bool) -> List[ValidationError]:
+    """LHP-VAL-068 for a ``readMode`` the data_quality generator cannot read.
+
+    ``dqe`` reads a stream or a batch. ``quarantine`` reads only a stream: its
+    dead-letter recycling is a streaming flow. No ``readMode`` is valid in
+    both modes (a stream, or in ``dqe`` the source view's kind).
+    """
+    if not action.readMode:
+        return []
+    valid_modes = ["stream"] if quarantine else ["stream", "batch"]
+    if action.readMode in valid_modes:
+        return []
+    return [
+        ErrorFactory.invalid_read_mode(
+            action_name=action.name,
+            action_type="data_quality",
+            provided=action.readMode,
+            valid_modes=valid_modes,
+        )
+    ]

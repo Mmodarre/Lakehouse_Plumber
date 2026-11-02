@@ -307,6 +307,9 @@ class ActionDispatcher:
                 env,
                 phase_a_records=phase_a_records,
                 auxiliary_files=auxiliary_files,
+                effective_read_mode=self._context.effective_read_mode(
+                    action, flowgroup, substitution_mgr
+                ),
             )
             sections.append(code)
             imports.update(section_imports)
@@ -325,6 +328,7 @@ class ActionDispatcher:
         env: Optional[str],
         phase_a_records: Optional[List["CopiedModuleRecord"]] = None,
         auxiliary_files: Optional[Mapping[str, str]] = None,
+        effective_read_mode: Optional[str] = None,
     ) -> Tuple[str, Set[str], Set[str]]:
         """Resolve generator, build context, produce code + outputs, and wrap action-level errors as LHPError."""
         try:
@@ -339,6 +343,7 @@ class ActionDispatcher:
                 env,
                 phase_a_records=phase_a_records,
                 auxiliary_files=auxiliary_files,
+                effective_read_mode=effective_read_mode,
             )
             code = generator.generate(action, context)
             imports, pre_stmts = self._context.collect_outputs(generator)

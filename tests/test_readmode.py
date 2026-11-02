@@ -8,7 +8,11 @@ import yaml
 
 from lhp.core.coordination.layers import build_facade_orchestrator
 from lhp.core.registry import ActionRegistry
-from lhp.core.validators import ConfigFieldValidator, LoadActionValidator
+from lhp.core.validators import (
+    ConfigFieldValidator,
+    LoadActionValidator,
+    TransformActionValidator,
+)
 from lhp.errors import LHPError
 from lhp.generators.load.cloudfiles import CloudFilesLoadGenerator
 from lhp.generators.load.delta import DeltaLoadGenerator
@@ -74,8 +78,8 @@ class TestReadMode:
         with pytest.raises(AssertionError, match="readMode 'batch'"):
             generator.generate(action_batch, {})
 
-    def test_data_quality_requires_stream(self):
-        """Test that data quality transforms enforce stream readMode."""
+    def test_data_quality_reads_stream_or_batch(self):
+        """A dqe data quality transform reads a stream or a batch (#310)."""
         generator = DataQualityTransformGenerator()
 
         # Create expectations file
@@ -110,11 +114,38 @@ class TestReadMode:
             expectations_file=expectations_file,
         )
 
-        with pytest.raises(ValueError) as exc:
+        code = generator.generate(
+            action_batch, {"spec_dir": Path(expectations_file).parent}
+        )
+        assert 'df = spark.read.table("v_source")' in code
+        assert "spark.readStream" not in code
+
+        # Quarantine mode reads only a stream: the transform validator reports
+        # a batch readMode; the generator only asserts the invariant for input
+        # that skipped validation.
+        quarantine_batch = Action(
+            name="dq_check_quarantine_batch",
+            type=ActionType.TRANSFORM,
+            transform_type=TransformType.DATA_QUALITY,
+            source="v_source",
+            target="v_validated",
+            readMode="batch",
+            mode="quarantine",
+            quarantine={"dlq_table": "c.s.dlq", "source_table": "c.s.src"},
+            expectations_file=expectations_file,
+        )
+        validator = TransformActionValidator(ActionRegistry(), ConfigFieldValidator())
+        [error] = validator.validate(
+            quarantine_batch, "Action[0] 'dq_check_quarantine_batch'"
+        )
+        assert isinstance(error, LHPError)
+        assert error.code == "LHP-VAL-068"
+        assert "Invalid readMode" in str(error)
+
+        with pytest.raises(AssertionError, match="readMode 'batch'"):
             generator.generate(
-                action_batch, {"spec_dir": Path(expectations_file).parent}
+                quarantine_batch, {"spec_dir": Path(expectations_file).parent}
             )
-        assert "Invalid readMode" in str(exc.value)
 
         # Clean up
         Path(expectations_file).unlink()
