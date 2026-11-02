@@ -1,15 +1,15 @@
 """Tests for DQE edge cases and error handling."""
 
-import logging
-
 import pytest
 
 from lhp.core.processing.dqe import DQEParser
+from lhp.errors import LHPError
 
 
 class TestDQEParseExpectationsEdgeCases:
-    def test_parse_expectations_missing_constraint(self, caplog):
-        """Test handling of expectations without constraint/expression."""
+    def test_parse_expectations_missing_constraint(self):
+        """A list rule without constraint/expression raises LHP-VAL-001
+        instead of being skipped with a warning."""
         parser = DQEParser()
 
         expectations = [
@@ -17,17 +17,15 @@ class TestDQEParseExpectationsEdgeCases:
             {"type": "expect", "constraint": "col > 0", "message": "Valid expectation"},
         ]
 
-        with caplog.at_level(logging.WARNING):
-            expect_all, expect_drop, expect_fail = parser.parse_expectations(
-                expectations
-            )
+        with pytest.raises(LHPError) as exc_info:
+            parser.parse_expectations(expectations)
 
-        assert len(expect_all) == 1
-        assert "Valid expectation" in expect_all
-        assert expect_all["Valid expectation"] == "col > 0"
-
-        assert "Expectation missing constraint/expression" in caplog.text
-        assert "Test expectation without constraint" in caplog.text
+        error = exc_info.value
+        assert error.code == "LHP-VAL-001"
+        assert error.context == {
+            "Expectation": "Test expectation without constraint",
+            "Field": "constraint",
+        }
 
     def test_parse_expectations_unknown_type(self):
         """An unknown type is rejected by the validator (LHP-VAL-006) before
@@ -133,8 +131,9 @@ class TestDQEParseExpectationsEdgeCases:
         assert expect_drop == {}
         assert expect_fail == {}
 
-    def test_parse_expectations_multiple_missing_constraints(self, caplog):
-        """Test handling multiple expectations with missing constraints."""
+    def test_parse_expectations_multiple_missing_constraints(self):
+        """The first list rule without a constraint raises LHP-VAL-001; no
+        rule is skipped silently."""
         parser = DQEParser()
 
         expectations = [
@@ -143,16 +142,8 @@ class TestDQEParseExpectationsEdgeCases:
             {"type": "expect", "constraint": "col > 0", "message": "Valid one"},
         ]
 
-        with caplog.at_level(logging.WARNING):
-            expect_all, expect_drop, expect_fail = parser.parse_expectations(
-                expectations
-            )
+        with pytest.raises(LHPError) as exc_info:
+            parser.parse_expectations(expectations)
 
-        assert len(expect_all) == 1
-        assert "Valid one" in expect_all
-
-        warning_messages = [
-            record.message for record in caplog.records if record.levelname == "WARNING"
-        ]
-        assert len(warning_messages) == 2
-        assert all("missing constraint/expression" in msg for msg in warning_messages)
+        assert exc_info.value.code == "LHP-VAL-001"
+        assert exc_info.value.context["Expectation"] == "No constraint 1"
