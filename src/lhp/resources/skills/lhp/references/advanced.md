@@ -47,9 +47,14 @@ resources:
       schema: lhp_${bundle.target}
       libraries:
         - glob:
-            include: ../../generated/bronze_load/**
-      root_path: ${workspace.file_path}/generated/bronze_load/
+            include: ${workspace.file_path}/generated/${bundle.target}/bronze_load/**
+        # pipeline_config `libraries` (glob entries only) are appended here
+      root_path: ${workspace.file_path}/generated/${bundle.target}/bronze_load
 ```
+
+`name`, `libraries` and `root_path` are written by LHP: pipeline_config `name` /
+`root_path` fail with `LHP-CFG-072`, and `libraries` entries are appended after the
+generated glob (see [project-config.md](project-config.md)).
 
 ---
 
@@ -109,6 +114,31 @@ permissions:
 ```
 
 Usage: `lhp dag --format job --job-config config/job_config.yaml --bundle-output`
+
+Unknown keys pass through verbatim, except the two LHP writes itself (orchestration
+jobs and the monitoring job config alike; failures are **LHP-CFG-072**, raised when the
+job is written — `lhp dag` job format for orchestration jobs, `lhp generate` for the
+monitoring job):
+
+- `name` → **rejected**. Job names come from flowgroup `job_name`,
+  `<project_name>_orchestration` / `--job-name` (single job) or `<pipeline_name>_job`
+  (monitoring).
+- `tasks` → **appended** after the generated tasks. Must be a list of mappings, each with
+  a non-empty string `task_key` unique within the job and not a generated key
+  (`<pipeline>_pipeline`; monitoring job also `union_event_logs`). Use `depends_on` on
+  generated keys to run after them; other task fields are emitted as written. A
+  job-specific list replaces the `project_defaults` one; the master job never gets them.
+
+```yaml
+---
+job_name: gold_daily
+tasks:
+  - task_key: refresh_dashboard
+    depends_on:
+      - task_key: gold_sales_pipeline
+    notebook_task:
+      notebook_path: ${workspace.file_path}/notebooks/refresh_dashboard
+```
 
 ---
 
