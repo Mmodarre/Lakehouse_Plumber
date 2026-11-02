@@ -6,10 +6,10 @@ from typing import Any, Dict, List, Union
 
 from lhp.models import Action
 
-from ...core.loaders.external_file_loader import resolve_external_file_path
+from ...core.loaders import load_expectations_file
 from ...core.processing.dqe import DQEParser
 from ...core.registry import BaseActionGenerator
-from ...errors import ErrorFactory, codes
+from ...errors import ErrorFactory, LHPValidationError, codes
 from ...utils.identifiers import replace_non_identifier_chars
 
 logger = logging.getLogger(__name__)
@@ -72,30 +72,9 @@ class DataQualityTransformGenerator(BaseActionGenerator):
     ) -> str:
         readMode = action.readMode or "stream"
 
-        if expectations and isinstance(expectations, list):
-            # Old format: list of dicts with constraint/type fields
-            expect_all, expect_all_or_drop, expect_all_or_fail = (
-                self.dqe_parser.parse_expectations(expectations)
-            )
-            fail_expectations = expect_all_or_fail
-            drop_expectations = expect_all_or_drop
-            warn_expectations = expect_all
-        else:
-            # New format: dict where key is constraint, value has action/name
-            fail_expectations = {}
-            drop_expectations = {}
-            warn_expectations = {}
-
-            for constraint, exp_config in (expectations or {}).items():
-                action_type = exp_config.get("action", "warn").lower()
-                name = exp_config.get("name", constraint)
-
-                if action_type == "fail":
-                    fail_expectations[name] = constraint
-                elif action_type == "drop":
-                    drop_expectations[name] = constraint
-                else:  # warn or default
-                    warn_expectations[name] = constraint
+        warn_expectations, drop_expectations, fail_expectations = (
+            self.dqe_parser.parse_expectations(expectations or {})
+        )
 
         source_view = self._extract_source_view(action.source)
 
@@ -221,7 +200,9 @@ class DataQualityTransformGenerator(BaseActionGenerator):
             return source.get("view", source.get("source", ""))
         return ""
 
-    def _load_expectations(self, action: Action, spec_dir: Path | None = None) -> List:
+    def _load_expectations(
+        self, action: Action, spec_dir: Path | None = None
+    ) -> Union[List[Any], Dict[str, Any]]:
         # Check if action has expectations as an attribute (from test)
         if hasattr(action, "expectations") and action.expectations:
             return action.expectations
@@ -236,30 +217,19 @@ class DataQualityTransformGenerator(BaseActionGenerator):
             expectations_file = action.source["expectations_file"]
 
         if expectations_file:
-            from ...parsers.yaml_loader import load_yaml_file
-
-            project_root = spec_dir or Path.cwd()
-            resolved_path = resolve_external_file_path(
-                expectations_file, project_root, file_type="expectations file"
-            )
-
-            # Load the YAML file (resolve_external_file_path raises if not found)
-            data = load_yaml_file(
-                resolved_path, error_context="data quality expectations file"
-            )
-
-            if isinstance(data, dict):
-                # Old format: dict with 'expectations' key
-                if "expectations" in data:
-                    return data["expectations"]
-                # New format: direct dict of constraints
-                return data
-            if isinstance(data, list):
-                return data
-            logger.warning(
-                f"Expectations file '{expectations_file}' has unexpected format "
-                f"(expected dict or list, got {type(data).__name__}), "
-                "proceeding with empty expectations"
-            )
+            try:
+                return load_expectations_file(
+                    expectations_file,
+                    spec_dir or Path.cwd(),
+                    error_context="data quality expectations file",
+                )
+            except LHPValidationError as e:
+                # Only quarantine mode validates the file before generation, so
+                # a malformed dqe-mode file generates a view with no rules.
+                logger.warning(
+                    f"Expectations file '{expectations_file}' has unexpected format "
+                    f"(expected dict or list, got {e.context['Actual Type']}), "
+                    "proceeding with empty expectations"
+                )
 
         return {}
