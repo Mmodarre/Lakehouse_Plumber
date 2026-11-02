@@ -16,6 +16,8 @@ from .dqe import (
     expectation_names,
     list_rule_category,
     mapping_rule_category,
+    missing_constraint_error,
+    rule_constraint,
 )
 from .local_variables import LocalVariableResolver
 from .namespace_normalizer import normalize_namespace_fields
@@ -41,7 +43,9 @@ __all__ = [
     "find_unresolved_tokens",
     "list_rule_category",
     "mapping_rule_category",
+    "missing_constraint_error",
     "normalize_namespace_fields",
+    "rule_constraint",
     "unresolved_tokens_error",
 ]
 

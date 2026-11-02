@@ -18,6 +18,7 @@ logger = logging.getLogger(__name__)
 DATA_QUALITY_FIELDS = ("expectations_file", "quarantine", "mode")
 
 _READ_MODES = ("stream", "batch")
+_DATA_QUALITY_MODES = ("dqe", "quarantine")
 
 
 def check_data_quality_fields(action_dict: Dict[str, Any], action_name: str) -> None:
@@ -77,9 +78,10 @@ def _hint(field: str, value: Any, action_type: Any) -> str:
         return "Put 'expectations_file' on a data_quality transform"
     if field == "quarantine":
         return "Put 'quarantine' on a data_quality transform with mode: quarantine"
-    if isinstance(value, str) and value.lower() in _READ_MODES:
+    mode = value.lower() if isinstance(value, str) else None
+    if mode in _READ_MODES:
         return "Use 'readMode' to choose a stream or batch read"
-    if action_type == "write":
+    if action_type == "write" and mode not in _DATA_QUALITY_MODES:
         return "Set the streaming-table mode as write_target.mode"
     return "'mode' (dqe or quarantine) only applies to a data_quality transform"
 

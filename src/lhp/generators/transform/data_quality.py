@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Union
 
 from lhp.models import Action
 
-from ...core.loaders import load_expectations_file
+from ...core.loaders import Expectations, load_expectations_file
 from ...core.processing.dqe import DQEParser
 from ...core.registry import BaseActionGenerator
 from ...errors import ErrorFactory, codes
@@ -202,8 +202,9 @@ class DataQualityTransformGenerator(BaseActionGenerator):
 
     def _load_expectations(
         self, action: Action, spec_dir: Path | None = None
-    ) -> Union[List[Any], Dict[str, Any]]:
-        # Check if action has expectations as an attribute (from test)
+    ) -> Expectations:
+        # Inline rules win over the file; validate_data_quality_transform has
+        # checked them with the same rule checks as a file's.
         if hasattr(action, "expectations") and action.expectations:
             return action.expectations
 

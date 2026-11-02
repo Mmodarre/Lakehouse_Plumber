@@ -1,162 +1,183 @@
-"""Per-rule checks for a data-quality expectations file.
+"""Per-rule checks for data-quality expectations, from a file or inline.
 
-The rule semantics come from :func:`~lhp.core.processing.dqe.list_rule_category`
-and :func:`~lhp.core.processing.dqe.mapping_rule_category`, the functions the
-parser sorts rules with, so a rule these checks accept always parses.
+``source`` names where the rules are (e.g. ``expectations file 'x.yaml'``).
+The semantics are the parser's own (``list_rule_category``,
+``mapping_rule_category``, ``rule_constraint`` in :mod:`lhp.core.processing`),
+so a rule these checks accept always parses. A rule is named by its ``name``
+(list rules also ``message``), else its constraint key or position (``#n``).
 """
 
 import difflib
 from collections import Counter
-from typing import Any, Dict, List, Sequence, Union
+from typing import Any, Dict, Iterator, List, Sequence, Tuple, Union
 
 from lhp.errors import ErrorFactory, LHPError, codes
 
+from ...loaders import Expectations
 from ...processing import (
     EXPECTATION_TYPES,
     FAILURE_ACTIONS,
     expectation_names,
     list_rule_category,
     mapping_rule_category,
+    missing_constraint_error,
+    rule_constraint,
 )
 
-Expectations = Union[List[Any], Dict[Any, Any]]
+#: Rule fields that must be text when they are set.
+_TEXT_FIELDS = ("name", "message", "constraint", "expression")
+#: The ``key`` :func:`_rules` yields for a list-format rule (it has none).
+_IN_LIST = object()
 
 
 def rule_shape_errors(
-    expectations: Expectations, expectations_file: str, prefix: str
+    expectations: Expectations, source: str, prefix: str
 ) -> List[LHPError]:
-    """``LHP-VAL-008`` for each rule that is not a mapping."""
-    if isinstance(expectations, list):
-        rules = [(f"#{i + 1}", rule) for i, rule in enumerate(expectations)]
-    else:
-        rules = [(f"'{constraint}'", rule) for constraint, rule in expectations.items()]
-    return [
-        ErrorFactory.validation_error(
-            codes.VAL_008,
-            title="Invalid expectation rule",
-            details=(
-                f"{prefix}: expectation {label} in expectations file "
-                f"'{expectations_file}' must be a mapping, but it is a "
-                f"{type(rule).__name__}."
-            ),
-            suggestions=[
-                "In a list, give each rule 'name', 'constraint' and 'failureAction'",
-                "In a mapping, give each constraint its 'action' and 'name'",
-            ],
-            context={
-                "File": expectations_file,
-                "Expectation": label,
-                "Expected Type": "mapping",
-                "Actual Type": type(rule).__name__,
-            },
-        )
-        for label, rule in rules
-        if not isinstance(rule, dict)
-    ]
+    """``LHP-VAL-008`` for a rule that is not a mapping, and for a constraint
+    key or a ``name``/``message``/``constraint``/``expression`` that is set but
+    is not text."""
+    errors: List[LHPError] = []
+    for ident, key, rule in _rules(expectations):
+        if key is not _IN_LIST and not isinstance(key, str):
+            errors.append(_not_text(prefix, ident, source, "constraint", key))
+        if not isinstance(rule, dict):
+            errors.append(_not_a_mapping(prefix, ident, source, rule))
+            continue
+        for field in _TEXT_FIELDS:
+            value = rule.get(field)
+            if value is not None and not isinstance(value, str):
+                errors.append(_not_text(prefix, ident, source, field, value))
+    return errors
 
 
 def rule_content_errors(
-    expectations: Expectations, expectations_file: str, prefix: str
+    expectations: Expectations, source: str, prefix: str
 ) -> List[LHPError]:
-    """``LHP-VAL-001`` for a rule with no constraint; ``LHP-VAL-006`` for a rule
-    whose action or type is unknown, or a list rule that sets ``action``.
-
-    Every rule must already be a mapping (:func:`rule_shape_errors`).
-    """
+    """``LHP-VAL-001`` for a rule with no constraint; ``LHP-VAL-006`` for an
+    unknown action or type, or a list rule that sets ``action``. Every rule
+    must already pass :func:`rule_shape_errors`."""
     errors: List[LHPError] = []
-    where = f"in expectations file '{expectations_file}'"
-    if isinstance(expectations, list):
-        for i, rule in enumerate(expectations):
-            name = rule.get("name") or rule.get("message")
-            label = f"'{name}'" if name else f"#{i + 1}"
-            if not (rule.get("constraint") or rule.get("expression")):
-                errors.append(_missing_constraint(prefix, label, where))
+    where = f"in {source}"
+    for ident, key, rule in _rules(expectations):
+        in_list = key is _IN_LIST
+        if not (rule_constraint(rule) if in_list else key):
+            errors.append(missing_constraint_error(ident, prefix=prefix, where=where))
+        if in_list:
             field, value, category = list_rule_category(rule)
-            if category is None:
-                errors.append(_bad_list_value(prefix, label, where, field, value))
-        return errors
-
-    for constraint, rule in expectations.items():
-        label = f"'{rule.get('name') or constraint}'"
-        if not constraint:
-            errors.append(_missing_constraint(prefix, label, where))
-        action, category = mapping_rule_category(rule)
+        else:
+            field, (value, category) = "action", mapping_rule_category(rule)
         if category is None:
-            errors.append(
-                _invalid_value(prefix, label, where, "action", action, FAILURE_ACTIONS)
-            )
+            errors.append(_bad_value(prefix, ident, where, field, value, in_list))
     return errors
 
 
 def duplicate_name_errors(
-    expectations: Expectations, expectations_file: str, prefix: str
+    expectations: Expectations, source: str, prefix: str
 ) -> List[LHPError]:
-    """``LHP-VAL-006`` for each name that more than one rule gets.
-
-    The names are those the parser gives (:func:`expectation_names`), so two
-    unnamed list rules with the same constraint share a name too. Every rule
-    must already be valid (:func:`rule_content_errors`). Names are counted as
-    text, so an unhashable ``name`` value cannot crash the check.
+    """``LHP-VAL-006`` for each name more than one rule gets, as the parser
+    names them (:func:`expectation_names`). Every rule must already be valid.
     """
-    counts = Counter(str(name) for name in expectation_names(expectations))
+    counts = Counter(expectation_names(expectations))
     return [
         ErrorFactory.validation_error(
             codes.VAL_006,
             title="Duplicate expectation name",
             details=(
-                f"{prefix}: {count} expectations in expectations file "
-                f"'{expectations_file}' are named '{name}'. An expectation name "
-                "must be unique for a dataset."
+                f"{prefix}: {count} expectations in {source} are named '{name}'. "
+                "An expectation name must be unique for a dataset."
             ),
             suggestions=[
                 "Give each expectation its own name",
                 "In a list, a rule is named by 'message' when it has one, then "
                 "by 'name', then 'Constraint failed: <constraint>'",
             ],
-            context={"Expectation": f"'{name}'", "Field": "name", "Provided": name},
+            context={"Expectation": name, "Field": "name", "Provided": name},
         )
         for name, count in counts.items()
         if count > 1
     ]
 
 
-def _missing_constraint(prefix: str, label: str, where: str) -> LHPError:
+def _rules(expectations: Expectations) -> Iterator[Tuple[str, Any, Any]]:
+    """Yield ``(ident, key, rule)``; ``key`` is a mapping rule's constraint."""
+    if isinstance(expectations, list):
+        for i, rule in enumerate(expectations):
+            yield _ident(rule, ("name", "message"), f"#{i + 1}"), _IN_LIST, rule
+    else:
+        for key, rule in expectations.items():
+            yield _ident(rule, ("name",), str(key)), key, rule
+
+
+def _ident(rule: Any, fields: Tuple[str, ...], fallback: str) -> str:
+    if isinstance(rule, dict):
+        for field in fields:
+            value = rule.get(field)
+            if isinstance(value, str) and value:
+                return value
+    return fallback
+
+
+def _not_a_mapping(prefix: str, ident: str, source: str, rule: Any) -> LHPError:
+    actual = type(rule).__name__
     return ErrorFactory.validation_error(
-        codes.VAL_001,
-        title="Missing required field 'constraint'",
+        codes.VAL_008,
+        title="Invalid expectation rule",
         details=(
-            f"{prefix}: expectation {label} {where} has no constraint, so it "
-            "checks nothing."
+            f"{prefix}: expectation '{ident}' in {source} must be a mapping, but "
+            f"it is a {actual}."
         ),
         suggestions=[
-            "Give the rule the SQL boolean expression it checks: 'constraint' "
-            "(or 'expression') in a list, or the mapping key in a mapping"
+            "In a list, give each rule 'name', 'constraint' and 'failureAction'",
+            "In a mapping, give each constraint its 'action' and 'name'",
         ],
-        context={"Expectation": label, "Field": "constraint"},
+        context={
+            "Expectation": ident,
+            "Expected Type": "mapping",
+            "Actual Type": actual,
+        },
     )
 
 
-def _bad_list_value(
-    prefix: str, label: str, where: str, field: str, value: Any
+def _not_text(prefix: str, ident: str, source: str, field: str, value: Any) -> LHPError:
+    actual = type(value).__name__
+    return ErrorFactory.validation_error(
+        codes.VAL_008,
+        title=f"Invalid expectation '{field}'",
+        details=(
+            f"{prefix}: expectation '{ident}' in {source} has a '{field}' that is "
+            f"a {actual}; it must be text."
+        ),
+        suggestions=[f"Write '{field}' as a string (quote it in YAML if needed)"],
+        context={
+            "Expectation": ident,
+            "Field": field,
+            "Expected Type": "str",
+            "Actual Type": actual,
+        },
+    )
+
+
+def _bad_value(
+    prefix: str, ident: str, where: str, field: str, value: Any, list_format: bool
 ) -> LHPError:
-    if field == "action":
+    if list_format and field == "action":
         return ErrorFactory.validation_error(
             codes.VAL_006,
             title="Invalid field 'action' in a list-format expectation",
             details=(
-                f"{prefix}: expectation {label} {where} sets 'action', the "
+                f"{prefix}: expectation '{ident}' {where} sets 'action', the "
                 "mapping format's key. A rule in a list sets 'failureAction'."
             ),
             suggestions=[f"Use 'failureAction: {value}' instead of 'action'"],
-            context={"Expectation": label, "Field": "action", "Provided": str(value)},
+            context={"Expectation": ident, "Field": "action", "Provided": str(value)},
         )
-    valid = FAILURE_ACTIONS if field == "failureAction" else EXPECTATION_TYPES
-    return _invalid_value(prefix, label, where, field, value, valid)
+    valid = EXPECTATION_TYPES if field == "type" else FAILURE_ACTIONS
+    return _invalid_value(prefix, ident, where, field, value, valid)
 
 
 def _invalid_value(
     prefix: str,
-    label: str,
+    ident: str,
     where: str,
     field: str,
     value: Any,
@@ -171,9 +192,9 @@ def _invalid_value(
         codes.VAL_006,
         title=f"Invalid value for '{field}'",
         details=(
-            f"{prefix}: expectation {label} {where} has invalid value '{value}' "
+            f"{prefix}: expectation '{ident}' {where} has invalid value '{value}' "
             f"for '{field}'. Valid values: {', '.join(choices)}"
         ),
         suggestions=suggestions,
-        context={"Expectation": label, "Field": field, "Provided": str(value)},
+        context={"Expectation": ident, "Field": field, "Provided": str(value)},
     )
