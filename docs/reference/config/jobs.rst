@@ -83,8 +83,36 @@ Databricks job settings
 ``schedule``, ``timeout_seconds``, ``tags``, ``email_notifications``,
 ``webhook_notifications`` and ``permissions`` are supported job settings.
 Other job-resource fields pass through to the generated YAML, including new
-Databricks fields. LHP generates the pipeline tasks and dependency order;
-inspect the resulting job before deployment.
+Databricks fields, except the two keys LHP writes itself:
+
+- ``name`` is rejected with ``LHP-CFG-072``. LHP names each job after the
+  flowgroups' ``job_name``, or ``<project_name>_orchestration`` (or the
+  ``--job-name`` value) for a single orchestration job.
+- ``tasks`` entries are added after the pipeline tasks LHP generates, one per
+  pipeline with the task key ``<pipeline>_pipeline``. The value must be a list.
+  Each task must be a mapping with a non-empty string ``task_key`` that no other
+  task in the job uses, generated or yours; LHP writes the rest of the task as
+  you give it. To run a task after a pipeline, list the pipeline's task key under
+  ``depends_on``. Any other value fails with ``LHP-CFG-072``.
+
+LHP checks these keys when it writes each job, so ``lhp dag`` reports the error
+for the ``job`` format. As with every list, a job-specific ``tasks`` list
+replaces the ``project_defaults`` list, and ``tasks: []`` drops it for that job.
+The master orchestration job does not receive these tasks.
+
+.. code-block:: yaml
+
+   ---
+   job_name: gold_daily
+   tasks:
+     - task_key: refresh_dashboard
+       depends_on:
+         - task_key: gold_sales_pipeline
+       notebook_task:
+         notebook_path: ${workspace.file_path}/notebooks/refresh_dashboard
+
+LHP generates the pipeline tasks and dependency order; inspect the resulting
+job before deployment.
 
 Use the `Databricks bundle job resource reference
 <https://docs.databricks.com/aws/en/dev-tools/bundles/resources#job>`_

@@ -8,17 +8,22 @@ resources:
       tasks:
 {%- for stage in execution_stages %}
 {%- for pipeline in stage.pipelines %}
-        - task_key: {{ pipeline.name }}_pipeline
+        - task_key: {{ pipeline.task_key }}
 {%- if pipeline.depends_on %}
           depends_on:
-{%- for dependency in pipeline.depends_on %}
-            - task_key: {{ dependency }}_pipeline
+{%- for dependency_task_key in pipeline.depends_on_task_keys %}
+            - task_key: {{ dependency_task_key }}
 {%- endfor %}
 {%- endif %}
           pipeline_task:
             pipeline_id: ${{ '{' }}resources.pipelines.{{ pipeline.name }}_pipeline.id}
             full_refresh: false
 {%- endfor %}
+{%- endfor %}
+{#- User tasks follow the generated pipeline tasks (#351); JobGenerator rejects
+    a task_key that a generated task already uses. #}
+{%- for task in job_config.get('tasks') or [] %}
+{{ [task] | toyaml | indent(8, first=True) }}
 {%- endfor %}
 {%- if job_config.queue %}
       queue:

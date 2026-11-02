@@ -5,6 +5,37 @@ All notable changes to Lakehouse Plumber are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.4] — Unreleased
+
+### Fixed
+
+- **Pipeline `libraries` and job `tasks` no longer silently replace LHP's own
+  (#351).** The bundle templates write `name`, `libraries` and `root_path` into every
+  pipeline resource and `name` and `tasks` into every job resource, and pass every
+  other `pipeline_config` / `job_config` key through verbatim. Setting one of those
+  keys emitted it a second time, and because YAML readers keep the last duplicate key,
+  the user's value silently replaced LHP's: a `libraries` list, for example, dropped
+  the glob library that loads the pipeline's generated code. Pipeline `libraries`
+  entries are now added after LHP's glob library. Each entry must be exactly
+  `glob: {include: <path>}` with a non-empty path, because Databricks does not allow glob
+  libraries together with notebook or file libraries (a glob `include` can point to a
+  single file or notebook), and the value must be a list. Job `tasks`, in orchestration
+  job configs and the monitoring job config, are added after the generated tasks; each
+  needs a non-empty string `task_key` that no other task uses, and may list generated
+  task keys under `depends_on`. `name` and `root_path` in `pipeline_config` and `name`
+  in a job config are rejected. Every case fails with the new `LHP-CFG-072`: pipeline
+  config when it is loaded (`lhp validate` with bundle output enabled, and
+  `lhp generate`), orchestration job
+  config in `lhp dag` (`job` format) and the monitoring job config in `lhp generate`.
+  The pipeline-config and job-config JSON schemas gain `libraries` and `tasks`.
+- **`lhp validate` reports pipeline-config errors under their own code and title.**
+  The bundle preflight re-labelled every error raised while loading
+  `pipeline_config.yaml` as "Bundle catalog/schema validation failed" with
+  catalog/schema suggestions, and forced the `CFG` category: an invalid `edition`
+  (`LHP-VAL-009`) was shown as `LHP-CFG-009` and a missing pipeline-config file
+  (`LHP-IO-001`) as `LHP-CFG-001`. Only the catalog/schema failure (`LHP-CFG-026`)
+  keeps that title now; every other error keeps its own code, title and details.
+
 ## [0.9.3] — 2026-10-20
 
 ### Added

@@ -70,7 +70,47 @@ Valid under both ``project_defaults`` and a per-pipeline document.
 Any other top-level key (``clusters``, ``configuration``, ``notifications``,
 ``tags``, ``event_log``, ``environment``, ``permissions``, ``photon``, and any
 Databricks Pipelines API field such as ``run_as``) is passed through verbatim
-into the generated pipeline resource.
+into the generated pipeline resource, except the three keys LHP writes itself:
+
+- ``name`` and ``root_path`` are rejected with ``LHP-CFG-072``. LHP names every
+  pipeline resource ``<pipeline>_pipeline``. It sets ``root_path`` to the
+  pipeline's generated code folder; Databricks adds that folder to ``sys.path``,
+  and the generated code's imports of its helper modules rely on it.
+- ``libraries`` entries are added after the glob library LHP generates for the
+  pipeline's code. Every LHP pipeline already has that glob library, and
+  Databricks does not allow glob libraries together with ``notebook`` or ``file``
+  libraries, so each entry must be exactly ``glob: {include: <path>}``: ``glob``
+  is the entry's only key, and it holds only a non-empty ``include`` path. An
+  ``include`` can point to one file or notebook,
+  or to a folder ending ``/**``. The value must be a list, not a bundle variable
+  reference such as ``${var.libs}``; ``libraries: []`` adds nothing. Any other
+  value fails with ``LHP-CFG-072``.
+
+LHP checks these keys when it loads the file, so ``lhp validate`` (with bundle output enabled)
+and ``lhp generate`` both report the error. For example, this setting:
+
+.. code-block:: yaml
+
+   project_defaults:
+     libraries:
+       - glob:
+           include: ${workspace.file_path}/pipeline_extras/**
+
+gives every pipeline resource both libraries:
+
+.. code-block:: yaml
+
+   libraries:
+     - glob:
+         include: ${workspace.file_path}/generated/${bundle.target}/<pipeline>/**
+     - glob:
+         include: ${workspace.file_path}/pipeline_extras/**
+
+As with every list, a per-pipeline ``libraries`` list replaces the
+``project_defaults`` list, and ``libraries: []`` in a pipeline document drops it
+for that pipeline. ``project_defaults`` also applies to the
+generated monitoring pipeline; use ``pipeline: __eventlog_monitoring`` with
+``libraries: []`` to leave it out.
 
 Merge precedence (lowest to highest): built-in defaults → ``project_defaults``
 → per-pipeline document. Nested mappings are deep-merged; lists are replaced

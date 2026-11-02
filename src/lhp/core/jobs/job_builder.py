@@ -13,11 +13,24 @@ from ...models.dependencies import DependencyAnalysisResult
 logger = logging.getLogger(__name__)
 
 
+def pipeline_task_key(pipeline_name: str) -> str:
+    """Return the ``task_key`` LHP's job templates give a pipeline's task."""
+    return f"{pipeline_name}_pipeline"
+
+
 @dataclass
 class JobPipeline:
     name: str
     depends_on: List[str]
     stage: int
+
+    @property
+    def task_key(self) -> str:
+        return pipeline_task_key(self.name)
+
+    @property
+    def depends_on_task_keys(self) -> List[str]:
+        return [pipeline_task_key(name) for name in self.depends_on]
 
 
 @dataclass

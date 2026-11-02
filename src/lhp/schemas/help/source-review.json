@@ -53,7 +53,7 @@
       ]
     },
     "docs/reference/config/pipeline-config.rst": {
-      "sha256": "16ac83d1bea8dcb7aacf785d5ac12887f719370bbc6d02bde08e4ade1845dc4c",
+      "sha256": "d384fac087f949ae3f88543cf06175944b6207afe969cd46f96fbc28761a789d",
       "entryIds": [
         "pipeline.catalog",
         "pipeline.channel",
@@ -74,6 +74,7 @@
         "pipeline.event_log.catalog",
         "pipeline.event_log.name",
         "pipeline.event_log.schema",
+        "pipeline.libraries",
         "pipeline.notifications",
         "pipeline.notifications.*.alerts",
         "pipeline.notifications.*.email_recipients",
@@ -630,7 +631,7 @@
       ]
     },
     "src/lhp/resources/skills/lhp/references/advanced.md": {
-      "sha256": "171199b94a798fa29ff0e5623f75a1252bbac79a0e92625208d7d52843c36172",
+      "sha256": "77e680ed2555892584db0f2739f4c725bc82c9b4657a49c4806556fe7222b66e",
       "entryIds": [
         "job.continuous",
         "job.email_notifications",
@@ -656,17 +657,19 @@
         "job.schedule.quartz_cron_expression",
         "job.schedule.timezone_id",
         "job.tags",
+        "job.tasks",
         "job.timeout_seconds",
         "job.trigger",
         "job.webhook_notifications"
       ]
     },
     "src/lhp/resources/skills/lhp/references/monitoring.md": {
-      "sha256": "a5f1e405a0cc6f583589e9324e2d3a8afc5524f10d8428834ab275171f90e0c6",
+      "sha256": "69ba531590d3017e88d1f01d96b2eb47382e99a6364a8d6e471a7c3582e23cf3",
       "entryIds": [
         "job.notebook_cluster",
         "job.notebook_cluster.existing_cluster_id",
         "job.notebook_cluster.new_cluster",
+        "job.tasks",
         "project.event_log",
         "project.event_log.catalog",
         "project.event_log.enabled",
@@ -690,7 +693,7 @@
       ]
     },
     "src/lhp/resources/skills/lhp/references/project-config.md": {
-      "sha256": "a70691a6959fd03dc7e4021cf62b6e27f19d9a4ba2b24ca099ee61982ea0c9a3",
+      "sha256": "1a47227e586d889080a25c9f84b4b43975ab1b7daac62f7c4e0a95c788e36058",
       "entryIds": [
         "project.apply_formatting",
         "project.author",
