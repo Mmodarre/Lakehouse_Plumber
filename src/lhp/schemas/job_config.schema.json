@@ -1,7 +1,7 @@
 {
     "$schema": "http://json-schema.org/draft-07/schema#",
     "title": "LakehousePlumber Job Configuration",
-    "description": "Schema for one YAML document of the orchestration job configuration file (config/job_config*.yaml) and the monitoring job configuration file (config/monitoring_job_config*.yaml). A document is either a project_defaults document (applies to ALL jobs), a job-specific document keyed by 'job_name' (string or list of job names), or a flat settings document (the whole document is treated as project defaults — the single-document legacy format, and the required format for monitoring job configs). Merge order: built-in defaults (max_concurrent_runs: 1, queue.enabled: true, performance_target: STANDARD) -> project_defaults -> job-specific. Nested mappings are deep-merged; lists are replaced. Unknown keys are rendered verbatim into the generated job YAML, so new Databricks Jobs API fields work without an LHP release.",
+    "description": "Schema for one YAML document of the orchestration job configuration file (config/job_config*.yaml) and the monitoring job configuration file (config/monitoring_job_config*.yaml). A document is either a project_defaults document (applies to ALL jobs), a job-specific document keyed by 'job_name' (string or list of job names), or a flat settings document (the whole document is treated as project defaults — the single-document legacy format, and the required format for monitoring job configs). Merge order: built-in defaults (max_concurrent_runs: 1, queue.enabled: true, performance_target: STANDARD) -> project_defaults -> job-specific. Nested mappings are deep-merged; lists are replaced. Unknown keys are rendered verbatim into the generated job YAML, so new Databricks Jobs API fields work without an LHP release. LHP writes name and tasks itself: name is rejected (LHP-CFG-072), and tasks entries are added after the tasks LHP generates.",
     "oneOf": [
         {
             "$ref": "#/definitions/ProjectDefaultsDocument"
@@ -86,8 +86,27 @@
         },
         "JobSettings": {
             "type": "object",
-            "description": "Job settings. Every value supports LHP substitution tokens (e.g. ${bundle_target}). Keys not listed here (git_source, parameters, environments, edit_mode, budget_policy_id, ...) are rendered verbatim into the generated job YAML.",
+            "description": "Job settings. Every value supports LHP substitution tokens (e.g. ${bundle_target}). Keys not listed here (git_source, parameters, environments, edit_mode, budget_policy_id, ...) are rendered verbatim into the generated job YAML, except name: LHP names every job resource itself and rejects name with LHP-CFG-072.",
             "properties": {
+                "tasks": {
+                    "type": "array",
+                    "description": "Add tasks after the ones LHP generates for this job. Each task needs a non-empty string task_key that no other task in the job uses. LHP generates one <pipeline>_pipeline task per pipeline; the monitoring job also has union_event_logs. List a generated key under depends_on to run after that task. Other task fields are written into the job as given. The value must be a list, and a job-specific list replaces the project-default list. Any other value fails with LHP-CFG-072 when the job is written. Inherit the project-default list; with none, the job has only LHP’s generated tasks.",
+                    "items": {
+                        "type": "object",
+                        "required": [
+                            "task_key"
+                        ],
+                        "properties": {
+                            "task_key": {
+                                "type": "string",
+                                "minLength": 1,
+                                "pattern": "\\S",
+                                "description": "Unique key for this task. It must differ from every other task key in the job, including the generated <pipeline>_pipeline and union_event_logs keys."
+                            }
+                        },
+                        "additionalProperties": true
+                    }
+                },
                 "max_concurrent_runs": {
                     "type": "integer",
                     "default": 1,

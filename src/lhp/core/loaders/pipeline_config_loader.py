@@ -297,7 +297,16 @@ class PipelineConfigLoader:
 
         Raises:
             ValueError: If validation fails with helpful message
+            LHPConfigError: ``LHP-CFG-072`` if the document sets a key LHP
+                writes into the pipeline resource (``name``, ``root_path``) or
+                a ``libraries`` value that is not a list of glob entries.
         """
+        # Deferred: lhp.core.validators imports lhp.core.loaders at package
+        # init (compatibility/cdc_schema.py), so a module-level import cycles.
+        from ..validators import validate_pipeline_resource_keys
+
+        validate_pipeline_resource_keys(config)
+
         if "edition" in config:
             if config["edition"] not in self.ALLOWED_EDITIONS:
                 raise ErrorFactory.validation_error(

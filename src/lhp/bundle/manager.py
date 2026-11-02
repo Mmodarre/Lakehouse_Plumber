@@ -12,6 +12,7 @@ from ..core.coordination.monitoring_pipeline_builder import (
     resolve_monitoring_pipeline_name,
 )
 from ..core.packaging import wheel_reader
+from ..core.validators import LHP_WRITTEN_PIPELINE_KEYS
 from ..errors import ErrorFactory, LHPError, codes
 from ..utils.performance_timer import perf_timer, record_count
 from .exceptions import BundleResourceError
@@ -24,9 +25,14 @@ logger = logging.getLogger(__name__)
 # users can use new Databricks Pipelines API fields (run_as, …) without waiting
 # for LHP to explicitly support them.
 #
+# The keys the template writes itself (``name``, ``libraries``, ``root_path``)
+# come from LHP_WRITTEN_PIPELINE_KEYS, defined next to their validator: a user
+# value for one of them is otherwise emitted a second time and silently
+# replaces LHP's (#351).
+#
 # Kept here (not inside BundleManager) so templates and tests can reference it
 # via a single source of truth.
-EXPLICITLY_RENDERED_PIPELINE_CONFIG_KEYS = frozenset(
+EXPLICITLY_RENDERED_PIPELINE_CONFIG_KEYS = LHP_WRITTEN_PIPELINE_KEYS | frozenset(
     {
         "catalog",
         "schema",

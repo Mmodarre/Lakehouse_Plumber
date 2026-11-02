@@ -45,6 +45,10 @@ resources:
       libraries:
         - glob:
             include: ${workspace.file_path}/generated/${bundle.target}/{{ pipeline_name }}/**
+{# User glob libraries follow LHP's own (#351); the loader allows glob entries only. #}
+{% for library in pipeline_config.get('libraries') or [] %}
+{{ [library] | toyaml | indent(8, first=True) }}
+{% endfor %}
       
       root_path: ${workspace.file_path}/generated/${bundle.target}/{{ pipeline_name }}
       

@@ -12,7 +12,9 @@ import shutil
 import warnings
 from pathlib import Path
 
+import click
 import pytest
+import yaml
 from click.testing import CliRunner
 
 from lhp.cli.main import cli
@@ -428,3 +430,70 @@ class TestJobOrchestrationE2E:
             "Deprecated 'deps' alias must produce the same dependency analysis "
             "as 'dag' (ignoring the per-run timestamp)."
         )
+
+    # --- #351: job_config `tasks` are appended after the generated tasks ---
+
+    _J_ONE_HEADER = "job_name: j_one\n"
+
+    def _add_to_j_one(self, text: str) -> None:
+        """Insert keys into the fixture's j_one document of job_config.yaml."""
+        job_config_file = self.project_root / "config" / "job_config.yaml"
+        content = job_config_file.read_text()
+        assert content.count(self._J_ONE_HEADER) == 1
+        job_config_file.write_text(
+            content.replace(self._J_ONE_HEADER, self._J_ONE_HEADER + text)
+        )
+
+    def test_job_specific_tasks_merged_after_generated_tasks(self):
+        self.uncomment_job_names()
+        self._add_to_j_one(
+            "tasks:\n"
+            "  - task_key: notify_ncr_team\n"
+            "    depends_on:\n"
+            "      - task_key: acmi_edw_raw_pipeline\n"
+            "    notebook_task:\n"
+            "      notebook_path: ${workspace.file_path}/notebooks/notify_ncr_team\n"
+        )
+        self.resources_dir.mkdir(parents=True, exist_ok=True)
+
+        exit_code, output = self.run_dag_command("-b", "-jc", "config/job_config.yaml")
+        assert exit_code == 0, f"Command should succeed: {output}"
+
+        j_one = self.resources_dir / "j_one.job.yml"
+        job = yaml.safe_load(j_one.read_text())["resources"]["jobs"]["j_one"]
+        assert [task["task_key"] for task in job["tasks"]] == [
+            "acmi_edw_raw_pipeline",
+            "notify_ncr_team",
+        ]
+
+        baseline_dir = self.resources_baseline_dir / "indvidual_jobs"
+        diff = self._compare_file_hashes(
+            j_one, baseline_dir / "j_one_with_tasks.job.yml"
+        )
+        assert diff == "", diff
+        # Only j_one changes; every other job matches the standard baseline.
+        for generated in sorted(self.resources_dir.glob("*.job.yml")):
+            if generated.name == j_one.name:
+                continue
+            diff = self._compare_file_hashes(generated, baseline_dir / generated.name)
+            assert diff == "", diff
+
+    @pytest.mark.parametrize(
+        ("text", "needle"),
+        [
+            ("tasks:\n  - task_key: acmi_edw_raw_pipeline\n", "acmi_edw_raw_pipeline"),
+            ("name: NCR point of sale\n", "'name'"),
+        ],
+        ids=["task_key_collision", "name"],
+    )
+    def test_job_config_generated_key_conflict_fails(self, text, needle):
+        self.uncomment_job_names()
+        self._add_to_j_one(text)
+        self.resources_dir.mkdir(parents=True, exist_ok=True)
+
+        exit_code, output = self.run_dag_command("-b", "-jc", "config/job_config.yaml")
+        output = click.unstyle(output)
+
+        assert exit_code != 0, f"Command should fail: {output}"
+        assert "LHP-CFG-072" in output, output
+        assert needle in output, output

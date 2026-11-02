@@ -25,6 +25,11 @@ from .field.operational_metadata_expression import (
 )
 from .field.external_file_tokens import ExternalFileTokenValidator
 from .field.setting_tokens import PipelineSettings, unresolved_setting_token_errors
+from .field.job_resource_keys import LHP_WRITTEN_JOB_KEYS, validate_job_resource_keys
+from .field.pipeline_resource_keys import (
+    LHP_WRITTEN_PIPELINE_KEYS,
+    validate_pipeline_resource_keys,
+)
 from .compatibility import (
     DltTableOptionsValidator,
     CdcConfigValidator,
@@ -37,6 +42,8 @@ from .field.kafka_options import KafkaOptionsValidator
 from .config_validator import ConfigValidator
 
 __all__ = [
+    "LHP_WRITTEN_JOB_KEYS",
+    "LHP_WRITTEN_PIPELINE_KEYS",
     "BaseActionValidator",
     "CdcConfigValidator",
     "CdcFanInCompatibilityValidator",
@@ -61,4 +68,6 @@ __all__ = [
     "unresolved_setting_token_errors",
     "validate_job_name_format",
     "validate_job_names",
+    "validate_job_resource_keys",
+    "validate_pipeline_resource_keys",
 ]

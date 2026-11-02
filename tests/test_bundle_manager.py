@@ -864,3 +864,62 @@ project_defaults:
                 f"Key {key!r} rendered {len(active_hits)} times (expected 1): "
                 f"{active_hits}"
             )
+
+    # --- #351: user libraries are merged after LHP's glob, never replace it ---
+
+    _LHP_GLOB = {
+        "glob": {
+            "include": "${workspace.file_path}/generated/${bundle.target}/test_pipeline/**"
+        }
+    }
+
+    def _active_lines(self, content: str, key: str) -> list:
+        return [
+            line
+            for line in content.splitlines()
+            if line.lstrip().startswith(key) and not line.lstrip().startswith("#")
+        ]
+
+    def test_user_glob_libraries_merged_after_lhp_glob(self):
+        content = self._render("""
+project_defaults:
+  catalog: test_catalog
+  schema: test_schema
+  libraries:
+    - glob:
+        include: ${workspace.file_path}/hooks/**
+    - glob:
+        include: ${workspace.file_path}/extra/flow.py
+""")
+        assert self._pipeline_block(content)["libraries"] == [
+            self._LHP_GLOB,
+            {"glob": {"include": "${workspace.file_path}/hooks/**"}},
+            {"glob": {"include": "${workspace.file_path}/extra/flow.py"}},
+        ]
+        assert len(self._active_lines(content, "libraries:")) == 1
+
+    def test_empty_libraries_renders_only_lhp_glob(self):
+        content = self._render("""
+project_defaults:
+  catalog: test_catalog
+  schema: test_schema
+  libraries: []
+""")
+        assert self._pipeline_block(content)["libraries"] == [self._LHP_GLOB]
+        assert len(self._active_lines(content, "libraries:")) == 1
+
+    def test_empty_libraries_renders_same_as_unset(self):
+        """``libraries: []`` renders byte-identically to leaving it unset.
+
+        Unchanged output for projects without user libraries is guarded by
+        the E2E resource baselines, not here.
+        """
+        base = """
+project_defaults:
+  catalog: test_catalog
+  schema: test_schema
+"""
+        without = self._render(base)
+        shutil.rmtree(self.project_root / "generated")
+        with_empty = self._render(base + "  libraries: []\n")
+        assert without == with_empty

@@ -477,6 +477,36 @@
       ]
     },
     {
+      "id": "job.tasks",
+      "summary": "Add tasks after the ones LHP generates for this job.",
+      "sources": [
+        {
+          "file": "src/lhp/resources/skills/lhp/references/advanced.md"
+        },
+        {
+          "file": "src/lhp/resources/skills/lhp/references/monitoring.md"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "tasks"
+          ]
+        }
+      ],
+      "details": [
+        "Each task needs a non-empty string task_key that no other task in the job uses. LHP generates one <pipeline>_pipeline task per pipeline; the monitoring job also has union_event_logs. List a generated key under depends_on to run after that task.",
+        "Other task fields are written into the job as given. The value must be a list, and a job-specific list replaces the project-default list. Any other value fails with LHP-CFG-072 when the job is written."
+      ],
+      "examples": [
+        {
+          "label": "YAML example",
+          "yaml": "tasks:\n  - task_key: refresh_dashboard\n    depends_on:\n      - task_key: gold_sales_pipeline\n    notebook_task:\n      notebook_path: ${workspace.file_path}/notebooks/refresh_dashboard"
+        }
+      ],
+      "unsetBehavior": "Inherit the project-default list; with none, the job has only LHP’s generated tasks."
+    },
+    {
       "id": "job.trigger",
       "summary": "Configure an event-based job trigger.",
       "sources": [

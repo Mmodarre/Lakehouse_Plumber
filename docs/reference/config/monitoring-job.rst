@@ -40,11 +40,15 @@ All fields are optional.
      - User/group permission entries (``level`` plus ``user_name`` or ``group_name``).
    * - ``schedule``
      - Quartz cron schedule: ``quartz_cron_expression``, ``timezone_id``, ``pause_status``.
+   * - ``tasks``
+     - Extra tasks, added after the generated ``union_event_logs`` notebook task and, when the monitoring pipeline is generated, the ``<pipeline_name>_pipeline`` task. Must be a list; each task needs a non-empty string ``task_key`` that no other task uses. List a generated task key under ``depends_on`` to run after it.
 
 Any key not listed above is passed through verbatim into the job resource, so
-new Databricks Jobs fields work without an LHP change. Use the flat shape shown below. LHP does not interpret a ``project_defaults``
+new Databricks Jobs fields work without an LHP change. The exception is
+``name``: LHP sets it and rejects a value here. A ``name`` or an invalid
+``tasks`` value fails ``lhp generate`` with ``LHP-CFG-072``. Use the flat shape shown below. LHP does not interpret a ``project_defaults``
 wrapper or ``job_name`` selector here; unsupported resource keys can pass through
-and fail Databricks validation. LHP generates the job name and task definitions.
+and fail Databricks validation. LHP generates the job name and its own tasks.
 
 .. code-block:: yaml
 

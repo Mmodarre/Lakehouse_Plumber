@@ -7,7 +7,7 @@ import pytest
 import yaml
 
 from lhp.core.loaders.pipeline_config_loader import PipelineConfigLoader
-from lhp.errors import LHPValidationError
+from lhp.errors import LHPConfigError, LHPValidationError
 
 
 class TestConfigLoading:
@@ -842,3 +842,57 @@ serverless: false
         assert loader.project_defaults == {}
         config = loader.get_pipeline_config("acme_monitor")
         assert config["serverless"] is True
+
+
+class TestGeneratedResourceKeys:
+    """Keys LHP also writes into the pipeline resource are checked at load (#351)."""
+
+    def _load(self, tmp_path, content):
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text(content)
+        return PipelineConfigLoader(tmp_path, config_file_path=str(config_file))
+
+    def test_root_path_in_project_defaults_rejected(self, tmp_path):
+        with pytest.raises(LHPConfigError) as exc_info:
+            self._load(
+                tmp_path,
+                "project_defaults:\n  root_path: /Workspace/elsewhere\n",
+            )
+        assert exc_info.value.code == "LHP-CFG-072"
+        assert "'root_path'" in str(exc_info.value)
+
+    def test_name_in_pipeline_document_rejected(self, tmp_path):
+        with pytest.raises(LHPConfigError) as exc_info:
+            self._load(
+                tmp_path,
+                "project_defaults:\n  serverless: true\n---\n"
+                "pipeline: bronze\nname: Pretty Bronze\n",
+            )
+        assert exc_info.value.code == "LHP-CFG-072"
+        assert "'name'" in str(exc_info.value)
+
+    def test_non_glob_library_in_pipeline_document_rejected(self, tmp_path):
+        with pytest.raises(LHPConfigError) as exc_info:
+            self._load(
+                tmp_path,
+                "pipeline: bronze\nlibraries:\n"
+                "  - file:\n      path: /Workspace/hooks/hook.py\n",
+            )
+        assert exc_info.value.code == "LHP-CFG-072"
+
+    def test_glob_libraries_load_and_pipeline_list_replaces_defaults(self, tmp_path):
+        loader = self._load(
+            tmp_path,
+            "project_defaults:\n  libraries:\n"
+            "    - glob:\n        include: /Workspace/shared/**\n---\n"
+            "pipeline: bronze\nlibraries:\n"
+            "  - glob:\n      include: /Workspace/bronze/**\n---\n"
+            "pipeline: silver\nlibraries: []\n",
+        )
+        assert loader.get_pipeline_config("bronze")["libraries"] == [
+            {"glob": {"include": "/Workspace/bronze/**"}}
+        ]
+        assert loader.get_pipeline_config("silver")["libraries"] == []
+        assert loader.get_pipeline_config("gold")["libraries"] == [
+            {"glob": {"include": "/Workspace/shared/**"}}
+        ]

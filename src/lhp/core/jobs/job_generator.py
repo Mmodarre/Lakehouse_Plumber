@@ -2,18 +2,20 @@
 
 import logging
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from ...errors import ErrorFactory, codes
 from ...models.dependencies import DependencyAnalysisResult
 from ...utils.yaml_filters import dict_to_yaml
 from ..loaders import JobConfigLoader
+from ..validators import LHP_WRITTEN_JOB_KEYS, validate_job_resource_keys
 from .job_builder import (
     JobPipeline,
     JobStage,
     analyze_cross_job_dependencies,
     build_job_stages,
     build_pipeline_to_job_mapping,
+    pipeline_task_key,
 )
 from .job_writer import write_job_yaml
 
@@ -33,9 +35,13 @@ logger = logging.getLogger(__name__)
 # continuous, run_as, git_source, health, etc.) without waiting for LHP to
 # explicitly support them.
 #
+# The keys the templates write themselves (``name``, ``tasks``) come from
+# LHP_WRITTEN_JOB_KEYS, defined next to their validator: a user value for one
+# of them is otherwise emitted a second time and silently replaces LHP's (#351).
+#
 # Kept here (not inside JobGenerator) so templates and tests can reference it
 # via a single source of truth.
-EXPLICITLY_RENDERED_JOB_CONFIG_KEYS = frozenset(
+EXPLICITLY_RENDERED_JOB_CONFIG_KEYS = LHP_WRITTEN_JOB_KEYS | frozenset(
     {
         # Rendered by job_resource.yml.j2 / monitoring_job_resource.yml.j2
         "max_concurrent_runs",
@@ -54,6 +60,15 @@ EXPLICITLY_RENDERED_JOB_CONFIG_KEYS = frozenset(
         "master_job_name",
     }
 )
+
+# Task key of the monitoring job's event-log union notebook task; rendered by
+# monitoring_job_resource.yml.j2 and reserved against user ``tasks``.
+MONITORING_NOTEBOOK_TASK_KEY = "union_event_logs"
+
+
+def _pipeline_task_keys(job_stages: List[JobStage]) -> List[str]:
+    """Return the task key job_resource.yml.j2 renders for each pipeline."""
+    return [p.task_key for stage in job_stages for p in stage.pipelines]
 
 
 class JobGenerator:
@@ -168,7 +183,14 @@ class JobGenerator:
         job_name: Optional[str] = None,
         project_name: Optional[str] = None,
     ) -> str:
-        """Generate job YAML; raises if dependency_result has no execution stages."""
+        """Generate job YAML.
+
+        Raises:
+            LHPValidationError: ``LHP-VAL-009`` if ``dependency_result`` has
+                no execution stages.
+            LHPConfigError: ``LHP-CFG-072`` if the job config sets ``name`` or
+                a user task reuses a generated task key.
+        """
         if not dependency_result.execution_stages:
             raise ErrorFactory.validation_error(
                 codes.VAL_009,
@@ -189,6 +211,11 @@ class JobGenerator:
             job_name = f"{project_name}_orchestration"
 
         job_stages = build_job_stages(dependency_result, job_name)
+        validate_job_resource_keys(
+            self.job_config,
+            job_name=job_name,
+            generated_task_keys=_pipeline_task_keys(job_stages),
+        )
 
         context = {
             "project_name": project_name,
@@ -229,7 +256,12 @@ class JobGenerator:
         job_results: Dict[str, DependencyAnalysisResult],
         project_name: Optional[str] = None,
     ) -> Dict[str, str]:
-        """Generate YAML for each job in job_results; returns {job_name: yaml_str}."""
+        """Generate YAML for each job in job_results; returns {job_name: yaml_str}.
+
+        Raises:
+            LHPConfigError: ``LHP-CFG-072`` if a job's config sets ``name`` or
+                a user task reuses a generated task key.
+        """
         if not project_name:
             project_name = "lhp_project"
 
@@ -240,6 +272,11 @@ class JobGenerator:
 
             job_config = self.get_job_config_for_job(job_name)
             job_stages = build_job_stages(dep_result, job_name)
+            validate_job_resource_keys(
+                job_config,
+                job_name=job_name,
+                generated_task_keys=_pipeline_task_keys(job_stages),
+            )
 
             context = {
                 "project_name": project_name,
@@ -332,11 +369,24 @@ class JobGenerator:
                 and substituted). The caller is responsible for building this dict —
                 typically via ``JobGenerator.resolve_monitoring_job_config``.
             has_pipeline: Whether a DLT pipeline exists (False = notebook-only job)
+
+        Raises:
+            LHPConfigError: ``LHP-CFG-072`` if ``job_config`` sets ``name`` or
+                a user task reuses a generated task key.
         """
+        generated_task_keys = [MONITORING_NOTEBOOK_TASK_KEY]
+        if has_pipeline:
+            generated_task_keys.append(pipeline_task_key(pipeline_name))
+        validate_job_resource_keys(
+            job_config, job_name=job_name, generated_task_keys=generated_task_keys
+        )
+
         context = {
             "job_name": job_name,
             "pipeline_name": pipeline_name,
             "notebook_path": notebook_path,
+            "notebook_task_key": MONITORING_NOTEBOOK_TASK_KEY,
+            "pipeline_task_key": pipeline_task_key(pipeline_name),
             "job_config": job_config,
             "has_pipeline": has_pipeline,
         }

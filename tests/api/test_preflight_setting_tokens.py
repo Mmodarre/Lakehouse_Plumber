@@ -245,7 +245,10 @@ class TestPipelineConfig:
             if "Pipeline config file not found" in (issue.details or "")
         ]
         assert len(reported) == 1
-        assert reported[0].title == "Bundle catalog/schema validation failed"
+        # The loader's own error, not re-labelled as a catalog/schema failure.
+        assert reported[0].code == "LHP-IO-001"
+        assert reported[0].category == "IO"
+        assert reported[0].title == "Pipeline config file not found"
 
     def test_one_pipeline_failing_to_resolve_does_not_skip_the_others(
         self, project_root

@@ -289,3 +289,12 @@ precedence when both forms are present.
 Do not put cluster settings directly under `notebook_cluster` and expect them
 to be copied into `new_cluster`. The editor exposes the nested mapping that the
 monitoring job template actually reads.
+
+## Monitoring job: extra tasks and `name`
+
+The monitoring job config's `tasks` list is appended after the generated tasks
+(`union_event_logs`, then `<pipeline_name>_pipeline` when the monitoring pipeline is
+generated). Each task needs a non-empty string `task_key` used by no other task;
+`depends_on` may name the generated keys. `name` is rejected (the job is always
+`<pipeline_name>_job`). Both fail `lhp generate` with `LHP-CFG-072`; `lhp validate`
+does not report them.

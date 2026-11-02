@@ -1,7 +1,7 @@
 {
     "$schema": "http://json-schema.org/draft-07/schema#",
     "title": "LakehousePlumber Pipeline Configuration",
-    "description": "Schema for one YAML document of the multi-document pipeline configuration file (config/pipeline_config*.yaml). Each document is either a project_defaults document (applies to ALL pipelines) or a pipeline-specific document keyed by 'pipeline' (string or list of pipeline names). Merge order: built-in defaults (serverless: true, edition: ADVANCED, channel: CURRENT, continuous: false) -> project_defaults -> pipeline-specific. Nested mappings are deep-merged; lists are replaced. Unknown keys are passed through to the generated bundle resource, so new Databricks pipeline fields work without an LHP release.",
+    "description": "Schema for one YAML document of the multi-document pipeline configuration file (config/pipeline_config*.yaml). Each document is either a project_defaults document (applies to ALL pipelines) or a pipeline-specific document keyed by 'pipeline' (string or list of pipeline names). Merge order: built-in defaults (serverless: true, edition: ADVANCED, channel: CURRENT, continuous: false) -> project_defaults -> pipeline-specific. Nested mappings are deep-merged; lists are replaced. Unknown keys are passed through to the generated bundle resource, so new Databricks pipeline fields work without an LHP release. LHP writes name, root_path and libraries itself: name and root_path are rejected (LHP-CFG-072), and libraries entries are added after LHP's generated glob library.",
     "oneOf": [
         {
             "$ref": "#/definitions/ProjectDefaultsDocument"
@@ -61,7 +61,7 @@
         },
         "PipelineSettings": {
             "type": "object",
-            "description": "Pipeline settings. Every value supports LHP substitution tokens (e.g. ${catalog}). Unknown keys are passed through to the generated bundle resource unchanged.",
+            "description": "Pipeline settings. Every value supports LHP substitution tokens (e.g. ${catalog}). Unknown keys are passed through to the generated bundle resource unchanged, except name and root_path: LHP sets both (name is <pipeline>_pipeline; root_path is the generated code folder) and rejects them with LHP-CFG-072.",
             "properties": {
                 "serverless": {
                     "type": "boolean",
@@ -129,6 +129,35 @@
                         }
                     },
                     "additionalProperties": true
+                },
+                "libraries": {
+                    "type": "array",
+                    "description": "Add glob libraries after the one LHP generates for the pipeline’s code. Each entry’s only key is glob, with a non-empty include path: every LHP pipeline already has a glob library, and notebook or file libraries cannot be combined with glob libraries. An include can point to one file or notebook, or a folder ending /**. The value must be a list, not a bundle variable reference; an empty list adds nothing, and a per-pipeline list replaces the project-default list. Any other value fails with LHP-CFG-072. Inherit the project-default list; with none, the pipeline has only LHP’s generated glob library.",
+                    "items": {
+                        "type": "object",
+                        "required": [
+                            "glob"
+                        ],
+                        "properties": {
+                            "glob": {
+                                "type": "object",
+                                "description": "Glob library added after LHP's generated glob library.",
+                                "required": [
+                                    "include"
+                                ],
+                                "properties": {
+                                    "include": {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "pattern": "\\S",
+                                        "description": "Workspace path to include: one file or notebook, or a folder ending /**. Supports bundle references such as ${workspace.file_path}."
+                                    }
+                                },
+                                "additionalProperties": false
+                            }
+                        },
+                        "additionalProperties": false
+                    }
                 },
                 "permissions": {
                     "type": "array",

@@ -5,7 +5,7 @@ No Rich/colorama/click dependencies — Rich rendering lives in
 """
 
 from . import codes
-from .categories import ErrorCategory
+from .categories import ErrorCategory, parse_error_code
 from .codes import ErrorCode
 from .factory import ErrorFactory
 from .types import (
@@ -38,4 +38,5 @@ __all__ = [
     "YAMLProcessingError",
     "codes",
     "lhp_error_from_worker_failure",
+    "parse_error_code",
 ]

@@ -7,6 +7,7 @@ import pytest
 import yaml
 
 from lhp.core.jobs.job_generator import JobGenerator
+from lhp.errors import LHPConfigError
 from lhp.models.dependencies import (
     DependencyAnalysisResult,
     DependencyGraphs,
@@ -600,3 +601,141 @@ def test_dict_to_yaml_filter_directly():
     assert not result.endswith("\n")
     # Standard 2-space block indent.
     assert result == "trigger:\n  file_arrival:\n    url: s3://x/"
+
+
+# #351: user `tasks` are appended after the generated pipeline tasks; a job
+# `name` or a task_key that collides with a generated task is LHP-CFG-072.
+
+
+def test_user_tasks_appended_after_generated_tasks(tmp_path):
+    project_root = _write_config(
+        tmp_path,
+        """
+tasks:
+  - task_key: notify
+    depends_on:
+      - task_key: test_pipeline_pipeline
+    notebook_task:
+      notebook_path: /Workspace/notify
+""",
+    )
+    job_yaml = JobGenerator(project_root=project_root).generate_job(
+        create_test_dependency_result(),
+        job_name="test_job",
+        project_name="test_project",
+    )
+    tasks = yaml.safe_load(job_yaml)["resources"]["jobs"]["test_job"]["tasks"]
+    assert [t["task_key"] for t in tasks] == ["test_pipeline_pipeline", "notify"]
+    assert tasks[1]["depends_on"] == [{"task_key": "test_pipeline_pipeline"}]
+    assert tasks[1]["notebook_task"] == {"notebook_path": "/Workspace/notify"}
+    active = [
+        line
+        for line in job_yaml.splitlines()
+        if line.lstrip().startswith("tasks:") and not line.lstrip().startswith("#")
+    ]
+    assert len(active) == 1
+
+
+def test_job_specific_tasks_appended_in_generate_jobs_by_name(tmp_path):
+    project_root = _write_config(
+        tmp_path,
+        """
+project_defaults:
+  max_concurrent_runs: 1
+---
+job_name: test_job
+tasks:
+  - task_key: notify
+    notebook_task:
+      notebook_path: /Workspace/notify
+""",
+    )
+    yamls = JobGenerator(project_root=project_root).generate_jobs_by_name(
+        {"test_job": create_test_dependency_result()}, project_name="test_project"
+    )
+    tasks = yaml.safe_load(yamls["test_job"])["resources"]["jobs"]["test_job"]["tasks"]
+    assert [t["task_key"] for t in tasks] == ["test_pipeline_pipeline", "notify"]
+
+
+def test_user_task_colliding_with_generated_task_rejected(tmp_path):
+    project_root = _write_config(
+        tmp_path, "tasks:\n  - task_key: test_pipeline_pipeline\n"
+    )
+    with pytest.raises(LHPConfigError) as exc_info:
+        JobGenerator(project_root=project_root).generate_job(
+            create_test_dependency_result(),
+            job_name="test_job",
+            project_name="test_project",
+        )
+    assert exc_info.value.code == "LHP-CFG-072"
+    assert "test_pipeline_pipeline" in str(exc_info.value)
+
+
+def test_job_name_key_rejected(tmp_path):
+    project_root = _write_config(tmp_path, "name: Pretty job\n")
+    with pytest.raises(LHPConfigError) as exc_info:
+        JobGenerator(project_root=project_root).generate_job(
+            create_test_dependency_result(),
+            job_name="test_job",
+            project_name="test_project",
+        )
+    assert exc_info.value.code == "LHP-CFG-072"
+
+
+def _two_stage_dependency_result():
+    """bronze (stage 1) -> silver (stage 2)."""
+    pipeline_graph = nx.DiGraph()
+    pipeline_graph.add_edge("bronze", "silver")
+    graphs = DependencyGraphs(
+        action_graph=nx.DiGraph(),
+        flowgroup_graph=nx.DiGraph(),
+        pipeline_graph=pipeline_graph,
+        metadata={},
+    )
+    deps = {
+        "bronze": PipelineDependency(
+            pipeline="bronze",
+            depends_on=[],
+            flowgroup_count=1,
+            action_count=1,
+            external_sources=[],
+            stage=1,
+        ),
+        "silver": PipelineDependency(
+            pipeline="silver",
+            depends_on=["bronze"],
+            flowgroup_count=1,
+            action_count=1,
+            external_sources=[],
+            stage=2,
+        ),
+    }
+    return DependencyAnalysisResult(
+        graphs=graphs,
+        pipeline_dependencies=deps,
+        execution_stages=[["bronze"], ["silver"]],
+        circular_dependencies=[],
+        external_sources=[],
+    )
+
+
+def test_rendered_task_keys_match_the_keys_reserved_against_user_tasks(tmp_path):
+    """The template and the collision check share one task-key rule."""
+    project_root = tmp_path / "project"
+    project_root.mkdir()
+    job_yaml = JobGenerator(project_root=project_root).generate_job(
+        _two_stage_dependency_result(), job_name="test_job", project_name="p"
+    )
+    tasks = yaml.safe_load(job_yaml)["resources"]["jobs"]["test_job"]["tasks"]
+    assert [t["task_key"] for t in tasks] == ["bronze_pipeline", "silver_pipeline"]
+    assert tasks[1]["depends_on"] == [{"task_key": "bronze_pipeline"}]
+
+    # Every rendered key, including the second stage's, is reserved.
+    for task_key in ("bronze_pipeline", "silver_pipeline"):
+        colliding = _write_config(
+            tmp_path / task_key, f"tasks:\n  - task_key: {task_key}\n"
+        )
+        with pytest.raises(LHPConfigError):
+            JobGenerator(project_root=colliding).generate_job(
+                _two_stage_dependency_result(), job_name="test_job", project_name="p"
+            )
