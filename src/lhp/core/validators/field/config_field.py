@@ -6,6 +6,7 @@ from typing import Any, Dict
 from ....errors import ErrorFactory, codes
 from ._field_catalog import ACTION_FIELDS, LOAD_SOURCE_FIELDS, WRITE_TARGET_FIELDS
 from ._field_suggestions import raise_unknown_fields_error
+from .data_quality_fields import check_data_quality_fields
 
 logger = logging.getLogger(__name__)
 
@@ -123,6 +124,7 @@ class ConfigFieldValidator:
                 config_section="action",
             )
 
+        check_data_quality_fields(action_dict, action_name)
         self._validate_depends_on(action_dict.get("depends_on"), action_name)
 
     def _validate_depends_on(self, depends_on: Any, action_name: str) -> None:
