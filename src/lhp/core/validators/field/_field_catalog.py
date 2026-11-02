@@ -105,6 +105,7 @@ WRITE_TARGET_FIELDS = {
         "refresh_policy",
         "sql",
         "sql_path",
+        "expectations_file",
     },
     "sink": {
         "type",

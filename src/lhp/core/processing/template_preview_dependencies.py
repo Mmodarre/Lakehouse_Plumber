@@ -166,6 +166,9 @@ class PreviewConfigValidator(ConfigValidator):
             if isinstance(target, dict):
                 if isinstance(target.get("sql_path"), str):
                     self.snapshot.watch(target["sql_path"])
+                expectations = target.get("expectations_file")
+                if isinstance(expectations, str) and expectations:
+                    self.snapshot.watch(expectations)
                 schema = target.get("table_schema")
                 if isinstance(schema, str) and schema and is_file_path(schema):
                     self.snapshot.watch(schema)

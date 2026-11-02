@@ -8,7 +8,7 @@ disagree.
 """
 
 import logging
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, Iterator, List, Optional, Tuple, Union
 
 from ...errors import ErrorFactory, codes
 
@@ -81,46 +81,13 @@ class DQEParser:
         a rule with an unknown action is an internal error here, and a list
         rule with no constraint raises ``LHP-VAL-001`` instead of being skipped.
         """
-        if not isinstance(expectations, list):
-            return _parse_constraint_mapping(expectations)
-
-        self.logger.debug(
-            f"Parsing {len(expectations)} expectation(s) into DLT categories"
-        )
+        if isinstance(expectations, list):
+            self.logger.debug(
+                f"Parsing {len(expectations)} expectation(s) into DLT categories"
+            )
         categories: Dict[str, Dict[str, str]] = {t: {} for t in EXPECTATION_TYPES}
-
-        for expectation in expectations:
-            field, value, category = list_rule_category(expectation)
-            if category is None:
-                raise AssertionError(
-                    f"Unvalidated expectation {field}={value!r}: {expectation}"
-                )
-
-            constraint = expectation.get("constraint") or expectation.get("expression")
-            message = expectation.get("message") or expectation.get("name", "")
-
-            if not constraint:
-                raise ErrorFactory.validation_error(
-                    codes.VAL_001,
-                    title="Missing required field 'constraint'",
-                    details=(
-                        f"Expectation '{message or 'unnamed'}' has no 'constraint' "
-                        "(or 'expression'), so it checks nothing."
-                    ),
-                    suggestions=[
-                        "Give the rule the SQL boolean expression it checks as "
-                        "'constraint' (or 'expression')"
-                    ],
-                    context={
-                        "Expectation": message or "unnamed",
-                        "Field": "constraint",
-                    },
-                )
-
-            if not message:
-                message = f"Constraint failed: {constraint}"
-
-            categories[category][message] = constraint
+        for category, name, constraint in _categorised_rules(expectations):
+            categories[category][name] = constraint
 
         return (
             categories["expect"],
@@ -152,22 +119,60 @@ class DQEParser:
         return result
 
 
-def _parse_constraint_mapping(
-    expectations: Dict[str, Any],
-) -> Tuple[Dict[str, str], Dict[str, str], Dict[str, str]]:
-    categories: Dict[str, Dict[str, str]] = {t: {} for t in EXPECTATION_TYPES}
+def expectation_names(expectations: Union[List[Dict], Dict[str, Any]]) -> List[str]:
+    """Return the name :meth:`DQEParser.parse_expectations` gives each rule.
 
-    for constraint, exp_config in expectations.items():
-        action, category = mapping_rule_category(exp_config)
+    The names come in file order, one per rule. A name listed twice keeps only
+    one of its rules in the parsed result, so callers use this to find
+    duplicate names. The rules must already be validated, as for
+    ``parse_expectations``.
+    """
+    return [name for _, name, _ in _categorised_rules(expectations)]
+
+
+def _categorised_rules(
+    expectations: Union[List[Dict], Dict[str, Any]],
+) -> Iterator[Tuple[str, str, str]]:
+    """Yield ``(category, name, constraint)`` for each rule, in file order."""
+    if not isinstance(expectations, list):
+        for key, exp_config in expectations.items():
+            action, category = mapping_rule_category(exp_config)
+            if category is None:
+                raise AssertionError(
+                    f"Unvalidated expectation action={action!r} for {key!r}"
+                )
+            yield category, exp_config.get("name", key), key
+        return
+
+    for expectation in expectations:
+        field, value, category = list_rule_category(expectation)
         if category is None:
             raise AssertionError(
-                f"Unvalidated expectation action={action!r} for {constraint!r}"
+                f"Unvalidated expectation {field}={value!r}: {expectation}"
             )
-        name = exp_config.get("name", constraint)
-        categories[category][name] = constraint
 
-    return (
-        categories["expect"],
-        categories["expect_or_drop"],
-        categories["expect_or_fail"],
-    )
+        constraint = expectation.get("constraint") or expectation.get("expression")
+        message = expectation.get("message") or expectation.get("name", "")
+
+        if not constraint:
+            raise ErrorFactory.validation_error(
+                codes.VAL_001,
+                title="Missing required field 'constraint'",
+                details=(
+                    f"Expectation '{message or 'unnamed'}' has no 'constraint' "
+                    "(or 'expression'), so it checks nothing."
+                ),
+                suggestions=[
+                    "Give the rule the SQL boolean expression it checks as "
+                    "'constraint' (or 'expression')"
+                ],
+                context={
+                    "Expectation": message or "unnamed",
+                    "Field": "constraint",
+                },
+            )
+
+        if not message:
+            message = f"Constraint failed: {constraint}"
+
+        yield category, message, constraint

@@ -1,13 +1,14 @@
-"""Validate an action's data-quality ``expectations_file``.
+"""Validate a data-quality ``expectations_file``.
 
-The file is read through :func:`~lhp.core.loaders.load_expectations_file`, the
-loader the data_quality generator uses, so ``lhp validate`` reports a file
-``lhp generate`` could not read. Every rule must be a mapping with a
-constraint and a known action (see :mod:`._expectation_rules`). Quarantine
-mode enforces every rule as ``drop``, so it also needs at least one rule, and
-a ``fail`` or ``warn`` rule is logged as coerced. A file that cannot be read
-is reported as a ``"<prefix>: <message>"`` string, a bad rule as an
-``LHPError``.
+The file is a data_quality transform's ``expectations_file`` or a materialized
+view's ``write_target.expectations_file``. It is read through
+:func:`~lhp.core.loaders.load_expectations_file`, the loader both generators
+use, so ``lhp validate`` reports a file ``lhp generate`` could not read. Every
+rule must be a mapping with a constraint and a known action (see
+:mod:`._expectation_rules`). Quarantine mode enforces every rule as ``drop``,
+so it also needs at least one rule, and a ``fail`` or ``warn`` rule is logged
+as coerced. A file that cannot be read is reported as a
+``"<prefix>: <message>"`` string, a bad rule as an ``LHPError``.
 """
 
 import logging
@@ -19,7 +20,11 @@ from lhp.errors import LHPValidationError
 from ...loaders import load_expectations_file
 from ...processing import DQEParser
 from .._base import ValidationError
-from ._expectation_rules import rule_content_errors, rule_shape_errors
+from ._expectation_rules import (
+    duplicate_name_errors,
+    rule_content_errors,
+    rule_shape_errors,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +34,7 @@ def validate_expectations_file(
     project_root: Optional[Path],
     prefix: str,
     quarantine: bool = False,
+    unique_names: bool = False,
 ) -> List[ValidationError]:
     """Return the problems with ``expectations_file``, or ``[]``.
 
@@ -39,7 +45,9 @@ def validate_expectations_file(
     constraint (``LHP-VAL-001``) or names an unknown action or type
     (``LHP-VAL-006``) is an ``LHPError``. With ``quarantine=True`` the messages
     name quarantine mode and the file must hold at least one rule; a file with
-    none reports only that.
+    none reports only that. With ``unique_names=True`` a name that more than
+    one valid rule gets is an ``LHP-VAL-006`` too (the materialized-view
+    path; the parsed rules are keyed by name, so a duplicate would be lost).
     """
     if not expectations_file or not project_root:
         return []
@@ -68,6 +76,8 @@ def validate_expectations_file(
             "An empty expectations set would produce an invalid inverse filter."
         ]
     errors.extend(rule_content_errors(expectations, expectations_file, prefix))
+    if unique_names and not errors:
+        errors.extend(duplicate_name_errors(expectations, expectations_file, prefix))
     if quarantine and not errors:
         _warn_coerced_to_drop(expectations, prefix)
     return errors
