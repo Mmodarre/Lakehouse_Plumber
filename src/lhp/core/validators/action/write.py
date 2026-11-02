@@ -1,7 +1,8 @@
 import logging
+from difflib import get_close_matches
 from typing import List
 
-from lhp.models import Action, ActionType, WriteTargetType
+from lhp.models import Action, ActionType, StreamingTableMode, WriteTargetType
 
 from ....errors import LHPError
 from .._base import BaseActionValidator, ValidationError
@@ -194,6 +195,20 @@ class WriteActionValidator(BaseActionValidator):
         errors = []
 
         mode = action.write_target.get("mode", "standard")
+        valid_modes = [m.value for m in StreamingTableMode]
+
+        if mode not in valid_modes:
+            # Without this, any other value (a typo such as 'cdcc') generated a
+            # plain append flow and silently dropped cdc_config and friends.
+            close = get_close_matches(str(mode), valid_modes, n=1, cutoff=0.6)
+            did_you_mean = f" Did you mean '{close[0]}'?" if close else ""
+            errors.append(
+                f"{prefix}: Unknown streaming_table write mode '{mode}'. "
+                f"Valid modes: {', '.join(valid_modes)}.{did_you_mean}"
+            )
+            return errors
+
+        self._warn_unused_mode_configs(action, prefix, mode)
 
         if mode == "snapshot_cdc":
             errors.extend(self.snapshot_cdc_validator.validate(action, prefix))
@@ -207,3 +222,20 @@ class WriteActionValidator(BaseActionValidator):
             errors.extend(self.replace_validator.validate(action, prefix))
 
         return errors
+
+    # Mode-specific config blocks and the mode that reads each of them.
+    _MODE_CONFIG_KEYS = {
+        "cdc_config": StreamingTableMode.CDC.value,
+        "snapshot_cdc_config": StreamingTableMode.SNAPSHOT_CDC.value,
+        "replace_config": StreamingTableMode.REPLACE.value,
+    }
+
+    def _warn_unused_mode_configs(self, action: Action, prefix: str, mode: str) -> None:
+        """Warn about a mode-specific config block the selected mode ignores."""
+        write_target = action.write_target or {}
+        for key, key_mode in self._MODE_CONFIG_KEYS.items():
+            if key in write_target and mode != key_mode:
+                logger.warning(
+                    f"{prefix}: '{key}' is ignored because write_target.mode is "
+                    f"'{mode}'; set mode: {key_mode} to use it"
+                )
