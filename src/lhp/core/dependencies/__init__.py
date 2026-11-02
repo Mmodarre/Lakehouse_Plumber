@@ -1,5 +1,6 @@
 """Public surface of the dependency-analysis sub-package."""
 
+from ._combined_writes import combined_write_lead, write_table_key
 from ._producers import build_producer_indexes, match_produced_table
 from ._read_modes import (
     ProducerKind,
@@ -32,9 +33,11 @@ __all__ = [
     "SourceSpan",
     "build_producer_indexes",
     "collect_python_table_sites",
+    "combined_write_lead",
     "effective_read_mode",
     "extract_action_sources",
     "match_produced_table",
     "producer_kind",
     "sql_source_reads",
+    "write_table_key",
 ]

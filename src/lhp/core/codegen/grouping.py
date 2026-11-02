@@ -63,41 +63,23 @@ class WriteActionGrouper:
     def group_write_actions_by_target(
         self, write_actions: List[Action]
     ) -> Dict[str, List[Action]]:
+        """``write_actions`` by target table (``write_table_key``), in order."""
+        # Lazy: lhp.core.dependencies imports services that import codegen.
+        from ..dependencies import write_table_key
+
         grouped = defaultdict(list)
-
         for action in write_actions:
-            target_config = action.write_target
-            if not target_config:
-                target_config = action.source if isinstance(action.source, dict) else {}
-
-            catalog = target_config.get("catalog", "")
-            schema = target_config.get("schema", "")
-            table = target_config.get("table") or target_config.get("name", "")
-
-            if catalog and schema and table:
-                full_table_name = f"{catalog}.{schema}.{table}"
-            elif table:
-                full_table_name = table
-            else:
-                full_table_name = action.name
-
-            grouped[full_table_name].append(action)
-
+            grouped[write_table_key(action)].append(action)
         return dict(grouped)
 
     def create_combined_write_action(
         self, actions: List[Action], target_table: str
     ) -> Action:
-        # Uses the public free function (D3a Option A — promoted out of the
-        # validator's private surface so codegen no longer reaches into it).
-        from ..validators import action_creates_table  # lazy import, method scope
+        # The lead rule is shared with effective_read_mode, which works out
+        # each flow's read from it. Lazy, as in group_write_actions_by_target.
+        from ..dependencies import combined_write_lead
 
-        table_creator = next(
-            (action for action in actions if action_creates_table(action)),
-            None,
-        )
-        if table_creator is None:
-            table_creator = actions[0]
+        table_creator = combined_write_lead(actions)
 
         action_metadata = []
         for action in actions:

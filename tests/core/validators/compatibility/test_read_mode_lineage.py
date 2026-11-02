@@ -41,6 +41,15 @@ def _cloudfiles(target: str) -> Action:
     )
 
 
+def _jdbc(target: str) -> Action:
+    return Action(
+        name=f"load_{target}",
+        type=ActionType.LOAD,
+        source={"type": "jdbc", "url": "jdbc:x", "driver": "d", "table": "t"},
+        target=target,
+    )
+
+
 def _transform(
     transform_type: TransformType,
     source: Any,
@@ -210,6 +219,57 @@ def test_explicit_dq_read_mode_against_its_source_is_val_070():
     assert error.context["View"] == "v_in"
 
 
+@pytest.mark.parametrize(
+    ("producer", "suggestion"),
+    [
+        (
+            _delta("v_in"),
+            "Set `readMode: stream` on 'load_v_in' so 'v_in' is a streaming view",
+        ),
+        (_jdbc("v_in"), "Write 'v_in' to a table and read that table instead"),
+    ],
+    ids=["delta", "jdbc"],
+)
+def test_quarantine_dq_over_a_batch_view_is_val_070(producer, suggestion):
+    # Quarantine reads only a stream, so it never inherits the batch kind and
+    # is never told to read a batch.
+    dq = _transform(
+        TransformType.DATA_QUALITY,
+        "v_in",
+        "v_dq",
+        mode="quarantine",
+        quarantine={"dlq_table": "c.s.dlq", "source_table": "c.s.src"},
+        expectations_file="e.yaml",
+    )
+
+    error = _only(_validate(producer, dq))
+
+    assert error.context["Consumer"] == "transform_v_dq"
+    assert error.context["Read"] == "stream (with spark.readStream)"
+    assert error.suggestions == [suggestion]
+
+
+@pytest.mark.parametrize("read_mode", ["batch", "stream"])
+def test_python_load_read_mode_is_not_a_kind(read_mode: str):
+    # The user's loader makes its own read; readMode is not rendered.
+    load = Action(
+        name="load_py",
+        type=ActionType.LOAD,
+        source={"type": "python", "module_path": "m.py", "function_name": "f"},
+        target="v_in",
+        readMode=read_mode,
+    )
+
+    assert _validate(load, _st("w", "v_in")) == []
+    assert _validate(load, _mv("v_in")) == []
+
+
+def test_dqe_inherits_a_case_differing_source_without_val_070():
+    dq = _transform(TransformType.DATA_QUALITY, "V_IN", "v_dq", expectations_file="e")
+
+    assert _validate(_delta("v_in"), dq, _mv("v_dq")) == []
+
+
 def test_python_transform_checks_every_source_of_a_list():
     python = _transform(TransformType.PYTHON, ["v_a", "v_b"], "v_out", "stream")
 
@@ -321,7 +381,7 @@ def test_batch_append_without_once_is_val_070():
     assert "CREATE_APPEND_ONCE_FLOW_FROM_BATCH_QUERY_NOT_ALLOWED" in error.details
     assert error.suggestions == [
         "Set `once: true` on 'w' to append 'v_in' once, as a backfill",
-        "Or append it incrementally: Set `readMode: stream` on 'load_v_in' so "
+        "Or append it incrementally: set `readMode: stream` on 'load_v_in' so "
         "'v_in' is a streaming view, and `readMode: stream` on 'w'",
     ]
 
@@ -333,6 +393,31 @@ def test_combined_write_flow_inherits_the_creators_batch_read():
     error = _only(_validate(_delta("v_main"), _delta("v_extra"), creator, second))
     assert error.context["Consumer"] == "w_extra"
     assert "without once" in error.title
+
+
+def test_combined_write_lead_follows_dependency_order():
+    # The table is created elsewhere (create_table: false), so each group is
+    # led by its first write in dependency order, not in YAML order.
+    backfill_leads = [
+        _delta("v_hist"),
+        _delta("v_s1", "stream"),
+        _sql("v_stream", "SELECT * FROM STREAM(v_s1)", source="v_s1"),
+        _st("w_inc", "v_stream", create_table=False),
+        _st("w_backfill", "v_hist", read_mode="batch", once=True, create_table=False),
+    ]
+    incremental_leads = [
+        _delta("v_s1", "stream"),
+        _delta("v_hist"),
+        _st("w_backfill", "v_hist", read_mode="batch", once=True, create_table=False),
+        _st("w_inc", "v_s1", create_table=False),
+    ]
+
+    # w_inc reads with its lead's batch read, so its streaming view fails.
+    error = _only(_validate(*backfill_leads))
+    assert error.context["Consumer"] == "w_inc"
+    assert error.context["View"] == "v_stream"
+    # w_inc leads and reads its streaming view as a stream.
+    assert _validate(*incremental_leads) == []
 
 
 def test_once_rule_does_not_apply_to_materialized_views_or_replace():
