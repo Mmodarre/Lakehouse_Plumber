@@ -4,12 +4,13 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, List
 
-from lhp.models import Action, StreamingTableMode
+from lhp.models import Action
 
 from ...core.codegen import copy_user_module_for_pipeline
 from ...core.loaders import resolve_table_schema
 from ...core.processing.dqe import DQEParser
 from ...core.registry import BaseActionGenerator
+from ...core.validators import STREAMING_TABLE_MODES
 from ...errors import ErrorFactory
 from ._schema_tags_warning import warn_if_schema_tags_dropped
 from .snapshot_cdc_source_function import (
@@ -49,17 +50,10 @@ class StreamingTableWriteGenerator(BaseActionGenerator):
         readMode = action.readMode or "stream"
 
         mode = target_config.get("mode", "standard")
-        valid_modes = [m.value for m in StreamingTableMode]
-        if mode not in valid_modes:
-            # The template's fallback branch renders an append flow, so an
-            # unknown mode must never reach it (#345).
-            raise ErrorFactory.unknown_type_with_suggestion(
-                value_type="streaming_table write mode",
-                provided_value=str(mode),
-                valid_values=valid_modes,
-                example_usage="""write_target:
-  type: streaming_table
-  mode: cdc    # or: standard (default), snapshot_cdc, replace""",
+        if mode not in STREAMING_TABLE_MODES:
+            # WriteActionValidator rejects an unknown mode (LHP-VAL-006) first.
+            raise AssertionError(
+                f"Unvalidated streaming_table mode {mode!r} in action '{action.name}'"
             )
         catalog = target_config.get("catalog")
         schema = target_config.get("schema")

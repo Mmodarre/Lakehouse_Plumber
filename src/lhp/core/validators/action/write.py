@@ -1,10 +1,10 @@
+import difflib
 import logging
-from difflib import get_close_matches
 from typing import List
 
-from lhp.models import Action, ActionType, StreamingTableMode, WriteTargetType
+from lhp.models import Action, ActionType, WriteTargetType
 
-from ....errors import LHPError
+from ....errors import ErrorFactory, LHPError, codes
 from .._base import BaseActionValidator, ValidationError
 from ..compatibility import (
     CdcConfigValidator,
@@ -16,6 +16,9 @@ from ..compatibility import (
 from ._write_sinks import validate_sink
 
 logger = logging.getLogger(__name__)
+
+#: Every streaming_table ``write_target.mode``. An absent mode means "standard".
+STREAMING_TABLE_MODES = frozenset({"standard", "cdc", "snapshot_cdc", "replace"})
 
 
 class WriteActionValidator(BaseActionValidator):
@@ -29,7 +32,7 @@ class WriteActionValidator(BaseActionValidator):
 
     def validate(self, action: Action, prefix: str) -> List[ValidationError]:
         logger.debug(f"Validating write action '{action.name}'")
-        errors = []
+        errors: List[ValidationError] = []
 
         # Write actions are the final output, so they should have no target.
         if action.target:
@@ -191,24 +194,12 @@ class WriteActionValidator(BaseActionValidator):
 
         return errors
 
-    def _validate_streaming_table_modes(self, action: Action, prefix: str) -> List[str]:
-        errors = []
+    def _validate_streaming_table_modes(
+        self, action: Action, prefix: str
+    ) -> List[ValidationError]:
+        errors: List[ValidationError] = []
 
         mode = action.write_target.get("mode", "standard")
-        valid_modes = [m.value for m in StreamingTableMode]
-
-        if mode not in valid_modes:
-            # Without this, any other value (a typo such as 'cdcc') generated a
-            # plain append flow and silently dropped cdc_config and friends.
-            close = get_close_matches(str(mode), valid_modes, n=1, cutoff=0.6)
-            did_you_mean = f" Did you mean '{close[0]}'?" if close else ""
-            errors.append(
-                f"{prefix}: Unknown streaming_table write mode '{mode}'. "
-                f"Valid modes: {', '.join(valid_modes)}.{did_you_mean}"
-            )
-            return errors
-
-        self._warn_unused_mode_configs(action, prefix, mode)
 
         if mode == "snapshot_cdc":
             errors.extend(self.snapshot_cdc_validator.validate(action, prefix))
@@ -220,22 +211,31 @@ class WriteActionValidator(BaseActionValidator):
                 errors.extend(self.cdc_schema_validator.validate(action, prefix))
         elif mode == "replace":
             errors.extend(self.replace_validator.validate(action, prefix))
+        elif not isinstance(mode, str) or mode not in STREAMING_TABLE_MODES:
+            errors.append(_unknown_streaming_table_mode(action.name, mode))
 
         return errors
 
-    # Mode-specific config blocks and the mode that reads each of them.
-    _MODE_CONFIG_KEYS = {
-        "cdc_config": StreamingTableMode.CDC.value,
-        "snapshot_cdc_config": StreamingTableMode.SNAPSHOT_CDC.value,
-        "replace_config": StreamingTableMode.REPLACE.value,
-    }
 
-    def _warn_unused_mode_configs(self, action: Action, prefix: str, mode: str) -> None:
-        """Warn about a mode-specific config block the selected mode ignores."""
-        write_target = action.write_target or {}
-        for key, key_mode in self._MODE_CONFIG_KEYS.items():
-            if key in write_target and mode != key_mode:
-                logger.warning(
-                    f"{prefix}: '{key}' is ignored because write_target.mode is "
-                    f"'{mode}'; set mode: {key_mode} to use it"
-                )
+def _unknown_streaming_table_mode(action_name: str, mode: object) -> LHPError:
+    valid = sorted(STREAMING_TABLE_MODES)
+    suggestions = [f"Use one of: {', '.join(valid)} (omit 'mode' for 'standard')"]
+    if isinstance(mode, str):
+        close = difflib.get_close_matches(mode.lower(), valid, n=1)
+        if close:
+            suggestions.insert(0, f"Did you mean '{close[0]}'?")
+    return ErrorFactory.validation_error(
+        codes.VAL_006,
+        title="Invalid value for 'write_target.mode'",
+        details=(
+            f"Action '{action_name}' has invalid value '{mode}' for field "
+            f"'write_target.mode'. Valid values: {', '.join(valid)}"
+        ),
+        suggestions=suggestions,
+        example="write_target:\n  type: streaming_table\n  mode: cdc",
+        context={
+            "Action": action_name,
+            "Field": "write_target.mode",
+            "Provided": str(mode),
+        },
+    )

@@ -12,7 +12,7 @@ from .compatibility.replace_fanin import ReplaceFanInCompatibilityValidator
 from .compatibility.shared_dlq import SharedDlqSourceTableValidator
 from .action.load import LoadActionValidator
 from .action.transform import TransformActionValidator
-from .action.write import WriteActionValidator
+from .action.write import STREAMING_TABLE_MODES, WriteActionValidator
 from .action.test import TestActionValidator
 from .compatibility.table_creation import TableCreationValidator, action_creates_table
 
@@ -44,6 +44,7 @@ from .config_validator import ConfigValidator
 __all__ = [
     "LHP_WRITTEN_JOB_KEYS",
     "LHP_WRITTEN_PIPELINE_KEYS",
+    "STREAMING_TABLE_MODES",
     "BaseActionValidator",
     "CdcConfigValidator",
     "CdcFanInCompatibilityValidator",
