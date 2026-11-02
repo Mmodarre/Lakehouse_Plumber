@@ -121,6 +121,8 @@ actions:
   - name: save_test_data
     type: write
     source: v_test_data
+    readMode: batch
+    once: true
     write_target:
       type: streaming_table
       database: "{catalog}.{bronze_schema}"
@@ -287,6 +289,8 @@ actions:
   - name: save_customers
     type: write
     source: v_customers
+    readMode: batch
+    once: true
     write_target:
       type: streaming_table
       catalog: "test_cat"

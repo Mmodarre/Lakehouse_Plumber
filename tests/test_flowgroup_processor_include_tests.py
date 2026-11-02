@@ -69,6 +69,8 @@ def mixed_flowgroup():
                 name="write_data",
                 type=ActionType.WRITE,
                 source="v_data",
+                readMode="batch",
+                once=True,
                 write_target={
                     "type": "streaming_table",
                     "database": "catalog.schema",
@@ -219,6 +221,8 @@ class TestProcessFlowgroupIncludeTests:
                         name="inline_write",
                         type=ActionType.WRITE,
                         source="v_template",
+                        readMode="batch",
+                        once=True,
                         write_target={
                             "type": "streaming_table",
                             "database": "catalog.schema",
@@ -267,6 +271,8 @@ actions:
   - name: write_data
     type: write
     source: v_data
+    readMode: batch
+    once: true
     write_target:
       type: streaming_table
       database: catalog.schema

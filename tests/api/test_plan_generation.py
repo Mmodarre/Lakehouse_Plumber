@@ -78,7 +78,7 @@ def _write_pipeline(project_root: Path, pipeline: str, *, with_test: bool) -> No
                 "name": f"tst_{pipeline}",
                 "type": "test",
                 "test_type": "uniqueness",
-                "source": f"v_{pipeline}_raw",
+                "source": "${catalog}.${bronze_schema}." + f"{pipeline}_table",
                 "target": f"tst_{pipeline}",
                 "columns": ["id"],
                 "on_violation": "warn",

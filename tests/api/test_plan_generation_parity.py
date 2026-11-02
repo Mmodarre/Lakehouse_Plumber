@@ -163,7 +163,7 @@ def _write_all_kinds_project(project_root: Path) -> None:
                 "name": "tst_uniq",
                 "type": "test",
                 "test_type": "uniqueness",
-                "source": "v_test_src",
+                "source": "${catalog}.${bronze_schema}.t_test_src",
                 "target": "tst_uniq",
                 "columns": ["id"],
                 "on_violation": "warn",

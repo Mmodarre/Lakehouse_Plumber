@@ -61,6 +61,8 @@ class TestProcessFlowgroupCacheIsolation:
                         name="inline_write",
                         type=ActionType.WRITE,
                         source="v_template",
+                        readMode="batch",
+                        once=True,
                         write_target={
                             "type": "streaming_table",
                             "database": "catalog.schema",
@@ -128,6 +130,8 @@ class TestProcessFlowgroupCacheIsolation:
                         name="write_data",
                         type=ActionType.WRITE,
                         source="v_data",
+                        readMode="batch",
+                        once=True,
                         write_target={
                             "type": "streaming_table",
                             "database": "catalog.schema",

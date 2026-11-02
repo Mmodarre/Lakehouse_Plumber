@@ -64,6 +64,8 @@ def _valid_flowgroup_yaml(pipeline: str, flowgroup: str, table: str) -> str:
           - name: write_{flowgroup}
             type: write
             source: v_{flowgroup}
+            readMode: batch
+            once: true
             write_target:
               type: streaming_table
               database: ${{catalog}}.${{bronze_schema}}

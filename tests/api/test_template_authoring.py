@@ -35,6 +35,8 @@ actions:
   - name: write_{{ entity }}
     type: write
     source: v_{{ entity }}
+    readMode: batch
+    once: true
     write_target:
       type: streaming_table
       catalog: example

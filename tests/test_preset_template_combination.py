@@ -71,6 +71,8 @@ class TestPresetTemplateCombination:
                     {
                         "name": "write_direct",
                         "type": "write",
+                        "readMode": "batch",
+                        "once": True,
                         "source": "v_test_data",
                         "write_target": {
                             "type": "streaming_table",
@@ -308,6 +310,8 @@ class TestPresetTemplateCombination:
                 {
                     "name": "write_{{ table_name }}",
                     "type": "write",
+                    "readMode": "batch",
+                    "once": True,
                     "source": "v_{{ table_name }}_raw",
                     "write_target": {
                         "type": "streaming_table",
@@ -394,6 +398,8 @@ class TestPresetTemplateCombination:
                     {
                         "name": "write_{{ table_name }}",
                         "type": "write",
+                        "readMode": "batch",
+                        "once": True,
                         "source": "v_{{ table_name }}",
                         "write_target": {
                             "type": "streaming_table",
@@ -505,6 +511,8 @@ class TestPresetTemplateCombination:
                     {
                         "name": "write_{{ table_name }}",
                         "type": "write",
+                        "readMode": "batch",
+                        "once": True,
                         "source": "v_{{ table_name }}",
                         "write_target": {
                             "type": "streaming_table",
@@ -590,6 +598,8 @@ class TestPresetTemplateCombination:
                     {
                         "name": "write_{{ table_name }}",
                         "type": "write",
+                        "readMode": "batch",
+                        "once": True,
                         "source": "v_{{ table_name }}",
                         "write_target": {
                             "type": "streaming_table",

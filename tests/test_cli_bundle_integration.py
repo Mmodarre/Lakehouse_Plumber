@@ -40,6 +40,7 @@ flowgroup: test_pipeline
 actions:
   - name: test_load
     type: load
+    readMode: stream
     source:
       type: delta
       database: "${catalog}.raw"
@@ -388,6 +389,7 @@ flowgroup: raw_ingestion
 actions:
   - name: customer_load
     type: load
+    readMode: stream
     source:
       type: delta
       database: "${catalog}.${raw_schema}"
@@ -552,6 +554,7 @@ flowgroup: test_pipeline
 actions:
   - name: test_load
     type: load
+    readMode: stream
     source:
       type: delta
       database: "${catalog}.raw"
@@ -601,6 +604,7 @@ flowgroup: test_pipeline
 actions:
   - name: test_load
     type: load
+    readMode: stream
     source:
       type: delta
       database: "${catalog}.${raw_schema}"
@@ -652,6 +656,7 @@ flowgroup: raw
 actions:
   - name: customer_load
     type: load
+    readMode: stream
     source:
       type: delta
       database: "${catalog}.${raw_schema}"
@@ -670,6 +675,7 @@ flowgroup: bronze
 actions:
   - name: customer_bronze_load
     type: load
+    readMode: stream
     source:
       type: delta
       database: "${catalog}.${bronze_schema}"
@@ -721,6 +727,7 @@ flowgroup: test
 actions:
   - name: test_load
     type: load
+    readMode: stream
     source:
       type: delta
       database: "${catalog}.${raw_schema}"

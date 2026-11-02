@@ -54,6 +54,8 @@ actions:
   - name: write_test
     type: write
     source: test_table
+    readMode: batch
+    once: true
     write_target:
       type: streaming_table
       database: "{catalog}.{raw_schema}"

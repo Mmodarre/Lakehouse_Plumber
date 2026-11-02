@@ -61,7 +61,7 @@ def _build_multipipeline_project(project_root: Path, pipeline_names) -> None:
                     "transform_type": "sql",
                     "source": f"v_{name}_raw",
                     "target": f"v_{name}_clean",
-                    "sql": f"SELECT * FROM v_{name}_raw",
+                    "sql": f"SELECT * FROM STREAM(v_{name}_raw)",
                 },
                 {
                     "name": f"write_{name}",
@@ -341,6 +341,8 @@ def _build_template_duplicate_table_project(project_root: Path) -> None:
             {
                 "name": "write_{{ view_suffix }}",
                 "type": "write",
+                "readMode": "batch",
+                "once": True,
                 "source": "v_{{ view_suffix }}_raw",
                 "write_target": {
                     "type": "streaming_table",

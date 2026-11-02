@@ -34,7 +34,7 @@ def v_test_customer_raw():
 @dp.temporary_view(comment="SQL transform: test_customer_cleanse")
 def v_test_customer_cleaned():
     """SQL transform: test_customer_cleanse"""
-    df = spark.sql("""SELECT * FROM v_test_customer_raw""")
+    df = spark.sql("""SELECT * FROM STREAM(v_test_customer_raw)""")
 
     return df
 

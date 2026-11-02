@@ -80,7 +80,7 @@ def _build_multipipeline_project(tmpdir, pipeline_names):
                     "transform_type": "sql",
                     "source": f"v_{name}_raw",
                     "target": f"v_{name}_clean",
-                    "sql": f"SELECT * FROM v_{name}_raw",
+                    "sql": f"SELECT * FROM STREAM(v_{name}_raw)",
                 },
                 {
                     "name": f"write_{name}",

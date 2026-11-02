@@ -79,6 +79,8 @@ actions:
   - name: save_enriched
     type: write
     source: v_customers_enriched
+    readMode: batch
+    once: true
     write_target:
       type: streaming_table
       catalog: "{catalog}"
@@ -167,6 +169,8 @@ actions:
   - name: save_final
     type: write
     source: v_enriched_data
+    readMode: batch
+    once: true
     write_target:
       type: streaming_table
       catalog: "test_cat"
@@ -212,10 +216,10 @@ actions:
   - name: load_unstructured
     type: load
     source:
-      type: cloudfiles
-      path: "/mnt/landing/json/*.json"
-      format: json
-      schema_evolution_mode: "rescue"
+      type: delta
+      catalog: "test_cat"
+      schema: "landing"
+      table: "raw_json"
     target: v_raw_json
 
   - name: apply_schema
@@ -223,6 +227,7 @@ actions:
     transform_type: schema
     source: v_raw_json
     target: v_structured_data
+    readMode: batch
     enforcement: strict
     schema_inline: |
       cust_id -> customer_id: BIGINT
@@ -321,6 +326,8 @@ actions:
 
   - name: write_to_orders_fact
     type: write
+    readMode: batch
+    once: true
     source: v_order_details
     write_target:
       type: streaming_table
@@ -400,6 +407,8 @@ actions:
   - name: write_with_metadata
     type: write
     source: v_data
+    readMode: batch
+    once: true
     write_target:
       type: streaming_table
       catalog: "test_cat"
@@ -424,6 +433,8 @@ actions:
   - name: write_with_override
     type: write
     source: v_data2
+    readMode: batch
+    once: true
     write_target:
       type: streaming_table
       catalog: "test_cat"

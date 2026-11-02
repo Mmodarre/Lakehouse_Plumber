@@ -71,9 +71,14 @@ class ConfigValidator:
         self.test_validator = TestActionValidator(
             self.action_registry, self.field_validator
         )
+        from .compatibility import ReadModeLineageValidator
+
+        self.read_mode_lineage_validator = ReadModeLineageValidator(
+            self.action_registry, self.project_root
+        )
 
     def validate_flowgroup(self, flowgroup: FlowGroup) -> List[ValidationError]:
-        errors = []
+        errors: List[ValidationError] = []
 
         if not flowgroup.pipeline:
             errors.append("FlowGroup must have a 'pipeline' name")
@@ -114,6 +119,7 @@ class ConfigValidator:
             except Exception as e:
                 logger.debug(f"Dependency validation error: {e}")
                 errors.append(str(e))
+            errors.extend(self.read_mode_lineage_validator.validate(flowgroup))
 
         if flowgroup.use_template and not flowgroup.template_parameters:
             self.logger.warning(

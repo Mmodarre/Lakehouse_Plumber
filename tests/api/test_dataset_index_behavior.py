@@ -68,13 +68,13 @@ def _write_project(root: Path) -> None:
                 type: load
                 source:
                   type: sql
-                  sql: "SELECT * FROM raw_db.landing_customers"
+                  sql: "SELECT * FROM STREAM(raw_db.landing_customers)"
                 target: v_customers_raw
               - name: clean_customers
                 type: transform
                 transform_type: sql
                 source: v_customers_raw
-                sql: "SELECT * FROM v_customers_raw"
+                sql: "SELECT * FROM STREAM(v_customers_raw)"
                 target: v_customers_clean
               - name: write_customers
                 type: write
@@ -96,6 +96,7 @@ def _write_project(root: Path) -> None:
             actions:
               - name: load_orders
                 type: load
+                readMode: stream
                 source:
                   type: delta
                   database: "${catalog}.${schema_bronze}"
@@ -121,7 +122,7 @@ def _write_project(root: Path) -> None:
                 type: load
                 source:
                   type: sql
-                  sql: "SELECT * FROM raw_db.landing_events"
+                  sql: "SELECT * FROM STREAM(raw_db.landing_events)"
                 target: v_events
               - name: write_events_sink
                 type: write
@@ -147,7 +148,7 @@ def _write_project(root: Path) -> None:
                 type: load
                 source:
                   type: sql
-                  sql: "SELECT * FROM raw_db.landing_metrics"
+                  sql: "SELECT * FROM STREAM(raw_db.landing_metrics)"
                 target: v_metrics
               - name: "write_${table_suffix}"
                 type: write

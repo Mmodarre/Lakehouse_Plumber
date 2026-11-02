@@ -90,6 +90,8 @@ def _write_minimal_project(root: Path) -> None:
               - name: write_customers
                 type: write
                 source: v_customers_clean
+                readMode: batch
+                once: true
                 write_target:
                   type: streaming_table
                   database: "${{catalog}}.${{schema}}"

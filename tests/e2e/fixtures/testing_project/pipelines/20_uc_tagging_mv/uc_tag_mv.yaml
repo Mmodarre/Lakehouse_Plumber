@@ -6,7 +6,7 @@ flowgroup: uc_tag_mv
 actions:
   - name: load_part
     type: load
-    readMode: stream
+    readMode: batch
     source:
       type: delta
       database: "{catalog}.{raw_schema}"

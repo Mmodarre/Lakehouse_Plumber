@@ -345,6 +345,8 @@ actions:
   - name: write_customers
     type: write
     source: v_customers_typed
+    readMode: batch
+    once: true
     write_target:
       type: streaming_table
       catalog: test_cat
