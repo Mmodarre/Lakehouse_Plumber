@@ -138,8 +138,23 @@ class TestRejected:
                 _load(mode="quarantine"),
                 "'mode' (dqe or quarantine) only applies to a data_quality transform",
             ),
+            (
+                _write(mode="quarantine"),
+                "'mode' (dqe or quarantine) only applies to a data_quality transform",
+            ),
+            (
+                _write(mode="DQE"),
+                "'mode' (dqe or quarantine) only applies to a data_quality transform",
+            ),
         ],
-        ids=["read-mode-on-load", "read-mode-on-write", "st-mode-on-write", "dq-mode"],
+        ids=[
+            "read-mode-on-load",
+            "read-mode-on-write",
+            "st-mode-on-write",
+            "dq-mode",
+            "dq-mode-on-write",
+            "dqe-mode-on-write",
+        ],
     )
     def test_mode_hint_follows_the_value_and_action(self, action, hint):
         assert _raised(action).suggestions == [hint]

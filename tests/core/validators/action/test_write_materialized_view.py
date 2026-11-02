@@ -111,7 +111,7 @@ class TestRuleErrors:
         assert isinstance(error, LHPError)
         assert error.code == "LHP-VAL-006"
         assert error.context == {
-            "Expectation": "'valid_id'",
+            "Expectation": "valid_id",
             "Field": "failureAction",
             "Provided": "fial",
         }
@@ -131,7 +131,7 @@ class TestRuleErrors:
 
         assert error.code == "LHP-VAL-001"
         assert error.context == {
-            "Expectation": "'checks_nothing'",
+            "Expectation": "checks_nothing",
             "Field": "constraint",
         }
 
@@ -139,6 +139,23 @@ class TestRuleErrors:
         [error] = _validate(tmp_path, ["id IS NOT NULL"])
 
         assert error.code == "LHP-VAL-008"
+
+    @pytest.mark.parametrize(
+        ("rules", "name"),
+        [
+            ([{"name": ["valid", "id"], "constraint": "id > 0"}], "gate.yaml"),
+            ({"id > 0": {"action": "fail", "name": ["valid", "id"]}}, "gate.json"),
+        ],
+        ids=["list-format", "mapping-format"],
+    )
+    def test_name_that_is_not_text_is_val_008(self, tmp_path, rules, name):
+        # A list-valued name used to pass validation and crash generation
+        # (the decorators are keyed by name).
+        [error] = _validate(tmp_path, rules, name)
+
+        assert error.code == "LHP-VAL-008"
+        assert error.context["Field"] == "name"
+        assert error.context["Actual Type"] == "list"
 
 
 class TestDuplicateNames:
@@ -163,7 +180,7 @@ class TestDuplicateNames:
             "must be unique for a dataset."
         )
         assert error.context == {
-            "Expectation": "'valid_id'",
+            "Expectation": "valid_id",
             "Field": "name",
             "Provided": "valid_id",
         }

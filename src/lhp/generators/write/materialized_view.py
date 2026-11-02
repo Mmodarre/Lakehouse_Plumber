@@ -2,11 +2,16 @@
 
 import logging
 from pathlib import Path
-from typing import Any, Dict, List, Sequence, Set, Tuple, Union, cast
+from typing import Any, Dict, List, Sequence, Set, Tuple, cast
 
 from lhp.models import Action
 
-from ...core.loaders import load_expectations_file, load_sql_file, resolve_table_schema
+from ...core.loaders import (
+    Expectations,
+    load_expectations_file,
+    load_sql_file,
+    resolve_table_schema,
+)
 from ...core.processing import DQEParser
 from ...core.registry import BaseActionGenerator
 from ...errors import ErrorFactory, codes
@@ -14,13 +19,9 @@ from ._schema_tags_warning import warn_if_schema_tags_dropped
 
 logger = logging.getLogger(__name__)
 
-#: One set of expectations, in an expectations file's own format (a list of
-#: rules or a mapping from constraint to rule).
-ExpectationSource = Union[List[Any], Dict[str, Any]]
-
 
 def assemble_expectations(
-    sources: Sequence[ExpectationSource],
+    sources: Sequence[Expectations],
 ) -> Tuple[Dict[str, str], Dict[str, str], Dict[str, str]]:
     """Merge expectation sources into the view's three decorator mappings.
 
@@ -213,7 +214,7 @@ class MaterializedViewWriteGenerator(BaseActionGenerator):
 
 def _expectation_sources(
     target_config: Dict[str, Any], project_root: Path
-) -> List[ExpectationSource]:
+) -> List[Expectations]:
     expectations_file = target_config.get("expectations_file")
     if not expectations_file:
         return []
