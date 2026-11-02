@@ -33,9 +33,11 @@ import pytest
 from lhp.api import LakehousePlumberApplicationFacade
 from lhp.api._stats_builder import (
     _TEST_TYPES,
+    _WRITE_MODES,
     _WRITE_TARGET_TYPES,
     _build_stats_result,
 )
+from lhp.core.validators import STREAMING_TABLE_MODES
 from lhp.models import Action, ActionType, FlowGroup, TestActionType, WriteTargetType
 from lhp.models._action import WriteTarget
 
@@ -215,6 +217,9 @@ class TestAllowListsTrackTheDomainEnums:
     def test_test_types_match_the_enum(self) -> None:
         assert _TEST_TYPES == {member.value for member in TestActionType}
 
+    def test_write_modes_match_the_streaming_table_modes(self) -> None:
+        assert _WRITE_MODES == STREAMING_TABLE_MODES
+
     def test_load_sub_keys_carry_the_raw_source_type(self) -> None:
         """``Action.source`` is an unvalidated mapping, so the load family is
         open-ended: whatever ``source.type`` says becomes the key."""
@@ -322,6 +327,22 @@ class TestWriteCounting:
 
         assert counts["write_mode_other"] == 1
         assert counts["tables"] == 1
+
+    def test_replace_modes_get_their_own_keys(self) -> None:
+        counts = _build_stats_result(
+            [
+                _flowgroup(
+                    [
+                        _write("w1", _table_target("a", mode="replace")),
+                        _write("w2", _table_target("b", mode="replace_where")),
+                    ]
+                )
+            ]
+        ).action_counts_by_type
+
+        assert counts["write_mode_replace"] == 1
+        assert counts["write_mode_replace_where"] == 1
+        assert "write_mode_other" not in counts
 
     def test_coerced_write_target_model_is_counted_by_its_enum_value(self) -> None:
         """A dumped ``WriteTarget`` yields ``WriteTargetType`` members, whose

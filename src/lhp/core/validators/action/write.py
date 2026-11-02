@@ -11,16 +11,20 @@ from ..compatibility import (
     CdcSchemaValidator,
     DltTableOptionsValidator,
     ReplaceFlowConfigValidator,
+    ReplaceWhereConfigValidator,
     SnapshotCdcConfigValidator,
 )
 from ._write_materialized_view import validate_materialized_view
+from ._write_replace_where import validate_replace_where_write
 from ._write_sinks import validate_sink
 from ._write_streaming_table import validate_streaming_table
 
 logger = logging.getLogger(__name__)
 
 #: Every streaming_table ``write_target.mode``. An absent mode means "standard".
-STREAMING_TABLE_MODES = frozenset({"standard", "cdc", "snapshot_cdc", "replace"})
+STREAMING_TABLE_MODES = frozenset(
+    {"standard", "cdc", "snapshot_cdc", "replace", "replace_where"}
+)
 
 
 class WriteActionValidator(BaseActionValidator):
@@ -31,6 +35,7 @@ class WriteActionValidator(BaseActionValidator):
         self.cdc_validator = CdcConfigValidator()
         self.snapshot_cdc_validator = SnapshotCdcConfigValidator()
         self.replace_validator = ReplaceFlowConfigValidator()
+        self.replace_where_validator = ReplaceWhereConfigValidator()
         self.cdc_schema_validator = CdcSchemaValidator(project_root)
 
     def validate(self, action: Action, prefix: str) -> List[ValidationError]:
@@ -151,6 +156,9 @@ class WriteActionValidator(BaseActionValidator):
                 errors.extend(self.cdc_schema_validator.validate(action, prefix))
         elif mode == "replace":
             errors.extend(self.replace_validator.validate(action, prefix))
+        elif mode == "replace_where":
+            validator = self.replace_where_validator
+            errors.extend(validate_replace_where_write(action, prefix, validator))
         elif not isinstance(mode, str) or mode not in STREAMING_TABLE_MODES:
             errors.append(_unknown_streaming_table_mode(action.name, mode))
 

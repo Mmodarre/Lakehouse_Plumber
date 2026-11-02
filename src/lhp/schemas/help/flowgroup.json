@@ -2086,7 +2086,7 @@
     },
     {
       "id": "action.write.streaming_table.write_target.mode",
-      "summary": "Choose append, change-feed CDC, snapshot CDC or replace-using writes.",
+      "summary": "Choose append, change-feed CDC, snapshot CDC, replace-using or replace-where writes.",
       "sources": [
         {
           "file": "src/lhp/resources/skills/lhp/references/actions-write-streaming-table-standard.md"
@@ -2099,6 +2099,9 @@
         },
         {
           "file": "src/lhp/resources/skills/lhp/references/actions-write-streaming-table-replace.md"
+        },
+        {
+          "file": "src/lhp/resources/skills/lhp/references/actions-write-streaming-table-replace-where.md"
         }
       ],
       "bindings": [
@@ -2111,7 +2114,7 @@
         }
       ],
       "details": [
-        "standard appends rows; cdc applies ordered changes using keys and sequence information; snapshot_cdc compares full snapshots; replace runs a REPLACE USING flow that overwrites rows matching replace_using keys. Switching mode changes which configuration block is used.",
+        "standard appends rows; cdc applies ordered changes using keys and sequence information; snapshot_cdc compares full snapshots; replace runs a REPLACE USING flow that overwrites rows matching replace_using keys; replace_where runs a REPLACE WHERE flow that recomputes the target rows matching a predicate from a batch source. Switching mode changes which configuration block is used.",
         "Any other value, including null, fails validation."
       ],
       "unsetBehavior": "When the resolved action omits this field, the default is standard. A preset may supply a value before generation."
@@ -2976,6 +2979,37 @@
           "label": "YAML example",
           "yaml": "sequence_by: updated_at"
         }
+      ]
+    },
+    {
+      "id": "action.write.streaming_table.write_target.replace_where_config.replace_where",
+      "summary": "Select the target rows each refresh deletes and recomputes.",
+      "sources": [
+        {
+          "file": "src/lhp/resources/skills/lhp/references/actions-write-streaming-table-replace-where.md"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "write_target",
+            "replace_where_config",
+            "replace_where"
+          ],
+          "subtype": "write:streaming_table"
+        }
+      ],
+      "details": [
+        "A SQL predicate written verbatim into the generated flow as the Databricks replace_where= parameter. Rows outside it are left untouched, and source rows outside it never land in the target. Environment tokens are resolved first; secret references are rejected."
+      ],
+      "examples": [
+        {
+          "label": "YAML example",
+          "yaml": "replace_where: \"order_date >= date_add(current_date(), -7)\""
+        }
+      ],
+      "constraints": [
+        "Provide a nonblank string; replace_where is the only key allowed in replace_where_config."
       ]
     },
     {

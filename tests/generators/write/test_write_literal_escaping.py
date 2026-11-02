@@ -194,6 +194,31 @@ class TestStreamingTable:
         assert flow["comment"] == description
         assert _docstrings(tree) == [description]
 
+    def test_replace_where_predicate_round_trips(self):
+        """The predicate is SQL baked verbatim into the flow definition (#346)."""
+        predicate = (
+            "note = 'it''s' AND tag = \"q\" AND code RLIKE '^\\\\d+$'\n"
+            "OR path = 'C:\\new'"
+        )
+
+        tree = _streaming_table(
+            mode="replace_where", replace_where_config={"replace_where": predicate}
+        )
+
+        (dp_table,) = [
+            call
+            for call in _calls(tree, "table")
+            if isinstance(call.func, ast.Attribute)
+            and isinstance(call.func.value, ast.Name)
+            and call.func.value.id == "dp"
+        ]
+        (replace_where,) = [
+            ast.literal_eval(kw.value)
+            for kw in dp_table.keywords
+            if kw.arg == "replace_where"
+        ]
+        assert replace_where == predicate
+
     def test_table_properties_with_constants_are_python(self):
         tree = _streaming_table(
             table_properties={"delta.enableChangeDataFeed": True, "x": None}

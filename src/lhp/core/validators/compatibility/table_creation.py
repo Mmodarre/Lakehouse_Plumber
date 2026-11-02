@@ -6,6 +6,11 @@ from lhp.models import Action, ActionType, FlowGroup, WriteTargetType
 
 logger = logging.getLogger(__name__)
 
+# Modes whose target is served by exactly one flow, so the action always
+# declares the table itself. A tuple, not a set: a malformed (unhashable)
+# YAML mode must compare unequal here rather than raise.
+_SINGLE_FLOW_MODES = ("snapshot_cdc", "replace", "replace_where")
+
 
 def action_creates_table(action: Action) -> bool:
     """Return True if this write action creates its target table.
@@ -17,8 +22,8 @@ def action_creates_table(action: Action) -> bool:
 
     Rules (identical to the private predicate):
     - ``MaterializedView`` write targets always create their table.
-    - ``snapshot_cdc`` and ``replace`` modes always create their table
-      (each is served by a single flow on a dedicated table).
+    - ``snapshot_cdc``, ``replace`` and ``replace_where`` modes always create
+      their table (each is served by a single flow on a dedicated table).
     - Otherwise, falls back to the explicit ``create_table`` field
       (default True if absent).
     """
@@ -30,13 +35,13 @@ def action_creates_table(action: Action) -> bool:
         if write_type == "materialized_view":
             return True
         mode = action.write_target.get("mode", "standard")
-        if mode in ("snapshot_cdc", "replace"):
+        if mode in _SINGLE_FLOW_MODES:
             return True
         return action.write_target.get("create_table", True)
     if action.write_target.type == WriteTargetType.MATERIALIZED_VIEW:
         return True
     mode = getattr(action.write_target, "mode", "standard")
-    if mode in ("snapshot_cdc", "replace"):
+    if mode in _SINGLE_FLOW_MODES:
         return True
     return action.write_target.create_table
 

@@ -100,7 +100,8 @@ class ActionView:
     non-write actions and when not derivable):
 
     - ``write_mode`` — the streaming-table write mode
-      (``"standard"`` / ``"cdc"`` / ``"snapshot_cdc"`` / ``"replace"``);
+      (``"standard"`` / ``"cdc"`` / ``"snapshot_cdc"`` / ``"replace"`` /
+      ``"replace_where"``);
       defaults to ``"standard"`` when a streaming-table target omits ``mode``.
       :stability: provisional
     - ``scd_type`` — the SCD type (``1`` / ``2``) read from the CDC or
