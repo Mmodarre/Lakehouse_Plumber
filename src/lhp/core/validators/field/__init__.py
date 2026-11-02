@@ -1,7 +1,7 @@
 """Field-level validators."""
 
 from .config_field import ConfigFieldValidator
-from .expectations_file import validate_expectations_file
+from .expectations_file import validate_expectation_rules, validate_expectations_file
 from .external_file_tokens import ExternalFileTokenValidator
 from .job_resource_keys import LHP_WRITTEN_JOB_KEYS, validate_job_resource_keys
 from .kafka_options import KafkaOptionsValidator
@@ -23,6 +23,7 @@ __all__ = [
     "PipelineSettings",
     "SecretValidator",
     "unresolved_setting_token_errors",
+    "validate_expectation_rules",
     "validate_expectations_file",
     "validate_job_resource_keys",
     "validate_pipeline_resource_keys",

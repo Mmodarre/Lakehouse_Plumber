@@ -10,7 +10,7 @@ from typing import List, Optional
 from lhp.models import Action
 
 from .._base import ValidationError
-from ..field import validate_expectations_file
+from ..field import validate_expectation_rules, validate_expectations_file
 from ._name_checks import require_three_part_name
 
 
@@ -67,13 +67,34 @@ def validate_data_quality_transform(
                 "when mode='quarantine'"
             )
 
+    quarantine = dq_mode == "quarantine"
     errors.extend(
         validate_expectations_file(
             getattr(action, "expectations_file", None),
             project_root,
             prefix,
-            quarantine=dq_mode == "quarantine",
+            quarantine=quarantine,
         )
     )
+    # Rules written on the action win over the file in the generator, so they
+    # get the same checks.
+    if action.expectations:
+        errors.extend(
+            validate_expectation_rules(
+                action.expectations,
+                "the action's 'expectations'",
+                prefix,
+                quarantine=quarantine,
+            )
+        )
+    if isinstance(action.source, dict) and "expectations" in action.source:
+        errors.extend(
+            validate_expectation_rules(
+                action.source["expectations"],
+                "the action's 'source.expectations'",
+                prefix,
+                quarantine=quarantine,
+            )
+        )
 
     return errors

@@ -12,7 +12,10 @@ import json
 import pytest
 import yaml
 
-from lhp.core.validators.field import validate_expectations_file
+from lhp.core.validators.field import (
+    validate_expectation_rules,
+    validate_expectations_file,
+)
 from lhp.errors import LHPError
 
 pytestmark = pytest.mark.unit
@@ -63,7 +66,7 @@ class TestUnknownAction:
             "Use one of: drop, fail, warn",
         ]
         assert error.context == {
-            "Expectation": "'reconciles'",
+            "Expectation": "reconciles",
             "Field": "action",
             "Provided": "fial",
         }
@@ -155,7 +158,7 @@ class TestMissingConstraint:
         error = _only(_errors(tmp_path, {"": {"action": "drop", "name": "blank"}}))
 
         assert error.code == "LHP-VAL-001"
-        assert error.context["Expectation"] == "'blank'"
+        assert error.context["Expectation"] == "blank"
 
     def test_quarantine_with_one_usable_rule_reports_the_other(self, tmp_path):
         rules = [{"name": "kept", "constraint": "a > 0"}, {"name": "empty"}]
@@ -176,8 +179,8 @@ class TestRuleShape:
         ("document", "label", "actual_type"),
         [
             (["id > 0"], "#1", "str"),
-            ({"id > 0": "drop"}, "'id > 0'", "str"),
-            ({"id > 0": None}, "'id > 0'", "NoneType"),
+            ({"id > 0": "drop"}, "id > 0", "str"),
+            ({"id > 0": None}, "id > 0", "NoneType"),
         ],
         ids=["list-of-strings", "mapping-to-string", "mapping-to-null"],
     )
@@ -245,3 +248,80 @@ class TestWrappedValue:
         assert _errors(tmp_path, {"expectations": value}, quarantine) == [
             f"{_PREFIX}: Expectations file has unexpected format{usage}"
         ]
+
+
+class TestNonTextFields:
+    """A rule's name, message and constraint must be text: the parser keys the
+    view's decorators by name, so a list-valued name crashed generation."""
+
+    @pytest.mark.parametrize(
+        ("rule", "field", "actual_type"),
+        [
+            ({"name": ["a", "b"], "constraint": "x > 0"}, "name", "list"),
+            ({"message": {"k": 1}, "constraint": "x > 0"}, "message", "dict"),
+            ({"name": "n", "constraint": 42}, "constraint", "int"),
+            ({"name": "n", "expression": True}, "expression", "bool"),
+        ],
+        ids=["name", "message", "constraint", "expression"],
+    )
+    def test_list_rule_field_that_is_not_text(
+        self, tmp_path, quarantine, rule, field, actual_type
+    ):
+        error = _only(_errors(tmp_path, [rule], quarantine))
+
+        assert error.code == "LHP-VAL-008"
+        assert error.context["Field"] == field
+        assert error.context["Expected Type"] == "str"
+        assert error.context["Actual Type"] == actual_type
+
+    def test_mapping_rule_name_that_is_not_text(self, tmp_path, quarantine):
+        error = _only(
+            _errors(tmp_path, {"x > 0": {"action": "drop", "name": [1]}}, quarantine)
+        )
+
+        assert error.code == "LHP-VAL-008"
+        assert error.details == (
+            f"{_PREFIX}: expectation 'x > 0' in expectations file 'rules.yaml' "
+            "has a 'name' that is a list; it must be text."
+        )
+
+    def test_mapping_constraint_key_that_is_not_text(self, tmp_path):
+        (tmp_path / "rules.yaml").write_text("1:\n  action: drop\n  name: one\n")
+
+        error = _only(validate_expectations_file("rules.yaml", tmp_path, _PREFIX))
+
+        assert error.code == "LHP-VAL-008"
+        assert error.context["Field"] == "constraint"
+        assert error.context["Actual Type"] == "int"
+
+    def test_null_text_fields_count_as_unset(self, tmp_path):
+        rule = {"name": None, "message": None, "constraint": "x > 0", "type": None}
+
+        assert _errors(tmp_path, [rule]) == []
+
+
+class TestInlineRules:
+    """``validate_expectation_rules`` gives inline rules a file's checks."""
+
+    def test_bad_rule_names_the_inline_source(self):
+        [error] = validate_expectation_rules(
+            [{"name": "bad", "constraint": "y > 0", "failureAction": "fial"}],
+            "the action's 'expectations'",
+            _PREFIX,
+        )
+
+        assert error.code == "LHP-VAL-006"
+        assert "expectation 'bad' in the action's 'expectations'" in error.details
+
+    @pytest.mark.parametrize("value", ["id > 0", 3, None], ids=["str", "int", "null"])
+    def test_value_that_is_not_a_list_or_mapping(self, value, quarantine):
+        usage = " for quarantine mode" if quarantine else ""
+
+        assert validate_expectation_rules(value, "the x", _PREFIX, quarantine) == [
+            f"{_PREFIX}: The expectations in the x have unexpected format{usage}"
+        ]
+
+    def test_valid_rules_pass(self):
+        rules = {"a > 0": {"action": "fail", "name": "a"}}
+
+        assert validate_expectation_rules(rules, "the x", _PREFIX) == []

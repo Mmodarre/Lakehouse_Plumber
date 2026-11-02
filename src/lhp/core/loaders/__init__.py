@@ -1,6 +1,6 @@
 """Config-loader services for LHP."""
 
-from .expectations_file_loader import load_expectations_file
+from .expectations_file_loader import Expectations, load_expectations_file
 from .external_file_loader import (
     is_file_path,
     load_external_file_text,
@@ -17,6 +17,7 @@ from .table_schema_resolver import ResolvedTableSchema, resolve_table_schema
 from .version_enforcement import enforce_version_requirements
 
 __all__ = [
+    "Expectations",
     "InitTemplateContext",
     "InitTemplateLoader",
     "JobConfigLoader",

@@ -1,16 +1,17 @@
 """Data Quality Expectations (DQE) parser for LakehousePlumber.
 
 :func:`list_rule_category` and :func:`mapping_rule_category` decide which DLT
-category a rule belongs to. The expectations-file validator uses them to
-reject a rule with an unknown action before generation, and
-:class:`DQEParser` uses them to sort validated rules, so the two can never
-disagree.
+category a rule belongs to, and :func:`rule_constraint` reads a list rule's
+constraint. The expectation-rule validator uses them to reject a bad rule
+before generation, and :class:`DQEParser` uses them to sort validated rules,
+so the two can never disagree. Both raise or report a rule with no constraint
+through :func:`missing_constraint_error`.
 """
 
 import logging
 from typing import Any, Dict, Iterator, List, Optional, Tuple, Union
 
-from ...errors import ErrorFactory, codes
+from ...errors import ErrorFactory, LHPValidationError, codes
 
 #: The DLT category each ``failureAction`` (list format) or ``action``
 #: (mapping format) selects. Values are matched lower-cased.
@@ -24,6 +25,8 @@ FAILURE_ACTIONS: Dict[str, str] = {
 #: Values are matched exactly.
 EXPECTATION_TYPES = ("expect", "expect_or_drop", "expect_or_fail")
 
+_UNSET = (None, "")
+
 
 def list_rule_category(rule: Dict[str, Any]) -> Tuple[str, Any, Optional[str]]:
     """Return ``(field, value, category)`` for a list-format rule.
@@ -31,19 +34,22 @@ def list_rule_category(rule: Dict[str, Any]) -> Tuple[str, Any, Optional[str]]:
     ``field`` is the key that decides the category and ``value`` is what the
     rule holds there. ``category`` is ``None`` when that value is not a known
     one. A set ``failureAction`` wins over ``type``; with neither, the rule is
-    an ``expect``. An ``action`` key (the mapping format's name for
-    ``failureAction``) is never valid here, so it decides with no category.
+    an ``expect``. A null or empty ``failureAction`` or ``type`` counts as
+    unset. An ``action`` key (the mapping format's name for ``failureAction``)
+    is never valid here, so it decides with no category.
     """
     if "action" in rule:
         return "action", rule["action"], None
     failure_action = rule.get("failureAction")
-    if failure_action not in (None, ""):
+    if failure_action not in _UNSET:
         return (
             "failureAction",
             failure_action,
             FAILURE_ACTIONS.get(str(failure_action).lower()),
         )
-    rule_type = rule.get("type", "expect")
+    rule_type = rule.get("type")
+    if rule_type in _UNSET:
+        rule_type = "expect"
     return "type", rule_type, rule_type if rule_type in EXPECTATION_TYPES else None
 
 
@@ -54,9 +60,42 @@ def mapping_rule_category(rule_config: Dict[str, Any]) -> Tuple[Any, Optional[st
     is ``None`` when ``action`` is not a known value.
     """
     action = rule_config.get("action")
-    if action in (None, ""):
+    if action in _UNSET:
         return action, FAILURE_ACTIONS["warn"]
     return action, FAILURE_ACTIONS.get(str(action).lower())
+
+
+def rule_constraint(rule: Dict[str, Any]) -> Any:
+    """Return a list-format rule's ``constraint``, else its ``expression``.
+
+    The result is falsy when the rule has neither. (A mapping-format rule's
+    constraint is its key.)
+    """
+    return rule.get("constraint") or rule.get("expression")
+
+
+def missing_constraint_error(
+    expectation: str, *, prefix: str = "", where: str = ""
+) -> LHPValidationError:
+    """The ``LHP-VAL-001`` for a rule named ``expectation`` with no constraint.
+
+    ``prefix`` names the action and ``where`` the rule's source (e.g.
+    ``in expectations file 'rules.yaml'``); the parser has neither.
+    """
+    lead = f"{prefix}: expectation" if prefix else "Expectation"
+    location = f" {where}" if where else ""
+    return ErrorFactory.validation_error(
+        codes.VAL_001,
+        title="Missing required field 'constraint'",
+        details=(
+            f"{lead} '{expectation}'{location} has no constraint, so it checks nothing."
+        ),
+        suggestions=[
+            "Give the rule the SQL boolean expression it checks: 'constraint' "
+            "(or 'expression') in a list, or the mapping key in a mapping"
+        ],
+        context={"Expectation": expectation, "Field": "constraint"},
+    )
 
 
 class DQEParser:
@@ -77,9 +116,10 @@ class DQEParser:
         - a dict mapping each constraint to its ``action`` and ``name``; the
           name defaults to the constraint.
 
-        The rules must already be validated (``validate_expectations_file``):
-        a rule with an unknown action is an internal error here, and a list
-        rule with no constraint raises ``LHP-VAL-001`` instead of being skipped.
+        The rules must already be validated (``validate_expectations_file`` or
+        ``validate_expectation_rules``): a rule with an unknown action is an
+        internal error here, and a rule with no constraint raises
+        ``LHP-VAL-001`` instead of being skipped.
         """
         if isinstance(expectations, list):
             self.logger.debug(
@@ -107,7 +147,7 @@ class DQEParser:
         result: Dict[str, str] = {}
         if isinstance(expectations, list):
             for exp in expectations:
-                constraint = exp.get("constraint") or exp.get("expression")
+                constraint = rule_constraint(exp)
                 if not constraint:
                     continue
                 name = exp.get("name") or exp.get("message") or f"rule_{len(result)}"
@@ -141,7 +181,10 @@ def _categorised_rules(
                 raise AssertionError(
                     f"Unvalidated expectation action={action!r} for {key!r}"
                 )
-            yield category, exp_config.get("name", key), key
+            name = exp_config.get("name", key)
+            if not key:
+                raise missing_constraint_error(name or "unnamed")
+            yield category, name, key
         return
 
     for expectation in expectations:
@@ -151,26 +194,11 @@ def _categorised_rules(
                 f"Unvalidated expectation {field}={value!r}: {expectation}"
             )
 
-        constraint = expectation.get("constraint") or expectation.get("expression")
+        constraint = rule_constraint(expectation)
         message = expectation.get("message") or expectation.get("name", "")
 
         if not constraint:
-            raise ErrorFactory.validation_error(
-                codes.VAL_001,
-                title="Missing required field 'constraint'",
-                details=(
-                    f"Expectation '{message or 'unnamed'}' has no 'constraint' "
-                    "(or 'expression'), so it checks nothing."
-                ),
-                suggestions=[
-                    "Give the rule the SQL boolean expression it checks as "
-                    "'constraint' (or 'expression')"
-                ],
-                context={
-                    "Expectation": message or "unnamed",
-                    "Field": "constraint",
-                },
-            )
+            raise missing_constraint_error(message or "unnamed")
 
         if not message:
             message = f"Constraint failed: {constraint}"

@@ -61,7 +61,7 @@ def test_distinct_names_pass(tmp_path):
     )
 
 
-def test_unhashable_mapping_name_does_not_crash_the_check(tmp_path):
+def test_non_text_names_are_rejected_before_the_name_check(tmp_path):
     rules = {
         "x > 0": {"action": "warn", "name": ["not", "text"]},
         "y > 0": {"action": "warn", "name": ["not", "text"]},
@@ -71,6 +71,8 @@ def test_unhashable_mapping_name_does_not_crash_the_check(tmp_path):
         _file(tmp_path, rules), tmp_path, _PREFIX, unique_names=True
     )
 
-    assert [e.context["Provided"] for e in errors if isinstance(e, LHPError)] == [
-        "['not', 'text']"
-    ]
+    assert [
+        (e.code, e.context["Expectation"], e.context["Field"])
+        for e in errors
+        if isinstance(e, LHPError)
+    ] == [("LHP-VAL-008", "x > 0", "name"), ("LHP-VAL-008", "y > 0", "name")]
