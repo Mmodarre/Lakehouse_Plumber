@@ -10,6 +10,8 @@ disagree.
 import logging
 from typing import Any, Dict, List, Optional, Tuple, Union
 
+from ...errors import ErrorFactory, codes
+
 #: The DLT category each ``failureAction`` (list format) or ``action``
 #: (mapping format) selects. Values are matched lower-cased.
 FAILURE_ACTIONS: Dict[str, str] = {
@@ -76,7 +78,8 @@ class DQEParser:
           name defaults to the constraint.
 
         The rules must already be validated (``validate_expectations_file``):
-        a rule with an unknown action is an internal error here.
+        a rule with an unknown action is an internal error here, and a list
+        rule with no constraint raises ``LHP-VAL-001`` instead of being skipped.
         """
         if not isinstance(expectations, list):
             return _parse_constraint_mapping(expectations)
@@ -97,10 +100,22 @@ class DQEParser:
             message = expectation.get("message") or expectation.get("name", "")
 
             if not constraint:
-                self.logger.warning(
-                    f"Expectation missing constraint/expression: {expectation}"
+                raise ErrorFactory.validation_error(
+                    codes.VAL_001,
+                    title="Missing required field 'constraint'",
+                    details=(
+                        f"Expectation '{message or 'unnamed'}' has no 'constraint' "
+                        "(or 'expression'), so it checks nothing."
+                    ),
+                    suggestions=[
+                        "Give the rule the SQL boolean expression it checks as "
+                        "'constraint' (or 'expression')"
+                    ],
+                    context={
+                        "Expectation": message or "unnamed",
+                        "Field": "constraint",
+                    },
                 )
-                continue
 
             if not message:
                 message = f"Constraint failed: {constraint}"
