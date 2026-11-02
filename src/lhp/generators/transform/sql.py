@@ -14,6 +14,10 @@ logger = logging.getLogger(__name__)
 
 class SQLTransformGenerator(BaseActionGenerator):
     renders_operational_metadata = True
+    # readMode is not read: the SQL body sets the read (STREAM() or not),
+    # which lhp.core.dependencies works out from the SQL itself.
+    default_read_mode = None
+    fixed_read_mode = True
 
     def __init__(self):
         super().__init__()

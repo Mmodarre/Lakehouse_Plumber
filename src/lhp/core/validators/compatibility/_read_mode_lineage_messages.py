@@ -58,7 +58,8 @@ def lineage_error(r: LineageRead) -> LHPError:
         )
         tips = [f"Set `once: true` on {c} to append '{view}' once, as a backfill"]
         tips += [
-            f"Or append it incrementally: {tip}, and `readMode: stream` on {c}"
+            f"Or append it incrementally: {tip[:1].lower()}{tip[1:]}, and "
+            f"`readMode: stream` on {c}"
             for tip in _producer_tips(r, "stream", view)
         ]
     else:

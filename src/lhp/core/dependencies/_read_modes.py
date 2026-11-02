@@ -13,7 +13,8 @@ its source. It is the read the action's generator declares
 - a data_quality action in ``dqe`` mode with no ``readMode`` reads the way the
   view it reads was made, when that view is produced in the same flowgroup;
 - a streaming-table flow with no ``readMode`` that code generation merges into
-  a combined write reads with the table creator's ``readMode``.
+  a combined write reads with the group lead's ``readMode``
+  (``_combined_writes``, shared with code generation).
 
 :func:`producer_kind` is the kind of the view an action produces: the kind of
 its read, except:
@@ -42,13 +43,14 @@ import logging
 import re
 from dataclasses import dataclass, replace
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, FrozenSet, Literal, Optional, Sequence
+from typing import TYPE_CHECKING, FrozenSet, Literal, Optional, Sequence
 
 from lhp.models import Action, ActionType
 
 from ...errors import LHPError
 from ..loaders import load_sql_file
 from ..registry import ActionRegistry, ReadMode, determine_action_subtype
+from ._combined_writes import combined_flow
 from .sql_extraction import sql_reads_stream, sql_table_reads
 
 if TYPE_CHECKING:
@@ -131,8 +133,9 @@ def effective_read_mode(
     ``"stream"`` is ``spark.readStream``, ``"batch"`` is ``spark.read``, and
     ``None`` means no single certain read: a SQL body that reads a
     ``STREAM`` or cannot be read, a Python load, a ``snapshot_cdc`` write, a
-    ``once`` CDC flow, an unrecognised ``readMode`` value, or an action type
-    with no registered generator.
+    ``once`` CDC flow, a combined write whose dependency order has a cycle,
+    an unrecognised ``readMode`` value, or an action type with no registered
+    generator.
 
     - A data_quality action in ``dqe`` mode with an explicit ``readMode``
       reads that mode. With none, it reads the way its source view was made
@@ -144,9 +147,10 @@ def effective_read_mode(
       ``STREAM``, and ``None`` when it does: ``STREAM(x)`` reads ``x`` as a
       stream and every other reference as a batch.
     - A write action with no ``readMode`` reads with the ``readMode`` of its
-      table creator in ``flowgroup_actions``: code generation combines the
+      group lead in ``flowgroup_actions``: code generation combines the
       writes of one table into a write built from the one that creates the
-      table (else the first of them). Its generator then declares the read.
+      table, else the first of them in dependency order. Its generator then
+      declares the read.
     - Every other action reads what its generator declares
       (``ActionRegistry.consumer_read_mode``).
 
@@ -223,7 +227,8 @@ def _read(action: Action, scope: _Scope) -> Optional[ReadMode]:
     if action.type == ActionType.TRANSFORM and sub_type == "data_quality":
         return _data_quality_read(action, scope)
     if action.type == ActionType.WRITE:
-        return _declared_read(_as_combined_flow(action, scope.actions), scope)
+        flow = combined_flow(action, scope.actions)
+        return None if flow is None else _declared_read(flow, scope)
     return _declared_read(action, scope)
 
 
@@ -261,8 +266,9 @@ def _source_view_kind(action: Action, scope: _Scope) -> ProducerKind:
     """The kind of the in-flowgroup view a data_quality action reads.
 
     The view is the one the data_quality generator reads (``source``, or a
-    ``source`` mapping's ``view`` / ``source`` key). ``"unknown"`` when no
-    single load or transform of the flowgroup produces it, so an external
+    ``source`` mapping's ``view`` / ``source`` key), matched to a target
+    case-insensitively. ``"unknown"`` when no single load or transform of the
+    flowgroup produces it, so an external
     table keeps the generator's default, and when the producer is already
     being resolved (a cycle of views).
     """
@@ -272,59 +278,18 @@ def _source_view_kind(action: Action, scope: _Scope) -> ProducerKind:
     )
     if not isinstance(view, str) or not view:
         return "unknown"
+    # View names are case-insensitive, as in the read-mode lineage check.
     producers = [
         a
         for a in scope.actions
-        if a.target == view and a.type in (ActionType.LOAD, ActionType.TRANSFORM)
+        if a.type in (ActionType.LOAD, ActionType.TRANSFORM)
+        and isinstance(a.target, str)
+        and a.target.casefold() == view.casefold()
     ]
     visiting = scope.visiting | {id(action)}
     if len(producers) != 1 or id(producers[0]) in visiting:
         return "unknown"
     return _kind(producers[0], replace(scope, visiting=visiting))
-
-
-def _as_combined_flow(action: Action, actions: Sequence[Action]) -> Action:
-    """``action`` with the ``readMode`` its flow reads with in a combined write.
-
-    Code generation renders the write actions of a flowgroup that target one
-    table as one write built from the table creator: the first that creates
-    the table, else the first of them. A flow with no ``readMode`` of its own
-    reads with the creator's (``core/codegen/grouping.py`` and the
-    ``streaming_table.py.j2`` flow loop). Code generation takes "the first"
-    in dependency order; this takes it in ``actions`` order, which differs
-    only when the creator is in another flowgroup.
-    """
-    if action.readMode:
-        return action
-    from ..validators import action_creates_table  # lazy, as in codegen/grouping.py
-
-    key = _write_table_key(action)
-    group = [
-        a for a in actions if a.type == ActionType.WRITE and _write_table_key(a) == key
-    ]
-    creator = next((a for a in group if action_creates_table(a)), None)
-    if creator is None and group:
-        creator = group[0]
-    if creator is None or not creator.readMode:
-        return action
-    return action.model_copy(update={"readMode": creator.readMode})
-
-
-def _write_table_key(action: Action) -> str:
-    """The table a write action's flow is grouped by in code generation.
-
-    Mirrors ``WriteActionGrouper.group_write_actions_by_target``.
-    """
-    target: Any = action.write_target
-    if not target:
-        target = action.source if isinstance(action.source, dict) else {}
-    config: Dict[str, Any] = target if isinstance(target, dict) else {}
-    catalog = config.get("catalog", "")
-    schema = config.get("schema", "")
-    table = config.get("table") or config.get("name", "")
-    if catalog and schema and table:
-        return f"{catalog}.{schema}.{table}"
-    return table or action.name
 
 
 def _sql_kind(

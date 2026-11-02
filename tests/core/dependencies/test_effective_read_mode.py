@@ -19,7 +19,11 @@ import pytest
 from lhp.core.codegen.action_dispatch import ActionDispatcher
 from lhp.core.codegen.context import GenerationContextBuilder
 from lhp.core.codegen.grouping import WriteActionGrouper
-from lhp.core.dependencies import effective_read_mode, producer_kind
+from lhp.core.dependencies import (
+    DependencyResolver,
+    effective_read_mode,
+    producer_kind,
+)
 from lhp.core.processing import EnhancedSubstitutionManager
 from lhp.core.registry import ActionRegistry
 from lhp.models import Action, ActionType, FlowGroup, TransformType
@@ -72,13 +76,16 @@ def _write(
     read_mode: Optional[str] = None,
     create_table: bool = True,
     table: str = "t",
+    source: Optional[str] = None,
+    once: Optional[bool] = None,
     **target: Any,
 ) -> Action:
     return Action(
         name=name,
         type=ActionType.WRITE,
-        source=f"v_{name}",
+        source=source or f"v_{name}",
         readMode=read_mode,
+        once=once,
         write_target={
             "type": "streaming_table",
             "catalog": "c",
@@ -169,6 +176,14 @@ class TestDataQualityInheritance:
 
         assert effective_read_mode(by_view, [delta, by_view]) == "batch"
         assert effective_read_mode(by_source, [delta, by_source]) == "batch"
+
+    @pytest.mark.parametrize("source", ["V_IN", "v_In", {"view": "V_in"}])
+    def test_source_matches_the_producer_case_insensitively(self, source: Any):
+        # View names are case-insensitive, as in the read-mode lineage check.
+        delta, _ = _PRODUCERS["delta-batch"]
+        dq = _dq(source=source)
+
+        assert effective_read_mode(dq, [delta, dq]) == "batch"
 
     def test_chained_data_quality_inherits_through(self):
         delta, _ = _PRODUCERS["delta-batch"]
@@ -388,7 +403,7 @@ class TestOtherActions:
 
 
 class TestCombinedWrite:
-    """A flow with no readMode reads with its table creator's readMode."""
+    """A flow with no readMode reads with its group lead's readMode."""
 
     def test_flow_inherits_the_creators_read_mode(self):
         creator = _write("w_creator", read_mode="batch", once=True)
@@ -442,9 +457,113 @@ class TestCombinedWrite:
         for action in actions:
             assert reads[f"f_{action.name}"] == {effective_read_mode(action, actions)}
 
+    @pytest.mark.parametrize(
+        ("actions", "expected"),
+        [
+            (
+                # The backfill's source is shallower, so it leads although
+                # the YAML lists the incremental flow first.
+                [
+                    _load("v_hist", {"type": "delta", "table": "h"}),
+                    _load("v_s1", {"type": "delta", "table": "s"}, "stream"),
+                    _transform(
+                        TransformType.SQL,
+                        source="v_s1",
+                        target="v_stream",
+                        sql="SELECT * FROM STREAM(v_s1)",
+                    ),
+                    _write("w_inc", source="v_stream", create_table=False),
+                    _write(
+                        "w_backfill",
+                        source="v_hist",
+                        read_mode="batch",
+                        once=True,
+                        create_table=False,
+                    ),
+                ],
+                {"w_inc": "batch", "w_backfill": "batch"},
+            ),
+            (
+                # The incremental flow's producer resolves first, so it leads
+                # although the YAML lists the backfill first.
+                [
+                    _load("v_s1", {"type": "delta", "table": "s"}, "stream"),
+                    _load("v_hist", {"type": "delta", "table": "h"}),
+                    _write(
+                        "w_backfill",
+                        source="v_hist",
+                        read_mode="batch",
+                        once=True,
+                        create_table=False,
+                    ),
+                    _write("w_inc", source="v_s1", create_table=False),
+                ],
+                {"w_inc": "stream", "w_backfill": "batch"},
+            ),
+            (
+                # The backfill's source is deeper, so the incremental flow
+                # leads although the YAML lists the backfill first.
+                [
+                    _load("v_hist", {"type": "delta", "table": "h"}),
+                    _transform(
+                        TransformType.SQL,
+                        source="v_hist",
+                        target="v_hist2",
+                        sql="SELECT * FROM v_hist",
+                    ),
+                    _load("v_s1", {"type": "delta", "table": "s"}, "stream"),
+                    _write(
+                        "w_backfill",
+                        source="v_hist2",
+                        read_mode="batch",
+                        once=True,
+                        create_table=False,
+                    ),
+                    _write("w_inc", source="v_s1", create_table=False),
+                ],
+                {"w_inc": "stream", "w_backfill": "batch"},
+            ),
+        ],
+        ids=["backfill-leads", "incremental-leads", "incremental-leads-deeper"],
+    )
+    def test_lead_follows_dependency_order(
+        self, actions: List[Action], expected: Dict[str, str]
+    ):
+        # The table is created in another flowgroup (create_table: false), so
+        # the group's lead is its first write in dependency order, which
+        # differs from the YAML order here.
+        reads = _generated_reads(actions)
+        writes = [a for a in actions if a.type == ActionType.WRITE]
+
+        for write in writes:
+            read = effective_read_mode(write, actions)
+            assert read == expected[write.name]
+            assert reads[f"f_{write.name}"] == {read}
+
+    def test_cycle_leaves_the_lead_unknown(self):
+        # v_a and v_b read each other, so there is no dependency order.
+        actions = [
+            _transform(TransformType.PYTHON, source="v_b", target="v_a"),
+            _transform(TransformType.PYTHON, source="v_a", target="v_b"),
+            _write(
+                "w_backfill",
+                source="v_a",
+                read_mode="batch",
+                once=True,
+                create_table=False,
+            ),
+            _write("w_inc", source="v_b", create_table=False),
+        ]
+
+        assert effective_read_mode(actions[3], actions) is None
+        assert effective_read_mode(actions[2], actions) == "batch"
+
 
 def _generated_reads(actions: List[Action]) -> Dict[str, Set[str]]:
-    """Each generated function's reads (``spark.read`` / ``readStream``)."""
+    """Each generated function's reads (``spark.read`` / ``readStream``).
+
+    The actions are generated in dependency order, as code generation does.
+    """
     flowgroup = FlowGroup(pipeline="p", flowgroup="fg", actions=actions)
     dispatcher = ActionDispatcher(
         action_registry=ActionRegistry(),
@@ -453,7 +572,7 @@ def _generated_reads(actions: List[Action]) -> Dict[str, Set[str]]:
     )
     sections, _, _ = dispatcher.generate_action_sections(
         flowgroup,
-        actions,
+        DependencyResolver().resolve_dependencies(actions),
         EnhancedSubstitutionManager(),
         {},
         None,
