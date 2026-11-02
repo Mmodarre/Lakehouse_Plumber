@@ -906,6 +906,10 @@
                     "type": "string",
                     "description": "Path to SQL file for materialized views. The path, and the file's contents when they contain {{, {% or {#, can use template parameters"
                 },
+                "expectations_file": {
+                    "type": "string",
+                    "description": "Path to a data-quality expectations file for materialized views. Its warn, drop and fail rules become @dp.expect_all, @dp.expect_all_or_drop and @dp.expect_all_or_fail decorators on the materialized view (can use template parameters with {{ }})"
+                },
                 "sink_type": {
                     "type": "string",
                     "description": "Type of sink (delta, kafka, custom, foreachbatch)",

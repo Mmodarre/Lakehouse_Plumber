@@ -13,6 +13,7 @@ from .dqe import (
     EXPECTATION_TYPES,
     FAILURE_ACTIONS,
     DQEParser,
+    expectation_names,
     list_rule_category,
     mapping_rule_category,
 )
@@ -36,6 +37,7 @@ __all__ = [
     "LocalVariableResolver",
     "SecretReference",
     "TemplateEngine",
+    "expectation_names",
     "find_unresolved_tokens",
     "list_rule_category",
     "mapping_rule_category",

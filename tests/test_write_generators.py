@@ -1800,6 +1800,34 @@ class TestMaterializedViewGoldenOutput:
         code = generator.generate(action, {})
         golden(code, "write_materialized_view")
 
+    def test_materialized_view_with_expectations_golden(self, golden, tmp_path):
+        (tmp_path / "summary_rules.yaml").write_text(
+            "- name: has_region\n"
+            "  constraint: region IS NOT NULL\n"
+            "  failureAction: fail\n"
+            "- name: counted\n"
+            "  constraint: customer_count > 0\n"
+            "  failureAction: drop\n"
+            "- name: plausible_count\n"
+            "  constraint: customer_count < 1000000\n"
+            "  failureAction: warn\n"
+        )
+        generator = MaterializedViewWriteGenerator()
+        action = Action(
+            name="write_summary",
+            type=ActionType.WRITE,
+            write_target={
+                "type": "materialized_view",
+                "catalog": "gold_cat",
+                "schema": "gold_sch",
+                "table": "customer_summary",
+                "sql": "SELECT region, COUNT(*) as customer_count FROM silver.customers GROUP BY region",
+                "expectations_file": "summary_rules.yaml",
+            },
+        )
+        code = generator.generate(action, {"project_root": tmp_path})
+        golden(code, "write_materialized_view_expectations")
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

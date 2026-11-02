@@ -38,6 +38,7 @@ _FIELDS: Tuple[tuple[Tuple[str, ...], ReferenceKind, bool], ...] = (
     (("write_target", "sql_path"), "sql", False),
     (("write_target", "module_path"), "python", False),
     (("write_target", "tags_file"), "schema", False),
+    (("write_target", "expectations_file"), "expectations", False),
     (
         ("write_target", "snapshot_cdc_config", "source_function", "file"),
         "python",

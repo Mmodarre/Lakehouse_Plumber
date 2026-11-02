@@ -6,6 +6,7 @@ parser sorts rules with, so a rule these checks accept always parses.
 """
 
 import difflib
+from collections import Counter
 from typing import Any, Dict, List, Sequence, Union
 
 from lhp.errors import ErrorFactory, LHPError, codes
@@ -13,6 +14,7 @@ from lhp.errors import ErrorFactory, LHPError, codes
 from ...processing import (
     EXPECTATION_TYPES,
     FAILURE_ACTIONS,
+    expectation_names,
     list_rule_category,
     mapping_rule_category,
 )
@@ -84,6 +86,38 @@ def rule_content_errors(
                 _invalid_value(prefix, label, where, "action", action, FAILURE_ACTIONS)
             )
     return errors
+
+
+def duplicate_name_errors(
+    expectations: Expectations, expectations_file: str, prefix: str
+) -> List[LHPError]:
+    """``LHP-VAL-006`` for each name that more than one rule gets.
+
+    The names are those the parser gives (:func:`expectation_names`), so two
+    unnamed list rules with the same constraint share a name too. Every rule
+    must already be valid (:func:`rule_content_errors`). Names are counted as
+    text, so an unhashable ``name`` value cannot crash the check.
+    """
+    counts = Counter(str(name) for name in expectation_names(expectations))
+    return [
+        ErrorFactory.validation_error(
+            codes.VAL_006,
+            title="Duplicate expectation name",
+            details=(
+                f"{prefix}: {count} expectations in expectations file "
+                f"'{expectations_file}' are named '{name}'. An expectation name "
+                "must be unique for a dataset."
+            ),
+            suggestions=[
+                "Give each expectation its own name",
+                "In a list, a rule is named by 'message' when it has one, then "
+                "by 'name', then 'Constraint failed: <constraint>'",
+            ],
+            context={"Expectation": f"'{name}'", "Field": "name", "Provided": name},
+        )
+        for name, count in counts.items()
+        if count > 1
+    ]
 
 
 def _missing_constraint(prefix: str, label: str, where: str) -> LHPError:

@@ -26,6 +26,7 @@ STREAMING_TABLE_MODES = frozenset({"standard", "cdc", "snapshot_cdc", "replace"}
 class WriteActionValidator(BaseActionValidator):
     def __init__(self, action_registry, field_validator, project_root=None):
         super().__init__(action_registry, field_validator)
+        self.project_root = project_root
         self.dlt_validator = DltTableOptionsValidator()
         self.cdc_validator = CdcConfigValidator()
         self.snapshot_cdc_validator = SnapshotCdcConfigValidator()
@@ -87,11 +88,11 @@ class WriteActionValidator(BaseActionValidator):
 
     def _validate_write_target_type(
         self, action: Action, prefix: str, target_type: str
-    ) -> List[str]:
+    ) -> List[ValidationError]:
         logger.debug(
             f"Validating write target type '{target_type}' for action '{action.name}'"
         )
-        errors = []
+        errors: List[ValidationError] = []
 
         try:
             write_type = WriteTargetType(target_type)
@@ -107,7 +108,9 @@ class WriteActionValidator(BaseActionValidator):
                 if write_type == WriteTargetType.STREAMING_TABLE:
                     errors.extend(validate_streaming_table(action, prefix))
                 elif write_type == WriteTargetType.MATERIALIZED_VIEW:
-                    errors.extend(validate_materialized_view(action, prefix))
+                    errors.extend(
+                        validate_materialized_view(action, prefix, self.project_root)
+                    )
 
             elif write_type == WriteTargetType.SINK:
                 errors.extend(validate_sink(action, prefix))
