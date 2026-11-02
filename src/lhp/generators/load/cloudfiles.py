@@ -33,7 +33,7 @@ class CloudFilesLoadGenerator(BaseActionGenerator):
     """Generate CloudFiles (Auto Loader) load actions."""
 
     renders_operational_metadata = True
-    # Always spark.readStream; another readMode is rejected (LHP-VAL-068).
+    # Always spark.readStream; LoadActionValidator rejects another readMode.
     default_read_mode = "stream"
     fixed_read_mode = True
 
@@ -89,11 +89,9 @@ class CloudFilesLoadGenerator(BaseActionGenerator):
 
         readMode = self.read_mode(action)
         if readMode != "stream":
-            raise ErrorFactory.invalid_read_mode(
-                action_name=action.name,
-                action_type="cloudfiles",
-                provided=str(readMode),
-                valid_modes=["stream"],
+            # LoadActionValidator rejects any other readMode (LHP-VAL-068) first.
+            raise AssertionError(
+                f"Unvalidated cloudfiles readMode {readMode!r} in action '{action.name}'"
             )
 
         path = source_config.get("path")

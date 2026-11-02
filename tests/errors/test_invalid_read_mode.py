@@ -9,6 +9,8 @@ action accepts: the cloudfiles, kafka and data_quality generators accept only
 
 import pytest
 
+from lhp.core.registry import ActionRegistry
+from lhp.core.validators import ConfigFieldValidator, LoadActionValidator
 from lhp.errors import LHPError, codes
 from lhp.errors.factory import ErrorFactory
 from lhp.generators.load.cloudfiles import CloudFilesLoadGenerator
@@ -87,8 +89,28 @@ def _data_quality_batch():
 
 @pytest.mark.parametrize(
     "build",
-    [_cloudfiles_batch, _kafka_batch, _data_quality_batch],
-    ids=["cloudfiles", "kafka", "data_quality"],
+    [_cloudfiles_batch, _kafka_batch],
+    ids=["cloudfiles", "kafka"],
+)
+def test_stream_only_loads_raise_val_068_at_validate(build):
+    # The load validator reports the error; the generator only asserts the
+    # invariant for input that skipped validation.
+    generator, action = build()
+    validator = LoadActionValidator(ActionRegistry(), ConfigFieldValidator())
+
+    [error] = validator.validate(action, f"Action[0] '{action.name}'")
+
+    assert isinstance(error, LHPError)
+    assert error.code == "LHP-VAL-068"
+    assert not any("batch" in suggestion for suggestion in error.suggestions)
+    with pytest.raises(AssertionError, match=r"Unvalidated .* readMode 'batch'"):
+        generator.generate(action, {})
+
+
+@pytest.mark.parametrize(
+    "build",
+    [_data_quality_batch],
+    ids=["data_quality"],
 )
 def test_stream_only_generators_raise_val_068(build):
     generator, action = build()
