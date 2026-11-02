@@ -7,7 +7,7 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, List, Mapping, Optional, Set, Tuple
 
-from lhp.models import FlowGroup
+from lhp.models import Action, FlowGroup
 from lhp.models.processing import CopiedModuleRecord
 
 from ..processing.substitution import EnhancedSubstitutionManager
@@ -67,9 +67,14 @@ class GenerationContextBuilder:
         env: Optional[str],
         phase_a_records: Optional[List["CopiedModuleRecord"]] = None,
         auxiliary_files: Optional[Mapping[str, str]] = None,
+        effective_read_mode: Optional[str] = None,
     ) -> Dict[str, Any]:
         project_root = self.project_root or Path.cwd()
         return {
+            # The read the action's code makes, for a generator whose read
+            # follows its source view (see :meth:`effective_read_mode`);
+            # ``None`` for the others, which read their own declaration.
+            "effective_read_mode": effective_read_mode,
             "flowgroup": flowgroup,
             "substitution_manager": substitution_mgr,
             "spec_dir": project_root,  # For backward compatibility
@@ -108,6 +113,27 @@ class GenerationContextBuilder:
             # rationale.
             "source_parse_cache": self._source_parse_cache,
         }
+
+    def effective_read_mode(
+        self,
+        action: Action,
+        flowgroup: FlowGroup,
+        substitution_mgr: EnhancedSubstitutionManager,
+    ) -> Optional[str]:
+        """The read ``action``'s code makes, among ``flowgroup``'s actions.
+
+        :func:`lhp.core.dependencies.effective_read_mode`, reading SQL bodies
+        under the project root through ``substitution_mgr``.
+        """
+        # Lazy: lhp.core.dependencies imports services that import codegen.
+        from ..dependencies import effective_read_mode
+
+        return effective_read_mode(
+            action,
+            flowgroup.actions,
+            project_root=self.project_root or Path.cwd(),
+            substitution_mgr=substitution_mgr,
+        )
 
     def collect_outputs(self, generator) -> Tuple[Set[str], Set[str]]:
         imports: Set[str] = set()
