@@ -4,6 +4,7 @@ from .cdc_config import CdcConfigValidator
 from .cdc_fanin import CdcFanInCompatibilityValidator
 from .cdc_schema import CdcSchemaValidator
 from .dlt_table_options import DltTableOptionsValidator
+from .read_mode_lineage import ReadModeLineageValidator
 from .replace_config import ReplaceFlowConfigValidator
 from .replace_fanin import ReplaceFanInCompatibilityValidator
 from .shared_dlq import SharedDlqSourceTableValidator
@@ -15,6 +16,7 @@ __all__ = [
     "CdcFanInCompatibilityValidator",
     "CdcSchemaValidator",
     "DltTableOptionsValidator",
+    "ReadModeLineageValidator",
     "ReplaceFanInCompatibilityValidator",
     "ReplaceFlowConfigValidator",
     "SharedDlqSourceTableValidator",

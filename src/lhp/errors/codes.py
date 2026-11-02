@@ -112,6 +112,14 @@ VAL_068 = ErrorCode(ErrorCategory.VALIDATION, "068")
 # The generated MERGEs and recycle reads filter on ``source_table``, so such
 # actions would share a DLQ slice and recycle each other's fixed rows.
 VAL_069 = ErrorCode(ErrorCategory.VALIDATION, "069")
+# VAL_070: an action in a flowgroup reads a view that another load or transform
+# of the same flowgroup produces, in a way Databricks rejects when it analyzes
+# the pipeline: a streaming view read with ``spark.read`` (or without
+# ``STREAM()`` in SQL), a batch view read with ``spark.readStream`` (or as
+# ``STREAM(view)``), or a batch view appended to a streaming table by a flow
+# that is not ``once`` — raised by ReadModeLineageValidator via
+# ErrorFactory.validation_error(codes.VAL_070, ...).
+VAL_070 = ErrorCode(ErrorCategory.VALIDATION, "070")
 VAL_902 = ErrorCode(ErrorCategory.VALIDATION, "902")
 VAL_DUPFG = ErrorCode(ErrorCategory.VALIDATION, "DUPFG")
 
@@ -349,6 +357,7 @@ ALL_CODES: tuple[ErrorCode, ...] = (
     VAL_067,
     VAL_068,
     VAL_069,
+    VAL_070,
     VAL_902,
     VAL_DUPFG,
     IO_001,
@@ -570,6 +579,7 @@ __all__ = [
     "VAL_067",
     "VAL_068",
     "VAL_069",
+    "VAL_070",
     "VAL_902",
     "VAL_DUPFG",
     "ErrorCode",

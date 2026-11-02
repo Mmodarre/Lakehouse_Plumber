@@ -24,6 +24,9 @@ its read, except:
   ``"unknown"`` (a temp table is a table, not a view; a check over view reads
   skips it).
 
+:func:`sql_source_reads` is a SQL action's read of each table its SQL names,
+since a SQL body that reads a ``STREAM`` has no single read.
+
 Validators and code generation import this module lazily, inside functions:
 ``lhp.core.dependencies`` imports a service that imports the validators, so a
 module-level import from them would close a cycle (see
@@ -46,7 +49,7 @@ from lhp.models import Action, ActionType
 from ...errors import LHPError
 from ..loaders import load_sql_file
 from ..registry import ActionRegistry, ReadMode, determine_action_subtype
-from .sql_extraction import sql_reads_stream
+from .sql_extraction import sql_reads_stream, sql_table_reads
 
 if TYPE_CHECKING:
     from ..processing import EnhancedSubstitutionManager
@@ -161,6 +164,35 @@ def effective_read_mode(
             substitution_mgr,
             parse_cache,
         ),
+    )
+
+
+def sql_source_reads(
+    action: Action,
+    *,
+    project_root: Optional[Path] = None,
+    substitution_mgr: Optional[EnhancedSubstitutionManager] = None,
+) -> Optional[FrozenSet[tuple[str, ReadMode]]]:
+    """How a SQL load or SQL transform reads each table its SQL names.
+
+    ``(name, "stream")`` for a ``STREAM(name)`` / ``STREAM name`` read and
+    ``(name, "batch")`` for a plain reference; a name read both ways gives
+    both. The SQL is read as :func:`producer_kind` reads it. ``None`` for any
+    other action, and for SQL that cannot be read, holds ``$source`` or does
+    not parse.
+    """
+    if action.type not in (ActionType.LOAD, ActionType.TRANSFORM):
+        return None
+    if _sub_type(action) != "sql":
+        return None
+    text = _sql_text(action, project_root, substitution_mgr)
+    if text is None or _SOURCE_PLACEHOLDER.search(text):
+        return None
+    reads = sql_table_reads(text)
+    if reads is None:
+        return None
+    return frozenset(
+        (name, "stream") if stream else (name, "batch") for name, stream in reads
     )
 
 
