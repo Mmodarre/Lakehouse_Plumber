@@ -24,7 +24,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        runner: [ubuntu-22.04, ubuntu-24.04-arm, macos-14, windows-2022]
+        runner: [ubuntu-22.04, ubuntu-24.04-arm, macos-latest, windows-2022]
         python: ['3.12']
     env:
       LHP_TELEMETRY: 'off'
