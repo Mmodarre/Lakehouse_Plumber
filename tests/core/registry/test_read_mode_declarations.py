@@ -56,9 +56,9 @@ class TestDeclarations:
             ("load", "delta"): ("batch", False),
             ("load", "custom_datasource"): ("stream", False),
             ("load", "jdbc"): ("batch", True),
-            ("load", "sql"): (None, False),
-            ("load", "python"): (None, False),
-            ("transform", "sql"): (None, False),
+            ("load", "sql"): (None, True),
+            ("load", "python"): (None, True),
+            ("transform", "sql"): (None, True),
             ("transform", "data_quality"): ("stream", False),
             ("transform", "schema"): ("stream", False),
             ("transform", "python"): ("batch", False),
@@ -150,6 +150,19 @@ class TestRegistryConsumerReadMode:
             (_load({"type": "jdbc"}, "stream"), "batch"),
             (_load({"type": "delta", "table": "t"}), "batch"),
             (_load({"type": "python"}), None),
+            (_load({"type": "python"}, "batch"), None),
+            (_load({"type": "sql", "sql": "SELECT 1"}, "stream"), None),
+            (
+                Action(
+                    name="t",
+                    type=ActionType.TRANSFORM,
+                    transform_type=TransformType.SQL,
+                    sql="SELECT * FROM v",
+                    target="v2",
+                    readMode="batch",
+                ),
+                None,
+            ),
         ],
         ids=[
             "materialized_view",
@@ -161,6 +174,9 @@ class TestRegistryConsumerReadMode:
             "jdbc-always-batch",
             "delta",
             "python-load-unknown",
+            "python-load-ignores-readMode",
+            "sql-load-ignores-readMode",
+            "sql-transform-ignores-readMode",
         ],
     )
     def test_consumer_read(self, action: Action, expected: str | None) -> None:

@@ -18,6 +18,10 @@ class PythonLoadGenerator(BaseActionGenerator):
     """
 
     renders_operational_metadata = True
+    # readMode is not read: the user's loader function makes its own read,
+    # so LHP knows no read for it.
+    default_read_mode = None
+    fixed_read_mode = True
 
     def __init__(self):
         super().__init__(use_import_manager=True)
