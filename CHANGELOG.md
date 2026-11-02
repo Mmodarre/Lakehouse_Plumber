@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **An unknown `streaming_table` write mode is rejected instead of generating an
+  append flow (#345).** `write_target.mode` was not checked, so a typo such as
+  `mode: cdcc` passed `lhp validate` and `lhp generate` silently rendered a plain
+  append flow, dropping the CDC / snapshot CDC / replace behaviour the user asked for.
+  `lhp validate` now reports the unknown mode with the list of valid modes
+  (`standard`, `cdc`, `snapshot_cdc`, `replace`) and a "did you mean" suggestion, and
+  the generator raises the same kind of error. A `cdc_config`, `snapshot_cdc_config`
+  or `replace_config` that the configured mode ignores now logs a warning.
 - **Pipeline `libraries` and job `tasks` no longer silently replace LHP's own
   (#351).** The bundle templates write `name`, `libraries` and `root_path` into every
   pipeline resource and `name` and `tasks` into every job resource, and pass every
