@@ -6,6 +6,7 @@ import re
 import shutil
 from pathlib import Path
 
+import click
 import pytest
 import yaml
 from click.testing import CliRunner
@@ -1842,3 +1843,113 @@ tags:
         assert "event_log" not in pipeline, (
             "Monitoring pipeline resource should NOT have event_log"
         )
+
+
+@pytest.mark.e2e
+class TestGeneratedResourceKeysE2E:
+    """#351: pipeline_config keys that LHP also writes into the pipeline resource.
+
+    A user ``libraries`` list used to come out as a second ``libraries:`` key
+    that silently replaced LHP's generated glob. Each test appends a document
+    for ``acmi_edw_silver`` (which has none in the fixture) to the temp copy's
+    pipeline_config.yaml and runs the real CLI.
+    """
+
+    _PIPELINE = "acmi_edw_silver"
+    _USER_GLOB = "${workspace.file_path}/pipeline_extras/acmi_edw_silver/**"
+
+    @pytest.fixture(autouse=True)
+    def setup_test_project(self, isolated_project):
+        fixture_path = Path(__file__).parent / "fixtures" / "testing_project"
+        self.project_root = isolated_project / "test_project"
+        shutil.copytree(fixture_path, self.project_root)
+
+        self.original_cwd = os.getcwd()
+        os.chdir(self.project_root)
+
+        self.resources_dir = self.project_root / "resources" / "lhp"
+        self.baseline_dir = self.project_root / "resources_baseline" / "lhp"
+        self.config_file = self.project_root / "config" / "pipeline_config.yaml"
+
+        yield
+        os.chdir(self.original_cwd)
+
+    def _add_pipeline_document(self, body: str) -> None:
+        with self.config_file.open("a") as f:
+            f.write(f"\n---\npipeline: {self._PIPELINE}\n{body}")
+
+    def _run(self, command: str) -> tuple:
+        result = CliRunner().invoke(
+            cli,
+            [
+                command,
+                "--env",
+                "dev",
+                "--pipeline-config",
+                "config/pipeline_config.yaml",
+            ],
+        )
+        return result.exit_code, click.unstyle(result.output)
+
+    @staticmethod
+    def _sha(path: Path) -> str:
+        return hashlib.sha256(path.read_bytes()).hexdigest()
+
+    def test_user_glob_libraries_merged_after_lhp_glob(self):
+        self._add_pipeline_document(
+            f"libraries:\n  - glob:\n      include: {self._USER_GLOB}\n"
+        )
+
+        exit_code, output = self._run("generate")
+        assert exit_code == 0, f"Generation should succeed:\n{output}"
+
+        resource = self.resources_dir / f"{self._PIPELINE}.pipeline.yml"
+        content = resource.read_text()
+        pipeline = yaml.safe_load(content)["resources"]["pipelines"][
+            f"{self._PIPELINE}_pipeline"
+        ]
+        lhp_glob = (
+            f"${{workspace.file_path}}/generated/${{bundle.target}}/{self._PIPELINE}/**"
+        )
+        assert pipeline["libraries"] == [
+            {"glob": {"include": lhp_glob}},
+            {"glob": {"include": self._USER_GLOB}},
+        ]
+        assert [
+            line for line in content.splitlines() if line.strip() == "libraries:"
+        ] == ["      libraries:"], "libraries must be rendered exactly once"
+
+        # The edited pipeline matches its dedicated baseline; every other
+        # resource is byte-identical to the standard baselines.
+        mismatches = []
+        for generated in sorted(self.resources_dir.glob("*.pipeline.yml")):
+            name = generated.name
+            if name == resource.name:
+                name = f"{self._PIPELINE}_with_libraries.pipeline.yml"
+            baseline = self.baseline_dir / name
+            assert baseline.exists(), f"Missing baseline: {name}"
+            if self._sha(generated) != self._sha(baseline):
+                mismatches.append(name)
+        assert not mismatches, f"Resources differ from baselines: {mismatches}"
+
+    @pytest.mark.parametrize(
+        ("body", "key"),
+        [
+            (
+                "libraries:\n  - file:\n"
+                "      path: ${workspace.file_path}/hooks/event_hook.py\n",
+                "'file'",
+            ),
+            ("root_path: ${workspace.file_path}/elsewhere\n", "'root_path'"),
+            ("name: Silver pipeline\n", "'name'"),
+        ],
+        ids=["non_glob_library", "root_path", "name"],
+    )
+    def test_generated_key_conflict_fails_validate(self, body, key):
+        self._add_pipeline_document(body)
+
+        exit_code, output = self._run("validate")
+
+        assert exit_code != 0, f"Validate should fail:\n{output}"
+        assert "LHP-CFG-072" in output, output
+        assert key in output, output

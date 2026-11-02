@@ -181,6 +181,9 @@ Configuration errors (LHP-CFG)
    * - LHP-CFG-071
      - A ``sql_path`` file referenced by a template action is not a valid Jinja template, uses a name the template parameters do not define, uses something the sandbox blocks, or renders to empty SQL. Template expansion renders such a file with the template parameters when it contains ``{{``, ``{%`` or ``{#``. Rendering is strict, so an undefined name is an error rather than an empty string. Raised by ``lhp validate`` and ``lhp generate``; ``lhp dag`` logs it as a warning.
      - Fix the ``{{ name }}`` expression, or declare the name as a template parameter (with a default if it is optional). Wrap literal ``{{``, ``{%`` or ``{#`` in ``{% raw %}...{% endraw %}``. See :ref:`template-sql-files`.
+   * - LHP-CFG-072
+     - A config key collides with a field LHP writes into the bundle resource: ``name`` or ``root_path`` in ``pipeline_config.yaml``; ``name`` in an orchestration or monitoring job config; a pipeline ``libraries`` value that is not a list of exactly ``glob: {include: <path>}`` entries with a non-empty path (``notebook`` and ``file`` libraries are rejected); or a job ``tasks`` value that is not a list of mappings, each with a non-empty string ``task_key`` used by no other task, generated or user-defined. Pipeline config is checked when it is loaded, so ``lhp validate`` (with bundle output enabled) and ``lhp generate`` both raise it; orchestration job config is checked by ``lhp dag`` (``job`` format) and the monitoring job config by ``lhp generate``.
+     - Remove ``name`` and ``root_path``. Write each extra library as a ``glob`` entry; an ``include`` can point to one file or notebook, or to a folder ending ``/**``. Give each extra task its own ``task_key``, and list a generated task's key under ``depends_on`` to run after it. See :doc:`config/pipeline-config` and :doc:`config/jobs`.
 
 Validation errors (LHP-VAL)
 ===========================

@@ -182,7 +182,35 @@ For a worked offline configuration example, see [quickstart.md](quickstart.md).
 
 Per-pipeline values override `project_defaults`; `project_defaults` overrides the
 built-in defaults. Nested dicts are deep-merged; lists (`clusters`,
-`notifications`, `permissions`) are replaced wholesale.
+`notifications`, `permissions`, `libraries`) are replaced wholesale.
+
+### Keys LHP writes itself: `name`, `root_path`, `libraries`
+
+Every other key passes through verbatim into the pipeline resource. These three
+are checked when the file loads (`lhp validate` with bundle output enabled, and
+`lhp generate`), failing with
+**LHP-CFG-072**:
+
+- `name`, `root_path` → **rejected**. Resource name is always `<pipeline>_pipeline`;
+  `root_path` is the generated code folder (`${workspace.file_path}/generated/${bundle.target}/<pipeline>`),
+  which Databricks adds to `sys.path` and the generated helper imports rely on.
+- `libraries` → **appended** after LHP's generated glob
+  (`${workspace.file_path}/generated/${bundle.target}/<pipeline>/**`). Must be a list
+  (a `${var.x}` reference fails); each entry must be exactly `glob: {include: <path>}`
+  (no other key in the entry or in `glob`; non-empty `include` string).
+  `notebook`/`file` libraries fail: Databricks does not allow them
+  together with glob libraries, and every LHP pipeline has one. A glob `include` may
+  name a single file or notebook, or a folder ending `/**`. `libraries: []` adds
+  nothing; a per-pipeline list replaces the `project_defaults` one (so `[]` opts a
+  pipeline out). `project_defaults` also reaches the monitoring pipeline
+  (`pipeline: __eventlog_monitoring` + `libraries: []` excludes it).
+
+```yaml
+project_defaults:
+  libraries:
+    - glob:
+        include: ${workspace.file_path}/pipeline_extras/**   # appended after LHP's glob
+```
 
 ### Per-pipeline form
 

@@ -256,6 +256,15 @@ CFG_070 = ErrorCode(ErrorCategory.CONFIG, "070")
 # Raised by core/processing/template_sql_files.py during expansion, so on the
 # validate and generate paths alike, via ErrorFactory.config_error(codes.CFG_071, ...).
 CFG_071 = ErrorCode(ErrorCategory.CONFIG, "071")
+# CFG_072: a pipeline_config / job_config key collides with a field LHP writes
+# into the bundle resource (#351). ``name`` and ``root_path`` are LHP-owned and
+# rejected; ``libraries`` (glob entries only) and ``tasks`` (a string
+# ``task_key`` that no generated task uses) are appended after LHP's own.
+# Raised by core/validators/field/{pipeline,job}_resource_keys.py when pipeline-config
+# loads (validate and generate) and when a job renders (``lhp dag`` for
+# orchestration jobs, ``lhp generate`` for the monitoring job), via
+# ErrorFactory.config_error(codes.CFG_072, ...).
+CFG_072 = ErrorCode(ErrorCategory.CONFIG, "072")
 
 DEP_001 = ErrorCode(ErrorCategory.DEPENDENCY, "001")
 # DEP_002: dependency extraction found a recognized table-read in Python code
@@ -406,6 +415,7 @@ ALL_CODES: tuple[ErrorCode, ...] = (
     CFG_069,
     CFG_070,
     CFG_071,
+    CFG_072,
     DEP_001,
     DEP_002,
     DEP_003,
@@ -480,6 +490,7 @@ __all__ = [
     "CFG_069",
     "CFG_070",
     "CFG_071",
+    "CFG_072",
     "DEPR_001",
     "DEPR_002",
     "DEPR_003",

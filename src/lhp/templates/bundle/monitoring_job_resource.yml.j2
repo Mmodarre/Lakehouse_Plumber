@@ -6,7 +6,7 @@ resources:
       name: {{ job_name }}
       max_concurrent_runs: {{ job_config.max_concurrent_runs }}
       tasks:
-        - task_key: union_event_logs
+        - task_key: {{ notebook_task_key }}
 {%- if job_config.get('notebook_cluster', {}).get('new_cluster') %}
           new_cluster:
 {%- for key, value in job_config.notebook_cluster.new_cluster.items() %}
@@ -19,13 +19,18 @@ resources:
             notebook_path: {{ notebook_path }}
             source: WORKSPACE
 {%- if has_pipeline %}
-        - task_key: {{ pipeline_name }}_pipeline
+        - task_key: {{ pipeline_task_key }}
           depends_on:
-            - task_key: union_event_logs
+            - task_key: {{ notebook_task_key }}
           pipeline_task:
             pipeline_id: ${{ '{' }}resources.pipelines.{{ pipeline_name }}_pipeline.id}
             full_refresh: false
 {%- endif %}
+{#- User tasks follow the generated tasks (#351); JobGenerator rejects a
+    task_key that a generated task already uses. #}
+{%- for task in job_config.get('tasks') or [] %}
+{{ [task] | toyaml | indent(8, first=True) }}
+{%- endfor %}
 {%- if job_config.queue %}
       queue:
         enabled: {{ job_config.queue.enabled | lower }}

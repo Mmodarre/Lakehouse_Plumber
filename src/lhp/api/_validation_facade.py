@@ -176,7 +176,8 @@ class ValidationFacade:
 
         ``bundle_enabled`` mirrors the generate path: when ``True`` the
         shared preflight also runs the bundle catalog/schema check
-        (→ ``LHP-CFG-026``) and rejects a plain ``${name}`` left unresolved
+        (→ ``LHP-CFG-026``, or the code of any error raised while loading
+        ``pipeline_config.yaml``) and rejects a plain ``${name}`` left unresolved
         in any pipeline's bundle resource settings (→ ``LHP-CFG-010``), but
         only if the orchestrator was constructed with a
         ``pipeline_config_path``. Defaults to ``False`` so the non-bundle
@@ -210,7 +211,7 @@ class ValidationFacade:
             invalid-argument combinations).
         :raises lhp.errors.LHPError: ``LHP-VAL-*`` (config/action/schema
             validation), ``LHP-CFG-*`` (project config + substitution),
-            ``LHP-FILE-*`` (missing files), ``LHP-MULT-*`` (multi-document
+            ``LHP-IO-*`` (missing files), ``LHP-MULT-*`` (multi-document
             YAML), and ``LHP-TPL-*`` (template expansion) propagated from
             the per-pipeline workers; on a ``sandbox=True`` run also the
             sandbox preflight errors ``LHP-IO-025`` (missing

@@ -4,6 +4,7 @@ import pytest
 import yaml
 
 from lhp.core.jobs.job_generator import JobGenerator
+from lhp.errors import LHPConfigError
 
 
 @pytest.mark.unit
@@ -144,3 +145,58 @@ class TestJobGeneratorNoMonitoringAliasAttrs:
 
     def test_no_resolve_monitoring_alias_method(self):
         assert not hasattr(JobGenerator, "_resolve_monitoring_alias")
+
+
+@pytest.mark.unit
+class TestMonitoringJobUserTasks:
+    """#351: user tasks follow the generated monitoring tasks, never replace them."""
+
+    def _render(self, raw_config, has_pipeline=True):
+        return JobGenerator().generate_monitoring_job(
+            pipeline_name="my_monitor",
+            notebook_path="/Workspace/x/union_event_logs",
+            job_name="my_monitor_job",
+            job_config=JobGenerator.resolve_monitoring_job_config(raw_config),
+            has_pipeline=has_pipeline,
+        )
+
+    def test_user_tasks_appended(self):
+        rendered = self._render(
+            {
+                "tasks": [
+                    {
+                        "task_key": "alert",
+                        "depends_on": [{"task_key": "my_monitor_pipeline"}],
+                        "notebook_task": {"notebook_path": "/Workspace/alert"},
+                    }
+                ]
+            }
+        )
+        tasks = yaml.safe_load(rendered)["resources"]["jobs"]["my_monitor_job"]["tasks"]
+        assert [t["task_key"] for t in tasks] == [
+            "union_event_logs",
+            "my_monitor_pipeline",
+            "alert",
+        ]
+
+    @pytest.mark.parametrize("task_key", ["union_event_logs", "my_monitor_pipeline"])
+    def test_collision_with_generated_task_rejected(self, task_key):
+        with pytest.raises(LHPConfigError) as exc_info:
+            self._render({"tasks": [{"task_key": task_key}]})
+        assert exc_info.value.code == "LHP-CFG-072"
+
+    def test_pipeline_task_key_free_when_no_pipeline(self):
+        """Without a monitoring pipeline only union_event_logs is generated."""
+        rendered = self._render(
+            {"tasks": [{"task_key": "my_monitor_pipeline"}]}, has_pipeline=False
+        )
+        tasks = yaml.safe_load(rendered)["resources"]["jobs"]["my_monitor_job"]["tasks"]
+        assert [t["task_key"] for t in tasks] == [
+            "union_event_logs",
+            "my_monitor_pipeline",
+        ]
+
+    def test_name_rejected(self):
+        with pytest.raises(LHPConfigError) as exc_info:
+            self._render({"name": "Pretty monitor"})
+        assert exc_info.value.code == "LHP-CFG-072"

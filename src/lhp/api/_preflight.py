@@ -18,7 +18,14 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Tuple
 
 from lhp.api._converters_common import _lhp_error_to_issue_view
 from lhp.api.views import ValidationIssueView
-from lhp.errors import ErrorCategory, LHPConfigError, LHPError
+from lhp.errors import (
+    ErrorCategory,
+    ErrorFactory,
+    LHPConfigError,
+    LHPError,
+    codes,
+    parse_error_code,
+)
 
 if TYPE_CHECKING:
     from lhp.bundle.manager import BundleManager
@@ -63,8 +70,9 @@ def _run_project_preflight(
        cannot run, so a single ``LHP-CFG-023`` issue is surfaced (built
        from :func:`_missing_pipeline_config_error`). Otherwise the
        catalog/schema check runs via
-       :meth:`BundleFacade.validate_bundle_assets` and each failure
-       becomes an ``LHP-CFG-026`` issue.
+       :meth:`BundleFacade.validate_bundle_assets`; a catalog/schema failure
+       becomes an ``LHP-CFG-026`` issue, and an error raised while loading
+       ``pipeline_config.yaml`` keeps its own code, title and details.
     4. **Unresolved tokens in written-out settings** — via
        :func:`~lhp.core.validators.unresolved_setting_token_errors`. A plain
        ``${name}`` left after substitution yields one ``LHP-CFG-010`` issue
@@ -215,25 +223,37 @@ def _check_bundle_assets(
     if result.success:
         return []
 
-    # ``error_code`` is the fully-qualified ``LHP-CFG-026`` (or another
-    # ``LHP-...`` code on unexpected failure); strip the ``LHP-<CAT>-``
-    # prefix back to the bare code_number that ``LHPConfigError`` expects.
-    code_number = _code_number_from_full_code(result.error_code)
+    # ``error_code`` is the fully-qualified ``LHP-CFG-026`` or the code of an
+    # error raised while loading pipeline_config.yaml (e.g. LHP-VAL-009 for a
+    # bad ``edition``, LHP-CFG-072 for a key LHP writes itself, LHP-IO-001 for
+    # a missing file). Those keep their own category, title and details; only
+    # the catalog/schema failure, or a failure with no LHP code, is reported
+    # as LHP-CFG-026.
+    parsed = parse_error_code(result.error_code)
+    if parsed is not None and parsed != (codes.CFG_026.category, codes.CFG_026.number):
+        category, code_number = parsed
+        return [
+            _lhp_error_to_issue_view(
+                LHPError(
+                    category=category,
+                    code_number=code_number,
+                    title=result.error_message or "Bundle validation failed",
+                    details="\n".join(result.issues),
+                )
+            )
+        ]
+
     detail_lines = list(result.issues)
     if result.error_message:
         detail_lines.insert(0, result.error_message)
     details = "\n".join(detail_lines) if detail_lines else "Bundle validation failed"
 
-    # Only the catalog/schema failure (``LHP-CFG-026``) has a doc page;
-    # the slug is the same constant the bundle layer attaches to its own
-    # aggregated error. Leave ``doc_link`` unset for any other code.
-    doc_link = _CATALOG_SCHEMA_DOC_LINK if code_number == "026" else None
-
+    # The doc slug is the same constant the bundle layer attaches to its own
+    # aggregated catalog/schema error.
     return [
         _lhp_error_to_issue_view(
-            LHPConfigError(
-                category=ErrorCategory.CONFIG,
-                code_number=code_number,
+            ErrorFactory.config_error(
+                codes.CFG_026,
                 title="Bundle catalog/schema validation failed",
                 details=details,
                 suggestions=[
@@ -241,7 +261,7 @@ def _check_bundle_assets(
                     "in pipeline_config.yaml",
                     "Or define them per-pipeline (overrides project_defaults)",
                 ],
-                doc_link=doc_link,
+                doc_link=_CATALOG_SCHEMA_DOC_LINK,
             )
         )
     ]
@@ -341,12 +361,3 @@ def _monitoring_notebook_context(
         logger.debug(f"Monitoring notebook not token-checked: {exc.code}")
         return None
     return context
-
-
-def _code_number_from_full_code(full_code: str | None) -> str:
-    # ``"LHP-CFG-026"`` → ``"026"``. Falls back to ``"026"`` — bundle catalog/schema
-    # is the only failure mode that reaches here.
-    if not full_code:
-        return "026"
-    parts = full_code.split("-")
-    return parts[-1] if parts else "026"

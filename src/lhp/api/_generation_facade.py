@@ -176,7 +176,7 @@ class GenerationFacade:
             invalid-argument combinations).
         :raises lhp.errors.LHPError: ``LHP-VAL-*`` (config/action/schema
             validation), ``LHP-CFG-*`` (project config + substitution),
-            ``LHP-FILE-*`` (missing files), ``LHP-MULT-*`` (multi-document
+            ``LHP-IO-*`` (missing files), ``LHP-MULT-*`` (multi-document
             YAML), ``LHP-TPL-*`` (template expansion) propagated from the
             per-pipeline workers, ``LHP-CFG-033`` / ``LHP-CFG-034`` from the
             format phase (ruff exits non-zero / ruff executable not found), and
@@ -272,7 +272,7 @@ class GenerationFacade:
         the per-pipeline failure events + one :class:`ErrorEmitted` (§1.4),
         before any temp write. There is NO non-LHP infra-degradation path — a
         plan performs no commit-time disk write, so the ``:raises:`` list below
-        OMITS the ``LHP-FILE-*`` disk-write codes.
+        OMITS the ``LHP-IO-*`` disk-write codes.
 
         ``progress`` is an optional :class:`~lhp.api.ProgressSink` driven
         exactly as on :meth:`generate_pipelines`: its ``on_total`` fires once
