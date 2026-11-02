@@ -220,3 +220,18 @@ def test_replace_flow_does_not_emit_once_parameter():
 
     assert "dp.replace_flow(" in code
     assert "once=True" not in code
+
+
+def test_unknown_mode_raises_instead_of_rendering_an_append_flow():
+    """The generator refuses an unknown mode rather than falling through (#345)."""
+    from lhp.errors import LHPError
+
+    action = _replace_action("write_orders_current", source="v_order_updates")
+    action.write_target["mode"] = "cdcc"
+
+    with pytest.raises(LHPError) as exc_info:
+        StreamingTableWriteGenerator().generate(action, {})
+
+    message = str(exc_info.value)
+    assert "cdcc" in message
+    assert "'cdc'" in message

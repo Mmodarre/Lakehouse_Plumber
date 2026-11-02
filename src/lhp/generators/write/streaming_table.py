@@ -4,7 +4,7 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, List
 
-from lhp.models import Action
+from lhp.models import Action, StreamingTableMode
 
 from ...core.codegen import copy_user_module_for_pipeline
 from ...core.loaders import resolve_table_schema
@@ -48,9 +48,19 @@ class StreamingTableWriteGenerator(BaseActionGenerator):
         source_views = self._extract_source_views(action.source)
         readMode = action.readMode or "stream"
 
-        mode = target_config.get(
-            "mode", "standard"
-        )  # Valid modes: "standard" (default), "cdc", "snapshot_cdc", "replace"
+        mode = target_config.get("mode", "standard")
+        valid_modes = [m.value for m in StreamingTableMode]
+        if mode not in valid_modes:
+            # The template's fallback branch renders an append flow, so an
+            # unknown mode must never reach it (#345).
+            raise ErrorFactory.unknown_type_with_suggestion(
+                value_type="streaming_table write mode",
+                provided_value=str(mode),
+                valid_values=valid_modes,
+                example_usage="""write_target:
+  type: streaming_table
+  mode: cdc    # or: standard (default), snapshot_cdc, replace""",
+            )
         catalog = target_config.get("catalog")
         schema = target_config.get("schema")
         table = target_config.get("table")

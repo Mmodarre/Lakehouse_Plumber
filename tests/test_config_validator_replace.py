@@ -258,3 +258,68 @@ def test_replace_fanin_rejects_cdc_with_replace_on_same_table():
     errors = validator.validate([fg])
 
     assert len(errors) > 0
+
+
+# ---------------------------------------------------------------------------
+# Unknown streaming_table modes (#345)
+# ---------------------------------------------------------------------------
+
+
+def _cdc_typo_action(mode) -> Action:
+    return Action(
+        name="write_customer_scd2",
+        type=ActionType.WRITE,
+        source="v_customer",
+        write_target={
+            "type": "streaming_table",
+            "mode": mode,
+            "catalog": "cat",
+            "schema": "silver",
+            "table": "dim_customer",
+            "cdc_config": {
+                "keys": ["c_custkey"],
+                "sequence_by": "c_acctbal",
+                "scd_type": 2,
+            },
+        },
+    )
+
+
+def test_unknown_streaming_table_mode_is_rejected_with_suggestion():
+    """A typo such as 'cdcc' is an error naming the valid modes, not an append flow."""
+    errors = ConfigValidator().validate_action(_cdc_typo_action("cdcc"), 1)
+
+    messages = [str(e) for e in errors]
+    assert any("Unknown streaming_table write mode 'cdcc'" in m for m in messages), (
+        messages
+    )
+    assert any("Did you mean 'cdc'?" in m for m in messages), messages
+    assert any("standard, cdc, snapshot_cdc, replace" in m for m in messages)
+
+
+@pytest.mark.parametrize("mode", ["replace_where", "CDC", ""])
+def test_other_unknown_streaming_table_modes_are_rejected(mode):
+    """Any value outside the valid set is rejected, including case variants."""
+    errors = ConfigValidator().validate_action(_cdc_typo_action(mode), 1)
+
+    assert any(
+        f"Unknown streaming_table write mode '{mode}'" in str(e) for e in errors
+    ), errors
+
+
+@pytest.mark.parametrize("mode", ["standard", "cdc", "snapshot_cdc", "replace"])
+def test_valid_streaming_table_modes_are_not_reported_as_unknown(mode):
+    errors = ConfigValidator().validate_action(_cdc_typo_action(mode), 1)
+
+    assert not any("Unknown streaming_table write mode" in str(e) for e in errors)
+
+
+def test_mode_config_ignored_by_selected_mode_is_warned(caplog):
+    """cdc_config next to mode: standard is ignored, so say so."""
+    with caplog.at_level("WARNING"):
+        errors = ConfigValidator().validate_action(_cdc_typo_action("standard"), 1)
+
+    assert not errors
+    assert "'cdc_config' is ignored because write_target.mode is 'standard'" in (
+        caplog.text
+    )
