@@ -9,7 +9,8 @@ Targets the two arms that the monitoring e2e baselines never exercise:
 2. The four ``finalize_artifacts`` raise paths that validate the monitoring
    job config: ``LHP-CFG-008`` (missing ``job_config_path``), ``LHP-IO-001``
    (file absent), ``LHP-IO-002`` (YAML parse error), and ``LHP-CFG-008``
-   (top-level non-mapping). (``monitoring_service.py`` L156-216.)
+   (top-level non-mapping), plus ``LHP-CFG-072`` from the job-key checks.
+   Each must fail before any monitoring artifact is written (#372).
 
 The safety test pins the invariant that cleanup matches the marker only as a
 standalone full line: a user pipeline whose ``monitoring.py`` merely mentions
@@ -69,7 +70,7 @@ def _build_result(
     """A minimal, render-able :class:`MonitoringBuildResult`.
 
     ``finalize_artifacts`` renders ``union_event_logs.py.j2`` from this
-    ``template_context`` *before* it reaches the job-config validation; the
+    ``template_context`` once the job config has been checked; the
     keys below are exactly what that template consumes (``sources``,
     ``target_fqn``, ``checkpoint_path``, ``max_concurrent_streams``).
     ``context=None`` keeps the synthetic DLT flowgroup absent (notebook-only).
@@ -85,6 +86,12 @@ def _build_result(
         eligible_pipelines=["p1"],
         pipeline_name=pipeline_name,
     )
+
+
+def _assert_no_monitoring_artifacts(project_root: Path) -> None:
+    """Nothing was written: a failed finalize must not leave partial output."""
+    assert not (project_root / "monitoring").exists()
+    assert not (project_root / "resources").exists()
 
 
 @pytest.mark.unit
@@ -127,6 +134,8 @@ def test_finalize_raises_cfg008_when_job_config_path_missing(tmp_path):
     with pytest.raises(LHPError, match="LHP-CFG-008"):
         service.finalize_artifacts(env="dev", output_dir=output_dir)
 
+    _assert_no_monitoring_artifacts(project_root)
+
 
 @pytest.mark.unit
 def test_finalize_raises_io001_when_job_config_file_absent(tmp_path):
@@ -145,6 +154,8 @@ def test_finalize_raises_io001_when_job_config_file_absent(tmp_path):
 
     with pytest.raises(LHPError, match="LHP-IO-001"):
         service.finalize_artifacts(env="dev", output_dir=output_dir)
+
+    _assert_no_monitoring_artifacts(project_root)
 
 
 @pytest.mark.unit
@@ -168,6 +179,8 @@ def test_finalize_raises_io002_on_malformed_job_config_yaml(tmp_path):
     with pytest.raises(LHPError, match="LHP-IO-002"):
         service.finalize_artifacts(env="dev", output_dir=output_dir)
 
+    _assert_no_monitoring_artifacts(project_root)
+
 
 @pytest.mark.unit
 def test_finalize_raises_cfg008_when_job_config_not_a_mapping(tmp_path):
@@ -189,6 +202,64 @@ def test_finalize_raises_cfg008_when_job_config_not_a_mapping(tmp_path):
 
     with pytest.raises(LHPError, match="LHP-CFG-008"):
         service.finalize_artifacts(env="dev", output_dir=output_dir)
+
+    _assert_no_monitoring_artifacts(project_root)
+
+
+@pytest.mark.unit
+def test_finalize_raises_cfg072_before_writing_notebook(tmp_path):
+    """LHP-CFG-072: a user task reusing a generated task key fails before the
+    union notebook is written, and leaves the previous artifacts in place."""
+    project_root = tmp_path / "project"
+    project_root.mkdir()
+    output_dir = project_root / "generated"
+
+    config_dir = project_root / "config"
+    config_dir.mkdir()
+    (config_dir / "job.yaml").write_text(
+        "tasks:\n  - task_key: union_event_logs\n", encoding="utf-8"
+    )
+    previous_notebook = project_root / "monitoring" / "dev" / "union_event_logs.py"
+    previous_notebook.parent.mkdir(parents=True)
+    previous_notebook.write_text("# previous run\n", encoding="utf-8")
+
+    service = _make_service(
+        project_root,
+        monitoring=MonitoringConfig(enabled=True, job_config_path="config/job.yaml"),
+    )
+    service._last_build_result = _build_result()
+
+    with pytest.raises(LHPError, match="LHP-CFG-072"):
+        service.finalize_artifacts(env="dev", output_dir=output_dir)
+
+    assert previous_notebook.read_text(encoding="utf-8") == "# previous run\n"
+    assert not (project_root / "resources").exists()
+
+
+@pytest.mark.unit
+def test_finalize_writes_notebook_and_job_resource(tmp_path):
+    """A valid job config writes both monitoring artifacts."""
+    project_root = tmp_path / "project"
+    project_root.mkdir()
+    output_dir = project_root / "generated"
+
+    config_dir = project_root / "config"
+    config_dir.mkdir()
+    (config_dir / "job.yaml").write_text("max_concurrent_runs: 1\n", encoding="utf-8")
+
+    service = _make_service(
+        project_root,
+        monitoring=MonitoringConfig(enabled=True, job_config_path="config/job.yaml"),
+    )
+    service._last_build_result = _build_result()
+
+    service.finalize_artifacts(env="dev", output_dir=output_dir)
+
+    assert (project_root / "monitoring" / "dev" / "union_event_logs.py").is_file()
+    job_resource = project_root / "resources" / "acme_event_log_monitoring.job.yml"
+    assert job_resource.read_text(encoding="utf-8").startswith(
+        MonitoringFinalizerService._MONITORING_JOB_HEADER
+    )
 
 
 @pytest.mark.unit

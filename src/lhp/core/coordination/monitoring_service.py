@@ -121,26 +121,48 @@ class MonitoringFinalizerService(BaseMonitoringFinalizerService):
 
         Called AFTER the pipeline generation loop. Handles add/remove/rename
         transitions and notebook-only vs full job updates.
-        """
-        self.cleanup_artifacts(env, output_dir)
 
+        The monitoring job config is loaded and checked, and both artifacts
+        are rendered, before anything on disk is touched, so a bad job config
+        fails without leaving a partial set of monitoring artifacts behind.
+        """
         if not self._last_build_result:
+            self.cleanup_artifacts(env, output_dir)
             return
 
+        from lhp.core.codegen.template_renderer import TemplateRenderer
+
+        from ..jobs.job_generator import JobGenerator
+
         substitution_mgr = self._substitution_manager(env)
+
+        resolved_job_config = self._load_monitoring_job_config(substitution_mgr)
 
         resolved_context = substitution_mgr.substitute_yaml(
             self._last_build_result.template_context
         )
-
-        from lhp.core.codegen.template_renderer import TemplateRenderer
-
         renderer = TemplateRenderer.from_package()
         notebook_content = renderer.render_template(
             "monitoring/union_event_logs.py.j2", resolved_context
         )
 
         monitoring_pipeline_name = self._last_build_result.pipeline_name
+        job_name = f"{monitoring_pipeline_name}_job"
+        job_gen = JobGenerator(project_root=self.project_root)
+        notebook_workspace_path = (
+            "${workspace.file_path}/monitoring/${bundle.target}/union_event_logs"
+        )
+        has_pipeline = self._last_build_result.flowgroup is not None
+        # Also checks the LHP-written job keys (LHP-CFG-072).
+        job_resource_content = job_gen.generate_monitoring_job(
+            pipeline_name=monitoring_pipeline_name,
+            notebook_path=notebook_workspace_path,
+            job_name=job_name,
+            job_config=resolved_job_config,
+            has_pipeline=has_pipeline,
+        )
+
+        self.cleanup_artifacts(env, output_dir)
 
         monitoring_dir = self.project_root / "monitoring" / env
         monitoring_dir.mkdir(parents=True, exist_ok=True)
@@ -148,6 +170,23 @@ class MonitoringFinalizerService(BaseMonitoringFinalizerService):
         write_normalized(notebook_path, notebook_content)
         self.logger.info(f"Generated monitoring notebook: {notebook_path}")
 
+        resources_dir = self.project_root / "resources"
+        resources_dir.mkdir(parents=True, exist_ok=True)
+        job_resource_path = resources_dir / f"{monitoring_pipeline_name}.job.yml"
+        write_normalized(job_resource_path, job_resource_content)
+        self.logger.info(f"Generated monitoring job resource: {job_resource_path}")
+
+    def _load_monitoring_job_config(
+        self, substitution_mgr: "EnhancedSubstitutionManager"
+    ) -> Dict[str, Any]:
+        """Load, substitute and resolve the monitoring job config.
+
+        Raises:
+            LHPConfigError: ``LHP-CFG-008`` if ``job_config_path`` is unset or
+                the file is not a YAML mapping.
+            LHPFileError: ``LHP-IO-001`` if the file does not exist,
+                ``LHP-IO-002`` if it is not valid YAML.
+        """
         import yaml
 
         from ..jobs.job_generator import JobGenerator
@@ -222,28 +261,7 @@ class MonitoringFinalizerService(BaseMonitoringFinalizerService):
             )
 
         substituted_job_config = substitution_mgr.substitute_yaml(raw_job_config)
-        resolved_job_config = JobGenerator.resolve_monitoring_job_config(
-            substituted_job_config
-        )
-
-        job_name = f"{monitoring_pipeline_name}_job"
-        job_gen = JobGenerator(project_root=self.project_root)
-        notebook_workspace_path = (
-            "${workspace.file_path}/monitoring/${bundle.target}/union_event_logs"
-        )
-        has_pipeline = self._last_build_result.flowgroup is not None
-        job_resource_content = job_gen.generate_monitoring_job(
-            pipeline_name=monitoring_pipeline_name,
-            notebook_path=notebook_workspace_path,
-            job_name=job_name,
-            job_config=resolved_job_config,
-            has_pipeline=has_pipeline,
-        )
-        resources_dir = self.project_root / "resources"
-        resources_dir.mkdir(parents=True, exist_ok=True)
-        job_resource_path = resources_dir / f"{monitoring_pipeline_name}.job.yml"
-        write_normalized(job_resource_path, job_resource_content)
-        self.logger.info(f"Generated monitoring job resource: {job_resource_path}")
+        return JobGenerator.resolve_monitoring_job_config(substituted_job_config)
 
     def cleanup_artifacts(self, env: str, output_dir: Path) -> None:
         """Remove existing monitoring artifacts before writing new ones."""

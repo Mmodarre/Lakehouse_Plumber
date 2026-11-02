@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **A bad monitoring job config no longer leaves partial monitoring output
+  (#372).** `lhp generate` wrote `monitoring/<env>/union_event_logs.py` before
+  loading the monitoring job config, so a missing file (`LHP-IO-001`), invalid YAML
+  (`LHP-IO-002`), a non-mapping (`LHP-CFG-008`) or a rejected `name`/`tasks` value
+  (`LHP-CFG-072`) failed after the notebook was already on disk. The job config is now
+  loaded and checked, and both artifacts rendered, before any monitoring artifact is
+  removed or written.
+
 - **Pipeline `libraries` and job `tasks` no longer silently replace LHP's own
   (#351).** The bundle templates write `name`, `libraries` and `root_path` into every
   pipeline resource and `name` and `tasks` into every job resource, and pass every
