@@ -35,4 +35,4 @@ REPLACE USING is a **replace, not a merge**. For each `replace_using` key value 
 - The target must be served by this **single** replace flow: a `replace` action cannot share its `catalog.schema.table` with any other write action (no fan-in, no combining with other modes).
 - `replace_using` is a non-empty list; `sequence_by` is a single string column.
 - `catalog` + `schema` + `table` (also accepts `database` as the combined `catalog.schema` form in older configs).
-- Future sibling (not yet implemented): `mode: replace_where` with a `replace_where_config.replace_where` predicate — the batch-read counterpart, mirroring `cdc` → `snapshot_cdc`.
+- Sibling: [`mode: replace_where`](actions-write-streaming-table-replace-where.md) with a `replace_where_config.replace_where` predicate — the batch-read counterpart (REPLACE WHERE), mirroring `cdc` → `snapshot_cdc`.

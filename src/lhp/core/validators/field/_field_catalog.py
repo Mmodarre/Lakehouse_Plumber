@@ -79,6 +79,7 @@ WRITE_TARGET_FIELDS = {
         "cdc_config",
         "snapshot_cdc_config",
         "replace_config",
+        "replace_where_config",
     },
     "materialized_view": {
         "type",

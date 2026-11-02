@@ -958,14 +958,15 @@
                 },
                 "mode": {
                     "type": "string",
-                    "description": "Streaming-table mode: 'standard' append (default), 'cdc', 'snapshot_cdc', or 'replace' for REPLACE USING flows",
+                    "description": "Streaming-table mode: 'standard' append (default), 'cdc', 'snapshot_cdc', 'replace' for REPLACE USING flows, or 'replace_where' for REPLACE WHERE flows",
                     "anyOf": [
                         {
                             "enum": [
                                 "standard",
                                 "cdc",
                                 "snapshot_cdc",
-                                "replace"
+                                "replace",
+                                "replace_where"
                             ]
                         },
                         {
@@ -1032,6 +1033,28 @@
                                     "description": "Single ordering column; highest value wins"
                                 }
                             }
+                        },
+                        {
+                            "type": "string",
+                            "pattern": "\\{\\{[\\s\\S]*\\}\\}"
+                        }
+                    ]
+                },
+                "replace_where_config": {
+                    "description": "REPLACE WHERE configuration (mode: replace_where)",
+                    "anyOf": [
+                        {
+                            "type": "object",
+                            "properties": {
+                                "replace_where": {
+                                    "type": "string",
+                                    "description": "SQL predicate selecting the target rows each refresh deletes and recomputes from the source (can use template parameters with {{ }})"
+                                }
+                            },
+                            "required": [
+                                "replace_where"
+                            ],
+                            "additionalProperties": false
                         },
                         {
                             "type": "string",

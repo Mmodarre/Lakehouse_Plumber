@@ -20,6 +20,11 @@ from .snapshot_cdc_source_function import (
 
 logger = logging.getLogger(__name__)
 
+# Modes that read exactly one source view (the validators reject a second).
+_SINGLE_SOURCE_MODES = ("cdc", "replace", "replace_where")
+
+_RESET_ALLOWED = "pipelines.reset.allowed"
+
 
 class StreamingTableWriteGenerator(BaseActionGenerator):
     default_read_mode = "stream"
@@ -33,7 +38,8 @@ class StreamingTableWriteGenerator(BaseActionGenerator):
         """The read the action's flow makes on its source view, by ``mode``.
 
         ``standard``: the action's ``readMode``, else ``stream``. ``replace``:
-        always ``stream``. ``cdc``: ``stream``, or ``None`` for a ``once``
+        always ``stream``. ``replace_where``: always ``batch`` (the flow body
+        is ``spark.read.table``). ``cdc``: ``stream``, or ``None`` for a ``once``
         flow, whose backfill read is not established. ``snapshot_cdc`` and an
         unvalidated mode: ``None``, since ``snapshot_cdc`` reads no view
         through ``source``. A new mode adds its branch here.
@@ -44,6 +50,8 @@ class StreamingTableWriteGenerator(BaseActionGenerator):
             return super().consumer_read_mode(action)
         if mode == "replace":
             return "stream"
+        if mode == "replace_where":
+            return "batch"
         if mode == "cdc":
             return None if action.once else "stream"
         return None
@@ -97,6 +105,8 @@ class StreamingTableWriteGenerator(BaseActionGenerator):
         properties = {}
         if target_config.get("table_properties"):
             properties.update(target_config["table_properties"])
+        if mode == "replace_where":
+            _default_reset_guard(properties)
         spark_conf = target_config.get("spark_conf", {})
         schema_value = target_config.get("table_schema")
         schema = None
@@ -133,6 +143,14 @@ class StreamingTableWriteGenerator(BaseActionGenerator):
         replace_config = (
             target_config.get("replace_config", {}) if mode == "replace" else {}
         )
+        replace_where: Optional[str] = None
+        if mode == "replace_where":
+            # WriteActionValidator guarantees the block and a non-blank predicate.
+            if not isinstance(target_config, dict):
+                raise AssertionError(
+                    f"Unvalidated replace_where write_target in action '{action.name}'"
+                )
+            replace_where = target_config["replace_where_config"]["replace_where"]
 
         # Process source function for snapshot_cdc mode. The function body is
         # never inlined: the user's module is copied alongside the generated
@@ -251,6 +269,8 @@ class StreamingTableWriteGenerator(BaseActionGenerator):
             flow_description = action.description
         elif mode == "replace":
             flow_description = f"Replace-using flow to {full_table_name}"
+        elif mode == "replace_where":
+            flow_description = f"Replace-where flow to {full_table_name}"
         else:
             flow_description = f"Append flow to {full_table_name}"
 
@@ -260,8 +280,10 @@ class StreamingTableWriteGenerator(BaseActionGenerator):
             "full_table_name": full_table_name,
             "source_views": source_views,
             "source_view": (
-                source_views[0] if source_views and mode in ("cdc", "replace") else None
-            ),  # cdc and replace only support a single source
+                source_views[0]
+                if source_views and mode in _SINGLE_SOURCE_MODES
+                else None
+            ),
             "flow_name": flow_name,
             "mode": mode,
             "create_table": create_table,
@@ -279,6 +301,7 @@ class StreamingTableWriteGenerator(BaseActionGenerator):
             "cdc_config": cdc_config,
             "snapshot_cdc_config": snapshot_cdc_config,
             "replace_config": replace_config,
+            "replace_where": replace_where,
             "source_expression": source_expression,
             "expect_all": expect_all,
             "expect_all_or_drop": expect_all_or_drop,
@@ -345,3 +368,15 @@ class StreamingTableWriteGenerator(BaseActionGenerator):
         params_str = ",\n        ".join(param_parts)
         self.add_import("from functools import partial")
         return f"partial(\n        {qualified_name},\n        {params_str}\n    )"
+
+
+def _default_reset_guard(properties: Dict[str, Any]) -> None:
+    """Default ``pipelines.reset.allowed`` to ``"false"`` unless already set.
+
+    A full refresh of a REPLACE WHERE target would drop every row outside the
+    current predicate window, so LHP guards the history by default. A value the
+    user or a preset set wins, matched case-insensitively so a differently
+    cased key never gets a duplicate default.
+    """
+    if not any(str(key).lower() == _RESET_ALLOWED for key in properties):
+        properties[_RESET_ALLOWED] = "false"

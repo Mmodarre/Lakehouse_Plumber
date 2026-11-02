@@ -543,8 +543,15 @@
         "action.write.streaming_table.write_target.temporary"
       ]
     },
+    "src/lhp/resources/skills/lhp/references/actions-write-streaming-table-replace-where.md": {
+      "sha256": "69bf30ecb5f305eebb4da0689c3afb5d311bc6d69acc83e4da8f2fd2c2cec9dd",
+      "entryIds": [
+        "action.write.streaming_table.write_target.mode",
+        "action.write.streaming_table.write_target.replace_where_config.replace_where"
+      ]
+    },
     "src/lhp/resources/skills/lhp/references/actions-write-streaming-table-replace.md": {
-      "sha256": "7b3a550af0495dab7afe525a6fce23a48b863ffdafdf657a15064f95cd1f193e",
+      "sha256": "c2bf30000ef1694960b68a3669a972cabe6549a50845852bc2e00cb0e44b02ce",
       "entryIds": [
         "action.write.streaming_table.write_target.mode",
         "action.write.streaming_table.write_target.replace_config.replace_using",

@@ -821,9 +821,10 @@
                         "standard",
                         "cdc",
                         "snapshot_cdc",
-                        "replace"
+                        "replace",
+                        "replace_where"
                     ],
-                    "description": "Streaming-table mode: 'standard' append (default), 'cdc', 'snapshot_cdc', or 'replace' for REPLACE USING flows"
+                    "description": "Streaming-table mode: 'standard' append (default), 'cdc', 'snapshot_cdc', 'replace' for REPLACE USING flows, or 'replace_where' for REPLACE WHERE flows"
                 },
                 "cdc_config": {
                     "type": "object",
@@ -976,6 +977,20 @@
                             "description": "Single ordering column; highest value wins"
                         }
                     }
+                },
+                "replace_where_config": {
+                    "type": "object",
+                    "description": "REPLACE WHERE configuration (mode: replace_where)",
+                    "properties": {
+                        "replace_where": {
+                            "type": "string",
+                            "description": "SQL predicate selecting the target rows each refresh deletes and recomputes from the source"
+                        }
+                    },
+                    "required": [
+                        "replace_where"
+                    ],
+                    "additionalProperties": false
                 }
             }
         }

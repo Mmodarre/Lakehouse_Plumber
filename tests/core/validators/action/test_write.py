@@ -59,12 +59,13 @@ class TestUnknownMode:
         assert error.title == "Invalid value for 'write_target.mode'"
         assert error.details == (
             "Action 'write_customer' has invalid value 'cdcc' for field "
-            "'write_target.mode'. Valid values: cdc, replace, snapshot_cdc, standard"
+            "'write_target.mode'. Valid values: cdc, replace, replace_where, "
+            "snapshot_cdc, standard"
         )
         assert error.suggestions == [
             "Did you mean 'cdc'?",
-            "Use one of: cdc, replace, snapshot_cdc, standard (omit 'mode' for "
-            "'standard')",
+            "Use one of: cdc, replace, replace_where, snapshot_cdc, standard (omit "
+            "'mode' for 'standard')",
         ]
         assert error.context == {
             "Action": "write_customer",
@@ -81,8 +82,8 @@ class TestUnknownMode:
         [error] = _mode_errors(_errors_for(mode="append"))
 
         assert error.suggestions == [
-            "Use one of: cdc, replace, snapshot_cdc, standard (omit 'mode' for "
-            "'standard')"
+            "Use one of: cdc, replace, replace_where, snapshot_cdc, standard (omit "
+            "'mode' for 'standard')"
         ]
 
     @pytest.mark.parametrize("mode", [None, ["cdc"]], ids=["null", "list"])

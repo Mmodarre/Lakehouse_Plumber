@@ -219,8 +219,8 @@ class StatsResult:
       by model validation rather than by this module's allow-lists;
     * ``write_<streaming_table|materialized_view|sink>``, or
       ``write_other`` for an unreadable write target;
-    * ``write_mode_<standard|cdc|snapshot_cdc|replace>`` (``write_mode_other``
-      otherwise) for non-sink writes only;
+    * ``write_mode_<standard|cdc|snapshot_cdc|replace|replace_where>``
+      (``write_mode_other`` otherwise) for non-sink writes only;
     * ``test_<test type>``, or ``test_other`` for an unknown one;
     * ``tables`` — the number of DISTINCT non-sink targets written, so a
       table written by two actions counts once.
