@@ -1,7 +1,60 @@
-"""Data Quality Expectations (DQE) parser for LakehousePlumber."""
+"""Data Quality Expectations (DQE) parser for LakehousePlumber.
+
+:func:`list_rule_category` and :func:`mapping_rule_category` decide which DLT
+category a rule belongs to. The expectations-file validator uses them to
+reject a rule with an unknown action before generation, and
+:class:`DQEParser` uses them to sort validated rules, so the two can never
+disagree.
+"""
 
 import logging
-from typing import Any, Dict, List, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
+
+#: The DLT category each ``failureAction`` (list format) or ``action``
+#: (mapping format) selects. Values are matched lower-cased.
+FAILURE_ACTIONS: Dict[str, str] = {
+    "warn": "expect",
+    "drop": "expect_or_drop",
+    "fail": "expect_or_fail",
+}
+
+#: The list-format ``type`` values, used when a rule has no ``failureAction``.
+#: Values are matched exactly.
+EXPECTATION_TYPES = ("expect", "expect_or_drop", "expect_or_fail")
+
+
+def list_rule_category(rule: Dict[str, Any]) -> Tuple[str, Any, Optional[str]]:
+    """Return ``(field, value, category)`` for a list-format rule.
+
+    ``field`` is the key that decides the category and ``value`` is what the
+    rule holds there. ``category`` is ``None`` when that value is not a known
+    one. A set ``failureAction`` wins over ``type``; with neither, the rule is
+    an ``expect``. An ``action`` key (the mapping format's name for
+    ``failureAction``) is never valid here, so it decides with no category.
+    """
+    if "action" in rule:
+        return "action", rule["action"], None
+    failure_action = rule.get("failureAction")
+    if failure_action not in (None, ""):
+        return (
+            "failureAction",
+            failure_action,
+            FAILURE_ACTIONS.get(str(failure_action).lower()),
+        )
+    rule_type = rule.get("type", "expect")
+    return "type", rule_type, rule_type if rule_type in EXPECTATION_TYPES else None
+
+
+def mapping_rule_category(rule_config: Dict[str, Any]) -> Tuple[Any, Optional[str]]:
+    """Return ``(action, category)`` for a mapping-format rule.
+
+    An unset (absent, null or empty) ``action`` means ``warn``. ``category``
+    is ``None`` when ``action`` is not a known value.
+    """
+    action = rule_config.get("action")
+    if action in (None, ""):
+        return action, FAILURE_ACTIONS["warn"]
+    return action, FAILURE_ACTIONS.get(str(action).lower())
 
 
 class DQEParser:
@@ -19,9 +72,11 @@ class DQEParser:
 
         - a list of dicts with ``constraint``/``expression``, ``failureAction``
           or ``type``, and ``message``/``name``;
-        - a dict mapping each constraint to its ``action`` and ``name``. An
-          ``action`` other than ``fail`` or ``drop`` (or none) warns, and the
+        - a dict mapping each constraint to its ``action`` and ``name``; the
           name defaults to the constraint.
+
+        The rules must already be validated (``validate_expectations_file``):
+        a rule with an unknown action is an internal error here.
         """
         if not isinstance(expectations, list):
             return _parse_constraint_mapping(expectations)
@@ -29,21 +84,14 @@ class DQEParser:
         self.logger.debug(
             f"Parsing {len(expectations)} expectation(s) into DLT categories"
         )
-        expect_all = {}
-        expect_all_or_drop = {}
-        expect_all_or_fail = {}
+        categories: Dict[str, Dict[str, str]] = {t: {} for t in EXPECTATION_TYPES}
 
         for expectation in expectations:
-            expectation_type = expectation.get("type", "expect")
-            failure_action = expectation.get("failureAction", "").lower()
-
-            if failure_action:
-                if failure_action == "fail":
-                    expectation_type = "expect_or_fail"
-                elif failure_action == "drop":
-                    expectation_type = "expect_or_drop"
-                elif failure_action == "warn":
-                    expectation_type = "expect"
+            field, value, category = list_rule_category(expectation)
+            if category is None:
+                raise AssertionError(
+                    f"Unvalidated expectation {field}={value!r}: {expectation}"
+                )
 
             constraint = expectation.get("constraint") or expectation.get("expression")
             message = expectation.get("message") or expectation.get("name", "")
@@ -57,16 +105,13 @@ class DQEParser:
             if not message:
                 message = f"Constraint failed: {constraint}"
 
-            if expectation_type == "expect":
-                expect_all[message] = constraint
-            elif expectation_type == "expect_or_drop":
-                expect_all_or_drop[message] = constraint
-            elif expectation_type == "expect_or_fail":
-                expect_all_or_fail[message] = constraint
-            else:
-                self.logger.warning(f"Unknown expectation type: {expectation_type}")
+            categories[category][message] = constraint
 
-        return expect_all, expect_all_or_drop, expect_all_or_fail
+        return (
+            categories["expect"],
+            categories["expect_or_drop"],
+            categories["expect_or_fail"],
+        )
 
     def get_all_expectations_as_drop(
         self, expectations: Union[List[Dict], Dict[str, Any]]
@@ -95,19 +140,19 @@ class DQEParser:
 def _parse_constraint_mapping(
     expectations: Dict[str, Any],
 ) -> Tuple[Dict[str, str], Dict[str, str], Dict[str, str]]:
-    expect_all: Dict[str, str] = {}
-    expect_all_or_drop: Dict[str, str] = {}
-    expect_all_or_fail: Dict[str, str] = {}
+    categories: Dict[str, Dict[str, str]] = {t: {} for t in EXPECTATION_TYPES}
 
     for constraint, exp_config in expectations.items():
-        action_type = exp_config.get("action", "warn").lower()
+        action, category = mapping_rule_category(exp_config)
+        if category is None:
+            raise AssertionError(
+                f"Unvalidated expectation action={action!r} for {constraint!r}"
+            )
         name = exp_config.get("name", constraint)
+        categories[category][name] = constraint
 
-        if action_type == "fail":
-            expect_all_or_fail[name] = constraint
-        elif action_type == "drop":
-            expect_all_or_drop[name] = constraint
-        else:
-            expect_all[name] = constraint
-
-    return expect_all, expect_all_or_drop, expect_all_or_fail
+    return (
+        categories["expect"],
+        categories["expect_or_drop"],
+        categories["expect_or_fail"],
+    )

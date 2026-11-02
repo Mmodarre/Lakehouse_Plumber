@@ -3,7 +3,7 @@ from typing import List
 
 from lhp.models import Action, ActionType, TransformType
 
-from .._base import BaseActionValidator
+from .._base import BaseActionValidator, ValidationError
 from ._dq_transform import validate_data_quality_transform
 from ._schema_transform import validate_schema_transform
 
@@ -18,9 +18,9 @@ class TransformActionValidator(BaseActionValidator):
         self.project_root = project_root
         self.project_config = project_config
 
-    def validate(self, action: Action, prefix: str) -> List[str]:
+    def validate(self, action: Action, prefix: str) -> List[ValidationError]:
         logger.debug(f"Validating transform action '{action.name}'")
-        errors = []
+        errors: List[ValidationError] = []
 
         if not action.target:
             errors.append(f"{prefix}: Transform actions must have a 'target' view name")
@@ -39,11 +39,13 @@ class TransformActionValidator(BaseActionValidator):
 
         return errors
 
-    def _validate_transform_type(self, action: Action, prefix: str) -> List[str]:
+    def _validate_transform_type(
+        self, action: Action, prefix: str
+    ) -> List[ValidationError]:
         logger.debug(
             f"Validating transform type '{action.transform_type}' for action '{action.name}'"
         )
-        errors = []
+        errors: List[ValidationError] = []
 
         try:
             transform_type = TransformType(action.transform_type)
@@ -75,7 +77,7 @@ class TransformActionValidator(BaseActionValidator):
 
     def _validate_data_quality_transform(
         self, action: Action, prefix: str
-    ) -> List[str]:
+    ) -> List[ValidationError]:
         return validate_data_quality_transform(action, prefix, self.project_root)
 
     def _validate_schema_transform(self, action: Action, prefix: str) -> List[str]:

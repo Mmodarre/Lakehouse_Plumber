@@ -9,7 +9,7 @@ from lhp.models import Action
 from ...core.loaders import load_expectations_file
 from ...core.processing.dqe import DQEParser
 from ...core.registry import BaseActionGenerator
-from ...errors import ErrorFactory, LHPValidationError, codes
+from ...errors import ErrorFactory, codes
 from ...utils.identifiers import replace_non_identifier_chars
 
 logger = logging.getLogger(__name__)
@@ -217,19 +217,13 @@ class DataQualityTransformGenerator(BaseActionGenerator):
             expectations_file = action.source["expectations_file"]
 
         if expectations_file:
-            try:
-                return load_expectations_file(
-                    expectations_file,
-                    spec_dir or Path.cwd(),
-                    error_context="data quality expectations file",
-                )
-            except LHPValidationError as e:
-                # Only quarantine mode validates the file before generation, so
-                # a malformed dqe-mode file generates a view with no rules.
-                logger.warning(
-                    f"Expectations file '{expectations_file}' has unexpected format "
-                    f"(expected dict or list, got {e.context['Actual Type']}), "
-                    "proceeding with empty expectations"
-                )
+            # validate_expectations_file has already checked the file and its
+            # rules in both modes; a malformed file still raises the loader's
+            # LHP-VAL-008 rather than generating a view with no rules.
+            return load_expectations_file(
+                expectations_file,
+                spec_dir or Path.cwd(),
+                error_context="data quality expectations file",
+            )
 
         return {}

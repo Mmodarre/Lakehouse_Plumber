@@ -123,7 +123,7 @@ class ConfigValidator:
         return errors
 
     def validate_action(self, action: Action, index: int) -> List[ValidationError]:
-        errors = []
+        errors: List[ValidationError] = []
         prefix = f"Action[{index}] '{action.name}'"
 
         if not action.name:
