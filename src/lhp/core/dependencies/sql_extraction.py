@@ -61,7 +61,12 @@ from ...models.dependencies import DependencyWarning
 
 logger = logging.getLogger(__name__)
 
-__all__ = ["SqlExtractionResult", "extract_tables_from_sql", "sql_reads_stream"]
+__all__ = [
+    "SqlExtractionResult",
+    "extract_tables_from_sql",
+    "sql_reads_stream",
+    "sql_table_reads",
+]
 
 # ${secret:scope/key} first (its body may contain non-word chars), then
 # ${env_token}, then the deprecated {token} syntax. %{local_var} is excluded
@@ -109,29 +114,48 @@ def extract_tables_from_sql(sql: str) -> SqlExtractionResult:
     """Extract upstream table reads from a SQL body (multi-statement aware)."""
     if not sql or not isinstance(sql, str) or not sql.strip():
         return SqlExtractionResult(tables=[], warnings=[])
-
-    masked_sql, replacements, dropped = _mask_tokens(sql)
     try:
-        statements = sqlglot.parse(masked_sql, read="databricks")
+        reads = _reads(sql)
     except SqlglotError as e:
         logger.debug(f"sqlglot could not parse SQL body: {e}")
         return SqlExtractionResult(tables=[], warnings=[_parse_failure_warning(e)])
 
-    reads: Set[str] = set()
+    tables = sorted({name for name, _stream in reads})
+    logger.debug(f"Found {len(tables)} table reference(s) in SQL body")
+    return SqlExtractionResult(tables=tables, warnings=[])
+
+
+def sql_table_reads(sql: str) -> Optional[List[Tuple[str, bool]]]:
+    """Each table read of a SQL body, with whether it reads a stream.
+
+    The names are those :func:`extract_tables_from_sql` returns. The flag is
+    ``True`` for the argument of ``STREAM(x)`` / ``STREAM x`` and ``False``
+    for a plain reference, so a name read both ways appears twice. ``None``
+    when the body does not parse.
+    """
+    if not sql or not isinstance(sql, str) or not sql.strip():
+        return []
+    try:
+        return sorted(_reads(sql))
+    except SqlglotError as e:
+        logger.debug(f"sqlglot could not parse SQL body for its reads: {e}")
+        return None
+
+
+def _reads(sql: str) -> Set[Tuple[str, bool]]:
+    """The unmasked ``(name, is_stream)`` reads of a body; raises on a parse error."""
+    masked_sql, replacements, dropped = _mask_tokens(sql)
+    statements = sqlglot.parse(masked_sql, read="databricks")
+    reads: Set[Tuple[str, bool]] = set()
     for statement in statements:
         if statement is None:
             continue
         reads.update(_collect_reads(statement, masked_sql))
-
-    tables = sorted(
-        {
-            _unmask(name, replacements)
-            for name in reads
-            if not any(placeholder in name for placeholder in dropped)
-        }
-    )
-    logger.debug(f"Found {len(tables)} table reference(s) in SQL body")
-    return SqlExtractionResult(tables=tables, warnings=[])
+    return {
+        (_unmask(name, replacements), stream)
+        for name, stream in reads
+        if not any(placeholder in name for placeholder in dropped)
+    }
 
 
 def sql_reads_stream(sql: str) -> Optional[bool]:
@@ -219,17 +243,18 @@ def _unmask(name: str, replacements: Dict[str, str]) -> str:
 # ---- Per-statement read collection ----
 
 
-def _collect_reads(statement: exp.Expression, masked_sql: str) -> Set[str]:
-    """Collect read table names from one statement (still masked)."""
+def _collect_reads(statement: exp.Expression, masked_sql: str) -> Set[Tuple[str, bool]]:
+    """Collect ``(name, is_stream)`` reads from one statement (still masked)."""
     cte_names = {cte.alias_or_name.lower() for cte in statement.find_all(exp.CTE)}
     write_targets = _write_target_ids(statement)
     stream_arguments = _stream_argument_names(statement, masked_sql)
 
-    reads: Set[str] = set()
+    reads: Set[Tuple[str, bool]] = set()
     for table in statement.find_all(exp.Table):
         if id(table) in write_targets:
             continue
-        if id(table) in stream_arguments:
+        stream = id(table) in stream_arguments
+        if stream:
             # Resolved at the enclosing Stream node, where the opaqueness rule
             # is applied to the wrapped argument as a whole.
             name = stream_arguments[id(table)]
@@ -237,6 +262,7 @@ def _collect_reads(statement: exp.Expression, masked_sql: str) -> Set[str]:
             wrapper = _dlt_wrapper_call(table)
             if wrapper is not None:
                 name = _first_argument_name(wrapper)
+                stream = _function_name(wrapper).lower() == "stream"
             elif isinstance(table.this, exp.Func):
                 # Non-DLT table function (e.g. read_files(...)) — not a table read.
                 continue
@@ -244,7 +270,7 @@ def _collect_reads(statement: exp.Expression, masked_sql: str) -> Set[str]:
                 name = _dotted_name(table)
         if not name or name.lower() in cte_names:
             continue
-        reads.add(name)
+        reads.add((name, stream))
     return reads
 
 
