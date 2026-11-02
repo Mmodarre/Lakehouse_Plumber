@@ -3,6 +3,9 @@
 import pytest
 
 from lhp.core.processing.substitution import EnhancedSubstitutionManager
+from lhp.core.registry import ActionRegistry
+from lhp.core.validators import ConfigFieldValidator, LoadActionValidator
+from lhp.errors import LHPError
 from lhp.generators.load import (
     CloudFilesLoadGenerator,
     DeltaLoadGenerator,
@@ -745,11 +748,18 @@ class TestDeltaLoadOptions:
             readMode="stream",
         )
 
-        with pytest.raises(ValueError) as exc_info:
-            generator.generate(action, {})
+        # The load validator reports the conflict; the generator only asserts
+        # the invariant for input that skipped validation.
+        validator = LoadActionValidator(ActionRegistry(), ConfigFieldValidator())
+        errors = validator.validate(action, "Action[0] 'load_conflict'")
+        [error] = [e for e in errors if isinstance(e, LHPError)]
+        assert isinstance(error, ValueError)
+        assert error.code == "LHP-VAL-013"
+        assert "endingVersion" in str(error)
+        assert "stream" in str(error)
 
-        assert "endingVersion" in str(exc_info.value)
-        assert "stream" in str(exc_info.value)
+        with pytest.raises(AssertionError, match="ending bound on stream read"):
+            generator.generate(action, {})
 
     def test_delta_ending_timestamp_with_stream_raises(self):
         generator = DeltaLoadGenerator()
@@ -765,11 +775,18 @@ class TestDeltaLoadOptions:
             readMode="stream",
         )
 
-        with pytest.raises(ValueError) as exc_info:
-            generator.generate(action, {})
+        # The load validator reports the conflict; the generator only asserts
+        # the invariant for input that skipped validation.
+        validator = LoadActionValidator(ActionRegistry(), ConfigFieldValidator())
+        errors = validator.validate(action, "Action[0] 'load_conflict'")
+        [error] = [e for e in errors if isinstance(e, LHPError)]
+        assert isinstance(error, ValueError)
+        assert error.code == "LHP-VAL-013"
+        assert "endingTimestamp" in str(error)
+        assert "stream" in str(error)
 
-        assert "endingTimestamp" in str(exc_info.value)
-        assert "stream" in str(exc_info.value)
+        with pytest.raises(AssertionError, match="ending bound on stream read"):
+            generator.generate(action, {})
 
     def test_delta_skip_change_commits_alone_works(self):
         generator = DeltaLoadGenerator()

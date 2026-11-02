@@ -1,7 +1,12 @@
 """Test Kafka load generator implementation."""
 
+import re
+
 import pytest
 
+from lhp.core.registry import ActionRegistry
+from lhp.core.validators import ConfigFieldValidator, LoadActionValidator
+from lhp.errors import LHPError
 from lhp.generators.load.kafka import KafkaLoadGenerator
 from lhp.models import Action
 
@@ -405,7 +410,16 @@ class TestKafkaLoadGenerator:
             readMode="batch",
         )
 
-        with pytest.raises(ValueError, match="Invalid readMode"):
+        # The load validator reports a batch readMode; the generator only
+        # asserts the invariant for input that skipped validation.
+        validator = LoadActionValidator(ActionRegistry(), ConfigFieldValidator())
+        [error] = validator.validate(action, "Action[0] 'test_batch_error'")
+        assert isinstance(error, LHPError)
+        assert isinstance(error, ValueError)
+        assert error.code == "LHP-VAL-068"
+        assert re.search("Invalid readMode", str(error))
+
+        with pytest.raises(AssertionError, match="readMode 'batch'"):
             self.generator.generate(action, {})
 
     def test_imports_generated(self):
