@@ -13,7 +13,9 @@ from ..compatibility import (
     ReplaceFlowConfigValidator,
     SnapshotCdcConfigValidator,
 )
+from ._write_materialized_view import validate_materialized_view
 from ._write_sinks import validate_sink
+from ._write_streaming_table import validate_streaming_table
 
 logger = logging.getLogger(__name__)
 
@@ -103,9 +105,9 @@ class WriteActionValidator(BaseActionValidator):
                 )
 
                 if write_type == WriteTargetType.STREAMING_TABLE:
-                    errors.extend(self._validate_streaming_table(action, prefix))
+                    errors.extend(validate_streaming_table(action, prefix))
                 elif write_type == WriteTargetType.MATERIALIZED_VIEW:
-                    errors.extend(self._validate_materialized_view(action, prefix))
+                    errors.extend(validate_materialized_view(action, prefix))
 
             elif write_type == WriteTargetType.SINK:
                 errors.extend(validate_sink(action, prefix))
@@ -127,71 +129,6 @@ class WriteActionValidator(BaseActionValidator):
             errors.append(f"{prefix}: {target_type} must have 'schema'")
         if not wt.get("table"):
             errors.append(f"{prefix}: {target_type} must have 'table'")
-        return errors
-
-    def _validate_streaming_table(self, action: Action, prefix: str) -> List[str]:
-        errors = []
-
-        # snapshot_cdc mode defines its source differently, so skip the check.
-        mode = action.write_target.get("mode", "standard")
-        if mode != "snapshot_cdc":
-            if not action.source:
-                errors.append(
-                    f"{prefix}: Streaming table must have 'source' to read from"
-                )
-            elif not isinstance(action.source, (str, list)):
-                errors.append(
-                    f"{prefix}: Streaming table source must be a string or list of view names"
-                )
-            elif (
-                mode == "cdc"
-                and isinstance(action.source, list)
-                and len(action.source) > 1
-            ):
-                errors.append(
-                    f"{prefix}: CDC mode does not support multiple source views "
-                    f"in a single action. Define one write action per source, "
-                    f"each with compatible cdc_config, targeting the same "
-                    f"catalog.schema.table."
-                )
-            elif (
-                mode == "replace"
-                and isinstance(action.source, list)
-                and len(action.source) > 1
-            ):
-                errors.append(
-                    f"{prefix}: replace mode does not support multiple source views "
-                    f"in a single action. A REPLACE USING target must be served by a "
-                    f"single flow reading one streaming source."
-                )
-
-        # REPLACE USING requires a streaming source (spark.readStream); a batch
-        # read is rejected by the Databricks runtime.
-        if mode == "replace" and action.readMode == "batch":
-            errors.append(
-                f"{prefix}: replace mode requires a streaming source; readMode "
-                f"'batch' is not supported (REPLACE USING reads via "
-                f"spark.readStream)."
-            )
-
-        return errors
-
-    def _validate_materialized_view(self, action: Action, prefix: str) -> List[str]:
-        errors = []
-
-        if (
-            not action.source
-            and not action.write_target.get("sql")
-            and not action.write_target.get("sql_path")
-        ):
-            errors.append(
-                f"{prefix}: Materialized view must have either 'source', 'sql', or 'sql_path' in write_target"
-            )
-        elif action.source and not isinstance(action.source, (str, list)):
-            errors.append(
-                f"{prefix}: Materialized view source must be a string or list of view names"
-            )
-
         return errors
 
     def _validate_streaming_table_modes(
