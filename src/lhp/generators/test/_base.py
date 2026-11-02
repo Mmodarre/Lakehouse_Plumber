@@ -27,6 +27,8 @@ class BaseTestActionGenerator(BaseActionGenerator):
     """
 
     __test__ = False  # Tell pytest this is not a test class
+    default_read_mode = "batch"
+    fixed_read_mode = True
 
     def __init__(self) -> None:
         super().__init__()

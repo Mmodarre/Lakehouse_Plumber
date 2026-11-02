@@ -13,6 +13,7 @@ logger = logging.getLogger(__name__)
 
 class PythonTransformGenerator(BaseActionGenerator):
     renders_operational_metadata = True
+    default_read_mode = "batch"
 
     def __init__(self):
         super().__init__(use_import_manager=True)
@@ -70,7 +71,7 @@ class PythonTransformGenerator(BaseActionGenerator):
             )
 
         logger.debug(
-            f"Python transform '{action.name}': module_path='{module_path}', function='{function_name}', readMode='{action.readMode or 'batch'}'"
+            f"Python transform '{action.name}': module_path='{module_path}', function='{function_name}', readMode='{self.read_mode(action)}'"
         )
 
         copied_module_name = copy_user_module_for_pipeline(
@@ -79,7 +80,7 @@ class PythonTransformGenerator(BaseActionGenerator):
 
         source_views = self._extract_source_views_from_action_source(action.source)
 
-        readMode = action.readMode or "batch"
+        readMode = self.read_mode(action)
 
         add_operational_metadata, metadata_columns = self._get_operational_metadata(
             action, context

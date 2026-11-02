@@ -2,7 +2,7 @@
 
 import logging
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from lhp.errors import ErrorFactory, LHPError, codes
 from lhp.models import Action
@@ -33,6 +33,9 @@ class CloudFilesLoadGenerator(BaseActionGenerator):
     """Generate CloudFiles (Auto Loader) load actions."""
 
     renders_operational_metadata = True
+    # Always spark.readStream; another readMode is rejected (LHP-VAL-068).
+    default_read_mode = "stream"
+    fixed_read_mode = True
 
     def __init__(self):
         super().__init__()
@@ -71,6 +74,12 @@ class CloudFilesLoadGenerator(BaseActionGenerator):
         # Mandatory cloudFiles options that must be present
         self.mandatory_options = {"format"}
 
+    @classmethod
+    def read_mode(cls, action: Action) -> Optional[str]:
+        """The action's ``readMode``, else ``source.readMode``, else ``stream``."""
+        source = action.source if isinstance(action.source, dict) else {}
+        return action.readMode or source.get("readMode", cls.default_read_mode)
+
     def generate(self, action: Action, context: Dict[str, Any]) -> str:
         assert action.target is not None, "load validator enforces target"
         source_config = action.source if isinstance(action.source, dict) else {}
@@ -78,12 +87,12 @@ class CloudFilesLoadGenerator(BaseActionGenerator):
             f"Generating CloudFiles load for target '{action.target}', action '{action.name}'"
         )
 
-        readMode = action.readMode or source_config.get("readMode", "stream")
+        readMode = self.read_mode(action)
         if readMode != "stream":
             raise ErrorFactory.invalid_read_mode(
                 action_name=action.name,
                 action_type="cloudfiles",
-                provided=readMode,
+                provided=str(readMode),
                 valid_modes=["stream"],
             )
 

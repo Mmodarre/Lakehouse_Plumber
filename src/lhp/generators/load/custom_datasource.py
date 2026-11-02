@@ -23,6 +23,7 @@ class CustomDataSourceLoadGenerator(BaseActionGenerator):
     """
 
     renders_operational_metadata = True
+    default_read_mode = "stream"
 
     def __init__(self):
         # Enable ImportManager for advanced import handling
@@ -172,7 +173,7 @@ class CustomDataSourceLoadGenerator(BaseActionGenerator):
             "_lhp_cloudpickle.register_pickle_by_value(custom_python_functions)"
         )
 
-        readMode = action.readMode or "stream"
+        readMode = self.read_mode(action)
         self.logger.debug(
             f"Custom datasource '{action.name}': class='{custom_datasource_class}', "
             f"format='{datasource_format_name}', readMode='{readMode}', module='{module_name}'"

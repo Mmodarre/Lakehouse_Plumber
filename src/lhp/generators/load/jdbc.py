@@ -14,6 +14,8 @@ class JDBCLoadGenerator(BaseActionGenerator):
     """Generate JDBC load actions with secret support."""
 
     renders_operational_metadata = True
+    default_read_mode = "batch"
+    fixed_read_mode = True
 
     def __init__(self):
         super().__init__()

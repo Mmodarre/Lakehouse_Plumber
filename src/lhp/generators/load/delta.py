@@ -1,7 +1,7 @@
 """Delta load generator"""
 
 import logging
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from lhp.errors import ErrorFactory, codes
 from lhp.models import Action
@@ -15,10 +15,17 @@ class DeltaLoadGenerator(BaseActionGenerator):
     """Generate Delta table load actions."""
 
     renders_operational_metadata = True
+    default_read_mode = "batch"
 
     def __init__(self):
         super().__init__()
         self.add_import("from pyspark import pipelines as dp")
+
+    @classmethod
+    def read_mode(cls, action: Action) -> Optional[str]:
+        """The action's ``readMode``, else ``source.readMode``, else ``batch``."""
+        source = action.source if isinstance(action.source, dict) else {}
+        return action.readMode or source.get("readMode", cls.default_read_mode)
 
     def generate(self, action: Action, context: Dict[str, Any]) -> str:
         source_config = action.source if isinstance(action.source, dict) else {}
@@ -93,7 +100,7 @@ class DeltaLoadGenerator(BaseActionGenerator):
                     )
                 reader_options[key] = value
 
-        readMode = action.readMode or source_config.get("readMode", "batch")
+        readMode = self.read_mode(action)
         logger.debug(
             f"Delta load '{action.target}': table_ref='{table_ref}', readMode='{readMode}', options_count={len(reader_options)}"
         )

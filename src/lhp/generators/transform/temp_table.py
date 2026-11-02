@@ -12,6 +12,7 @@ logger = logging.getLogger(__name__)
 
 class TempTableTransformGenerator(BaseActionGenerator):
     renders_operational_metadata = True
+    default_read_mode = "batch"
 
     def __init__(self):
         super().__init__()
@@ -20,7 +21,7 @@ class TempTableTransformGenerator(BaseActionGenerator):
     def generate(self, action: Action, context: dict) -> str:
         source_view = self._extract_source_view(action.source)
 
-        readMode = action.readMode or "batch"
+        readMode = self.read_mode(action)
         logger.debug(
             f"Generating temp table for target '{action.target}', source='{source_view}', readMode='{readMode}'"
         )

@@ -4,6 +4,7 @@ Public re-exports:
 - ActionRegistry        — registry of action types → generator classes
 - determine_action_subtype — the registry sub-type key for an action
 - BaseActionGenerator   — base class every action generator extends
+- ReadMode              — the read call generated code makes ("stream"/"batch")
 - OrchestrationDependencies — DI container for orchestrator services
 - SubstitutionFactory   — protocol for substitution factories
 - DefaultSubstitutionFactory — default impl
@@ -19,7 +20,7 @@ from .action_registry import (
     determine_action_subtype,
     register_generators,
 )
-from .base_generator import BaseActionGenerator
+from .base_generator import BaseActionGenerator, ReadMode
 from .factories import (
     DefaultSubstitutionFactory,
     OrchestrationDependencies,
@@ -31,6 +32,7 @@ __all__ = [
     "BaseActionGenerator",
     "DefaultSubstitutionFactory",
     "OrchestrationDependencies",
+    "ReadMode",
     "SubstitutionFactory",
     "determine_action_subtype",
     "register_generators",

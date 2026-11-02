@@ -51,6 +51,9 @@ def assemble_expectations(
 class MaterializedViewWriteGenerator(BaseActionGenerator):
     """Uses @dp.materialized_view decorator."""
 
+    default_read_mode = "batch"
+    fixed_read_mode = True
+
     def __init__(self):
         super().__init__()
         self.add_import("from pyspark import pipelines as dp")
