@@ -160,22 +160,10 @@ class DeltaLoadGenerator(BaseActionGenerator):
                 suggestion="Use either versionAsOf or timestampAsOf, not both",
             )
 
-        if is_stream and has_ending_version:
-            raise ErrorFactory.incompatible_options(
-                action_name=action.name,
-                option_a="endingVersion",
-                option_b="readMode: stream",
-                reason="endingVersion is only supported in batch mode.",
-                suggestion="Use readMode: batch with endingVersion, or remove endingVersion for streaming",
-            )
-
-        if is_stream and has_ending_timestamp:
-            raise ErrorFactory.incompatible_options(
-                action_name=action.name,
-                option_a="endingTimestamp",
-                option_b="readMode: stream",
-                reason="endingTimestamp is only supported in batch mode.",
-                suggestion="Use readMode: batch with endingTimestamp, or remove endingTimestamp for streaming",
+        if is_stream and (has_ending_version or has_ending_timestamp):
+            # LoadActionValidator rejects an ending bound on a stream read first.
+            raise AssertionError(
+                f"Unvalidated ending bound on stream read in action '{action.name}'"
             )
 
         if has_cdf and not is_stream:

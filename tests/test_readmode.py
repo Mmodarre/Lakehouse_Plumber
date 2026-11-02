@@ -7,6 +7,9 @@ import pytest
 import yaml
 
 from lhp.core.coordination.layers import build_facade_orchestrator
+from lhp.core.registry import ActionRegistry
+from lhp.core.validators import ConfigFieldValidator, LoadActionValidator
+from lhp.errors import LHPError
 from lhp.generators.load.cloudfiles import CloudFilesLoadGenerator
 from lhp.generators.load.delta import DeltaLoadGenerator
 from lhp.generators.transform.data_quality import DataQualityTransformGenerator
@@ -59,9 +62,17 @@ class TestReadMode:
             source={"type": "cloudfiles", "path": "/path/to/files", "format": "json"},
         )
 
-        with pytest.raises(ValueError) as exc:
+        # The load validator reports a batch readMode; the generator only
+        # asserts the invariant for input that skipped validation.
+        validator = LoadActionValidator(ActionRegistry(), ConfigFieldValidator())
+        [error] = validator.validate(action_batch, "Action[0] 'cf_load_batch'")
+        assert isinstance(error, LHPError)
+        assert isinstance(error, ValueError)
+        assert error.code == "LHP-VAL-068"
+        assert "Invalid readMode" in str(error)
+
+        with pytest.raises(AssertionError, match="readMode 'batch'"):
             generator.generate(action_batch, {})
-        assert "Invalid readMode" in str(exc.value)
 
     def test_data_quality_requires_stream(self):
         """Test that data quality transforms enforce stream readMode."""
