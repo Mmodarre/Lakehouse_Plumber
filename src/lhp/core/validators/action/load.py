@@ -3,7 +3,7 @@ from typing import List
 
 from lhp.models import Action, ActionType, LoadSourceType
 
-from ....errors import LHPError
+from ....errors import ErrorFactory, LHPError
 from .._base import BaseActionValidator, ValidationError
 
 logger = logging.getLogger(__name__)
@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 class LoadActionValidator(BaseActionValidator):
     def validate(self, action: Action, prefix: str) -> List[ValidationError]:
         logger.debug(f"Validating load action '{action.name}'")
-        errors = []
+        errors: List[ValidationError] = []
 
         if not action.target:
             errors.append(f"{prefix}: Load actions must have a 'target' view name")
@@ -53,11 +53,11 @@ class LoadActionValidator(BaseActionValidator):
 
     def _validate_source_type(
         self, action: Action, prefix: str, source_type: str
-    ) -> List[str]:
+    ) -> List[ValidationError]:
         logger.debug(
             f"Validating source type '{source_type}' for action '{action.name}'"
         )
-        errors = []
+        errors: List[ValidationError] = []
 
         try:
             load_type = LoadSourceType(source_type)
@@ -79,23 +79,74 @@ class LoadActionValidator(BaseActionValidator):
 
         return errors
 
-    def _validate_cloudfiles_source(self, action: Action, prefix: str) -> List[str]:
-        errors = []
+    def _validate_cloudfiles_source(
+        self, action: Action, prefix: str
+    ) -> List[ValidationError]:
+        errors: List[ValidationError] = []
         if not action.source.get("path"):
             errors.append(f"{prefix}: CloudFiles source must have 'path'")
         if not action.source.get("format"):
             errors.append(f"{prefix}: CloudFiles source must have 'format'")
+        errors.extend(self._stream_only_errors(action, "cloudfiles"))
         return errors
 
-    def _validate_delta_source(self, action: Action, prefix: str) -> List[str]:
-        errors = []
+    def _validate_delta_source(
+        self, action: Action, prefix: str
+    ) -> List[ValidationError]:
+        errors: List[ValidationError] = []
         if not action.source.get("catalog"):
             errors.append(f"{prefix}: Delta source must have 'catalog'")
         if not action.source.get("schema"):
             errors.append(f"{prefix}: Delta source must have 'schema'")
         if not action.source.get("table"):
             errors.append(f"{prefix}: Delta source must have 'table'")
+        errors.extend(self._delta_stream_bound_errors(action))
         return errors
+
+    def _stream_only_errors(
+        self, action: Action, action_type: str
+    ) -> List[ValidationError]:
+        """LHP-VAL-068 unless the load's ``readMode`` is ``stream``.
+
+        The generator always reads with ``spark.readStream``, whatever mode
+        the action asks for (``ActionRegistry.read_mode``).
+        """
+        read_mode = self.action_registry.read_mode(action)
+        if read_mode == "stream":
+            return []
+        return [
+            ErrorFactory.invalid_read_mode(
+                action_name=action.name,
+                action_type=action_type,
+                provided=str(read_mode),
+                valid_modes=["stream"],
+            )
+        ]
+
+    def _delta_stream_bound_errors(self, action: Action) -> List[ValidationError]:
+        """An ``endingVersion`` / ``endingTimestamp`` option on a stream read.
+
+        Both bound a batch read only; a stream read has no end.
+        """
+        source = action.source if isinstance(action.source, dict) else {}
+        options = source.get("options")
+        if self.action_registry.read_mode(action) != "stream" or not isinstance(
+            options, dict
+        ):
+            return []
+        return [
+            ErrorFactory.incompatible_options(
+                action_name=action.name,
+                option_a=bound,
+                option_b="readMode: stream",
+                reason=f"{bound} is only supported in batch mode.",
+                suggestion=(
+                    f"Use readMode: batch with {bound}, or remove {bound} for streaming"
+                ),
+            )
+            for bound in ("endingVersion", "endingTimestamp")
+            if bound in options
+        ]
 
     def _validate_jdbc_source(self, action: Action, prefix: str) -> List[str]:
         errors = []
@@ -115,8 +166,10 @@ class LoadActionValidator(BaseActionValidator):
             errors.append(f"{prefix}: Python source must have 'module_path'")
         return errors
 
-    def _validate_kafka_source(self, action: Action, prefix: str) -> List[str]:
-        errors = []
+    def _validate_kafka_source(
+        self, action: Action, prefix: str
+    ) -> List[ValidationError]:
+        errors: List[ValidationError] = []
 
         if not action.source.get("bootstrap_servers"):
             errors.append(f"{prefix}: Kafka source must have 'bootstrap_servers'")
@@ -139,4 +192,5 @@ class LoadActionValidator(BaseActionValidator):
                 f"{prefix}: Kafka source can only have ONE of: 'subscribe', 'subscribePattern', or 'assign'"
             )
 
+        errors.extend(self._stream_only_errors(action, "kafka"))
         return errors
