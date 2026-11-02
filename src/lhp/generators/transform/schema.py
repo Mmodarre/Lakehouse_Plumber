@@ -16,6 +16,8 @@ logger = logging.getLogger(__name__)
 
 
 class SchemaTransformGenerator(BaseActionGenerator):
+    default_read_mode = "stream"
+
     def __init__(self):
         super().__init__()
         self.add_import("from pyspark import pipelines as dp")
@@ -123,7 +125,7 @@ New format:
 enforcement: permissive  # Keep all columns, apply transforms""",
             )
 
-        readMode = action.readMode or "stream"
+        readMode = self.read_mode(action)
 
         project_config = context.get("project_config")
         metadata_columns = []  # Ordered list for template (preserves definition order)

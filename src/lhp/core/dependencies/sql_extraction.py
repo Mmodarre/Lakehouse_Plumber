@@ -61,7 +61,7 @@ from ...models.dependencies import DependencyWarning
 
 logger = logging.getLogger(__name__)
 
-__all__ = ["SqlExtractionResult", "extract_tables_from_sql"]
+__all__ = ["SqlExtractionResult", "extract_tables_from_sql", "sql_reads_stream"]
 
 # ${secret:scope/key} first (its body may contain non-word chars), then
 # ${env_token}, then the deprecated {token} syntax. %{local_var} is excluded
@@ -72,6 +72,9 @@ _TOKEN_PATTERN = re.compile(r"\$\{secret:[^}]*\}|\$\{\w+\}|\{\w+\}")
 # drop placeholder class — see the module docstring.
 _BARE_DOLLAR_PATTERN = re.compile(r"\$\w+")
 _SALT_SEED = "lhpmask"
+# A stream read needs the word STREAM: `STREAM(x)` or `STREAM x`. Its absence
+# answers sql_reads_stream without parsing.
+_STREAM_WORD = re.compile(r"\bstream\b", re.IGNORECASE)
 
 # DLT table wrappers: a function call in FROM position whose name matches
 # (case-insensitively) is unwrapped to its first argument.
@@ -129,6 +132,41 @@ def extract_tables_from_sql(sql: str) -> SqlExtractionResult:
     )
     logger.debug(f"Found {len(tables)} table reference(s) in SQL body")
     return SqlExtractionResult(tables=tables, warnings=[])
+
+
+def sql_reads_stream(sql: str) -> Optional[bool]:
+    """Whether a SQL body reads a stream: ``STREAM(x)`` or ``STREAM x``.
+
+    A ``spark.sql`` view is a streaming view exactly when its SQL makes such
+    a read. ``False`` without parsing when the word ``STREAM`` does not occur
+    in any case. Otherwise the body is parsed as :func:`extract_tables_from_sql`
+    parses it (substitution tokens masked) and the answer is whether any
+    statement holds a :class:`sqlglot.exp.Stream` read; ``None`` when the body
+    does not parse.
+    """
+    if not sql or not isinstance(sql, str) or not _STREAM_WORD.search(sql):
+        return False
+    masked_sql, _replacements, _dropped = _mask_tokens(sql)
+    try:
+        statements = sqlglot.parse(masked_sql, read="databricks")
+    except SqlglotError as e:
+        logger.debug(f"sqlglot could not parse SQL body for a STREAM read: {e}")
+        return None
+    for statement in statements:
+        if statement is None:
+            continue
+        # The Stream node is the shape on the pinned sqlglot floor; a
+        # `stream(...)` table function is the fallback shape
+        # _dlt_wrapper_call also guards. Subqueries and CTEs are searched too.
+        if next(statement.find_all(exp.Stream), None) is not None:
+            return True
+        wrappers = map(_dlt_wrapper_call, statement.find_all(exp.Table))
+        if any(
+            wrapper is not None and _function_name(wrapper).lower() == "stream"
+            for wrapper in wrappers
+        ):
+            return True
+    return False
 
 
 # ---- Token masking (byte-exact round-trip) ----

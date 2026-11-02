@@ -1,7 +1,7 @@
 """Action generator registry."""
 
 import logging
-from typing import Dict, Type
+from typing import Dict, Optional, Type
 
 from lhp.models import (
     Action,
@@ -17,7 +17,7 @@ from ...errors import (
     codes,
 )
 from ...utils.performance_timer import perf_timer
-from .base_generator import BaseActionGenerator
+from .base_generator import BaseActionGenerator, ReadMode
 
 logger = logging.getLogger(__name__)
 
@@ -123,6 +123,36 @@ class ActionRegistry:
             action.type, determine_action_subtype(action)
         )
         return generator_class.renders_operational_metadata
+
+    def read_mode(self, action: Action) -> Optional[str]:
+        """The ``readMode`` code generation uses for ``action``.
+
+        The :meth:`BaseActionGenerator.read_mode` of the generator class
+        :meth:`get_generator` returns for the action, so a validator checks
+        the value the generator renders.
+
+        :raises LHPError: as :meth:`get_generator`, for an action type or
+            sub-type with no registered generator.
+        """
+        generator_class = self._generator_class(
+            action.type, determine_action_subtype(action)
+        )
+        return generator_class.read_mode(action)
+
+    def consumer_read_mode(self, action: Action) -> Optional[ReadMode]:
+        """The read ``action``'s generated code makes on its input, if certain.
+
+        The :meth:`BaseActionGenerator.consumer_read_mode` of the action's
+        generator class: ``"stream"`` (``spark.readStream``), ``"batch"``
+        (``spark.read``), or ``None`` when no single read is certain.
+
+        :raises LHPError: as :meth:`get_generator`, for an action type or
+            sub-type with no registered generator.
+        """
+        generator_class = self._generator_class(
+            action.type, determine_action_subtype(action)
+        )
+        return generator_class.consumer_read_mode(action)
 
     def _generator_class(
         self, action_type: ActionType, sub_type: str | None = None

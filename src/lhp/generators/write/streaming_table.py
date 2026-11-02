@@ -2,14 +2,14 @@
 
 import logging
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from lhp.models import Action
 
 from ...core.codegen import copy_user_module_for_pipeline
 from ...core.loaders import resolve_table_schema
 from ...core.processing.dqe import DQEParser
-from ...core.registry import BaseActionGenerator
+from ...core.registry import BaseActionGenerator, ReadMode
 from ...core.validators import STREAMING_TABLE_MODES
 from ...errors import ErrorFactory
 from ._schema_tags_warning import warn_if_schema_tags_dropped
@@ -22,9 +22,31 @@ logger = logging.getLogger(__name__)
 
 
 class StreamingTableWriteGenerator(BaseActionGenerator):
+    default_read_mode = "stream"
+
     def __init__(self):
         super().__init__()
         self.add_import("from pyspark import pipelines as dp")
+
+    @classmethod
+    def consumer_read_mode(cls, action: Action) -> Optional[ReadMode]:
+        """The read the action's flow makes on its source view, by ``mode``.
+
+        ``standard``: the action's ``readMode``, else ``stream``. ``replace``:
+        always ``stream``. ``cdc``: ``stream``, or ``None`` for a ``once``
+        flow, whose backfill read is not established. ``snapshot_cdc`` and an
+        unvalidated mode: ``None``, since ``snapshot_cdc`` reads no view
+        through ``source``. A new mode adds its branch here.
+        """
+        target = action.write_target if isinstance(action.write_target, dict) else {}
+        mode = target.get("mode", "standard")
+        if mode == "standard":
+            return super().consumer_read_mode(action)
+        if mode == "replace":
+            return "stream"
+        if mode == "cdc":
+            return None if action.once else "stream"
+        return None
 
     def generate(self, action: Action, context: dict) -> str:
         target_config = action.write_target
@@ -47,7 +69,7 @@ class StreamingTableWriteGenerator(BaseActionGenerator):
         logger.debug(f"Generating streaming table write for action '{action.name}'")
 
         source_views = self._extract_source_views(action.source)
-        readMode = action.readMode or "stream"
+        readMode = self.read_mode(action)
 
         mode = target_config.get("mode", "standard")
         if mode not in STREAMING_TABLE_MODES:

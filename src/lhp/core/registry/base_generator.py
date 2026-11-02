@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Any, ClassVar, Dict, List, Optional, Set
+from typing import TYPE_CHECKING, Any, ClassVar, Dict, List, Literal, Optional, Set
 
 from ...utils.performance_timer import perf_timer
 
@@ -9,6 +9,10 @@ if TYPE_CHECKING:
     from lhp.models import Action
 
     from ..codegen.imports.manager import ImportManager
+
+#: A read call generated code makes: ``"stream"`` is ``spark.readStream``,
+#: ``"batch"`` is ``spark.read``.
+ReadMode = Literal["stream", "batch"]
 
 
 class BaseActionGenerator(ABC):
@@ -18,6 +22,50 @@ class BaseActionGenerator(ABC):
     #: and validation resolves metadata expressions only for actions whose
     #: generator sets it (``ActionRegistry.renders_operational_metadata``).
     renders_operational_metadata: ClassVar[bool] = False
+
+    #: The read the generated code makes when the action sets no ``readMode``.
+    #: ``None`` when the generator makes no single read LHP can name (a SQL
+    #: body, a user's Python loader). Generation and validation both read it
+    #: through :meth:`read_mode` and :meth:`consumer_read_mode`, and
+    #: ``ActionRegistry`` exposes both per action.
+    default_read_mode: ClassVar[Optional[ReadMode]] = None
+
+    #: ``True`` when the generated code always makes the
+    #: :attr:`default_read_mode` read, whatever ``readMode`` asks for.
+    fixed_read_mode: ClassVar[bool] = False
+
+    @classmethod
+    def read_mode(cls, action: Action) -> Optional[str]:
+        """The read mode the action asks for.
+
+        The action's ``readMode``, else :attr:`default_read_mode`. A generator
+        that honours ``readMode`` renders this value; a validator compares it
+        with what a :attr:`fixed_read_mode` generator reads. It is returned as
+        written: a generator renders it unchanged, and
+        :meth:`consumer_read_mode` reports an unrecognised value as not
+        certain. A generator with a further fallback (a load's nested
+        ``source.readMode``) overrides this.
+        """
+        return action.readMode or cls.default_read_mode
+
+    @classmethod
+    def consumer_read_mode(cls, action: Action) -> Optional[ReadMode]:
+        """The read the action's generated code makes on its input.
+
+        :attr:`default_read_mode` for a :attr:`fixed_read_mode` generator,
+        otherwise :meth:`read_mode`. ``None`` when the read is not certain: no
+        single read, or an unrecognised ``readMode``. A generator whose read
+        depends on more of the action (the streaming-table ``mode``)
+        overrides this; it is the hook the read-mode lineage check uses.
+        """
+        if cls.fixed_read_mode:
+            return cls.default_read_mode
+        mode = cls.read_mode(action)
+        if mode == "stream":
+            return "stream"
+        if mode == "batch":
+            return "batch"
+        return None
 
     def __init__(self, use_import_manager: bool = False):
         # Legacy import collection (backward compatible)
