@@ -265,6 +265,13 @@ CFG_071 = ErrorCode(ErrorCategory.CONFIG, "071")
 # orchestration jobs, ``lhp generate`` for the monitoring job), via
 # ErrorFactory.config_error(codes.CFG_072, ...).
 CFG_072 = ErrorCode(ErrorCategory.CONFIG, "072")
+# CFG_073: a field only a data_quality transform reads (``expectations_file``,
+# ``quarantine`` or the action-level ``mode``) is set on another kind of action,
+# which would silently ignore it. Raised by
+# core/validators/field/data_quality_fields.py from
+# ConfigFieldValidator.validate_action_fields (validate and generate paths), via
+# ErrorFactory.config_error(codes.CFG_073, ...).
+CFG_073 = ErrorCode(ErrorCategory.CONFIG, "073")
 
 DEP_001 = ErrorCode(ErrorCategory.DEPENDENCY, "001")
 # DEP_002: dependency extraction found a recognized table-read in Python code
@@ -416,6 +423,7 @@ ALL_CODES: tuple[ErrorCode, ...] = (
     CFG_070,
     CFG_071,
     CFG_072,
+    CFG_073,
     DEP_001,
     DEP_002,
     DEP_003,
@@ -491,6 +499,7 @@ __all__ = [
     "CFG_070",
     "CFG_071",
     "CFG_072",
+    "CFG_073",
     "DEPR_001",
     "DEPR_002",
     "DEPR_003",

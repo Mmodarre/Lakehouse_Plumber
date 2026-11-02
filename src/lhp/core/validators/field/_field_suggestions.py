@@ -24,9 +24,11 @@ def raise_unknown_fields_error(
 
     suggestions = []
     for unknown_field in unknown_list:
-        if unknown_field == "mode":
-            suggestions.append(f"'{unknown_field}' → 'readMode'")
-        elif unknown_field == "read_mode":
+        # Only where the section accepts 'readMode': a materialized_view or
+        # sink write_target has none, so its 'mode' is not a misspelt read mode.
+        # (The action-level 'mode' is the data_quality mode; see
+        # data_quality_fields for where it is misplaced.)
+        if unknown_field in ("mode", "read_mode") and "readMode" in expected_fields:
             suggestions.append(f"'{unknown_field}' → 'readMode'")
         elif unknown_field == "partitions":
             suggestions.append(f"'{unknown_field}' → 'partition_columns'")

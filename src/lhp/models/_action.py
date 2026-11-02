@@ -64,6 +64,10 @@ class WriteTarget(BaseModel):
 
 
 class Action(BaseModel):
+    # Unknown keys are kept, not dropped, so the action-field check
+    # (LHP-CFG-001) can reject them instead of the action silently losing them.
+    model_config = ConfigDict(extra="allow")
+
     name: str
     type: ActionType
     source: Optional[Union[str, List[Union[str, Dict[str, Any]]], Dict[str, Any]]] = (
