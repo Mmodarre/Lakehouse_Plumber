@@ -191,6 +191,24 @@ def test_replace_flow_multiple_replace_using_columns():
     assert 'sequence_by="modified_timestamp"' in code
 
 
+def test_replace_using_keeps_two_step_form_and_flow_name():
+    """REPLACE USING stays create_streaming_table + @dp.replace_flow with LHP's
+    f_<name> flow name. A live spike (#346) showed the one-step
+    @dp.table(replace_using=...) form renames the flow to the table name, which
+    makes the platform re-read the source and silently duplicate rows."""
+    action = _replace_action(
+        "write_orders_current",
+        source="v_order_updates",
+    )
+
+    code = StreamingTableWriteGenerator().generate(action, {"expectations": []})
+
+    assert "dp.create_streaming_table(" in code
+    assert "@dp.replace_flow(" in code
+    assert 'name="f_orders_current"' in code
+    assert "@dp.table(" not in code
+
+
 def test_replace_flow_does_not_emit_once_parameter():
     """@dp.replace_flow has no 'once' parameter, so it is never emitted (even if the
     action sets once: true — a REPLACE USING flow is continuous, not a one-shot backfill)."""

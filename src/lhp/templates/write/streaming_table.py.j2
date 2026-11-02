@@ -203,6 +203,48 @@ def {{ flow_name }}():
     {% endif %}
 
     return df
+{% elif mode == "replace_where" %}
+{#
+   Replace-where mode: Databricks defines a REPLACE WHERE table and its flow in
+   one @dp.table statement (the flow takes the table's name) over a batch read.
+   No create_streaming_table, no temporary=, no @dp.expect* (the platform
+   rejects expectations on a REPLACE WHERE target) and no metadata columns.
+#}
+@dp.table(
+    name={{ full_table_name|py_str }},
+    comment={{ comment|py_str }},
+    table_properties={{ properties|py_literal }}
+    {%- if spark_conf %},
+    spark_conf={{ spark_conf|py_literal }}
+    {%- endif %}
+    {%- if partitions %},
+    partition_cols={{ partitions|py_literal }}
+    {%- endif %}
+    {%- if cluster_by %},
+    cluster_by={{ cluster_by|py_literal }}
+    {%- endif %}
+    {%- if cluster_by_auto %},
+    cluster_by_auto={{ cluster_by_auto | string | title }}
+    {%- endif %}
+    {%- if table_path %},
+    path={{ table_path|py_str }}
+    {%- endif %}
+    {%- if schema %},
+    schema="""{{ schema|py_block }}"""
+    {%- endif %}
+    {%- if row_filter %},
+    row_filter={{ row_filter|py_str }}
+    {%- endif %}
+    {%- if private %},
+    private={{ private | string | title }}
+    {%- endif %},
+    replace_where={{ replace_where|py_str }}
+)
+def {{ table_name }}():
+    """{{ description|py_block }}"""
+    df = spark.read.table({{ source_view|py_str }})
+
+    return df
 {% else %}
 {#
    Standard streaming table: Create table first (if needed), then append flow(s)
