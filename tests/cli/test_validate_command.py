@@ -71,6 +71,8 @@ actions:
   - name: write_a
     type: write
     source: v_a
+    readMode: batch
+    once: true
     write_target:
       type: streaming_table
       database: "{catalog}.{schema}"

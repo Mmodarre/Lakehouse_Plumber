@@ -70,6 +70,8 @@ actions:
   - name: write_data
     type: write
     source: v_data
+    readMode: batch
+    once: true
     write_target:
       type: streaming_table
       database: "{catalog}.{bronze_schema}"

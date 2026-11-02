@@ -140,7 +140,10 @@ class TestCLI:
                         "name": "load_data",
                         "type": "load",
                         "target": "v_raw_data",
-                        "source": {"type": "sql", "sql": "SELECT * FROM raw_table"},
+                        "source": {
+                            "type": "sql",
+                            "sql": "SELECT * FROM STREAM(raw_table)",
+                        },
                     },
                     {
                         "name": "write_bronze",
@@ -265,7 +268,10 @@ class TestCLI:
                         "name": "load_data",
                         "type": "load",
                         "target": "v_raw_data",
-                        "source": {"type": "sql", "sql": "SELECT * FROM raw_table"},
+                        "source": {
+                            "type": "sql",
+                            "sql": "SELECT * FROM STREAM(raw_table)",
+                        },
                     },
                     {
                         "name": "write_bronze",
@@ -329,6 +335,8 @@ class TestCLI:
                         "name": "write_customers",
                         "type": "write",
                         "source": "v_jdbc_data",
+                        "readMode": "batch",
+                        "once": True,
                         "write_target": {
                             "type": "streaming_table",
                             "catalog": "test_cat",

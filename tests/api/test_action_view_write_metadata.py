@@ -155,7 +155,7 @@ def _write_targets_project(root: Path) -> None:
                 type: load
                 source:
                   type: sql
-                  sql: "SELECT 1 AS id, current_timestamp() AS ts"
+                  sql: "SELECT 1 AS id, current_timestamp() AS ts FROM STREAM(${{catalog}}.${{schema}}.raw_src)"
                 target: v_raw
               - name: write_standard
                 type: write

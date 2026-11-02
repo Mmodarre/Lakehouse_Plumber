@@ -125,7 +125,7 @@ def _build_multipipeline_project(tmpdir, pipeline_names):
                     "transform_type": "sql",
                     "source": f"v_{name}_raw",
                     "target": f"v_{name}_clean",
-                    "sql": f"SELECT * FROM v_{name}_raw",
+                    "sql": f"SELECT * FROM STREAM(v_{name}_raw)",
                 },
                 {
                     "name": f"write_{name}",
@@ -219,7 +219,7 @@ class TestActionOrchestrator:
                     "transform_type": "sql",
                     "source": "v_customers_raw",
                     "target": "v_customers_clean",
-                    "sql": "SELECT * FROM v_customers_raw WHERE is_valid = true",
+                    "sql": "SELECT * FROM STREAM(v_customers_raw) WHERE is_valid = true",
                 },
                 {
                     "name": "write_customers",
@@ -335,6 +335,8 @@ class TestActionOrchestrator:
                         "name": "write_data",
                         "type": "write",
                         "source": "v_db_data",
+                        "readMode": "batch",
+                        "once": True,
                         "write_target": {
                             "type": "streaming_table",
                             "catalog": "test_cat",
@@ -430,6 +432,8 @@ class TestActionOrchestrator:
                     {
                         "name": "write_{{ source_table }}",
                         "type": "write",
+                        "readMode": "batch",
+                        "once": True,
                         "source": "v_{{ source_table }}_raw",
                         "write_target": {
                             "type": "streaming_table",
@@ -558,6 +562,8 @@ class TestActionOrchestrator:
                     {
                         "name": "write_result",
                         "type": "write",
+                        "readMode": "batch",
+                        "once": True,
                         "source": "v_ab",
                         "write_target": {
                             "type": "streaming_table",

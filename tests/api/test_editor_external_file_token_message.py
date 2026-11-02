@@ -29,6 +29,8 @@ actions:
   - name: write
     type: write
     source: v_t
+    readMode: batch
+    once: true
     write_target:
       type: streaming_table
       catalog: cat

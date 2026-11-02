@@ -194,6 +194,8 @@ actions:
   - name: save_customers_bronze
     type: write
     source: v_customers_raw
+    readMode: batch
+    once: true
     write_target:
       type: streaming_table
       catalog: "${catalog}"
@@ -334,7 +336,7 @@ actions:
         LOWER(TRIM(email)) as email,
         _change_type,
         _commit_timestamp
-      FROM {source}
+      FROM STREAM({source})
 
   - name: save_customer_dimension
     type: write
@@ -417,7 +419,7 @@ actions:
         *,
         current_timestamp() as _ingestion_timestamp,
         input_file_name() as _source_file
-      FROM v_{{ table_name }}_raw
+      FROM STREAM(v_{{ table_name }}_raw)
 
   - name: save_{{ table_name }}_bronze
     type: write
@@ -513,7 +515,7 @@ actions:
     type: load
     source:
       type: sql
-      sql: "SELECT * FROM raw_customers"
+      sql: "SELECT * FROM STREAM(raw_customers)"
     target: v_customers_raw
     
   - name: validate_customers

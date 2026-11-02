@@ -89,6 +89,8 @@ def _ctx(*, presets=None, operational_metadata=None) -> FlowGroupContext:
                 name="write_raw",
                 type=ActionType.WRITE,
                 source="v_raw",
+                readMode="batch",
+                once=True,
                 write_target={
                     "type": "streaming_table",
                     "catalog": "c",

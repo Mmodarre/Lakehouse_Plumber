@@ -13,7 +13,7 @@ actions:
     type: load
     source:
       type: sql
-      sql: "SELECT 1 AS id, '  alpha  ' AS name"
+      sql: "SELECT 1 AS id, '  alpha  ' AS name FROM STREAM(${catalog}.${migration_schema}.customer)"
     target: v_helper_sink_seed
     description: "Seed rows for the helper-backed custom sink"
 

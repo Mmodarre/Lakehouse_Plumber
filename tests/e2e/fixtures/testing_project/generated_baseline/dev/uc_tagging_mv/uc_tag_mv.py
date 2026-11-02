@@ -18,7 +18,7 @@ FLOWGROUP_ID = "uc_tag_mv"
 @dp.temporary_view()
 def v_uc_part():
     """Delta source: acme_edw_dev.edw_raw.part_raw"""
-    df = spark.readStream.table("acme_edw_dev.edw_raw.part_raw")
+    df = spark.read.table("acme_edw_dev.edw_raw.part_raw")
 
     return df
 

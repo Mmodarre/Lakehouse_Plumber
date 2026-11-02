@@ -121,6 +121,8 @@ def _consumer_flowgroup() -> dict:
                 "name": "write_consumer_out",
                 "type": "write",
                 "source": "v_enriched",
+                "readMode": "batch",
+                "once": True,
                 "write_target": {
                     "type": "streaming_table",
                     "catalog": "${catalog}",

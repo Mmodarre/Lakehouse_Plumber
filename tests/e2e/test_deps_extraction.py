@@ -295,6 +295,8 @@ class TestDepsExtraction:
                   - name: write_union_output
                     type: write
                     source: v_union_result
+                    readMode: batch
+                    once: true
                     write_target:
                       type: streaming_table
                       database: "{catalog}.{gold_schema}"

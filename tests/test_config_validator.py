@@ -30,7 +30,7 @@ class TestConfigValidator:
                     transform_type=TransformType.SQL,
                     source="v_raw_data",
                     target="v_clean_data",
-                    sql="SELECT * FROM v_raw_data WHERE is_valid = true",
+                    sql="SELECT * FROM STREAM(v_raw_data) WHERE is_valid = true",
                 ),
                 Action(
                     name="write_data",

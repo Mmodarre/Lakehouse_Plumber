@@ -225,6 +225,8 @@ flowgroups:
       - name: write_raw
         type: write
         source: v_raw
+        readMode: batch
+        once: true
         write_target:
           type: streaming_table
           database: dev_cat.bronze
@@ -260,6 +262,8 @@ actions:
   - name: write_x
     type: write
     source: v_x
+    readMode: batch
+    once: true
     write_target:
       type: streaming_table
       database: dev_cat.bronze
@@ -357,6 +361,8 @@ actions:
   - name: write_x
     type: write
     source: v_x
+    readMode: batch
+    once: true
     write_target:
       type: streaming_table
       database: dev_cat.bronze

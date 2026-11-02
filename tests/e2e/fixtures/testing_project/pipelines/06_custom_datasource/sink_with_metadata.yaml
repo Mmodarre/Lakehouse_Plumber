@@ -9,7 +9,7 @@ actions:
     type: load
     source:
       type: sql
-      sql: "SELECT 1 as id, 'test' as name, 100 as value"
+      sql: "SELECT 1 as id, 'test' as name, 100 as value FROM STREAM(${catalog}.${migration_schema}.customer)"
     target: v_test_sink_data
     description: "Load test data for sink testing"
     

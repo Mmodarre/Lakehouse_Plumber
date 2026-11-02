@@ -174,6 +174,8 @@ dev:
                     {
                         "name": "write_customers_silver",
                         "type": "write",
+                        "readMode": "batch",
+                        "once": True,
                         "source": "v_customers_silver",
                         "write_target": {
                             "type": "streaming_table",

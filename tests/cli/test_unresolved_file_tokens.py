@@ -40,6 +40,8 @@ actions:
   - name: write_orders
     type: write
     source: v_orders
+    readMode: batch
+    once: true
     write_target:
       type: streaming_table
       catalog: c
@@ -65,6 +67,8 @@ actions:
   - name: write_orders
     type: write
     source: v_orders
+    readMode: batch
+    once: true
     write_target:
       type: streaming_table
       catalog: c

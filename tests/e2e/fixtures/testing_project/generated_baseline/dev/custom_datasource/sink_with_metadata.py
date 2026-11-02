@@ -23,7 +23,9 @@ FLOWGROUP_ID = "sink_with_metadata"
 @dp.temporary_view()
 def v_test_sink_data():
     """Load test data for sink testing"""
-    df = spark.sql("""SELECT 1 as id, 'test' as name, 100 as value""")
+    df = spark.sql(
+        """SELECT 1 as id, 'test' as name, 100 as value FROM STREAM(acme_edw_dev.edw_old.customer)"""
+    )
 
     # Add operational metadata columns
     df = df.withColumn("_processing_timestamp", F.current_timestamp())

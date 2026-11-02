@@ -347,7 +347,7 @@ def f_orders_middle_east_bronze():
 )
 def f_orders_migration():
     """Append flow to acme_edw_dev.edw_bronze.alice_orders"""
-    # Streaming flow
-    df = spark.readStream.table("v_orders_migration_cleaned")
+    # Batch mode
+    df = spark.read.table("v_orders_migration_cleaned")
 
     return df
