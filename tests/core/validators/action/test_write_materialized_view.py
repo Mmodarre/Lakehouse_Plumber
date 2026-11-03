@@ -199,10 +199,10 @@ class TestDuplicateNames:
 
         assert error.title == "Duplicate expectation name"
 
-    def test_message_names_a_list_rule(self, tmp_path):
+    def test_name_beats_message_for_a_list_rule(self, tmp_path):
         rules = [
-            {"name": "a", "message": "shared", "constraint": "x > 0"},
-            {"name": "b", "message": "shared", "constraint": "y > 0"},
+            {"name": "shared", "message": "a", "constraint": "x > 0"},
+            {"name": "shared", "message": "b", "constraint": "y > 0"},
         ]
 
         [error] = _validate(tmp_path, rules)

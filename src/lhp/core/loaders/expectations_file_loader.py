@@ -14,7 +14,7 @@ from ...parsers import load_yaml_file
 from .external_file_loader import resolve_external_file_path
 
 #: The two expectation formats, as they come out of the file.
-Expectations = Union[List[Any], Dict[str, Any]]
+Expectations = Union[List[Any], Dict[Any, Any]]
 
 _FORMAT_EXAMPLE = """\
 id IS NOT NULL:

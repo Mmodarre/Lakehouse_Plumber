@@ -9,9 +9,12 @@ through :func:`missing_constraint_error`.
 """
 
 import logging
-from typing import Any, Dict, Iterator, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any, Dict, Iterator, Optional, Tuple
 
 from ...errors import ErrorFactory, LHPValidationError, codes
+
+if TYPE_CHECKING:
+    from ..loaders import Expectations
 
 #: The DLT category each ``failureAction`` (list format) or ``action``
 #: (mapping format) selects. Values are matched lower-cased.
@@ -65,6 +68,24 @@ def mapping_rule_category(rule_config: Dict[str, Any]) -> Tuple[Any, Optional[st
     return action, FAILURE_ACTIONS.get(str(action).lower())
 
 
+def list_rule_name(rule: Dict[str, Any]) -> str:
+    """Return a list-format rule's own name: its ``name``, else its ``message``.
+
+    ``""`` when it has neither. The parser, the validators and quarantine mode
+    all name a list rule through this, so they cannot disagree; the parser then
+    falls back to ``Constraint failed: <constraint>``.
+    """
+    return rule.get("name") or rule.get("message") or ""
+
+
+def mapping_rule_name(key: Any, rule: Dict[str, Any]) -> Any:
+    """Return a mapping-format rule's name: its ``name``, else its constraint key.
+
+    A null or empty ``name`` counts as unset, as it does in the validators.
+    """
+    return rule.get("name") or key
+
+
 def rule_constraint(rule: Dict[str, Any]) -> Any:
     """Return a list-format rule's ``constraint``, else its ``expression``.
 
@@ -103,7 +124,7 @@ class DQEParser:
         self.logger = logging.getLogger(__name__)
 
     def parse_expectations(
-        self, expectations: Union[List[Dict], Dict[str, Any]]
+        self, expectations: "Expectations"
     ) -> Tuple[Dict, Dict, Dict]:
         """Split expectations into their DLT categories.
 
@@ -136,7 +157,7 @@ class DQEParser:
         )
 
     def get_all_expectations_as_drop(
-        self, expectations: Union[List[Dict], Dict[str, Any]]
+        self, expectations: "Expectations"
     ) -> Dict[str, str]:
         """Quarantine mode: all expectations enforced as drop regardless of configured failureAction.
 
@@ -150,16 +171,16 @@ class DQEParser:
                 constraint = rule_constraint(exp)
                 if not constraint:
                     continue
-                name = exp.get("name") or exp.get("message") or f"rule_{len(result)}"
+                name = list_rule_name(exp) or f"rule_{len(result)}"
                 result[name] = constraint
         elif isinstance(expectations, dict):
             for constraint, exp_config in expectations.items():
-                name = exp_config.get("name", constraint)
+                name = mapping_rule_name(constraint, exp_config)
                 result[name] = constraint
         return result
 
 
-def expectation_names(expectations: Union[List[Dict], Dict[str, Any]]) -> List[str]:
+def expectation_names(expectations: "Expectations") -> list[str]:
     """Return the name :meth:`DQEParser.parse_expectations` gives each rule.
 
     The names come in file order, one per rule. A name listed twice keeps only
@@ -171,7 +192,7 @@ def expectation_names(expectations: Union[List[Dict], Dict[str, Any]]) -> List[s
 
 
 def _categorised_rules(
-    expectations: Union[List[Dict], Dict[str, Any]],
+    expectations: "Expectations",
 ) -> Iterator[Tuple[str, str, str]]:
     """Yield ``(category, name, constraint)`` for each rule, in file order."""
     if not isinstance(expectations, list):
@@ -181,7 +202,7 @@ def _categorised_rules(
                 raise AssertionError(
                     f"Unvalidated expectation action={action!r} for {key!r}"
                 )
-            name = exp_config.get("name", key)
+            name = mapping_rule_name(key, exp_config)
             if not key:
                 raise missing_constraint_error(name or "unnamed")
             yield category, name, key
@@ -195,7 +216,7 @@ def _categorised_rules(
             )
 
         constraint = rule_constraint(expectation)
-        message = expectation.get("message") or expectation.get("name", "")
+        message = list_rule_name(expectation)
 
         if not constraint:
             raise missing_constraint_error(message or "unnamed")
