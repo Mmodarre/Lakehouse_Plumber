@@ -6,7 +6,6 @@ from pyspark.sql import functions as F
 from pyspark.sql.types import MapType, StringType
 from pyspark.sql.window import Window
 from pyspark import pipelines as dp
-from delta.tables import DeltaTable
 
 # Pipeline Configuration
 PIPELINE_ID = "bronze_orders"
@@ -172,17 +171,15 @@ def dlq_sink_v_orders_raw(batch_df, batch_id):
         "_row_data",
     )
 
-    dlq = DeltaTable.forName(spark, DLQ_TABLE_v_orders_raw)
-    (
-        dlq.alias("dlq")
-        .merge(
-            batch.alias("new"),
-            (F.col("dlq._dlq_source_table") == F.lit(SOURCE_TABLE_v_orders_raw))
-            & (F.col("dlq._dlq_sk") == F.col("new._dlq_sk")),
-        )
-        .whenNotMatchedInsertAll()
-        .execute()
-    )
+    # SQL MERGE for serverless session safety (#355).
+    batch.createOrReplaceTempView("_lhp_dlq_batch_v_orders_raw")
+    spark.sql("""
+        MERGE INTO dev_catalog.bronze.orders_dlq AS dlq
+        USING _lhp_dlq_batch_v_orders_raw AS new
+        ON dlq._dlq_source_table = 'dev_catalog.bronze.orders'
+           AND dlq._dlq_sk = new._dlq_sk
+        WHEN NOT MATCHED THEN INSERT *
+    """)
     return
 
 
@@ -220,17 +217,15 @@ def recycle_sink_v_orders_raw(batch_df, batch_id):
         )
     )
 
-    outbox = DeltaTable.forName(spark, DLQ_OUTBOX_TABLE_v_orders_raw)
-    (
-        outbox.alias("out")
-        .merge(
-            deduped.alias("new"),
-            (F.col("out._dlq_source_table") == F.lit(SOURCE_TABLE_v_orders_raw))
-            & (F.col("out._dlq_sk") == F.col("new._dlq_sk")),
-        )
-        .whenNotMatchedInsertAll()
-        .execute()
-    )
+    # SQL MERGE for serverless session safety (#355).
+    deduped.createOrReplaceTempView("_lhp_dlq_outbox_batch_v_orders_raw")
+    spark.sql("""
+        MERGE INTO dev_catalog.bronze.orders_dlq_outbox AS out
+        USING _lhp_dlq_outbox_batch_v_orders_raw AS new
+        ON out._dlq_source_table = 'dev_catalog.bronze.orders'
+           AND out._dlq_sk = new._dlq_sk
+        WHEN NOT MATCHED THEN INSERT *
+    """)
 
 
 @dp.append_flow(target="recycle_sink_v_orders_raw", name="recycle_flow_v_orders_raw")

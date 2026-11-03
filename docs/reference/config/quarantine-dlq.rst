@@ -194,10 +194,10 @@ commit to a shared DLQ and outbox at the same time.
 Each generated MERGE filters the target on its own source. The inbox MERGE
 condition is:
 
-.. code-block:: python
+.. code-block:: sql
 
-   (F.col("dlq._dlq_source_table") == F.lit(SOURCE_TABLE_<view>))
-   & (F.col("dlq._dlq_sk") == F.col("new._dlq_sk"))
+   ON dlq._dlq_source_table = '<source_table>'
+      AND dlq._dlq_sk = new._dlq_sk
 
 - On the clustered tables above, concurrent sinks for different ``source_table``
   values commit without conflicting while deletion vectors are enabled. Without
