@@ -168,6 +168,7 @@ class TestQuarantineValidation:
         """Dict quarantine config with non-3-part dlq_table should error."""
         action = MagicMock()
         action.name = "test_dq"
+        action.readMode = None
         action.source = "v_raw"
         action.mode = "quarantine"
         action.quarantine = {

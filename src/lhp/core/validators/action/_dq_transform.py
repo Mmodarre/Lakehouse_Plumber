@@ -10,6 +10,8 @@ from typing import List, Optional
 
 from lhp.models import Action
 
+from ....errors import ErrorFactory
+from .._base import ValidationError
 from ._name_checks import require_three_part_name
 
 logger = logging.getLogger(__name__)
@@ -17,10 +19,23 @@ logger = logging.getLogger(__name__)
 
 def validate_data_quality_transform(
     action: Action, prefix: str, project_root: Optional[Path]
-) -> List[str]:
-    errors = []
+) -> List[ValidationError]:
+    errors: List[ValidationError] = []
     if not action.source:
         errors.append(f"{prefix}: Data quality transform must have 'source'")
+
+    # data_quality only supports streaming; report the same error the
+    # generator raises so ``lhp validate`` and ``lhp generate`` agree.
+    read_mode = action.readMode or "stream"
+    if read_mode != "stream":
+        errors.append(
+            ErrorFactory.invalid_read_mode(
+                action_name=action.name,
+                action_type="data_quality",
+                provided=read_mode,
+                valid_modes=["stream"],
+            )
+        )
 
     dq_mode = getattr(action, "mode", None)
     if dq_mode is not None and dq_mode not in ("dqe", "quarantine"):
@@ -74,7 +89,10 @@ def validate_data_quality_transform(
 
 
 def validate_quarantine_expectations(
-    action: Action, prefix: str, errors: List[str], project_root: Optional[Path]
+    action: Action,
+    prefix: str,
+    errors: List[ValidationError],
+    project_root: Optional[Path],
 ) -> None:
     """Validate expectations file for quarantine mode.
 

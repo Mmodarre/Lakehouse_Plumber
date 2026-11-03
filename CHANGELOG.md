@@ -35,6 +35,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`LHP-VAL-009`) was shown as `LHP-CFG-009` and a missing pipeline-config file
   (`LHP-IO-001`) as `LHP-CFG-001`. Only the catalog/schema failure (`LHP-CFG-026`)
   keeps that title now; every other error keeps its own code, title and details.
+- **`lhp validate` rejects a `data_quality` transform whose `readMode` is not
+  `stream` (#310).** `data_quality` only supports streaming, but the check ran only in
+  the generator, so `readMode: batch` passed `lhp validate` and then failed
+  `lhp generate`. The validator now reports the same `LHP-VAL-068` error the generator
+  raises; the generator keeps its check as a guard.
 
 ## [0.9.3] — 2026-10-20
 

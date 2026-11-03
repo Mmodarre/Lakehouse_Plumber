@@ -5,6 +5,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from lhp.core.validators import TransformActionValidator
+from lhp.errors import LHPError
 from lhp.models import Action, ActionType, TransformType
 
 
@@ -98,6 +99,37 @@ class TestValidateDataQualityTransform:
         )
         errors = validator._validate_data_quality_transform(action, "test")
         assert errors == []
+
+    @pytest.mark.parametrize("read_mode", ["batch", "Stream", "streaming"])
+    def test_dq_non_stream_read_mode_reports_val_068(self, read_mode):
+        """data_quality only supports streaming; validate must reject other
+        readModes with the same LHP-VAL-068 error the generator raises (#310)."""
+        validator = _make_validator()
+        action = _make_action(transform_type="data_quality", readMode=read_mode)
+
+        errors = validator._validate_data_quality_transform(action, "test")
+
+        assert len(errors) == 1
+        error = errors[0]
+        assert isinstance(error, LHPError)
+        assert error.code == "LHP-VAL-068"
+        assert error.title == f"Invalid readMode '{read_mode}' in action 'test_action'"
+
+    @pytest.mark.parametrize("read_mode", [None, "stream"])
+    def test_dq_stream_or_default_read_mode_passes(self, read_mode):
+        validator = _make_validator()
+        action = _make_action(transform_type="data_quality", readMode=read_mode)
+
+        assert validator._validate_data_quality_transform(action, "test") == []
+
+    def test_dq_batch_read_mode_rejected_through_validate(self):
+        """The readMode check runs through the public ``validate`` entry point."""
+        validator = _make_validator()
+        action = _make_action(transform_type="data_quality", readMode="batch")
+
+        errors = validator.validate(action, "test")
+
+        assert [e.code for e in errors if isinstance(e, LHPError)] == ["LHP-VAL-068"]
 
 
 class TestValidatePythonTransform:
