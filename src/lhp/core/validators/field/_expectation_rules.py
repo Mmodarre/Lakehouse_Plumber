@@ -19,6 +19,7 @@ from ...processing import (
     FAILURE_ACTIONS,
     expectation_names,
     list_rule_category,
+    list_rule_name,
     mapping_rule_category,
     missing_constraint_error,
     rule_constraint,
@@ -88,8 +89,8 @@ def duplicate_name_errors(
             ),
             suggestions=[
                 "Give each expectation its own name",
-                "In a list, a rule is named by 'message' when it has one, then "
-                "by 'name', then 'Constraint failed: <constraint>'",
+                "In a list, a rule is named by 'name' when it has one, then "
+                "by 'message', then 'Constraint failed: <constraint>'",
             ],
             context={"Expectation": name, "Field": "name", "Provided": name},
         )
@@ -102,18 +103,18 @@ def _rules(expectations: Expectations) -> Iterator[Tuple[str, Any, Any]]:
     """Yield ``(ident, key, rule)``; ``key`` is a mapping rule's constraint."""
     if isinstance(expectations, list):
         for i, rule in enumerate(expectations):
-            yield _ident(rule, ("name", "message"), f"#{i + 1}"), _IN_LIST, rule
+            yield _ident(rule, True, f"#{i + 1}"), _IN_LIST, rule
     else:
         for key, rule in expectations.items():
-            yield _ident(rule, ("name",), str(key)), key, rule
+            yield _ident(rule, False, str(key)), key, rule
 
 
-def _ident(rule: Any, fields: Tuple[str, ...], fallback: str) -> str:
+def _ident(rule: Any, in_list: bool, fallback: str) -> str:
+    """The name the parser gives the rule, else ``fallback`` (for a bad rule)."""
     if isinstance(rule, dict):
-        for field in fields:
-            value = rule.get(field)
-            if isinstance(value, str) and value:
-                return value
+        name = list_rule_name(rule) if in_list else rule.get("name")
+        if isinstance(name, str) and name:
+            return name
     return fallback
 
 
