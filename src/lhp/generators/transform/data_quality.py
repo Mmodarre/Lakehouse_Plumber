@@ -2,7 +2,7 @@
 
 import logging
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, Optional
 
 from lhp.models import Action
 
@@ -120,7 +120,7 @@ class DataQualityTransformGenerator(BaseActionGenerator):
     def _generate_quarantine_mode(
         self,
         action,
-        expectations: Union[List[Dict], Dict[str, Any]],
+        expectations: Expectations,
         flowgroup_config: Dict[str, Any],
     ) -> str:
         """Generate quarantine mode code with DLQ recycling."""
