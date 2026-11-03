@@ -83,8 +83,10 @@ class TestDataQualityQuarantine:
 
         assert "dlq_sink_v_raw_data" in code
         assert "@dp.foreach_batch_sink" in code
-        assert "DeltaTable.forName" in code
-        assert ".whenNotMatchedInsertAll()" in code
+        assert "DeltaTable" not in code
+        assert "MERGE INTO cat.sch.universal_dlq AS dlq" in code
+        assert "WHEN NOT MATCHED THEN INSERT *" in code
+        assert "ON dlq._dlq_source_table = 'cat.sch.bronze_orders'" in code
 
         assert "quarantine_flow_v_raw_data" in code
         assert "@dp.append_flow" in code
@@ -93,7 +95,8 @@ class TestDataQualityQuarantine:
         assert "recycle_sink_v_raw_data" in code
         assert "Window.partitionBy" in code
         assert "row_number" in code
-        assert "whenNotMatchedInsertAll" in code
+        assert "MERGE INTO cat.sch.universal_dlq_outbox AS out" in code
+        assert "ON out._dlq_source_table = 'cat.sch.bronze_orders'" in code
 
         # CDF from DLQ
         assert "recycle_flow_v_raw_data" in code
@@ -219,7 +222,7 @@ class TestDataQualityQuarantine:
         generator.generate(action, {"spec_dir": tmp_path})
 
         imports = generator.imports
-        assert "from delta.tables import DeltaTable" in imports
+        assert "from delta.tables import DeltaTable" not in imports
         assert "from pyspark.sql import functions as F" in imports
         assert "from pyspark.sql.types import MapType, StringType" in imports
         assert "from pyspark.sql.window import Window" in imports
@@ -396,22 +399,25 @@ class TestDataQualityQuarantine:
 
         code = generator.generate(action, {"spec_dir": tmp_path})
 
-        assert (
-            '(F.col("dlq._dlq_source_table") == F.lit(SOURCE_TABLE_v_raw_data))' in code
-        )
-        assert '& (F.col("dlq._dlq_sk") == F.col("new._dlq_sk"))' in code
-        assert (
-            '(F.col("out._dlq_source_table") == F.lit(SOURCE_TABLE_v_raw_data))' in code
-        )
-        assert '& (F.col("out._dlq_sk") == F.col("new._dlq_sk"))' in code
-        assert '"dlq._dlq_sk = new._dlq_sk"' not in code
-        assert '"out._dlq_sk = new._dlq_sk"' not in code
+        assert "ON dlq._dlq_source_table = 'cat.sch.bronze_orders'" in code
+        assert "ON out._dlq_source_table = 'cat.sch.bronze_orders'" in code
+        assert "AND dlq._dlq_sk = new._dlq_sk" in code
+        assert "AND out._dlq_sk = new._dlq_sk" in code
+        assert 'SOURCE_TABLE_v_raw_data = "cat.sch.bronze_orders"' in code
+        assert "new._dlq_source_table" not in code
+        assert '"_lhp_dlq_batch_v_raw_data"' in code
+        assert '"_lhp_dlq_outbox_batch_v_raw_data"' in code
+        assert 'f"""' not in code
+        assert "MERGE INTO {" not in code
+        assert "MERGE INTO cat.sch.universal_dlq AS dlq" in code
+        assert "MERGE INTO cat.sch.universal_dlq_outbox AS out" in code
+        assert "DeltaTable" not in code
         compile(code, "<string>", "exec")
 
     def test_data_quality_quarantine_merge_scoped_with_backtick_source_table(
         self, tmp_path
     ):
-        """A backtick-quoted source_table is referenced via its constant only."""
+        """Backticks are fine inside a SQL string literal in the MERGE ON clause."""
         generator = DataQualityTransformGenerator()
         expectations_data = {
             "email IS NOT NULL": {"action": "drop", "name": "email_not_null"},
@@ -437,15 +443,11 @@ class TestDataQualityQuarantine:
         code = generator.generate(action, {"spec_dir": tmp_path})
 
         assert 'SOURCE_TABLE_v_raw_data = "`my-cat`.silver.orders"' in code
-        assert "F.lit(SOURCE_TABLE_v_raw_data)" in code
-        assert (
-            '(F.col("dlq._dlq_source_table") == F.lit(SOURCE_TABLE_v_raw_data))' in code
-        )
-        assert (
-            '(F.col("out._dlq_source_table") == F.lit(SOURCE_TABLE_v_raw_data))' in code
-        )
-        # only the constant; never inlined into a condition
-        assert code.count("my-cat") == 1
+        assert "ON dlq._dlq_source_table = '`my-cat`.silver.orders'" in code
+        assert "ON out._dlq_source_table = '`my-cat`.silver.orders'" in code
+        # constant + both MERGE ON clauses
+        assert code.count("my-cat") == 3
+        assert "DeltaTable" not in code
         compile(code, "<string>", "exec")
 
     @pytest.mark.parametrize(
@@ -487,7 +489,8 @@ class TestDataQualityQuarantine:
         code = generator.generate(action, {"spec_dir": tmp_path})
 
         compile(code, "<string>", "exec")
-        assert "_dlq_source_table = '" not in code
+        # Recycle/outbox stream filters stay on F.lit (safe for quotes/backslashes).
+        # MERGE ON uses a SQL string literal (unsupported for ' / \\ in source_table).
         assert 'F.col("_dlq_source_table") == F.lit(SOURCE_TABLE_v_raw_data)' in code
         assert (
             code.count('F.col("_dlq_source_table") == F.lit(SOURCE_TABLE_v_raw_data)')
@@ -495,8 +498,8 @@ class TestDataQualityQuarantine:
         )
         assert '(F.col("_dlq_status") == "fixed")' in code
         assert 'F.col("_change_type").isin("insert", "update_postimage")' in code
-        # only the constant; never inlined into a filter
-        assert code.count(rendered) == 1
+        # constant + both MERGE ON literals
+        assert code.count(rendered) == 3
         constant = next(
             node.value
             for node in ast.walk(ast.parse(code))

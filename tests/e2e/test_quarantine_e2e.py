@@ -123,10 +123,20 @@ class TestQuarantineE2E:
         assert "@dp.expect_all_or_drop(_EXPECTATIONS_v_orders_raw)" in code
         assert "def _clean_v_orders_raw():" in code
 
-        # Verify DLQ sink
+        # Verify DLQ sink (SQL MERGE; literal target filter — #332 / #355)
         assert "@dp.foreach_batch_sink" in code
-        assert "DeltaTable.forName" in code
-        assert ".whenNotMatchedInsertAll()" in code
+        assert "DeltaTable" not in code
+        assert 'f"""' not in code
+        assert "MERGE INTO {" not in code
+        assert '"_lhp_dlq_batch_v_orders_raw"' in code
+        assert '"_lhp_dlq_outbox_batch_v_orders_raw"' in code
+        assert "ON dlq._dlq_source_table = 'acme_edw_dev.edw_bronze.orders'" in code
+        assert "ON out._dlq_source_table = 'acme_edw_dev.edw_bronze.orders'" in code
+        assert "AND dlq._dlq_sk = new._dlq_sk" in code
+        assert "AND out._dlq_sk = new._dlq_sk" in code
+        assert "WHEN NOT MATCHED THEN INSERT *" in code
+        assert "MERGE INTO acme_edw_dev.edw_bronze.universal_dlq AS dlq" in code
+        assert "MERGE INTO acme_edw_dev.edw_bronze.universal_dlq_outbox AS out" in code
 
         # Verify append flow for quarantine
         assert "quarantine_flow_v_orders_raw" in code
@@ -156,7 +166,6 @@ class TestQuarantineE2E:
         assert "from_json" in code
 
         # Verify imports
-        assert "from delta.tables import DeltaTable" in code
         assert "from pyspark.sql import functions as F" in code
         assert "from pyspark.sql.types import MapType, StringType" in code
         assert "from pyspark.sql.window import Window" in code
