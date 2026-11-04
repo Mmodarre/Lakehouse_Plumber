@@ -199,15 +199,27 @@ class TestDuplicateNames:
 
         assert error.title == "Duplicate expectation name"
 
-    def test_name_beats_message_for_a_list_rule(self, tmp_path):
+    def test_message_beats_name_for_a_list_rule(self, tmp_path):
+        # The parser keys the decorator by message first (dqe mode's order),
+        # so two rules sharing a message share a name whatever their `name`.
         rules = [
-            {"name": "shared", "message": "a", "constraint": "x > 0"},
-            {"name": "shared", "message": "b", "constraint": "y > 0"},
+            {"name": "a", "message": "shared", "constraint": "x > 0"},
+            {"name": "b", "message": "shared", "constraint": "y > 0"},
         ]
 
         [error] = _validate(tmp_path, rules)
 
         assert error.context["Provided"] == "shared"
+        assert (
+            _validate(
+                tmp_path,
+                [
+                    {"name": "shared", "message": "a", "constraint": "x > 0"},
+                    {"name": "shared", "message": "b", "constraint": "y > 0"},
+                ],
+            )
+            == []
+        )
 
     def test_unnamed_rules_with_the_same_constraint_clash(self, tmp_path):
         rules = [
