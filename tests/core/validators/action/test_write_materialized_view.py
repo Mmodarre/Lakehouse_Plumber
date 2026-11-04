@@ -172,7 +172,7 @@ class TestDuplicateNames:
         [error] = _validate(tmp_path, rules)
 
         assert isinstance(error, LHPError)
-        assert error.code == "LHP-VAL-006"
+        assert error.code == "LHP-VAL-071"
         assert error.title == "Duplicate expectation name"
         assert error.details == (
             f"{_PREFIX}: 2 expectations in expectations file "

@@ -49,7 +49,7 @@ def validate_expectations_file(
     ``quarantine=True`` the messages name quarantine mode and the file must
     hold at least one rule; a file with none reports only that. With
     ``unique_names=True`` a name that more than one valid rule gets is an
-    ``LHP-VAL-006`` too (the materialized-view path; the parsed rules are keyed
+    ``LHP-VAL-071`` too (the materialized-view path; the parsed rules are keyed
     by name, so a duplicate would be lost).
     """
     if not expectations_file or not project_root:
