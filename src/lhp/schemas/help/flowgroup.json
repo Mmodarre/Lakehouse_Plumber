@@ -3919,8 +3919,8 @@
         }
       ],
       "details": [
-        "Each rule's action picks the reaction to a violating row: warn keeps it and logs the violation, drop removes it, fail stops the update. The file uses the same list or mapping formats as a data_quality transform. Rule names must be unique on the view.",
-        "The rules become expectation decorators on the view itself, which lets Databricks keep refreshing it incrementally. A batch data_quality action that feeds a pass-through view is moved onto the view automatically. A view with its own sql that reads a data_quality view is not, and is recomputed in full on every refresh."
+        "Each rule's action picks the reaction to a violating row: warn keeps it and logs the violation, drop removes it, fail stops the update. The file uses the same list or mapping formats as a data_quality transform. Rule names must be unique within the file.",
+        "The rules become expectation decorators on the view itself, which lets Databricks keep refreshing it incrementally. A batch data_quality action that feeds a pass-through view is moved onto the view automatically, unless the view has an expectations_file of its own; then put all the rules in that file. A view with its own sql that reads a data_quality view is not, and is recomputed in full on every refresh, as is a view whose query is non-deterministic (for example F.current_timestamp())."
       ],
       "examples": [
         {

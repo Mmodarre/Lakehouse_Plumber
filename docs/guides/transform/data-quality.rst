@@ -206,11 +206,16 @@ Databricks can still refresh it incrementally; expectations on a view *upstream*
 of a materialized view force a full recompute on every refresh. The gate view is
 still generated, but nothing reads it. This happens when the gate is the only
 thing that feeds a pass-through materialized view: one with a ``source`` and no
-``sql`` or ``sql_path``.
+``sql``, ``sql_path`` or ``expectations_file`` of its own. A test action that
+reads the gate does not stop the fusion.
 
 A materialized view with its own ``sql`` that reads the gate is not fused, and is
 recomputed in full on each refresh. Put the rules on the view instead with
-``write_target.expectations_file``. Both shapes are covered in
+``write_target.expectations_file``. A view that has its own ``expectations_file``
+is not fused either, so put all of its rules there. Incremental refresh also needs
+a deterministic query: a non-deterministic column such as ``F.current_timestamp()``
+anywhere in the view's chain, operational metadata included, makes Databricks
+recompute the view in full. Both shapes are covered in
 :doc:`/guides/write/materialized-view`.
 
 What's next
