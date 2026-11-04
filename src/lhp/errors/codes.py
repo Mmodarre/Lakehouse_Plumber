@@ -120,6 +120,13 @@ VAL_069 = ErrorCode(ErrorCategory.VALIDATION, "069")
 # that is not ``once`` — raised by ReadModeLineageValidator via
 # ErrorFactory.validation_error(codes.VAL_070, ...).
 VAL_070 = ErrorCode(ErrorCategory.VALIDATION, "070")
+# VAL_071: two expectations that land on one materialized view share a name.
+# Names key the ``@dp.expect_all*`` mappings, so a repeat would silently
+# replace a rule (or, across categories, fail generation). Raised for a repeat
+# inside one ``write_target.expectations_file`` (by the expectations-file
+# validator) and for a repeat between that file and the rules of a data_quality
+# action fused onto the view (MvExpectationsValidator).
+VAL_071 = ErrorCode(ErrorCategory.VALIDATION, "071")
 VAL_902 = ErrorCode(ErrorCategory.VALIDATION, "902")
 VAL_DUPFG = ErrorCode(ErrorCategory.VALIDATION, "DUPFG")
 
@@ -358,6 +365,7 @@ ALL_CODES: tuple[ErrorCode, ...] = (
     VAL_068,
     VAL_069,
     VAL_070,
+    VAL_071,
     VAL_902,
     VAL_DUPFG,
     IO_001,
@@ -580,6 +588,7 @@ __all__ = [
     "VAL_068",
     "VAL_069",
     "VAL_070",
+    "VAL_071",
     "VAL_902",
     "VAL_DUPFG",
     "ErrorCode",

@@ -31,7 +31,7 @@ def test_shared_name_is_an_error_when_names_must_be_unique(tmp_path):
     )
 
     assert isinstance(error, LHPError)
-    assert error.code == "LHP-VAL-006"
+    assert error.code == "LHP-VAL-071"
     assert error.title == "Duplicate expectation name"
     assert error.suggestions == [
         "Give each expectation its own name",
