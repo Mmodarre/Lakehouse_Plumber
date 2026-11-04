@@ -24,8 +24,8 @@ def duplicate_name_error(name: str, count: int, source: str, prefix: str) -> LHP
         ),
         suggestions=[
             "Give each expectation its own name",
-            "In a list, a rule is named by 'name' when it has one, then "
-            "by 'message', then 'Constraint failed: <constraint>'",
+            "In a list, a rule is named by 'message' when it has one, then "
+            "by 'name', then 'Constraint failed: <constraint>'",
         ],
         context={"Expectation": name, "Field": "name", "Provided": name},
     )

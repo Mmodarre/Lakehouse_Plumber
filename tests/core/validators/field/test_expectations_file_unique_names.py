@@ -35,8 +35,8 @@ def test_shared_name_is_an_error_when_names_must_be_unique(tmp_path):
     assert error.title == "Duplicate expectation name"
     assert error.suggestions == [
         "Give each expectation its own name",
-        "In a list, a rule is named by 'name' when it has one, then by "
-        "'message', then 'Constraint failed: <constraint>'",
+        "In a list, a rule is named by 'message' when it has one, then by "
+        "'name', then 'Constraint failed: <constraint>'",
     ]
 
 

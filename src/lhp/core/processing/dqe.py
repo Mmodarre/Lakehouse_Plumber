@@ -69,13 +69,16 @@ def mapping_rule_category(rule_config: Dict[str, Any]) -> Tuple[Any, Optional[st
 
 
 def list_rule_name(rule: Dict[str, Any]) -> str:
-    """Return a list-format rule's own name: its ``name``, else its ``message``.
+    """Return a list-format rule's own name: its ``message``, else its ``name``.
 
-    ``""`` when it has neither. The parser, the validators and quarantine mode
-    all name a list rule through this, so they cannot disagree; the parser then
-    falls back to ``Constraint failed: <constraint>``.
+    ``""`` when it has neither. The parser and the validators name a list rule
+    through this, so they cannot disagree; the parser then falls back to
+    ``Constraint failed: <constraint>``. The name is the decorator key and so
+    the expectation's name in the event log: ``message`` first is the
+    precedence ``dqe`` mode has always had. Quarantine mode keeps its own
+    order (``name``, then ``message``) in :meth:`DQEParser.get_all_expectations_as_drop`.
     """
-    return rule.get("name") or rule.get("message") or ""
+    return rule.get("message") or rule.get("name") or ""
 
 
 def mapping_rule_name(key: Any, rule: Dict[str, Any]) -> Any:
@@ -171,7 +174,8 @@ class DQEParser:
                 constraint = rule_constraint(exp)
                 if not constraint:
                     continue
-                name = list_rule_name(exp) or f"rule_{len(result)}"
+                # Quarantine has always named a rule by ``name`` first.
+                name = exp.get("name") or exp.get("message") or f"rule_{len(result)}"
                 result[name] = constraint
         elif isinstance(expectations, dict):
             for constraint, exp_config in expectations.items():
