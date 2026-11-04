@@ -12,8 +12,8 @@ from unittest.mock import patch
 
 import pytest
 
+from lhp.core.dependencies import sql_reads_stream
 from lhp.core.dependencies._parse_cache import ParseCache
-from lhp.core.dependencies.sql_extraction import sql_reads_stream
 
 pytestmark = pytest.mark.unit
 

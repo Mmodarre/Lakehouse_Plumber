@@ -218,6 +218,11 @@ class FlowgroupResolutionService(BaseFlowgroupResolutionService):
             )
             with perf_timer(f"fg_validation [{fg}]", category="fg_validation"):
                 errors = self.config_validator.validate_flowgroup(processed_flowgroup)
+                errors.extend(
+                    self.config_validator.validate_flowgroup_reads(
+                        processed_flowgroup, substitution_mgr
+                    )
+                )
                 if errors:
                     # ErrorFactory.validation_error returns an LHPError, which
                     # is already well-formatted and propagates as-is.

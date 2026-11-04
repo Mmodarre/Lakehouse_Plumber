@@ -114,7 +114,7 @@ def _generate(root: Path, flowgroup: FlowGroup):
     plan = builder.dq_fusion_plan(flowgroup, manager, {}, ActionRegistry())
     write = flowgroup.actions[2]
     context = builder.build(
-        flowgroup, manager, {}, None, None, None, fused_dq=plan.for_write(write)
+        flowgroup, manager, {}, None, None, None, action=write, fusion_plan=plan
     )
     generator = MaterializedViewWriteGenerator()
     return generator.generate(write, context), generator, builder, manager
@@ -140,7 +140,9 @@ def test_the_view_reads_the_dq_actions_source_with_its_three_decorators(root):
     assert code.index("@dp.expect_all_or_fail") < code.index("def orders_mv")
 
 
-def test_the_views_own_file_and_the_dq_rules_are_merged(root):
+def test_a_view_with_its_own_file_is_not_fused(root):
+    # Unfused, the view's own rules see only the rows the data_quality view
+    # lets through, so such a view keeps reading the data_quality view.
     (root / "mv.yaml").write_text(
         yaml.safe_dump(
             [{"name": "mv_only", "constraint": "x > 0", "failureAction": "warn"}]
@@ -149,9 +151,10 @@ def test_the_views_own_file_and_the_dq_rules_are_merged(root):
 
     code, *_ = _generate(root, _flowgroup(mv_rules_file="mv.yaml"))
 
-    assert '"mv_only": "x > 0"' in code
-    assert '"small_amt": "amount < 1000"' in code
+    assert 'df = spark.read.table("v_orders_dq")' in code
     assert code.count("@dp.expect_all(") == 1
+    assert '"mv_only": "x > 0"' in code
+    assert "small_amt" not in code
 
 
 def test_the_view_renders_exactly_the_dq_views_metadata_columns(root):
@@ -169,10 +172,13 @@ def test_the_view_renders_exactly_the_dq_views_metadata_columns(root):
         flowgroup.actions[1], dq_context
     )
     assert set(expected) == {"_loaded_at", "_source_name"}
+    # One withColumns call, as the data_quality view renders them, so a
+    # column expression sees the same dataframe in both.
+    assert code.count("df = df.withColumns({") == 1
+    assert "withColumn(" not in code
     for name, expression in expected.items():
-        assert f"df = df.withColumn('{name}', {expression})" in code
+        assert f"'{name}': {expression}" in code
         assert f"'{name}': {expression}" in dq_code
-    assert code.count("df.withColumn(") == len(expected)
     assert "# Add operational metadata columns" in code
     # The imports the columns need are registered on the view's generator.
     assert "from pyspark.sql import functions as F" in view_generator.imports

@@ -38,7 +38,6 @@ generator its effective read mode in the generation context.
 
 from __future__ import annotations
 
-import copy
 import logging
 import re
 from dataclasses import dataclass, replace
@@ -49,9 +48,10 @@ from lhp.models import Action, ActionType
 
 from ...errors import LHPError
 from ..loaders import load_sql_file
+from ..processing import without_secret_recording
 from ..registry import ActionRegistry, ReadMode, determine_action_subtype
 from ._combined_writes import combined_flow
-from .sql_extraction import sql_reads_stream, sql_table_reads
+from ._sql_stream_reads import sql_reads_stream, sql_table_reads
 
 if TYPE_CHECKING:
     from ..processing import EnhancedSubstitutionManager
@@ -86,7 +86,7 @@ def producer_kind(
     action: Action,
     flowgroup_actions: Sequence[Action],
     *,
-    registry: Optional[ActionRegistry] = None,
+    registry: ActionRegistry,
     project_root: Optional[Path] = None,
     substitution_mgr: Optional[EnhancedSubstitutionManager] = None,
     parse_cache: Optional[ParseCache] = None,
@@ -104,14 +104,15 @@ def producer_kind(
     ``$source`` placeholder, is ``"unknown"``. ``parse_cache`` memoizes the
     STREAM probe across calls.
 
-    ``registry`` defaults to a new :class:`ActionRegistry`. An action whose
+    ``registry`` is required: a spawned worker's default registry holds no
+    generators, so every read would silently be ``"unknown"``. An action whose
     type has no registered generator is ``"unknown"``.
     """
     return _kind(
         action,
         _Scope(
             flowgroup_actions,
-            registry or ActionRegistry(),
+            registry,
             project_root,
             substitution_mgr,
             parse_cache,
@@ -123,7 +124,7 @@ def effective_read_mode(
     action: Action,
     flowgroup_actions: Sequence[Action],
     *,
-    registry: Optional[ActionRegistry] = None,
+    registry: ActionRegistry,
     project_root: Optional[Path] = None,
     substitution_mgr: Optional[EnhancedSubstitutionManager] = None,
     parse_cache: Optional[ParseCache] = None,
@@ -163,7 +164,7 @@ def effective_read_mode(
         action,
         _Scope(
             flowgroup_actions,
-            registry or ActionRegistry(),
+            registry,
             project_root,
             substitution_mgr,
             parse_cache,
@@ -265,18 +266,18 @@ def _data_quality_read(action: Action, scope: _Scope) -> Optional[ReadMode]:
 def _source_view_kind(action: Action, scope: _Scope) -> ProducerKind:
     """The kind of the in-flowgroup view a data_quality action reads.
 
-    The view is the one the data_quality generator reads (``source``, or a
-    ``source`` mapping's ``view`` / ``source`` key), matched to a target
+    The view is the one the data_quality generator reads
+    (:func:`~lhp.core.validators.dq_source_view`), matched to a target
     case-insensitively. ``"unknown"`` when no single load or transform of the
     flowgroup produces it, so an external
     table keeps the generator's default, and when the producer is already
     being resolved (a cycle of views).
     """
-    source = action.source
-    view = (
-        source.get("view", source.get("source")) if isinstance(source, dict) else source
-    )
-    if not isinstance(view, str) or not view:
+    # Lazy: lhp.core.validators imports from lhp.core.dependencies' package.
+    from ..validators import dq_source_view
+
+    view = dq_source_view(action)
+    if not view:
         return "unknown"
     # View names are case-insensitive, as in the read-mode lineage check.
     producers = [
@@ -322,7 +323,7 @@ def _sql_text(
     over ``source.sql_path``; a transform's non-empty ``sql`` (stripped) wins
     over ``sql_path``.
     """
-    probe = _without_secret_recording(substitution_mgr)
+    probe = without_secret_recording(substitution_mgr)
     if action.type == ActionType.LOAD:
         source = action.source
         if isinstance(source, str):
@@ -366,19 +367,3 @@ def _file_text(
     except (LHPError, OSError):
         logger.debug(f"sql_path '{sql_path}' of '{action.name}' unreadable")
         return None
-
-
-def _without_secret_recording(
-    substitution_mgr: Optional[EnhancedSubstitutionManager],
-) -> Optional[EnhancedSubstitutionManager]:
-    """A copy of ``substitution_mgr`` whose secret references are its own.
-
-    Substituting records ``${secret:...}`` references on the manager; code
-    generation records them when it renders the same SQL, so classifying the
-    SQL must not.
-    """
-    if substitution_mgr is None:
-        return None
-    probe = copy.copy(substitution_mgr)
-    probe.secret_references = set()
-    return probe

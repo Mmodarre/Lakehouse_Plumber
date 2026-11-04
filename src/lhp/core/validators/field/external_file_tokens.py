@@ -7,13 +7,13 @@ generation uses, so both commands raise the same ``LHP-CFG-010``. Checked: the
 UC ``tags_file`` the tagging hook reads. Python files are not checked.
 """
 
-import copy
 import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Callable, Optional
 
 from lhp.models import Action, ActionType, FlowGroup
 
+from ...processing import without_secret_recording
 from ...registry import determine_action_subtype
 
 if TYPE_CHECKING:
@@ -91,7 +91,7 @@ class ExternalFileTokenValidator:
         """
         if substitution_mgr.skip_validation:
             return
-        probe = _without_secret_recording(substitution_mgr)
+        probe = without_secret_recording(substitution_mgr)
         for action in flowgroup.actions:
             sql_path = _rendered_sql_path(action)
             if sql_path:
@@ -128,18 +128,3 @@ def _rendered_sql_path(action: Action) -> Optional[str]:
         if isinstance(target, dict) and "sql" not in target:
             return target.get("sql_path")
     return None
-
-
-def _without_secret_recording(
-    substitution_mgr: "EnhancedSubstitutionManager",
-) -> "EnhancedSubstitutionManager":
-    """A shallow copy of ``substitution_mgr`` with its own secret-reference set.
-
-    Substituting a file records its ``${secret:...}`` references on the
-    manager; the resolver then validates every recorded reference. Generation
-    records a ``sql_path`` file's secrets only when it renders the file, so the
-    check substitutes through this copy to leave that behaviour unchanged.
-    """
-    probe = copy.copy(substitution_mgr)
-    probe.secret_references = set()
-    return probe

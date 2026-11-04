@@ -8,6 +8,7 @@ from ._read_modes import (
     producer_kind,
     sql_source_reads,
 )
+from ._sql_stream_reads import sql_reads_stream, sql_table_reads
 from ._table_sites import PythonTableSite, PythonTableSitesResult, SourceSpan
 from .analyzer import DependencyAnalyzer
 from .builder import DependencyGraphBuilder
@@ -38,6 +39,8 @@ __all__ = [
     "extract_action_sources",
     "match_produced_table",
     "producer_kind",
+    "sql_reads_stream",
     "sql_source_reads",
+    "sql_table_reads",
     "write_table_key",
 ]

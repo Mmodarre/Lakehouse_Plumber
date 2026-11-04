@@ -14,9 +14,8 @@ from unittest.mock import patch
 
 import pytest
 
-from lhp.core.dependencies import producer_kind
+from lhp.core.dependencies import producer_kind, sql_reads_stream
 from lhp.core.dependencies._parse_cache import ParseCache
-from lhp.core.dependencies.sql_extraction import sql_reads_stream
 from lhp.core.loaders import load_sql_file
 from lhp.core.processing import EnhancedSubstitutionManager
 from lhp.core.registry import ActionRegistry
@@ -46,6 +45,7 @@ def _transform(
 
 
 def _kind(action: Action, **kwargs: Any) -> str:
+    kwargs.setdefault("registry", ActionRegistry())
     return producer_kind(action, [action], **kwargs)
 
 
@@ -304,3 +304,13 @@ class TestParseCacheReuse:
             assert _kind(second, parse_cache=cache) == "stream"
 
         assert probe.call_count == 1
+
+
+class TestRegistryIsRequired:
+    def test_a_read_needs_the_registry_it_is_dispatched_by(self) -> None:
+        # A spawned worker's default registry holds no generators, so a
+        # fallback would silently report every read as unknown.
+        action = _load({"type": "delta", "table": "t"})
+
+        with pytest.raises(TypeError, match="registry"):
+            producer_kind(action, [action])  # type: ignore[call-arg]  # intentional: registry is required

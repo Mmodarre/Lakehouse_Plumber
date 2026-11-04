@@ -1,4 +1,5 @@
 from lhp.core.codegen.coordinator import CodeGenerationService
+from lhp.core.codegen.dq_fusion import DqFusionPlan, FusedDq
 from lhp.core.codegen.imports import ImportManager, extract_future_imports
 from lhp.core.codegen.operational_metadata import (
     OperationalMetadataCatalog,
@@ -22,6 +23,8 @@ from lhp.core.codegen.uc_tagging_hook_generator import check_tags_file_tokens
 
 __all__ = [
     "CodeGenerationService",
+    "DqFusionPlan",
+    "FusedDq",
     "GenerationPlanResult",
     "ImportManager",
     "OperationalMetadataCatalog",
