@@ -17,7 +17,6 @@ from ..registry import determine_action_subtype
 
 if TYPE_CHECKING:
     from .context import GenerationContextBuilder
-    from .dq_fusion import DqFusionPlan
     from .grouping import WriteActionGrouper
 
 
@@ -145,14 +144,7 @@ class ActionDispatcher:
 
                 if action_type == ActionType.WRITE:
                     sections, imports, pre_stmts = self._generate_write_actions(
-                        action_groups[action_type],
-                        fusion_plan=self._context.dq_fusion_plan(
-                            flowgroup,
-                            substitution_mgr,
-                            preset_config,
-                            self.action_registry,
-                        ),
-                        **common_kwargs,
+                        action_groups[action_type], **common_kwargs
                     )
                 else:
                     sections, imports, pre_stmts = self._generate_regular_actions(
@@ -180,12 +172,15 @@ class ActionDispatcher:
         env: Optional[str],
         phase_a_records: Optional[List["CopiedModuleRecord"]] = None,
         auxiliary_files: Optional[Mapping[str, str]] = None,
-        fusion_plan: Optional["DqFusionPlan"] = None,
     ) -> Tuple[List[str], Set[str], Set[str]]:
         sections = []
         imports: Set[str] = set()
         pre_pipeline_statements: Set[str] = set()
 
+        # Which data_quality actions fuse onto a materialized view write.
+        fusion_plan = self._context.dq_fusion_plan(
+            flowgroup, substitution_mgr, preset_config, self.action_registry
+        )
         grouped_actions = self._grouping.group_write_actions_by_target(write_actions)
         self.logger.debug(
             f"Grouped {len(write_actions)} write actions into {len(grouped_actions)} target table(s)"
@@ -212,9 +207,8 @@ class ActionDispatcher:
                     env,
                     phase_a_records=phase_a_records,
                     auxiliary_files=auxiliary_files,
-                    fused_dq=(
-                        fusion_plan.for_write(combined_action) if fusion_plan else None
-                    ),
+                    action=combined_action,
+                    fusion_plan=fusion_plan,
                 )
                 action_code = generator.generate(combined_action, context)
                 sections.append(action_code)
@@ -319,9 +313,6 @@ class ActionDispatcher:
                 env,
                 phase_a_records=phase_a_records,
                 auxiliary_files=auxiliary_files,
-                effective_read_mode=self._context.effective_read_mode(
-                    action, flowgroup, substitution_mgr, self.action_registry
-                ),
             )
             sections.append(code)
             imports.update(section_imports)
@@ -340,7 +331,6 @@ class ActionDispatcher:
         env: Optional[str],
         phase_a_records: Optional[List["CopiedModuleRecord"]] = None,
         auxiliary_files: Optional[Mapping[str, str]] = None,
-        effective_read_mode: Optional[str] = None,
     ) -> Tuple[str, Set[str], Set[str]]:
         """Resolve generator, build context, produce code + outputs, and wrap action-level errors as LHPError."""
         try:
@@ -355,7 +345,8 @@ class ActionDispatcher:
                 env,
                 phase_a_records=phase_a_records,
                 auxiliary_files=auxiliary_files,
-                effective_read_mode=effective_read_mode,
+                action=action,
+                action_registry=self.action_registry,
             )
             code = generator.generate(action, context)
             imports, pre_stmts = self._context.collect_outputs(generator)

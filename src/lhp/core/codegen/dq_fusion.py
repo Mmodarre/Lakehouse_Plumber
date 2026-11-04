@@ -4,7 +4,7 @@ Pure: reads the flowgroup's actions (and the SQL bodies the batch check
 consults), writes nothing. Code generation computes the plan once per
 flowgroup and hands each materialized-view generator its :class:`FusedDq`
 through the generation context. The eligibility rules are
-:func:`lhp.core.validators.is_fusable`, shared with the expectation-name
+:func:`lhp.core.validators.fusion_target`, shared with the expectation-name
 check.
 
 :stability: internal
@@ -60,14 +60,14 @@ class DqFusionPlan:
 def plan_dq_fusion(
     flowgroup_actions: Sequence[Action],
     *,
-    registry: Optional["ActionRegistry"] = None,
+    registry: "ActionRegistry",
     project_root: Optional[Path] = None,
     substitution_mgr: Optional["EnhancedSubstitutionManager"] = None,
 ) -> DqFusionPlan:
     """The data_quality actions of ``flowgroup_actions`` that fuse, each with
     the materialized view it fuses into."""
     # Lazy: lhp.core.validators imports from codegen.
-    from ..validators import dq_source_view, fusion_consumer, is_fusable
+    from ..validators import dq_source_view, fusion_target
 
     fusions = []
     for action in flowgroup_actions:
@@ -76,20 +76,13 @@ def plan_dq_fusion(
             or action.transform_type != TransformType.DATA_QUALITY
         ):
             continue
-        if not is_fusable(
+        view = fusion_target(
             action,
             flowgroup_actions,
             registry=registry,
             project_root=project_root,
             substitution_mgr=substitution_mgr,
-        ):
-            continue
-        consumer = fusion_consumer(
-            action,
-            flowgroup_actions,
-            project_root=project_root,
-            substitution_mgr=substitution_mgr,
         )
-        if consumer is not None:
-            fusions.append(FusedDq(action, consumer, dq_source_view(action)))
+        if view is not None:
+            fusions.append(FusedDq(action, view, dq_source_view(action)))
     return DqFusionPlan(tuple(fusions))

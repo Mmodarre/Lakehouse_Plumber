@@ -23,7 +23,11 @@ from .dqe import (
 )
 from .local_variables import LocalVariableResolver
 from .namespace_normalizer import normalize_namespace_fields
-from .substitution import EnhancedSubstitutionManager, SecretReference
+from .substitution import (
+    EnhancedSubstitutionManager,
+    SecretReference,
+    without_secret_recording,
+)
 from .template_engine import TemplateEngine
 from .unresolved_tokens import find_unresolved_tokens, unresolved_tokens_error
 
@@ -51,6 +55,7 @@ __all__ = [
     "normalize_namespace_fields",
     "rule_constraint",
     "unresolved_tokens_error",
+    "without_secret_recording",
 ]
 
 

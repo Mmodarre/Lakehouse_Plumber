@@ -1,10 +1,11 @@
 """Enhanced token and secret substitution for LakehousePlumber."""
 
+import copy
 import logging
 import os
 import re
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional, Set, TypeVar, overload
 
 from ...errors import ErrorFactory, LHPError, codes
 
@@ -310,3 +311,32 @@ class EnhancedSubstitutionManager:
                 errors.extend(self.validate_no_unresolved_tokens(item, f"{path}[{i}]"))
 
         return errors
+
+
+_Manager = TypeVar("_Manager", bound=EnhancedSubstitutionManager)
+
+
+@overload
+def without_secret_recording(substitution_mgr: None) -> None: ...
+
+
+@overload
+def without_secret_recording(substitution_mgr: _Manager) -> _Manager: ...
+
+
+def without_secret_recording(
+    substitution_mgr: Optional[_Manager],
+) -> Optional[_Manager]:
+    """A shallow copy of ``substitution_mgr`` whose secret references are its own.
+
+    Substituting records ``${secret:...}`` references on the manager, and the
+    resolver then validates every recorded reference. Code generation records
+    a file's or SQL body's secrets only when it renders it, so a check that
+    substitutes the same text for its own purposes goes through this copy to
+    leave that behaviour unchanged. ``None`` stays ``None``.
+    """
+    if substitution_mgr is None:
+        return None
+    probe = copy.copy(substitution_mgr)
+    probe.secret_references = set()
+    return probe

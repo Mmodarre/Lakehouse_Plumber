@@ -56,9 +56,11 @@ def {{ table_name }}():
     {% if add_operational_metadata %}
     
     # Add operational metadata columns
-    {% for col_name, expression in metadata_columns.items()|sort %}
-    df = df.withColumn({{ col_name|py_str_single }}, {{ expression }})
-    {% endfor %}
+    df = df.withColumns({
+        {%- for col_name, expression in metadata_columns.items()|sort %}
+        {{ col_name|py_str_single }}: {{ expression }}{{ "," if not loop.last }}
+        {%- endfor %}
+    })
     {% endif %}
     
     return df 

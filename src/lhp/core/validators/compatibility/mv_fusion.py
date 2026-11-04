@@ -11,13 +11,21 @@ A data_quality action fuses when all of these hold:
 
 - it is in ``dqe`` mode (``quarantine`` recycles through a streaming flow);
 - its effective read is a batch (:func:`effective_read_mode`);
-- exactly one action of its flowgroup reads its view;
+- exactly one action of its flowgroup reads its view (a test action does not
+  count: the data_quality view is still generated for it, so fusion does not
+  depend on ``--include-tests``);
 - that action is a materialized-view write whose ``source`` is the view alone
-  (no ``sql``/``sql_path``) and the only write to its table.
+  (a string, or a one-element list; no ``sql``/``sql_path``), the only write to
+  its table, and has no ``write_target.expectations_file`` of its own.
 
-:func:`is_fusable` decides; :func:`fusion_consumer` names the view. Code
-generation (``plan_dq_fusion``) and the expectation-name check
-(``MvExpectationsValidator``) both ask them, so they cannot disagree.
+The last condition keeps the rules' meaning: unfused, the view's own rules see
+only the rows the data_quality action's ``drop`` rules let through, and one
+dataset cannot promise that order. A view with rules of its own keeps the
+data_quality view as it is.
+
+:func:`fusion_target` decides and names the view. Code generation
+(``plan_dq_fusion``) and the expectation-name check
+(``MvExpectationsValidator``) both ask it, so they cannot disagree.
 """
 
 from __future__ import annotations
@@ -37,62 +45,32 @@ if TYPE_CHECKING:
 
 def dq_source_view(dq_action: Action) -> str:
     """The view ``dq_action`` reads: its ``source``, or a mapping's ``view`` /
-    ``source`` key; ``""`` when it names none."""
+    ``source`` key; ``""`` when it names none.
+
+    The one rule for which view a data_quality action reads: its generator,
+    the read-mode inheritance and fusion all call it.
+    """
     source = dq_action.source
     if isinstance(source, dict):
         source = source.get("view", source.get("source", ""))
     return source if isinstance(source, str) else ""
 
 
-def is_fusable(
+def fusion_target(
     dq_action: Action,
     flowgroup_actions: Sequence[Action],
     *,
-    registry: Optional[ActionRegistry] = None,
-    project_root: Optional[Path] = None,
-    substitution_mgr: Optional[EnhancedSubstitutionManager] = None,
-) -> bool:
-    """Whether ``dq_action``'s expectations move onto the materialized view that
-    reads it (see the module docstring).
-
-    ``flowgroup_actions`` are the actions of ``dq_action``'s flowgroup. The
-    keyword arguments are those of :func:`effective_read_mode`, which supplies
-    the batch condition.
-    """
-    # Lazy: lhp.core.dependencies imports a service that imports validators.
-    from ...dependencies import effective_read_mode
-
-    consumer = fusion_consumer(
-        dq_action,
-        flowgroup_actions,
-        project_root=project_root,
-        substitution_mgr=substitution_mgr,
-    )
-    if consumer is None:
-        return False
-    read = effective_read_mode(
-        dq_action,
-        flowgroup_actions,
-        registry=registry,
-        project_root=project_root,
-        substitution_mgr=substitution_mgr,
-    )
-    return read == "batch"
-
-
-def fusion_consumer(
-    dq_action: Action,
-    flowgroup_actions: Sequence[Action],
-    *,
+    registry: ActionRegistry,
     project_root: Optional[Path] = None,
     substitution_mgr: Optional[EnhancedSubstitutionManager] = None,
 ) -> Optional[Action]:
-    """The pass-through materialized view that is the only reader of
-    ``dq_action``'s view, else ``None``.
+    """The materialized view ``dq_action``'s expectations move onto, else ``None``.
 
-    Checks the shape of the flowgroup only (``dqe`` mode, one reader, a
-    pass-through view); :func:`is_fusable` adds the batch condition. View
-    names compare case-insensitively, as in the read-mode lineage check.
+    ``flowgroup_actions`` are the actions of ``dq_action``'s flowgroup (see
+    the module docstring for the conditions). ``registry``, ``project_root``
+    and ``substitution_mgr`` are those of :func:`effective_read_mode`, which
+    supplies the batch condition. View names compare case-insensitively, as in
+    the read-mode lineage check.
     """
     if (
         dq_action.type != ActionType.TRANSFORM
@@ -109,12 +87,25 @@ def fusion_consumer(
     readers = [
         a
         for a in flowgroup_actions
-        if a is not dq_action and view in _reads(a, project_root, substitution_mgr)
+        if a is not dq_action
+        and a.type != ActionType.TEST
+        and view in _reads(a, project_root, substitution_mgr)
     ]
-    if len(readers) != 1:
+    if len(readers) != 1 or not _is_pass_through_view(
+        readers[0], view, flowgroup_actions
+    ):
         return None
-    reader = readers[0]
-    return reader if _is_pass_through_view(reader, view, flowgroup_actions) else None
+    # Lazy: lhp.core.dependencies imports a service that imports validators.
+    from ...dependencies import effective_read_mode
+
+    read = effective_read_mode(
+        dq_action,
+        flowgroup_actions,
+        registry=registry,
+        project_root=project_root,
+        substitution_mgr=substitution_mgr,
+    )
+    return readers[0] if read == "batch" else None
 
 
 def _count_producers(actions: Sequence[Action], view: str) -> int:
@@ -144,11 +135,20 @@ def _reads(
     return names
 
 
+def _sole_source(action: Action) -> Optional[str]:
+    """The one view an action's ``source`` names: a string, or a one-element
+    list (the materialized-view generator reads ``source[0]``)."""
+    source = action.source
+    if isinstance(source, list) and len(source) == 1:
+        source = source[0]
+    return source if isinstance(source, str) else None
+
+
 def _is_pass_through_view(
     action: Action, view: str, flowgroup_actions: Sequence[Action]
 ) -> bool:
-    """A materialized-view write that reads ``view`` alone, with no SQL of its
-    own, and is the only write to its table."""
+    """A materialized-view write that reads ``view`` alone, with no SQL and no
+    expectations file of its own, and is the only write to its table."""
     # Lazy: lhp.core.dependencies imports a service that imports validators.
     from ...dependencies import write_table_key
 
@@ -160,9 +160,10 @@ def _is_pass_through_view(
     except LHPError:
         return False
     target = action.write_target
-    if "sql" in target or "sql_path" in target:
+    if "sql" in target or "sql_path" in target or target.get("expectations_file"):
         return False
-    if not isinstance(action.source, str) or action.source.casefold() != view:
+    source = _sole_source(action)
+    if source is None or source.casefold() != view:
         return False
     key = write_table_key(action)
     return not any(

@@ -9,6 +9,7 @@ from lhp.models import Action
 from ...core.loaders import Expectations, load_action_expectations
 from ...core.processing.dqe import DQEParser
 from ...core.registry import BaseActionGenerator, ReadMode
+from ...core.validators import dq_source_view
 from ...errors import ErrorFactory, codes
 from ...utils.identifiers import replace_non_identifier_chars
 
@@ -73,7 +74,7 @@ class DataQualityTransformGenerator(BaseActionGenerator):
 
         total_rules = len(expectations) if isinstance(expectations, (list, dict)) else 0
         logger.debug(
-            f"Data quality '{action.name}': {total_rules} expectation rules loaded, source='{self._extract_source_view(action.source)}'"
+            f"Data quality '{action.name}': {total_rules} expectation rules loaded, source='{dq_source_view(action)}'"
         )
 
         dq_mode = getattr(action, "mode", None) or "dqe"
@@ -96,7 +97,7 @@ class DataQualityTransformGenerator(BaseActionGenerator):
             self.dqe_parser.parse_expectations(expectations or {})
         )
 
-        source_view = self._extract_source_view(action.source)
+        source_view = dq_source_view(action)
 
         add_operational_metadata, metadata_columns = self._get_operational_metadata(
             action, flowgroup_config
@@ -167,7 +168,7 @@ class DataQualityTransformGenerator(BaseActionGenerator):
         # Replace each character outside [A-Za-z0-9_] in the source view name
         # with "_"; the result suffixes generated names (_clean_<view>, ...).
         # A leading digit or a Python keyword is left as it is.
-        source_view = self._extract_source_view(action.source)
+        source_view = dq_source_view(action)
         safe_source_view = replace_non_identifier_chars(source_view)
 
         inverse_filter = "NOT ({})".format(
@@ -212,13 +213,6 @@ class DataQualityTransformGenerator(BaseActionGenerator):
         return self.render_template(
             "transform/data_quality_quarantine.py.j2", template_context
         )
-
-    def _extract_source_view(self, source) -> str:
-        if isinstance(source, str):
-            return source
-        if isinstance(source, dict):
-            return source.get("view", source.get("source", ""))
-        return ""
 
     def _load_expectations(
         self, action: Action, spec_dir: Path | None = None

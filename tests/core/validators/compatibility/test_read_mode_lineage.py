@@ -14,6 +14,7 @@ from typing import Any, List, Optional
 
 import pytest
 
+from lhp.core.processing import EnhancedSubstitutionManager
 from lhp.core.registry import ActionRegistry
 from lhp.core.validators.compatibility import ReadModeLineageValidator
 from lhp.errors import LHPError, codes
@@ -120,10 +121,14 @@ def _sink(source: str) -> Action:
     )
 
 
-def _validate(*actions: Action, project_root: Optional[Path] = None) -> List[LHPError]:
+def _validate(
+    *actions: Action,
+    project_root: Optional[Path] = None,
+    substitution_mgr: Optional[EnhancedSubstitutionManager] = None,
+) -> List[LHPError]:
     flowgroup = FlowGroup(pipeline="p", flowgroup="fg", actions=list(actions))
     validator = ReadModeLineageValidator(ActionRegistry(), project_root)
-    return validator.validate(flowgroup)
+    return validator.validate(flowgroup, substitution_mgr)
 
 
 def _only(errors: List[LHPError]) -> LHPError:
@@ -485,6 +490,21 @@ def test_sql_file_is_read_under_the_project_root(tmp_path: Path):
     assert _validate(_delta("v_s", "stream"), consumer) == []
     error = _only(_validate(_delta("v_s", "stream"), consumer, project_root=tmp_path))
     assert error.context["Consumer"] == "transform_v_j"
+
+
+def test_sql_file_is_read_with_the_environments_substitutions(tmp_path: Path):
+    # `${stage}` names the streaming view only once substituted, so the check
+    # reads the file as code generation does.
+    (tmp_path / "j.sql").write_text("SELECT * FROM ${stage}")
+    consumer = _transform(TransformType.SQL, "v_s", "v_j", sql_path="j.sql")
+    manager = EnhancedSubstitutionManager()
+    manager.mappings["stage"] = "v_s"
+    actions = (_delta("v_s", "stream"), consumer)
+
+    assert _validate(*actions, project_root=tmp_path) == []
+    error = _only(_validate(*actions, project_root=tmp_path, substitution_mgr=manager))
+    assert error.context["Consumer"] == "transform_v_j"
+    assert manager.secret_references == set()
 
 
 def test_sql_load_reads_its_sql():
