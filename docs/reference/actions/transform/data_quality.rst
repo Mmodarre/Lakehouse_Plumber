@@ -4,7 +4,8 @@ Row expectations (data_quality)
 Applies expectation rules to the source view. ``mode: dqe`` emits a
 ``@dp.temporary_view`` decorated with expectation decorators; ``mode: quarantine``
 emits a Delta dead-letter (DLQ) subsystem that routes violating rows to a
-quarantine table. ``readMode`` must be ``stream``.
+quarantine table. ``dqe`` reads a stream or a batch; ``quarantine`` reads only a
+stream.
 
 Minimal example
 ---------------
@@ -20,7 +21,6 @@ Add this entry to the ``actions`` list in your :doc:`flowgroup </reference/confi
      target: v_orders_validated
      expectations_file: "expectations/orders.yaml"
      mode: dqe
-     readMode: stream
 
 .. contents:: On this page
    :local:
@@ -61,11 +61,15 @@ Options
    * - ``readMode``
      - string
      - No
-     - ``stream``
-     - Must be ``stream``.
+     - inherited
+     - ``stream`` or ``batch``. Unset in ``dqe`` mode, the action reads the way the
+       view it reads was made; see :ref:`dq-read-mode`. ``mode: quarantine``
+       accepts only ``stream`` (``LHP-VAL-068`` otherwise).
 
-The expectations file is a YAML mapping. Each key is a boolean SQL expression
-the row must satisfy; each value sets a per-rule ``action`` and optional ``name``.
+The expectations file holds the rules. The mapping format is shown here: each key
+is a boolean SQL expression the row must satisfy, and each value sets a per-rule
+``action`` and optional ``name``. :doc:`/reference/config/expectations`
+covers the list format and every check on a rule.
 
 .. list-table::
    :header-rows: 1
@@ -134,10 +138,52 @@ Quarantine mode replaces the inline decorators with the DLQ subsystem:
      target: v_orders_validated
      expectations_file: "expectations/orders.yaml"
      mode: quarantine
-     readMode: stream
      quarantine:
        dlq_table: main.ops.orders_dlq
        source_table: main.bronze.orders
+
+.. _dq-read-mode:
+
+Read mode
+---------
+
+A view is either streaming or batch, and Databricks requires a reader to read it
+the same way (``LHP-VAL-070``, below). A ``dqe`` action with no ``readMode``
+takes the kind of the view it reads when another load or transform in the same
+flowgroup produces that view:
+
+- a load or transform produces a view of the kind it reads: a ``delta`` load is
+  batch unless it sets ``readMode: stream``, a ``jdbc`` load is batch, and
+  ``cloudfiles`` and ``kafka`` loads are streams;
+- a ``sql`` load or transform is a stream exactly when its SQL reads
+  ``STREAM(...)``;
+- a ``schema``, ``python`` or ``data_quality`` transform takes the kind of its
+  own read, so a chain carries one kind through.
+
+When the source is external to the flowgroup, or its kind is not known (a
+``python`` load, or a ``temp_table``), the action defaults to ``stream``. A
+``python`` load that returns a batch DataFrame therefore needs ``readMode: batch``
+on the ``data_quality`` action. An explicit ``readMode`` always wins.
+
+A batch ``data_quality`` action that feeds a pass-through materialized view is
+fused into the view; see :ref:`mv-expectations`.
+
+A generated pipeline fails on Databricks when a view is read the other way, so
+``lhp validate`` checks every read of a view that a load or transform of the same
+flowgroup produces, wherever both the view's kind and the read are known. A
+mismatch is ``LHP-VAL-070``:
+
+- a stream read (``readStream``, or ``STREAM(view)`` in SQL) of a batch view fails;
+- a batch read (``spark.read``, or SQL without ``STREAM()``) of a streaming view
+  fails;
+- a standard streaming-table append flow that reads a batch view with
+  ``readMode: batch`` fails too, unless the write sets ``once: true`` (a one-time
+  backfill).
+
+The message names both actions and suggests the ``readMode`` that fixes it.
+Reads of external tables and of views from other flowgroups are not checked.
+Test actions always read their source with batch SQL, so point them at tables or
+batch views, not streaming views.
 
 .. include:: /_includes/transform-common.rst
 

@@ -20,8 +20,8 @@ Configuration errors (LHP-CFG)
      - Meaning / Cause
      - Resolution
    * - LHP-CFG-001
-     - Configuration conflict — the same setting is declared more than one way (for example a legacy ``format`` field and ``options.cloudFiles.format``).
-     - Keep one form only; prefer the ``options:`` mapping.
+     - Configuration conflict — the same setting is declared more than one way (for example a legacy ``format`` field and ``options.cloudFiles.format``) — or an unknown field: a key that is not valid on the action, its ``source`` or its ``write_target`` (for example a misspelt action-level key, or ``expectations_file`` on a streaming-table or sink ``write_target``).
+     - Keep one form only; prefer the ``options:`` mapping. For an unknown field, use the spelling the suggestion gives.
    * - LHP-CFG-002
      - Project configuration in ``lhp.yaml`` could not be loaded.
      - Fix the reported ``lhp.yaml`` error.
@@ -184,6 +184,9 @@ Configuration errors (LHP-CFG)
    * - LHP-CFG-072
      - A config key collides with a field LHP writes into the bundle resource: ``name`` or ``root_path`` in ``pipeline_config.yaml``; ``name`` in an orchestration or monitoring job config; a pipeline ``libraries`` value that is not a list of exactly ``glob: {include: <path>}`` entries with a non-empty path (``notebook`` and ``file`` libraries are rejected); or a job ``tasks`` value that is not a list of mappings, each with a non-empty string ``task_key`` used by no other task, generated or user-defined. Pipeline config is checked when it is loaded, so ``lhp validate`` (with bundle output enabled) and ``lhp generate`` both raise it; orchestration job config is checked by ``lhp dag`` (``job`` format) and the monitoring job config by ``lhp generate``.
      - Remove ``name`` and ``root_path``. Write each extra library as a ``glob`` entry; an ``include`` can point to one file or notebook, or to a folder ending ``/**``. Give each extra task its own ``task_key``, and list a generated task's key under ``depends_on`` to run after it. See :doc:`config/pipeline-config` and :doc:`config/jobs`.
+   * - LHP-CFG-073
+     - A field that only a ``data_quality`` transform reads is set on another kind of action: the action-level ``expectations_file``, ``quarantine`` or ``mode``. The action would silently ignore it. Raised by ``lhp validate`` and ``lhp generate``, and shown directly rather than inside ``LHP-VAL-007``.
+     - Put ``expectations_file`` on a ``data_quality`` transform, or on a materialized-view write as ``write_target.expectations_file``. Use ``readMode`` for a stream or batch read, and ``write_target.mode`` for a streaming-table mode. See :doc:`config/expectations`.
 
 Validation errors (LHP-VAL)
 ===========================
@@ -196,7 +199,7 @@ Validation errors (LHP-VAL)
      - Meaning / Cause
      - Resolution
    * - LHP-VAL-001
-     - A required field (for example ``source``, ``target``, ``type``) is missing.
+     - A required field (for example ``source``, ``target``, ``type``) is missing, or an expectation rule has no constraint (no ``constraint`` or ``expression``, or an empty mapping key).
      - Add the field named in the message.
    * - LHP-VAL-002
      - Several validation problems in one action, listed together.
@@ -211,14 +214,14 @@ Validation errors (LHP-VAL)
      - A pipeline list is empty.
      - Declare at least one pipeline.
    * - LHP-VAL-006
-     - A field has a value outside its allowed set.
-     - Use one of the valid values shown.
+     - A field has a value outside its allowed set. Includes an unknown ``streaming_table`` ``write_target.mode`` (a null or non-string mode too); an expectation ``action``, ``failureAction`` or ``type`` that is not a known value; and a list-format expectation that sets ``action`` (the mapping format's key).
+     - Use one of the valid values shown. In a list-format expectation, use ``failureAction`` instead of ``action``.
    * - LHP-VAL-007
      - FlowGroup validation failed — wraps the list of configuration validation errors found in one flowgroup.
      - Fix each listed error.
    * - LHP-VAL-008
-     - A field has the wrong data type.
-     - Match the expected type from the message.
+     - A field has the wrong data type. Includes an expectation rule that is not a mapping, and a rule ``name``, ``message``, ``constraint``, ``expression`` or constraint key that is not text (for example ``name: 2024`` or ``constraint: true``); and an expectations file that is not a mapping or a list, or whose ``expectations:`` key is null.
+     - Match the expected type from the message. Quote values that YAML reads as numbers or booleans.
    * - LHP-VAL-009
      - Duplicate pipeline+flowgroup combinations, or an invalid template-parameter type.
      - Remove duplicates; fix the parameter type.
@@ -316,11 +319,17 @@ Validation errors (LHP-VAL)
      - Warning (category sandbox) — opaque dynamic SQL could not be verified or rewritten.
      - Use a statically resolvable name, or accept the shared read; ``--strict`` promotes to a failure.
    * - LHP-VAL-068
-     - Invalid ``readMode`` — the action does not accept that mode. ``cloudfiles`` and ``kafka`` loads and ``data_quality`` transforms accept only ``stream``.
-     - Set ``readMode: stream``, or remove ``readMode`` (these actions default to ``stream``).
+     - Invalid ``readMode`` — the action does not accept that mode. ``cloudfiles`` and ``kafka`` loads and ``data_quality`` transforms in ``quarantine`` mode accept only ``stream``. A ``data_quality`` transform in ``dqe`` mode accepts ``stream`` or ``batch``.
+     - Set ``readMode: stream``, or remove ``readMode`` (these actions default to ``stream``, apart from a ``dqe`` ``data_quality`` transform, which inherits the kind of the view it reads).
    * - LHP-VAL-069
      - Two quarantine actions in one pipeline share a ``dlq_table`` (compared case-insensitively) and the same ``source_table`` (compared exactly). The generated MERGEs and recycle reads filter on ``source_table``, so the actions would write the same DLQ and outbox rows and recycle each other's fixed rows. Raised by both ``lhp validate`` and ``lhp generate``, per pipeline after templates and substitutions are applied; actions in different pipelines are not checked.
      - Give each action that shares the DLQ a distinct ``source_table``, or point the actions at different ``dlq_table`` values.
+   * - LHP-VAL-070
+     - A read does not match the kind of the view it reads, where a load or transform of the same flowgroup produces that view and both the view's kind and the read are known. A stream read (``spark.readStream``, or ``STREAM(view)`` in SQL) of a batch view, a batch read (``spark.read``, or SQL without ``STREAM()``) of a streaming view, or a batch view appended to a standard streaming table without ``once: true``, all fail on Databricks. Test actions always read with batch SQL, so a test over a streaming view fails too. Raised by ``lhp validate`` and ``lhp generate``, inside ``LHP-VAL-007``.
+     - Set the ``readMode`` the message names on the producer or the consumer, read the view with or without ``STREAM()`` in SQL, or set ``once: true`` on a streaming-table write that backfills a batch view. Point a test action at a table or a batch view.
+   * - LHP-VAL-071
+     - Two expectations that land on one materialized view share a name: within one ``write_target.expectations_file``, or between that file and the rules of a ``data_quality`` action fused onto the view. Names key the ``@dp.expect_all*`` decorators, so a repeat would replace a rule.
+     - Give each expectation its own name. In a list-format file a rule is named by ``name``, then ``message``, then ``Constraint failed: <constraint>``.
    * - LHP-VAL-902
      - All-or-nothing aggregator — one or more flowgroups failed in a parallel ``lhp generate`` run; no files were written.
      - Fix every listed failure; re-run with ``--verbose`` or ``--log-file``.

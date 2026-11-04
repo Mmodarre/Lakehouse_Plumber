@@ -10,7 +10,8 @@
 //                               references/actions-transform-data-quality.md:9
 //   mode                        models/_enums.py:53-57 (DQMode dqe|quarantine);
 //                               validators/action/_dq_transform.py:25-30 (default dqe)
-//   readMode                    generators/transform/data_quality.py:28-35 (must be stream)
+//   readMode                    validators/action/_dq_transform.py (_read_mode_errors): stream|batch in dqe,
+//                               stream only in quarantine; unset dqe inherits the source view's kind
 //   quarantine.dlq_table    req-when-quarantine  _dq_transform.py:41-44; models/_quarantine.py:9
 //   quarantine.source_table req-when-quarantine  _dq_transform.py:41-44; models/_quarantine.py:10
 //   target            required  validators/action/transform.py:25-26
@@ -18,14 +19,16 @@
 // `mode` is a `display: 'segmented'` discriminator carrying `branchPaths`
 // (Task 0.5): switching OFF quarantine PRUNES the whole `quarantine` subtree —
 // the headline bug fix (_dq_transform.py:65-71 rejects a stale quarantine block
-// under mode=dqe). `readMode` is NOT an editable field: it must be stream and
-// defaults to stream at generate time, so the form leaves it unset and surfaces
-// the constraint as an informational group description instead of a pointless
-// one-option select (see report — a field-less "Advanced" group cannot render,
-// so the note lives on the always-visible "Expectation rules" group). The
-// readMode-must-be-stream cross-field RULE is KEPT (Phase-4 preamble: keep every
-// existing cross-field rule) — it reads raw `['readMode']` and soft-flags a
-// hand-edited `readMode: batch`, independent of there being no editable field.
+// under mode=dqe). `readMode` is NOT an editable field: in dqe mode an unset
+// readMode inherits the kind of the view the action reads (batch over a batch
+// producer, stream otherwise), so the form leaves it unset and surfaces the
+// constraint as an informational group description instead of a select that
+// would hide the inheritance (a field-less "Advanced" group cannot render, so
+// the note lives on the always-visible "Expectation rules" group). The
+// readMode cross-field RULE is KEPT (Phase-4 preamble: keep every existing
+// cross-field rule) — it reads raw `['readMode']` and soft-flags a hand-edited
+// value that is not stream/batch, or `batch` under mode: quarantine, independent
+// of there being no editable field.
 
 import type { ActionSubTypeSpec } from './types'
 import { effectiveValue, isSubstitutionToken, readPath } from './helpers'
@@ -63,7 +66,7 @@ export const transformDataQualitySpec: ActionSubTypeSpec = {
     {
       title: 'Expectation rules',
       description:
-        'Read mode is stream (required) — data quality runs in streaming mode only; batch is rejected. The form leaves readMode unset; it defaults to stream at generate time.',
+        'readMode is not required: in dqe mode, an unset readMode reads the source view the way that view was made (batch over a batch load, stream otherwise). Set readMode: batch or stream in the YAML to override; quarantine mode accepts only stream.',
       fields: [
         {
           path: ['expectations_file'],
@@ -129,8 +132,10 @@ export const transformDataQualitySpec: ActionSubTypeSpec = {
       paths: [['readMode']],
       check: (raw) => {
         const rm = readPath(raw, ['readMode'])
-        return typeof rm === 'string' && rm !== 'stream'
-          ? 'Data quality requires readMode: stream (batch is rejected).'
+        if (typeof rm !== 'string') return null
+        if (rm !== 'stream' && rm !== 'batch') return 'readMode must be stream or batch.'
+        return rm === 'batch' && mode(raw) === 'quarantine'
+          ? 'Quarantine mode requires a stream read (readMode: batch is rejected).'
           : null
       },
     },

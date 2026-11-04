@@ -107,6 +107,101 @@ Point the same write action at ``streaming_table`` instead and you get the
 append-flow shape from Get Started. That's the payoff: the *kind* of table is a
 one-line declaration, and LHP owns the boilerplate for each kind.
 
+Gate the view with expectations
+===============================
+
+A materialized view can enforce data-quality expectations the same way a
+``data_quality`` transform does: ``warn``, ``drop`` or ``fail`` rules, written as
+``@dp.expect_all*`` decorators on the view. Put them on the view itself. Databricks
+then keeps refreshing the view incrementally. Expectations on a view *upstream* of
+a materialized view make Databricks recompute it in full on every refresh.
+
+There are two shapes, depending on how the view is defined.
+
+**A view with its own query: name a rules file on the write target.** Add
+``write_target.expectations_file``. This works with ``sql``, ``sql_path`` or a
+``source`` view, and is the shape to use for a gate: a ``fail`` rule stops the
+update when a row breaks it.
+
+.. code-block:: yaml
+
+   - name: write_mv_expect_sql_gate
+     type: write
+     write_target:
+       type: materialized_view
+       catalog: "${catalog}"
+       schema: "${gold_schema}"
+       table: "mv_expect_sql_gate"
+       sql_path: "sql/gold/mv_expect_sql_gate.sql"
+       expectations_file: "expectations/mv_write_expectations.json"
+
+.. code-block:: json
+
+   {
+     "version": "1.0",
+     "table": "mv_expect_sql_gate",
+     "expectations": [
+       {"name": "gate_price_not_negative", "constraint": "total_price >= 0",
+        "failureAction": "warn"},
+       {"name": "gate_amount_reconciled", "constraint": "amount_reconciled",
+        "failureAction": "fail"}
+     ]
+   }
+
+The generated view carries ``@dp.expect_all({"gate_price_not_negative": ...})`` and
+``@dp.expect_all_or_fail({"gate_amount_reconciled": ...})`` above the
+``def``. The file formats are in :doc:`/reference/config/expectations`.
+
+**A pass-through view: gate it with a ``data_quality`` action.** When the view only
+has a ``source`` (no query of its own) and that source is a batch ``data_quality``
+action's target, LHP fuses the action into the view. The view takes the action's
+expectations and operational-metadata columns and reads the action's own source
+view. The ``data_quality`` view is still generated, but nothing reads it.
+
+.. code-block:: yaml
+
+   - name: load_mv_expect_orders
+     type: load
+     source:
+       type: delta
+       catalog: "${catalog}"
+       schema: "${silver_schema}"
+       table: orders
+     target: v_mv_expect_orders
+
+   - name: check_mv_expect_orders
+     type: transform
+     transform_type: data_quality
+     source: v_mv_expect_orders
+     target: v_mv_expect_orders_checked
+     expectations_file: "expectations/mv_write_expectations_dq.json"
+
+   - name: write_mv_expect_fused
+     type: write
+     source: v_mv_expect_orders_checked
+     write_target:
+       type: materialized_view
+       catalog: "${catalog}"
+       schema: "${gold_schema}"
+       table: "mv_expect_fused"
+
+The generated ``mv_expect_fused`` reads ``v_mv_expect_orders`` and carries the
+``fail``, ``drop`` and ``warn`` decorators of the rules file. The
+:doc:`reference </reference/actions/write/materialized-view>` lists the conditions
+for fusion.
+
+.. note::
+
+   A materialized view whose own ``sql`` or ``sql_path`` reads a ``data_quality``
+   view is **not** fused. It works, but Databricks recomputes it in full on every
+   refresh, because the expectations sit on a view upstream of it. To keep it
+   incremental, move the rules onto the view with ``expectations_file``, or make
+   the view a pass-through.
+
+Expectation names must be unique on a view, across the file and a fused
+``data_quality`` action (``LHP-VAL-071``). If ``lhp validate`` only shows
+``LHP-VAL-007``, run it with ``--show-details`` to see the specific code.
+
 What's next
 ===========
 

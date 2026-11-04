@@ -34,7 +34,7 @@ These fields sit on the action, alongside ``write_target``.
    * - ``readMode``
      - string
      - ``stream``
-     - ``stream`` or ``batch`` for standard streaming-table append flows. Replace requires streaming. Materialized views use batch queries; sinks use streaming reads.
+     - ``stream`` or ``batch`` for standard streaming-table append flows. Replace requires streaming. Materialized views use batch queries; sinks use streaming reads. The read must match the kind of the view it reads, or ``lhp validate`` fails with ``LHP-VAL-070``; a batch read in a standard streaming-table flow also needs ``once: true``.
    * - ``once``
      - bool
      - ``false``

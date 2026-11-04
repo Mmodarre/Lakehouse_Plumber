@@ -38,13 +38,20 @@ Options
    * - ``mode``
      - string
      - ``standard``
-     - One of ``standard``, ``cdc``, ``snapshot_cdc``, ``replace``.
+     - One of ``standard``, ``cdc``, ``snapshot_cdc``, ``replace``. Any other value, including a null one, fails with ``LHP-VAL-006``.
 
 ``source`` may be a single view or a list of views (multi-source append flow
 into one table).
 
 Generates ``dp.create_streaming_table(...)`` when ``create_table`` is true,
 plus one ``@dp.append_flow(...)`` per source view.
+
+An append flow reads its source view with ``readMode`` (default ``stream``), and
+the read must match the view's kind. Appending a batch view, such as a ``delta``
+load that has no ``readMode: stream``, fails ``lhp validate`` with
+``LHP-VAL-070``. Either read it as a stream (``readMode: stream`` on the load),
+or set ``readMode: batch`` together with ``once: true`` to append it once as a
+backfill.
 
 .. include:: /_includes/write-target-common.rst
 
