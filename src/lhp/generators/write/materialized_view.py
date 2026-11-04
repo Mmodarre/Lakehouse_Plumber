@@ -2,12 +2,23 @@
 
 import logging
 from pathlib import Path
-from typing import Any, Dict, List, Sequence, Set, Tuple, cast
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Dict,
+    List,
+    Optional,
+    Sequence,
+    Set,
+    Tuple,
+    cast,
+)
 
 from lhp.models import Action
 
 from ...core.loaders import (
     Expectations,
+    load_action_expectations,
     load_expectations_file,
     load_sql_file,
     resolve_table_schema,
@@ -16,6 +27,9 @@ from ...core.processing import DQEParser
 from ...core.registry import BaseActionGenerator
 from ...errors import ErrorFactory, codes
 from ._schema_tags_warning import warn_if_schema_tags_dropped
+
+if TYPE_CHECKING:
+    from ...core.codegen.dq_fusion import FusedDq
 
 logger = logging.getLogger(__name__)
 
@@ -138,20 +152,37 @@ class MaterializedViewWriteGenerator(BaseActionGenerator):
             ):
                 context["secret_references"].update(secret_refs)
 
+        # A data_quality action fused onto this view (code generation, see
+        # plan_dq_fusion): the view reads the action's source view, carries its
+        # expectations and its operational-metadata columns. The action's own
+        # view is generated unchanged and nothing reads it.
+        fused: Optional["FusedDq"] = context.get("fused_dq")
+
         # No SQL: must have a source view.
         source_view = None
-        if not sql_query:
+        if fused is not None:
+            source_view = fused.source_view
+        elif not sql_query:
             source_view = self._extract_source_view(action.source)
 
         # Metadata is added at load level and flows through naturally — write
-        # actions intentionally have no operational-metadata columns of their own.
-        metadata_columns = {}
+        # actions intentionally have no operational-metadata columns of their own,
+        # except those of a fused data_quality action.
+        metadata_columns: Dict[str, str] = {}
+        if fused is not None:
+            # Planned by code generation from the data_quality generator; this
+            # view only renders what it is given (renders_operational_metadata
+            # stays False).
+            metadata_columns = dict(fused.metadata_columns)
+            for import_stmt in fused.metadata_imports:
+                self.add_import(import_stmt)
         flowgroup = context.get("flowgroup")
 
         # Action keeps write_target as the plain mapping it was given.
         expectation_sources = _expectation_sources(
             cast(Dict[str, Any], target_config),
             context.get("project_root", Path.cwd()),
+            fused,
         )
         expect_all, expect_all_or_drop, expect_all_or_fail = assemble_expectations(
             expectation_sources
@@ -216,10 +247,18 @@ class MaterializedViewWriteGenerator(BaseActionGenerator):
 
 
 def _expectation_sources(
-    target_config: Dict[str, Any], project_root: Path
+    target_config: Dict[str, Any],
+    project_root: Path,
+    fused: Optional["FusedDq"] = None,
 ) -> List[Expectations]:
+    """The view's own file, then the fused data_quality action's rules."""
+    sources: List[Expectations] = []
     expectations_file = target_config.get("expectations_file")
-    if not expectations_file:
-        return []
-    # WriteActionValidator has already checked the file and its rules.
-    return [load_expectations_file(expectations_file, project_root)]
+    if expectations_file:
+        # WriteActionValidator has already checked the file and its rules.
+        sources.append(load_expectations_file(expectations_file, project_root))
+    if fused is not None:
+        # The data_quality action's validator has checked its rules, and
+        # MvExpectationsValidator their names against the view's.
+        sources.append(load_action_expectations(fused.dq_action, project_root))
+    return sources

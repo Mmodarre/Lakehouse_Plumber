@@ -1,6 +1,10 @@
 """Config-loader services for LHP."""
 
-from .expectations_file_loader import Expectations, load_expectations_file
+from .expectations_file_loader import (
+    Expectations,
+    load_action_expectations,
+    load_expectations_file,
+)
 from .external_file_loader import (
     is_file_path,
     load_external_file_text,
@@ -26,6 +30,7 @@ __all__ = [
     "ResolvedTableSchema",
     "enforce_version_requirements",
     "is_file_path",
+    "load_action_expectations",
     "load_expectations_file",
     "load_external_file_text",
     "load_sandbox_profile",

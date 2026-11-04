@@ -4,6 +4,8 @@ from .cdc_config import CdcConfigValidator
 from .cdc_fanin import CdcFanInCompatibilityValidator
 from .cdc_schema import CdcSchemaValidator
 from .dlt_table_options import DltTableOptionsValidator
+from .mv_expectations import MvExpectationsValidator
+from .mv_fusion import dq_source_view, fusion_consumer, is_fusable
 from .read_mode_lineage import ReadModeLineageValidator
 from .replace_config import ReplaceFlowConfigValidator
 from .replace_fanin import ReplaceFanInCompatibilityValidator
@@ -16,6 +18,7 @@ __all__ = [
     "CdcFanInCompatibilityValidator",
     "CdcSchemaValidator",
     "DltTableOptionsValidator",
+    "MvExpectationsValidator",
     "ReadModeLineageValidator",
     "ReplaceFanInCompatibilityValidator",
     "ReplaceFlowConfigValidator",
@@ -23,4 +26,7 @@ __all__ = [
     "SnapshotCdcConfigValidator",
     "TableCreationValidator",
     "action_creates_table",
+    "dq_source_view",
+    "fusion_consumer",
+    "is_fusable",
 ]
