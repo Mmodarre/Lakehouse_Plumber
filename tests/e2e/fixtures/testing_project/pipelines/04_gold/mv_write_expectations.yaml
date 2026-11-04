@@ -1,0 +1,49 @@
+# Materialized-view expectations (#344), both shapes in one flowgroup.
+#   Shape 1: write_target.expectations_file on a self-contained sql_path MV
+#            (list format: warn + fail).
+#   Shape 2: a batch delta load -> data_quality (no readMode, inherits batch)
+#            -> pass-through MV. The DQ rules fuse onto the MV (dict format:
+#            warn + drop + fail); the MV reads the load view, the DQ view is
+#            still emitted.
+pipeline: gold_load
+flowgroup: mv_write_expectations
+#job_name: j_four
+
+actions:
+  - name: write_mv_expect_sql_gate
+    type: write
+    write_target:
+      type: materialized_view
+      database: "${catalog}.${gold_schema}"
+      table: "mv_expect_sql_gate"
+      sql_path: "sql/gold/mv_expect_sql_gate.sql"
+      expectations_file: "expectations/mv_write_expectations.json"
+      comment: "Gold materialized view: SQL gate with write-target expectations"
+    description: "Write SQL-gated materialized view with expectations"
+
+  - name: load_mv_expect_orders
+    type: load
+    source:
+      type: delta
+      database: "${catalog}.${silver_schema}"
+      table: orders
+    target: v_mv_expect_orders
+    description: "Batch read of silver orders"
+
+  - name: check_mv_expect_orders
+    type: transform
+    transform_type: data_quality
+    source: v_mv_expect_orders
+    target: v_mv_expect_orders_checked
+    expectations_file: "expectations/mv_write_expectations_dq.json"
+    description: "Data quality checks fused onto the materialized view"
+
+  - name: write_mv_expect_fused
+    type: write
+    source: v_mv_expect_orders_checked
+    write_target:
+      type: materialized_view
+      database: "${catalog}.${gold_schema}"
+      table: "mv_expect_fused"
+      comment: "Gold materialized view: fused data quality expectations"
+    description: "Write pass-through materialized view with fused expectations"

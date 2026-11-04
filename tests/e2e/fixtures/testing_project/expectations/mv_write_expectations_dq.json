@@ -1,0 +1,14 @@
+{
+  "order_key IS NOT NULL": {
+    "action": "fail",
+    "name": "fused_order_key_present"
+  },
+  "total_price >= 0": {
+    "action": "drop",
+    "name": "fused_price_not_negative"
+  },
+  "customer_key IS NOT NULL": {
+    "action": "warn",
+    "name": "fused_customer_key_present"
+  }
+}
