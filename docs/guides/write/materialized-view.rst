@@ -188,7 +188,9 @@ view. The ``data_quality`` view is still generated, but nothing reads it.
 The generated ``mv_expect_fused`` reads ``v_mv_expect_orders`` and carries the
 ``fail``, ``drop`` and ``warn`` decorators of the rules file. The
 :doc:`reference </reference/actions/write/materialized-view>` lists the conditions
-for fusion.
+for fusion. A view that has its own ``expectations_file`` is never fused, so a
+view takes its rules from one place: when you need both sets of rules and an
+incremental refresh, put them all in the view's own ``expectations_file``.
 
 .. note::
 
@@ -198,9 +200,15 @@ for fusion.
    incremental, move the rules onto the view with ``expectations_file``, or make
    the view a pass-through.
 
-Expectation names must be unique on a view, across the file and a fused
-``data_quality`` action (``LHP-VAL-071``). If ``lhp validate`` only shows
-``LHP-VAL-007``, run it with ``--show-details`` to see the specific code.
+Incremental refresh needs a deterministic query: a non-deterministic expression
+anywhere in the view's chain makes Databricks recompute it in full. That includes
+operational-metadata columns such as ``F.current_timestamp()``, which fusion
+copies onto the view.
+
+Expectation names must be unique on a view: a repeat inside the view's
+``expectations_file``, or inside the rules of a fused ``data_quality`` action,
+fails with ``LHP-VAL-071``. If ``lhp validate`` only shows ``LHP-VAL-007``, run it
+with ``--show-details`` to see the specific code.
 
 What's next
 ===========

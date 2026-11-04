@@ -328,8 +328,8 @@ Validation errors (LHP-VAL)
      - A read does not match the kind of the view it reads, where a load or transform of the same flowgroup produces that view and both the view's kind and the read are known. A stream read (``spark.readStream``, or ``STREAM(view)`` in SQL) of a batch view, a batch read (``spark.read``, or SQL without ``STREAM()``) of a streaming view, or a batch view appended to a standard streaming table without ``once: true``, all fail on Databricks. Test actions always read with batch SQL, so a test over a streaming view fails too. Raised by ``lhp validate`` and ``lhp generate``, inside ``LHP-VAL-007``.
      - Set the ``readMode`` the message names on the producer or the consumer, read the view with or without ``STREAM()`` in SQL, or set ``once: true`` on a streaming-table write that backfills a batch view. Point a test action at a table or a batch view.
    * - LHP-VAL-071
-     - Two expectations that land on one materialized view share a name: within one ``write_target.expectations_file``, or between that file and the rules of a ``data_quality`` action fused onto the view. Names key the ``@dp.expect_all*`` decorators, so a repeat would replace a rule.
-     - Give each expectation its own name. In a list-format file a rule is named by ``name``, then ``message``, then ``Constraint failed: <constraint>``.
+     - Two expectations that land on one materialized view share a name: within one ``write_target.expectations_file``, or within the rules of a ``data_quality`` action fused onto the view. Names key the ``@dp.expect_all*`` decorators, so a repeat would replace a rule.
+     - Give each expectation its own name. In a list-format file a rule is named by ``message``, then ``name``, then ``Constraint failed: <constraint>``.
    * - LHP-VAL-902
      - All-or-nothing aggregator — one or more flowgroups failed in a parallel ``lhp generate`` run; no files were written.
      - Fix every listed failure; re-run with ``--verbose`` or ``--log-file``.

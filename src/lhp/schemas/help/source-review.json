@@ -28,7 +28,7 @@
       ]
     },
     "docs/reference/actions/write/materialized-view.rst": {
-      "sha256": "a3673fb82e5c1b058385d9e3fa46c0b781d4360bbe4cdfafc611519dbf044915",
+      "sha256": "cb89e6554c974b7e48ef2370de5525dbacb839bbf65b140ee6597c9795d7f869",
       "entryIds": [
         "action.write.materialized_view.write_target.expectations_file"
       ]
@@ -352,7 +352,7 @@
       ]
     },
     "src/lhp/resources/skills/lhp/references/actions-transform-data-quality.md": {
-      "sha256": "fd6a59483bda49ce966df2a5a15fd6d88d8152f48047421ee80c8edbc0ea7094",
+      "sha256": "d1024f19115a73b20650768fdf174122d48c5aed7e0d510af8115e6df1edae99",
       "entryIds": [
         "action.transform.data_quality.expectations_file",
         "action.transform.data_quality.mode",
@@ -409,7 +409,7 @@
       ]
     },
     "src/lhp/resources/skills/lhp/references/actions-write-materialized-view.md": {
-      "sha256": "210c8c431ca052cb990ddcd9203a9a458e4f981361ac593b90dc19f5502b21eb",
+      "sha256": "01b9e6ace4988206786b9769a2a836f195799d1afda48c19db1ce705c421cc70",
       "entryIds": [
         "action.write.materialized_view.overview",
         "action.write.materialized_view.source",

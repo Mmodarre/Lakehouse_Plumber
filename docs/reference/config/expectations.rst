@@ -106,7 +106,8 @@ expectations written inline on a ``data_quality`` action.
        ``expression`` or constraint key is not text (for example ``name: 2024``
        or ``constraint: true``). Quote the value.
    * - ``LHP-VAL-071``
-     - Two rules on a materialized view share a name, within the file or between
-       the file and a fused ``data_quality`` action.
+     - Two rules on a materialized view share a name: within the view's
+       ``write_target.expectations_file``, or within the rules of a fused
+       ``data_quality`` action.
 
 A ``null`` ``type`` or ``failureAction`` means ``expect`` (a warning).
