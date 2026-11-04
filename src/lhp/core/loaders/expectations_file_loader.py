@@ -3,12 +3,16 @@
 The data_quality transform generator and the expectations-file validator both
 read an action's file through :func:`load_expectations_file`, so ``lhp
 validate`` and ``lhp generate`` resolve, parse and unwrap it the same way.
+:func:`load_action_expectations` reads all of a data_quality action's rules,
+inline or from its file, for the generator and for the materialized-view
+generator that a fused data_quality action's rules move onto.
 """
 
 from pathlib import Path
 from typing import Any, Dict, List, Union
 
 from lhp.errors import ErrorFactory, codes
+from lhp.models import Action
 
 from ...parsers import load_yaml_file
 from .external_file_loader import resolve_external_file_path
@@ -84,3 +88,32 @@ def load_expectations_file(
             "Actual Type": actual_type,
         },
     )
+
+
+def load_action_expectations(action: Action, project_root: Path) -> Expectations:
+    """Return the rules of a data_quality ``action``, in their own format.
+
+    Rules written on the action win over its file: ``action.expectations``,
+    then a ``source`` mapping's ``expectations``. Otherwise the action's
+    ``expectations_file`` is read from ``project_root`` through
+    :func:`load_expectations_file`. ``{}`` when the action has none.
+
+    :raises LHPValidationError: as :func:`load_expectations_file`, for a file
+        that holds neither a mapping nor a list. Callers validate the file and
+        its rules first.
+    """
+    if action.expectations:
+        return action.expectations
+
+    if isinstance(action.source, dict) and "expectations" in action.source:
+        inline: Expectations = action.source["expectations"]
+        return inline
+
+    if action.expectations_file:
+        return load_expectations_file(
+            action.expectations_file,
+            project_root,
+            error_context="data quality expectations file",
+        )
+
+    return {}

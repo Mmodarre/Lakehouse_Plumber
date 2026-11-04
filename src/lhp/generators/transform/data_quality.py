@@ -6,7 +6,7 @@ from typing import Any, Dict, Optional
 
 from lhp.models import Action
 
-from ...core.loaders import Expectations, load_expectations_file
+from ...core.loaders import Expectations, load_action_expectations
 from ...core.processing.dqe import DQEParser
 from ...core.registry import BaseActionGenerator, ReadMode
 from ...errors import ErrorFactory, codes
@@ -223,28 +223,7 @@ class DataQualityTransformGenerator(BaseActionGenerator):
     def _load_expectations(
         self, action: Action, spec_dir: Path | None = None
     ) -> Expectations:
-        # Inline rules win over the file; validate_data_quality_transform has
-        # checked them with the same rule checks as a file's.
-        if hasattr(action, "expectations") and action.expectations:
-            return action.expectations
-
-        if isinstance(action.source, dict) and "expectations" in action.source:
-            return action.source["expectations"]
-
-        expectations_file = None
-        if hasattr(action, "expectations_file"):
-            expectations_file = action.expectations_file
-        elif isinstance(action.source, dict) and "expectations_file" in action.source:
-            expectations_file = action.source["expectations_file"]
-
-        if expectations_file:
-            # validate_expectations_file has already checked the file and its
-            # rules in both modes; a malformed file still raises the loader's
-            # LHP-VAL-008 rather than generating a view with no rules.
-            return load_expectations_file(
-                expectations_file,
-                spec_dir or Path.cwd(),
-                error_context="data quality expectations file",
-            )
-
-        return {}
+        # validate_data_quality_transform has checked the rules, inline or in
+        # the file; a malformed file still raises the loader's LHP-VAL-008
+        # rather than generating a view with no rules.
+        return load_action_expectations(action, spec_dir or Path.cwd())
