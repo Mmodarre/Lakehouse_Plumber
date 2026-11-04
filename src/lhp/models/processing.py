@@ -107,9 +107,36 @@ class SandboxWarningRecord:
     flowgroup: Optional[str]
 
 
+@dataclass(frozen=True, slots=True)
+class ValidationWarningRecord:
+    """Worker → main-thread transport for ONE coded validation warning.
+
+    Same transport contract as :class:`DeprecationWarningRecord`: a
+    worker-side validator's non-fatal finding (e.g. ``LHP-VAL-073``) cannot
+    reach the user through the worker's ``NullHandler``-swallowed
+    ``logger.warning``, so it is recorded via
+    :func:`lhp.models.run_warnings.record_validation_warning` and rides back
+    on :attr:`FlowgroupOutcome.warnings` for re-emission as a public
+    :class:`~lhp.api.WarningEmitted` event (``category="validation"``),
+    which counts under ``--strict``. ``code`` is the **rendered** error-code
+    string; ``message`` is the producer's human-facing warning text.
+
+    ``frozen=True, slots=True`` for immutability across the spawn boundary
+    and a smaller per-instance footprint (no per-instance ``__dict__``).
+    """
+
+    code: str
+    message: str
+    file: Optional[Path]
+    flowgroup: Optional[str]
+
+
 # Closed union of the warning records that may ride on
-# ``FlowgroupOutcome.warnings`` back to the main thread.
-RunWarningRecord = Union[DeprecationWarningRecord, SandboxWarningRecord]
+# ``FlowgroupOutcome.warnings`` back to the main thread. The main thread
+# derives each re-emitted ``WarningEmitted.category`` from the record type.
+RunWarningRecord = Union[
+    DeprecationWarningRecord, SandboxWarningRecord, ValidationWarningRecord
+]
 
 
 @dataclass(frozen=True, slots=True)
@@ -292,8 +319,8 @@ class FlowgroupOutcome:
     The picklable, replay-ready slice the main thread needs after a worker
     finishes a single flowgroup — the resolved flowgroup, the
     formatted code (when generating), the auxiliary files and copied-module
-    records replayed to disk on commit, the deprecation warnings re-emitted
-    as events, and — on failure — the error in two forms.
+    records replayed to disk on commit, the run warnings re-emitted as
+    events, and — on failure — the error in two forms.
 
     Dual-channel error transport (as on :class:`PipelineDelta`). For
     :class:`~lhp.errors.LHPError` instances the live exception travels in
@@ -307,10 +334,10 @@ class FlowgroupOutcome:
     ``(path, content)``): dropping it would silently lose the monitoring
     flowgroup's extra modules across the process boundary.
 
-    ``warnings`` is ``Tuple[RunWarningRecord, ...]`` carrying the deprecation
-    and sandbox warnings the worker would have logged. Workers run under a
-    ``NullHandler`` (their ``logger.warning`` calls are swallowed), so the
-    warnings ride back here as structured data for the main thread to
+    ``warnings`` is ``Tuple[RunWarningRecord, ...]`` carrying the deprecation,
+    sandbox and validation warnings the worker would have logged. Workers run
+    under a ``NullHandler`` (their ``logger.warning`` calls are swallowed), so
+    the warnings ride back here as structured data for the main thread to
     re-emit as :class:`~lhp.api.WarningEmitted` events. Defaults to ``()``.
 
     ``perf`` is an optional in-worker timing/event-export payload attached
@@ -347,8 +374,8 @@ class FlowgroupOutcome:
         """Build a success outcome.
 
         ``formatted_code`` is ``None`` for validate-mode runs (no code generated).
-        ``warnings`` defaults to ``()``; when given it carries deprecation and
-        sandbox warnings for re-emission on the main thread.
+        ``warnings`` defaults to ``()``; when given it carries deprecation,
+        sandbox and validation warnings for re-emission on the main thread.
         """
         return cls(
             pipeline=pipeline,
@@ -388,8 +415,8 @@ class FlowgroupOutcome:
             ``("unknown error",)`` rather than raising.
 
         ``warnings`` defaults to ``()`` so existing callers are unaffected;
-        when given it carries any deprecation/sandbox warnings the worker
-        emitted before failing, for re-emission on the main thread.
+        when given it carries any deprecation/sandbox/validation warnings the
+        worker emitted before failing, for re-emission on the main thread.
         """
         error_strings = tuple(errors) if errors else ()
         if lhp_error is None and not error_strings:

@@ -332,6 +332,48 @@ class TestMainThreadDeprecationSurfaces:
         assert any(w.code == "LHP-DEPR-001" for w in sink)
 
 
+@pytest.mark.integration
+class TestWorkerValidationWarningSurfaces:
+    """A worker ``ValidationWarningRecord`` reaches both facade streams as
+    ``WarningEmitted(category="validation")``.
+
+    Workers run under ``spawn``, so the record is injected at the main-thread
+    per-pipeline fold (see :mod:`tests.helpers.validation_warning`); the
+    executor merge, the facade emission and the category mapping are real.
+    """
+
+    @pytest.mark.parametrize("operation", ["validate", "generate"])
+    def test_validation_record_surfaces_with_validation_category(
+        self,
+        tmp_path: Path,
+        facade_in,
+        monkeypatch: pytest.MonkeyPatch,
+        operation: str,
+    ) -> None:
+        from tests.helpers import inject_worker_validation_warning, write_clean_project
+
+        write_clean_project(tmp_path)
+        inject_worker_validation_warning(monkeypatch, message="write_a: op-metadata")
+        facade = facade_in()
+
+        if operation == "validate":
+            stream = facade.validation.validate_pipelines(
+                pipeline_fields=["p_clean"], env="dev"
+            )
+        else:
+            stream = facade.generation.generate_pipelines(
+                pipeline_fields=["p_clean"],
+                env="dev",
+                output_dir=tmp_path / "generated" / "dev",
+            )
+        warnings = _drain_warnings(list(stream))
+
+        assert [(w.code, w.category, w.message) for w in warnings] == [
+            ("LHP-VAL-073", "validation", "write_a: op-metadata")
+        ]
+        assert warnings[0].flowgroup == "fg_clean"
+
+
 @pytest.mark.unit
 class TestEmissionHelperDedupAndOrder:
     """The shared emission helper: union-dedup by ``(code, file)``, ordered.
@@ -457,6 +499,69 @@ class TestEmissionHelperDedupAndOrder:
             ("LHP-DEPR-002", "deprecation"),
             ("LHP-VAL-065", "sandbox"),
             ("LHP-VAL-066", "sandbox"),
+        ]
+
+    def _validation_record(self, code: str, file: Path | None, flowgroup: str | None):
+        from lhp.models.processing import ValidationWarningRecord
+
+        return ValidationWarningRecord(
+            code=code, message=f"msg for {code}", file=file, flowgroup=flowgroup
+        )
+
+    def test_validation_record_emits_validation_category(self) -> None:
+        """A ``ValidationWarningRecord`` surfaces as ``category='validation'``
+        with code/message/file/flowgroup mapped verbatim."""
+        from lhp.api._converters_common import _emit_warning_records
+
+        f = Path("pipelines/p/fg.yaml")
+        rec = self._validation_record("LHP-VAL-073", f, "fg")
+        seen: set = set()
+        emitted = list(_emit_warning_records([rec], seen=seen))
+
+        assert len(emitted) == 1
+        assert emitted[0].category == "validation"
+        assert emitted[0].code == "LHP-VAL-073"
+        assert emitted[0].message == rec.message
+        assert emitted[0].file == f
+        assert emitted[0].flowgroup == "fg"
+
+    def test_mixed_records_emit_all_three_categories_in_order(self) -> None:
+        """Deprecation + sandbox + validation records each derive their own
+        category per record type, in caller-iteration order."""
+        from lhp.api._converters_common import _emit_warning_records
+
+        f = Path("pipelines/p/fg.yaml")
+        records = [
+            self._record("LHP-DEPR-002", f, "fg"),
+            self._validation_record("LHP-VAL-073", f, "fg"),
+            self._sandbox_record("LHP-VAL-065", f, "fg"),
+        ]
+        seen: set = set()
+        emitted = list(_emit_warning_records(records, seen=seen))
+
+        assert [(w.code, w.category) for w in emitted] == [
+            ("LHP-DEPR-002", "deprecation"),
+            ("LHP-VAL-073", "validation"),
+            ("LHP-VAL-065", "sandbox"),
+        ]
+
+    def test_validation_records_dedup_by_code_file(self) -> None:
+        """Two VAL-073 records for one file (e.g. two flowgroups in it)
+        collapse to the first; the same code on another file survives."""
+        from lhp.api._converters_common import _emit_warning_records
+
+        f = Path("pipelines/p/fg.yaml")
+        records = [
+            self._validation_record("LHP-VAL-073", f, "fg_a"),
+            self._validation_record("LHP-VAL-073", f, "fg_b"),
+            self._validation_record("LHP-VAL-073", Path("other.yaml"), "fg_c"),
+        ]
+        seen: set = set()
+        emitted = list(_emit_warning_records(records, seen=seen))
+
+        assert [(w.file, w.flowgroup) for w in emitted] == [
+            (f, "fg_a"),
+            (Path("other.yaml"), "fg_c"),
         ]
 
     def test_dedup_is_per_code_file_across_record_types(self) -> None:

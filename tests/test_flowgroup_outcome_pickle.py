@@ -37,6 +37,7 @@ from lhp.models.processing import (
     CopiedModuleRecord,
     DeprecationWarningRecord,
     FlowgroupOutcome,
+    ValidationWarningRecord,
 )
 
 
@@ -417,6 +418,94 @@ class TestFlowgroupOutcomeWarnings:
         _assert_scaffold_preserved(restored, outcome)
         assert restored.warnings == (warning,)
         assert restored.errors == ("ValueError: boom",)
+
+    def test_outcome_carrying_mixed_warning_kinds_round_trips(self):
+        """A deprecation AND a validation record on one outcome both survive
+        the spawn-boundary pickle with their concrete record types intact
+        (the main thread derives the event ``category`` from the type)."""
+        deprecation = _make_warning()
+        validation = _make_validation_warning()
+        outcome = FlowgroupOutcome.ok(
+            "pipe_a", "fg_a", warnings=(deprecation, validation)
+        )
+
+        restored = _round_trip(outcome)
+
+        assert restored == outcome
+        assert restored.warnings == (deprecation, validation)
+        assert type(restored.warnings[0]) is DeprecationWarningRecord
+        assert type(restored.warnings[1]) is ValidationWarningRecord
+
+
+def _make_validation_warning() -> ValidationWarningRecord:
+    return ValidationWarningRecord(
+        code="LHP-VAL-073",
+        message="current_timestamp() upstream of a replace_where write.",
+        file=Path("pipelines/fg_a.yaml"),
+        flowgroup="fg_a",
+    )
+
+
+class TestValidationWarningRecord:
+    """``ValidationWarningRecord`` is a plain frozen+slots transport DTO.
+
+    The third :data:`RunWarningRecord` kind, beside the deprecation and
+    sandbox records: a worker-side validator's coded WARNING rides back on
+    :attr:`FlowgroupOutcome.warnings` (the worker's ``logger.warning`` is
+    swallowed by its ``NullHandler``), so it MUST be a picklable value type
+    and NOT an ``Exception``.
+    """
+
+    def test_is_not_an_exception_subclass(self):
+        assert not issubclass(ValidationWarningRecord, Exception)
+
+    def test_is_frozen(self):
+        record = _make_validation_warning()
+        with pytest.raises(FrozenInstanceError):
+            record.code = "LHP-VAL-099"
+
+    def test_uses_slots_no_instance_dict(self):
+        record = _make_validation_warning()
+        assert not hasattr(record, "__dict__")
+        assert set(ValidationWarningRecord.__slots__) == {
+            "code",
+            "message",
+            "file",
+            "flowgroup",
+        }
+
+    def test_round_trips_by_value(self):
+        record = _make_validation_warning()
+
+        restored = _round_trip(record)
+
+        assert restored == record
+        assert restored.code == "LHP-VAL-073"
+        assert restored.message == (
+            "current_timestamp() upstream of a replace_where write."
+        )
+        assert restored.file == Path("pipelines/fg_a.yaml")
+        assert restored.flowgroup == "fg_a"
+
+    def test_round_trips_with_none_optionals(self):
+        record = ValidationWarningRecord(
+            code="LHP-VAL-073", message="m", file=None, flowgroup=None
+        )
+
+        restored = _round_trip(record)
+
+        assert restored == record
+        assert restored.file is None
+        assert restored.flowgroup is None
+
+    def test_is_a_run_warning_record_kind(self):
+        """The closed ``RunWarningRecord`` union admits the new kind, so it can
+        ride ``FlowgroupOutcome.warnings`` beside the other two."""
+        from typing import get_args
+
+        from lhp.models.processing import RunWarningRecord
+
+        assert ValidationWarningRecord in get_args(RunWarningRecord)
 
 
 if __name__ == "__main__":  # pragma: no cover

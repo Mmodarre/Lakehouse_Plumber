@@ -7,7 +7,7 @@ Holds the cross-direction error-conversion helpers used by both the
 generation and validation converter modules (and by the project
 preflight): the :class:`LHPError` <-> :class:`ValidationIssueView`
 projection pair, plus the shared warning-record emission helper
-(deprecation + sandbox) used by the generate and validate streams.
+(deprecation + sandbox + validation) used by the generate and validate streams.
 
 :stability: internal
 """
@@ -143,15 +143,17 @@ def _emit_warning_records(
       ``LHP-DEPR-001``), emitted in/after the ``discover`` phase, and
     * the WORKER warnings merged off the engine's per-pipeline results —
       deprecations (``database`` / ``database_suffix`` / schema-transform
-      ``enforcement`` → ``LHP-DEPR-002/003/004``) and sandbox rewrite
+      ``enforcement`` → ``LHP-DEPR-002/003/004``), sandbox rewrite
       warnings (mixed-producer sink ``LHP-VAL-065`` / unrewritable indirect
-      read ``LHP-VAL-066``) — emitted in/after the ``generate`` /
-      ``validate`` phase.
+      read ``LHP-VAL-066``) and worker-side validator warnings (e.g.
+      ``LHP-VAL-073``) — emitted in/after the ``generate`` / ``validate``
+      phase.
 
     The event ``category`` is derived from the record type:
     :class:`~lhp.models.processing.SandboxWarningRecord` → ``"sandbox"``,
-    :class:`~lhp.models.processing.DeprecationWarningRecord` →
-    ``"deprecation"``.
+    :class:`~lhp.models.processing.ValidationWarningRecord` →
+    ``"validation"``, :class:`~lhp.models.processing.DeprecationWarningRecord`
+    → ``"deprecation"``. Every category counts under ``--strict``.
 
     ``seen`` is the SHARED ``(code, file)`` dedup set the caller threads across
     both emission points: a record whose key is already in ``seen`` is skipped,
@@ -167,16 +169,19 @@ def _emit_warning_records(
     # Deferred: this module loads eagerly with ``import lhp.api``, which must
     # not pull ``lhp.models`` (and pydantic via its package init) at import
     # time. By the time records exist, their defining module is loaded.
-    from lhp.models.processing import SandboxWarningRecord
+    from lhp.models.processing import SandboxWarningRecord, ValidationWarningRecord
 
     for record in records:
         key = (record.code, record.file)
         if key in seen:
             continue
         seen.add(key)
-        category = (
-            "sandbox" if isinstance(record, SandboxWarningRecord) else "deprecation"
-        )
+        if isinstance(record, SandboxWarningRecord):
+            category = "sandbox"
+        elif isinstance(record, ValidationWarningRecord):
+            category = "validation"
+        else:
+            category = "deprecation"
         yield WarningEmitted(
             record.message,
             code=record.code,

@@ -27,9 +27,11 @@ from conftest import strip_ansi
 from lhp.cli.commands.validate_command import validate_command
 from tests.helpers import (
     assert_no_names_in_values,
+    inject_worker_validation_warning,
     last_cli_command_line,
     parse_last_cli_command,
     project_names,
+    write_clean_project,
     write_quarantine_project,
 )
 
@@ -152,6 +154,31 @@ def test_strict_escalates_warning_to_failure():
     assert lenient.exit_code == 0, lenient.stderr
     # The warning is present in both runs; only --strict changes the exit code.
     assert "warning" in lenient.stderr.lower()
+    assert strict.exit_code == 1, strict.stderr
+
+
+def test_strict_escalates_worker_validation_warning_to_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A worker-recorded validation warning (``ValidationWarningRecord``) is
+    surfaced on a clean project and counts under ``--strict``: exit 0 normally,
+    exit 1 with ``--strict``."""
+    write_clean_project(tmp_path)
+    monkeypatch.chdir(tmp_path)
+    runner = CliRunner()
+    baseline = runner.invoke(
+        validate_command, ["--env", "dev", "--no-bundle", "--strict"]
+    )
+    inject_worker_validation_warning(monkeypatch)
+    lenient = runner.invoke(validate_command, ["--env", "dev", "--no-bundle"])
+    strict = runner.invoke(
+        validate_command, ["--env", "dev", "--no-bundle", "--strict"]
+    )
+
+    # The project itself is warning-free, so --strict alone passes.
+    assert baseline.exit_code == 0, baseline.stderr
+    assert lenient.exit_code == 0, lenient.stderr
+    assert "LHP-VAL-073" in strip_ansi(lenient.stderr)
     assert strict.exit_code == 1, strict.stderr
 
 

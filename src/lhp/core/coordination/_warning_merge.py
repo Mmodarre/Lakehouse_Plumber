@@ -1,8 +1,8 @@
 """Worker-warning folding for the flat engine's two merge points.
 
 Two small, pure helpers that fold worker-attached
-:data:`~lhp.models.processing.RunWarningRecord`s (deprecation AND sandbox
-records), deduped by
+:data:`~lhp.models.processing.RunWarningRecord`s (deprecation, sandbox AND
+validation records), deduped by
 ``(code, file)`` in deterministic first-seen order:
 
 * :func:`merge_flowgroup_warnings` — the PER-PIPELINE fold, run inside the
@@ -52,8 +52,9 @@ def merge_flowgroup_warnings(
 ) -> Tuple[RunWarningRecord, ...]:
     """Flatten + dedup a pipeline's per-flowgroup worker warnings.
 
-    Each worker attaches any warnings it would have logged — deprecation AND
-    sandbox records, the :data:`~lhp.models.processing.RunWarningRecord`
+    Each worker attaches any warnings it would have logged — deprecation,
+    sandbox AND validation records, the
+    :data:`~lhp.models.processing.RunWarningRecord`
     union (it runs
     under a ``NullHandler``, so the logging channel is dead) — to its
     :attr:`FlowgroupOutcome.warnings`. This folds them across the pipeline's

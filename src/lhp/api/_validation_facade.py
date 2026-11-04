@@ -461,7 +461,8 @@ class ValidationFacade:
             with a code rather than a live exception.
 
         * **warnings** — the batch's merged + deduped worker warning records
-          (deprecation and sandbox); the CALLER (:meth:`validate_pipelines`)
+          (deprecation, sandbox and validation); the CALLER
+          (:meth:`validate_pipelines`)
           emits these as :class:`WarningEmitted` events in/after the validate
           phase — concatenated after the sandbox plan's carried warnings —
           deduped against the discover-phase main-thread warnings via a shared

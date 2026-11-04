@@ -49,8 +49,8 @@ from typing import TYPE_CHECKING, Any, List, Literal, Mapping, Optional, Tuple
 
 from lhp.models import FlowGroupContext
 
-from ...models.deprecations import collect_deprecations, drain_deprecations
 from ...models.processing import FlowgroupOutcome, SandboxWarningRecord
+from ...models.run_warnings import collect_deprecations, drain_deprecations
 from ...utils.performance_timer import (
     enable_perf_timing,
     export_perf_for_merge,
@@ -177,14 +177,14 @@ def _process_one_flowgroup(
     *,
     mode: WorkerMode,
 ) -> FlowgroupOutcome:
-    """Single-wave worker entry: perf + deprecation envelope around the impl.
+    """Single-wave worker entry: perf + run-warning envelope around the impl.
 
     Name is stable — in :mod:`.executor`'s ``__all__`` and monkeypatched
     by engine tests; constitution §5.6 bars renaming it.
 
-    Wraps the impl in a :func:`~lhp.models.deprecations.collect_deprecations`
-    scope so deprecation records (otherwise lost under the worker's
-    ``NullHandler``) ride back on :attr:`FlowgroupOutcome.warnings`.
+    Wraps the impl in a :func:`~lhp.models.run_warnings.collect_deprecations`
+    scope so deprecation and validation-warning records (otherwise lost under
+    the worker's ``NullHandler``) ride back on :attr:`FlowgroupOutcome.warnings`.
     When perf is enabled, :func:`reset_perf_summary` scopes the singleton to
     this flowgroup (one task per worker → race-free) and attaches the
     aggregate to the outcome. NEVER raises.
@@ -200,9 +200,9 @@ def _process_one_flowgroup(
     warnings = drain_deprecations(collector)
     if warnings:
         # CONCATENATE, never replace: the impl may have attached sandbox
-        # warnings (LHP-VAL-066) already; drained deprecation records are
-        # appended after them. Outside sandbox runs ``outcome.warnings`` is
-        # always ``()``, so this is behavior-preserving.
+        # warnings (LHP-VAL-066) already; drained deprecation / validation
+        # records are appended after them. Outside sandbox runs
+        # ``outcome.warnings`` is always ``()``, so this is behavior-preserving.
         outcome = dataclasses.replace(outcome, warnings=outcome.warnings + warnings)
     if perf_on:
         outcome = dataclasses.replace(outcome, perf=export_perf_for_merge())
