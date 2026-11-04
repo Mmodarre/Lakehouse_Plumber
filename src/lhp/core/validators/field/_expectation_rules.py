@@ -7,22 +7,25 @@ so a rule these checks accept always parses. A rule is named by its ``name``
 (list rules also ``message``), else its constraint key or position (``#n``).
 """
 
-import difflib
 from collections import Counter
-from typing import Any, Dict, Iterator, List, Sequence, Tuple, Union
+from typing import Any, Iterator, List, Tuple
 
-from lhp.errors import ErrorFactory, LHPError, codes
+from lhp.errors import LHPError
 
 from ...loaders import Expectations
 from ...processing import (
-    EXPECTATION_TYPES,
-    FAILURE_ACTIONS,
     expectation_names,
     list_rule_category,
     list_rule_name,
     mapping_rule_category,
     missing_constraint_error,
     rule_constraint,
+)
+from ._expectation_rule_errors import (
+    bad_value,
+    duplicate_name_error,
+    not_a_mapping,
+    not_text,
 )
 
 #: Rule fields that must be text when they are set.
@@ -40,14 +43,14 @@ def rule_shape_errors(
     errors: List[LHPError] = []
     for ident, key, rule in _rules(expectations):
         if key is not _IN_LIST and not isinstance(key, str):
-            errors.append(_not_text(prefix, ident, source, "constraint", key))
+            errors.append(not_text(prefix, ident, source, "constraint", key))
         if not isinstance(rule, dict):
-            errors.append(_not_a_mapping(prefix, ident, source, rule))
+            errors.append(not_a_mapping(prefix, ident, source, rule))
             continue
         for field in _TEXT_FIELDS:
             value = rule.get(field)
             if value is not None and not isinstance(value, str):
-                errors.append(_not_text(prefix, ident, source, field, value))
+                errors.append(not_text(prefix, ident, source, field, value))
     return errors
 
 
@@ -68,32 +71,19 @@ def rule_content_errors(
         else:
             field, (value, category) = "action", mapping_rule_category(rule)
         if category is None:
-            errors.append(_bad_value(prefix, ident, where, field, value, in_list))
+            errors.append(bad_value(prefix, ident, where, field, value, in_list))
     return errors
 
 
 def duplicate_name_errors(
     expectations: Expectations, source: str, prefix: str
 ) -> List[LHPError]:
-    """``LHP-VAL-006`` for each name more than one rule gets, as the parser
+    """``LHP-VAL-071`` for each name more than one rule gets, as the parser
     names them (:func:`expectation_names`). Every rule must already be valid.
     """
     counts = Counter(expectation_names(expectations))
     return [
-        ErrorFactory.validation_error(
-            codes.VAL_006,
-            title="Duplicate expectation name",
-            details=(
-                f"{prefix}: {count} expectations in {source} are named '{name}'. "
-                "An expectation name must be unique for a dataset."
-            ),
-            suggestions=[
-                "Give each expectation its own name",
-                "In a list, a rule is named by 'name' when it has one, then "
-                "by 'message', then 'Constraint failed: <constraint>'",
-            ],
-            context={"Expectation": name, "Field": "name", "Provided": name},
-        )
+        duplicate_name_error(name, count, source, prefix)
         for name, count in counts.items()
         if count > 1
     ]
@@ -116,86 +106,3 @@ def _ident(rule: Any, in_list: bool, fallback: str) -> str:
         if isinstance(name, str) and name:
             return name
     return fallback
-
-
-def _not_a_mapping(prefix: str, ident: str, source: str, rule: Any) -> LHPError:
-    actual = type(rule).__name__
-    return ErrorFactory.validation_error(
-        codes.VAL_008,
-        title="Invalid expectation rule",
-        details=(
-            f"{prefix}: expectation '{ident}' in {source} must be a mapping, but "
-            f"it is a {actual}."
-        ),
-        suggestions=[
-            "In a list, give each rule 'name', 'constraint' and 'failureAction'",
-            "In a mapping, give each constraint its 'action' and 'name'",
-        ],
-        context={
-            "Expectation": ident,
-            "Expected Type": "mapping",
-            "Actual Type": actual,
-        },
-    )
-
-
-def _not_text(prefix: str, ident: str, source: str, field: str, value: Any) -> LHPError:
-    actual = type(value).__name__
-    return ErrorFactory.validation_error(
-        codes.VAL_008,
-        title=f"Invalid expectation '{field}'",
-        details=(
-            f"{prefix}: expectation '{ident}' in {source} has a '{field}' that is "
-            f"a {actual}; it must be text."
-        ),
-        suggestions=[f"Write '{field}' as a string (quote it in YAML if needed)"],
-        context={
-            "Expectation": ident,
-            "Field": field,
-            "Expected Type": "str",
-            "Actual Type": actual,
-        },
-    )
-
-
-def _bad_value(
-    prefix: str, ident: str, where: str, field: str, value: Any, list_format: bool
-) -> LHPError:
-    if list_format and field == "action":
-        return ErrorFactory.validation_error(
-            codes.VAL_006,
-            title="Invalid field 'action' in a list-format expectation",
-            details=(
-                f"{prefix}: expectation '{ident}' {where} sets 'action', the "
-                "mapping format's key. A rule in a list sets 'failureAction'."
-            ),
-            suggestions=[f"Use 'failureAction: {value}' instead of 'action'"],
-            context={"Expectation": ident, "Field": "action", "Provided": str(value)},
-        )
-    valid = EXPECTATION_TYPES if field == "type" else FAILURE_ACTIONS
-    return _invalid_value(prefix, ident, where, field, value, valid)
-
-
-def _invalid_value(
-    prefix: str,
-    ident: str,
-    where: str,
-    field: str,
-    value: Any,
-    valid: Union[Sequence[str], Dict[str, str]],
-) -> LHPError:
-    choices = sorted(valid)
-    suggestions = [f"Use one of: {', '.join(choices)}"]
-    close = difflib.get_close_matches(str(value).lower(), choices, n=1)
-    if close:
-        suggestions.insert(0, f"Did you mean '{close[0]}'?")
-    return ErrorFactory.validation_error(
-        codes.VAL_006,
-        title=f"Invalid value for '{field}'",
-        details=(
-            f"{prefix}: expectation '{ident}' {where} has invalid value '{value}' "
-            f"for '{field}'. Valid values: {', '.join(choices)}"
-        ),
-        suggestions=suggestions,
-        context={"Expectation": ident, "Field": field, "Provided": str(value)},
-    )
