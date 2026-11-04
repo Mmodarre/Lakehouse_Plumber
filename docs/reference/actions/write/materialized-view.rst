@@ -134,11 +134,23 @@ hold:
   :doc:`/reference/actions/transform/data_quality`);
 - exactly one action in the flowgroup reads its view;
 - that action is a ``materialized_view`` write whose ``source`` is the
-  ``data_quality`` view alone, with no ``sql`` or ``sql_path``, and that is the
+  ``data_quality`` view alone (a string, or a list with that one view), with no
+  ``sql`` or ``sql_path`` and no ``expectations_file`` of its own, and that is the
   only write to its table.
 
-Both shapes can meet on one view. Expectation names must be unique on the view,
-across the file and the fused action: a repeat fails with ``LHP-VAL-071``.
+A test action that reads the ``data_quality`` view does not count as a reader, so
+the same flowgroup fuses with and without ``--include-tests``. The test keeps
+working, because the ``data_quality`` view is still emitted.
+
+The two shapes do not combine on one view. A materialized view that has its own
+``expectations_file`` is **not** a fusion target: it keeps reading the
+``data_quality`` view, and its rules then see only the rows that survive the
+``data_quality`` action's ``drop`` rules. To keep such a view incremental, put all
+the rules in the view's own ``expectations_file``.
+
+Expectation names must be unique on the view. A repeat inside the view's
+``expectations_file`` fails with ``LHP-VAL-071``, and so does a repeat inside the
+rules of a fused ``data_quality`` action.
 
 .. note::
 
@@ -146,6 +158,14 @@ across the file and the fused action: a repeat fails with ``LHP-VAL-071``.
    view is **not** fused. It works, but Databricks recomputes it in full on every
    refresh. To keep it incremental, put the rules on the view with Shape 1, or make
    the view a pass-through (``source`` only).
+
+.. note::
+
+   Incremental refresh needs a deterministic query. A non-deterministic expression
+   in the view's chain makes Databricks recompute it in full whatever the
+   expectations. That includes operational-metadata columns such as
+   ``F.current_timestamp()``, which fusion copies onto the view (Databricks allows
+   non-deterministic functions only in ``WHERE`` clauses).
 
 Setting ``expectations_file`` on the *action* rather than in ``write_target``
 raises ``LHP-CFG-073``. Setting it in the ``write_target`` of a streaming table

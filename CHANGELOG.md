@@ -15,13 +15,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   rules become `@dp.expect_all`, `@dp.expect_all_or_drop` and
   `@dp.expect_all_or_fail` decorators on the view, whether the view is defined by
   `sql`, `sql_path` or a `source` view. Expectations on the view keep Databricks'
-  incremental refresh; a `fail` rule makes the view a gate.
+  incremental refresh; a `fail` rule makes the view a gate. Incremental refresh
+  also needs a deterministic query: a non-deterministic expression in the view's
+  chain, such as `F.current_timestamp()` (operational metadata included), makes
+  Databricks recompute it in full.
 - **A `data_quality` action in front of a pass-through materialized view is fused
   onto it (#344).** When a batch `data_quality` action in `dqe` mode is read only
-  by a materialized view that has a `source` and no `sql` or `sql_path`, and that
-  is the only write to its table, the view carries the action's expectations and
+  by a materialized view that has a `source` and no `sql`, `sql_path` or
+  `expectations_file`, and that is the only write to its table, the view carries
+  the action's expectations and
   operational-metadata columns and reads the action's source view. The
-  `data_quality` view is still emitted but nothing reads it, so it never runs.
+  `data_quality` view is still emitted but nothing reads it, so it never runs. A test
+  action that reads the `data_quality` view does not stop the fusion, so a
+  flowgroup generates the same view with and without `--include-tests`. A view with
+  an `expectations_file` of its own is not fused (put all its rules in that file).
   Expectations on a view upstream of a materialized view make Databricks recompute
   it in full on every refresh. A materialized view whose own `sql` or `sql_path`
   reads a `data_quality` view is not fused; it works but is recomputed in full on
@@ -36,7 +43,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   read with batch SQL, so a test over a streaming view is reported too: point test
   actions at tables or batch views.
 - **`LHP-VAL-071`: duplicate expectation names on a materialized view**, within one
-  `write_target.expectations_file` or between that file and a fused `data_quality`
+  `write_target.expectations_file` or within the rules of a fused `data_quality`
   action.
 - **`LHP-CFG-073`: data-quality fields on the wrong action.** The action-level
   `expectations_file`, `quarantine` or `mode` on anything but a `data_quality`
@@ -62,6 +69,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **A `name: null` on a mapping-format expectation generated a `None` decorator
+  key.** A null or empty `name` now counts as unset and the rule is named by its
+  constraint, as when `name` is absent.
 - **An unknown `streaming_table` write mode is rejected instead of generating an
   append flow (#345).** `write_target.mode` was not checked, so a typo such as
   `mode: cdcc` passed `lhp validate` and `lhp generate` silently rendered a plain
@@ -108,7 +118,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   suggestion, as does an unknown `type`.
 - **Inline `expectations` on a `data_quality` action crashed validate and
   generate**, and non-text rule fields crashed `lhp generate`. Inline rules get the
-  same checks as a file, and the errors are reported at `lhp validate`.
+  same checks as a file, and their errors are reported at `lhp validate`. A
+  `data_quality` action still needs an `expectations_file` at `lhp generate`:
+  inline `expectations` alone do not generate yet.
 
 ### Breaking changes
 
@@ -125,7 +137,6 @@ Configurations that used to validate now fail:
   (`name: 2024`, `constraint: true`, a numeric mapping key), a rule that is not a
   mapping, and a wrapped `expectations: null` fail with `LHP-VAL-008`. Quote the
   value.
-- An explicit null `write_target.mode` on a streaming table fails with `LHP-VAL-006`.
 - A read that does not match its view's kind fails with `LHP-VAL-070`. Check
   flowgroups that append a batch `delta` load to a streaming table, or read a
   streaming view with batch SQL: set `readMode`, add `once: true`, or use
