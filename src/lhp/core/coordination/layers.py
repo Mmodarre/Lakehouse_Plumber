@@ -48,6 +48,7 @@ def build_facade_orchestrator(
         ConfigValidator,
         ExternalFileTokenValidator,
         OperationalMetadataExpressionValidator,
+        ReplaceWhereDeterminismValidator,
         SecretValidator,
     )
     from lhp.presets.preset_manager import PresetManager
@@ -57,12 +58,15 @@ def build_facade_orchestrator(
     preset_manager = PresetManager(project_root / "presets")
     config_validator = ConfigValidator(project_root, project_config)
     secret_validator = SecretValidator()
-    # The validator checks only what generation renders (the registry's
-    # generator declarations) via the render path's own column resolver.
+    # Both metadata validators check only what generation renders (the
+    # registry's generator declarations) via the render path's own resolver.
+    action_registry = ActionRegistry()
+    resolve_columns = OperationalMetadataService().resolve_selected_columns
     operational_metadata_validator = OperationalMetadataExpressionValidator(
-        project_config,
-        ActionRegistry(),
-        OperationalMetadataService().resolve_selected_columns,
+        project_config, action_registry, resolve_columns
+    )
+    replace_where_determinism_validator = ReplaceWhereDeterminismValidator(
+        project_config, action_registry, resolve_columns
     )
     # Reads each sql_path / tags_file through the loader and the tagging-hook
     # check generation uses, so validate and generate reject the same tokens.
@@ -88,6 +92,7 @@ def build_facade_orchestrator(
         secret_validator=secret_validator,
         operational_metadata_validator=operational_metadata_validator,
         file_token_validator=file_token_validator,
+        replace_where_determinism_validator=replace_where_determinism_validator,
     )
 
     return ActionOrchestrator(
