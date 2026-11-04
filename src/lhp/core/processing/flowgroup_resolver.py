@@ -39,12 +39,16 @@ class FlowgroupResolutionService(BaseFlowgroupResolutionService):
         secret_validator=None,
         operational_metadata_validator=None,
         file_token_validator=None,
+        replace_where_determinism_validator=None,
     ):
         """``operational_metadata_validator`` resolves the ``lhp.yaml``
         metadata expressions each flowgroup selects; ``file_token_validator``
         rejects unresolved ``${name}`` tokens in the ``sql_path`` and UC
-        ``tags_file`` files its code renders. ``None`` skips a check
-        (resolvers whose output never reaches code generation).
+        ``tags_file`` files its code renders;
+        ``replace_where_determinism_validator`` records the ``LHP-VAL-073``
+        warning for non-deterministic metadata upstream of a replace_where
+        write. ``None`` skips a check (resolvers whose output never reaches
+        code generation).
         """
         self.template_engine = template_engine
         self.preset_manager = preset_manager
@@ -52,6 +56,7 @@ class FlowgroupResolutionService(BaseFlowgroupResolutionService):
         self.secret_validator = secret_validator
         self.operational_metadata_validator = operational_metadata_validator
         self.file_token_validator = file_token_validator
+        self.replace_where_determinism_validator = replace_where_determinism_validator
         self.logger = logging.getLogger(__name__)
 
     def resolve(
@@ -246,6 +251,15 @@ class FlowgroupResolutionService(BaseFlowgroupResolutionService):
                     f"op_metadata_validation [{fg}]", category="op_metadata_validation"
                 ):
                     self.operational_metadata_validator.validate(
+                        processed_flowgroup, substitution_mgr, preset_config
+                    )
+
+            if self.replace_where_determinism_validator is not None:
+                with perf_timer(
+                    f"replace_where_determinism [{fg}]",
+                    category="replace_where_determinism",
+                ):
+                    self.replace_where_determinism_validator.validate(
                         processed_flowgroup, substitution_mgr, preset_config
                     )
 

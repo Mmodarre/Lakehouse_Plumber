@@ -10,6 +10,7 @@ from .read_mode_lineage import ReadModeLineageValidator
 from .replace_config import ReplaceFlowConfigValidator
 from .replace_fanin import ReplaceFanInCompatibilityValidator
 from .replace_where_config import ReplaceWhereConfigValidator
+from .replace_where_determinism import ReplaceWhereDeterminismValidator
 from .shared_dlq import SharedDlqSourceTableValidator
 from .snapshot_cdc import SnapshotCdcConfigValidator
 from .table_creation import TableCreationValidator, action_creates_table
@@ -24,6 +25,7 @@ __all__ = [
     "ReplaceFanInCompatibilityValidator",
     "ReplaceFlowConfigValidator",
     "ReplaceWhereConfigValidator",
+    "ReplaceWhereDeterminismValidator",
     "SharedDlqSourceTableValidator",
     "SnapshotCdcConfigValidator",
     "TableCreationValidator",

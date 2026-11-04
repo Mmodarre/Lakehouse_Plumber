@@ -38,6 +38,7 @@ from .compatibility import (
     CdcConfigValidator,
     SnapshotCdcConfigValidator,
     CdcSchemaValidator,
+    ReplaceWhereDeterminismValidator,
 )
 from .pipeline.job_name import validate_job_names, validate_job_name_format
 from .field.kafka_options import KafkaOptionsValidator
@@ -62,6 +63,7 @@ __all__ = [
     "OperationalMetadataExpressionValidator",
     "PipelineSettings",
     "ReplaceFanInCompatibilityValidator",
+    "ReplaceWhereDeterminismValidator",
     "SecretValidator",
     "SharedDlqSourceTableValidator",
     "SnapshotCdcConfigValidator",
