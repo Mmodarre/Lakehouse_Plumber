@@ -38,6 +38,7 @@
 //   write_target.tags                    validators/compatibility/dlt_table_options.py:79; references/actions-write-materialized-view.md:11
 //   write_target.tags_file               validators/compatibility/dlt_table_options.py:82-88 (unified schemas/ file; XOR tags)
 //   write_target.spark_conf              generators/write/materialized_view.py:59; dlt_table_options.py:26
+//   write_target.expectations_file       generators/write/materialized_view.py (assemble_expectations); validators/action/_write_materialized_view.py (rules + unique names, LHP-VAL-071); references/actions-write-materialized-view.md
 
 import type { ActionSubTypeSpec } from './types'
 import { schemaStub, schemaSuggestPath } from './schemaFile'
@@ -193,6 +194,18 @@ export const writeMaterializedViewSpec: ActionSubTypeSpec = {
           monospace: true,
           fileRef: { accept: ['.yaml', '.yml'], stub: schemaStub, suggestPath: schemaSuggestPath },
           placeholder: 'schemas/customer_summary.yaml',
+        },
+        {
+          // Data-quality rules enforced on the view (warn / drop / fail). A
+          // `data_quality` action that feeds a pass-through view is fused onto
+          // it at generate time; this field is the explicit form. Kept in the
+          // collapsed group like `tags_file` (both are file refs).
+          path: [...WT, 'expectations_file'],
+          label: 'Expectations file',
+          widget: 'text',
+          monospace: true,
+          fileRef: { accept: ['.yaml', '.yml', '.json'] },
+          placeholder: 'expectations/customer_summary.yaml',
         },
         { path: [...WT, 'spark_conf'], label: 'Spark conf', widget: 'keyValue' },
       ],

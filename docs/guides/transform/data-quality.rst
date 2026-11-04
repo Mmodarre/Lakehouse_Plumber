@@ -153,6 +153,66 @@ exactly what you typed. Lakehouse Plumber wrote only the boilerplate that turns 
 rule into a wired-up, enforcement-tagged Lakeflow view, and it keeps the
 fail/drop/warn mapping correct so a one-word edit re-enforces the whole gate.
 
+Gate a batch read
+=================
+
+The guide above gates a stream. A ``data_quality`` action in ``mode: dqe`` also
+gates a batch read, such as a ``delta`` load that reads a silver table with
+``spark.read``. You do not have to say so: with no ``readMode``, the action reads
+its source view the way that view was made, so a batch load gives a batch gate and
+a streaming load a streaming gate.
+
+.. code-block:: yaml
+
+   - name: load_orders
+     type: load
+     source:
+       type: delta
+       catalog: "${catalog}"
+       schema: "${silver_schema}"
+       table: orders
+     target: v_orders
+
+   - name: check_orders
+     type: transform
+     transform_type: data_quality
+     source: v_orders
+     target: v_orders_checked
+     expectations_file: "expectations/orders_quality.yaml"
+
+The ``delta`` load is batch by default, so ``check_orders`` becomes a batch gate
+and generates ``spark.read``. If the source is not produced in this flowgroup, or
+its kind is unknown (a ``python`` load), the gate defaults to a stream: set
+``readMode: batch`` on the ``data_quality`` action when the loader returns a
+batch DataFrame. ``mode: quarantine`` always streams.
+
+Reading a view the wrong way fails the Databricks update, so ``lhp validate``
+catches it first as ``LHP-VAL-070``: a batch view read as a stream, a streaming
+view read in batch, or a batch view appended to a streaming table without
+``once: true``. The error names the action to change and the ``readMode`` to set.
+
+.. note::
+
+   ``lhp validate`` prints only the wrapper ``LHP-VAL-007`` for most flowgroup
+   errors. Run ``lhp validate --show-details`` to see the specific code
+   (``LHP-VAL-070``, ``LHP-VAL-006``, and so on).
+
+Gate a materialized view
+------------------------
+
+Put a batch gate in front of a materialized view and LHP moves the rules onto the
+view. The view carries the expectations and reads the gate's source, so
+Databricks can still refresh it incrementally; expectations on a view *upstream*
+of a materialized view force a full recompute on every refresh. The gate view is
+still generated, but nothing reads it. This happens when the gate is the only
+thing that feeds a pass-through materialized view: one with a ``source`` and no
+``sql`` or ``sql_path``.
+
+A materialized view with its own ``sql`` that reads the gate is not fused, and is
+recomputed in full on each refresh. Put the rules on the view instead with
+``write_target.expectations_file``. Both shapes are covered in
+:doc:`/guides/write/materialized-view`.
+
 What's next
 ===========
 

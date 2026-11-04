@@ -7,7 +7,7 @@
 | Key | Type | Default | Accepted / constraints |
 |-----|------|---------|------------------------|
 | `type` | string | — | Must be `streaming_table`. |
-| `mode` | string | `standard` | One of `standard`, `cdc`, `snapshot_cdc`. |
+| `mode` | string | `standard` | One of `standard`, `cdc`, `snapshot_cdc`, `replace`. Any other value, including null, → `LHP-VAL-006`. |
 | `catalog` | string | — | Target catalog. |
 | `schema` | string | — | Target schema. |
 | `table` | string | — | Target table name. |
@@ -46,3 +46,4 @@
 - `table_schema` auto-detects inline DDL vs. a `.ddl`/`.sql`/`.yaml` file path.
 - UC tags apply only to the table-creating action (`create_table: true`); temporary tables and sinks are excluded. Column-level tags come from a `tags_file`'s per-column `tags:`. A schema file may carry those same tags — point BOTH `table_schema` and `tags_file` at it. A `table_schema` file that carries tags but is NOT also wired as `tags_file` has them dropped; `lhp generate` warns `LHP-CFG-069` (streaming-table + MV writes only; generate-time, since validate runs no codegen).
 - UC tagging permissions (enforced by Unity Catalog, not LHP): the pipeline's run-as identity needs `APPLY TAG` on the table and `ASSIGN` on required governed tags to write tags via the REST API, plus `USE CATALOG`, `USE SCHEMA`, and `SELECT` on `system.information_schema` to read existing tag state.
+- The append flow reads its source with `readMode` (default `stream`) and the read must match the source view's kind (`LHP-VAL-070`): a batch view (e.g. a `delta` load with no `readMode: stream`) needs `readMode: batch` **and** `once: true` (one-time backfill), or a streaming producer.
