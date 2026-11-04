@@ -7,6 +7,59 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.9.4] — Unreleased
 
+### Added
+
+- **Expectations on a materialized view (#344).** A `materialized_view` write takes
+  `write_target.expectations_file`, an expectations file in the same list and
+  mapping formats as a `data_quality` transform. Its `warn`, `drop` and `fail`
+  rules become `@dp.expect_all`, `@dp.expect_all_or_drop` and
+  `@dp.expect_all_or_fail` decorators on the view, whether the view is defined by
+  `sql`, `sql_path` or a `source` view. Expectations on the view keep Databricks'
+  incremental refresh; a `fail` rule makes the view a gate.
+- **A `data_quality` action in front of a pass-through materialized view is fused
+  onto it (#344).** When a batch `data_quality` action in `dqe` mode is read only
+  by a materialized view that has a `source` and no `sql` or `sql_path`, and that
+  is the only write to its table, the view carries the action's expectations and
+  operational-metadata columns and reads the action's source view. The
+  `data_quality` view is still emitted but nothing reads it, so it never runs.
+  Expectations on a view upstream of a materialized view make Databricks recompute
+  it in full on every refresh. A materialized view whose own `sql` or `sql_path`
+  reads a `data_quality` view is not fused; it works but is recomputed in full on
+  each refresh. Put the rules on it with `write_target.expectations_file` instead.
+- **`LHP-VAL-070`: read-mode lineage check.** `lhp validate` and `lhp generate` now
+  check every read of a view that another load or transform of the same flowgroup
+  produces, where the view's kind and the read are both certain. A stream read
+  (`readStream`, or `STREAM(view)` in SQL) of a batch view, a batch read (`spark.read`,
+  or SQL without `STREAM()`) of a streaming view, and a batch view appended to a
+  standard streaming table without `once: true` all fail on Databricks; they now
+  fail validation, with the `readMode` change that fixes each. Test actions always
+  read with batch SQL, so a test over a streaming view is reported too: point test
+  actions at tables or batch views.
+- **`LHP-VAL-071`: duplicate expectation names on a materialized view**, within one
+  `write_target.expectations_file` or between that file and a fused `data_quality`
+  action.
+- **`LHP-CFG-073`: data-quality fields on the wrong action.** The action-level
+  `expectations_file`, `quarantine` or `mode` on anything but a `data_quality`
+  transform used to be ignored silently. For a write, the error points to
+  `write_target.expectations_file`.
+
+### Changed
+
+- **A `data_quality` action in `dqe` mode with no `readMode` now reads the way its
+  source view was made (#310).** Over a batch producer, such as a `delta` load, it
+  generates `spark.read` instead of `spark.readStream`, which is what makes the
+  pipeline run. A `cloudfiles` or `kafka` producer, a streaming `sql` producer, an
+  external source or one of unknown kind (a `python` load) still gives a stream.
+  Generated output changes for a `data_quality` action over a batch producer.
+  Projects with a `python` load that returns a batch DataFrame must set
+  `readMode: batch` on the `data_quality` action. `readMode: batch` is now valid
+  in `dqe` mode; `quarantine` mode stays stream-only (`LHP-VAL-068`).
+- **The load read-mode checks run at `lhp validate`.** A `cloudfiles` or `kafka` load
+  that does not stream, and a `delta` load that sets `endingVersion` or
+  `endingTimestamp` on a stream read, used to fail only at `lhp generate`.
+- **Quarantine drop-coercion warnings come from the logger
+  `lhp.core.validators.field.expectations_file`.** The message is unchanged.
+
 ### Fixed
 
 - **An unknown `streaming_table` write mode is rejected instead of generating an
@@ -43,6 +96,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`LHP-VAL-009`) was shown as `LHP-CFG-009` and a missing pipeline-config file
   (`LHP-IO-001`) as `LHP-CFG-001`. Only the catalog/schema failure (`LHP-CFG-026`)
   keeps that title now; every other error keeps its own code, title and details.
+- **A `data_quality` action over a batch source no longer generates a stream read
+  (#310).** See *Changed* above.
+- **An action-level `expectations_file` on a write was silently dropped (#344).**
+  It now raises `LHP-CFG-073`, pointing at `write_target.expectations_file`.
+- **An unknown action-level key was silently dropped (#344).** A misspelt or
+  unsupported key passed `lhp validate --strict` and was ignored. It now fails with
+  `LHP-CFG-001`.
+- **An unknown expectation action silently became `warn` (#344).** `action: fial`
+  or `failureAction: fial` now fails with `LHP-VAL-006` and a "did you mean"
+  suggestion, as does an unknown `type`.
+- **Inline `expectations` on a `data_quality` action crashed validate and
+  generate**, and non-text rule fields crashed `lhp generate`. Inline rules get the
+  same checks as a file, and the errors are reported at `lhp validate`.
+
+### Breaking changes
+
+Configurations that used to validate now fail:
+
+- An unknown action-level key fails with `LHP-CFG-001`.
+- `expectations_file`, `quarantine` or `mode` on an action that is not a
+  `data_quality` transform fails with `LHP-CFG-073`.
+- An unknown expectation `action`, `failureAction` or `type` fails with
+  `LHP-VAL-006`, and so does a list-format expectation that sets `action` (use
+  `failureAction`). A null `type` or `failureAction` now means `expect` (warn).
+- An expectation rule without a constraint fails with `LHP-VAL-001`.
+- A non-text expectation `name`, `message`, `constraint` or `expression`
+  (`name: 2024`, `constraint: true`, a numeric mapping key), a rule that is not a
+  mapping, and a wrapped `expectations: null` fail with `LHP-VAL-008`. Quote the
+  value.
+- An explicit null `write_target.mode` on a streaming table fails with `LHP-VAL-006`.
+- A read that does not match its view's kind fails with `LHP-VAL-070`. Check
+  flowgroups that append a batch `delta` load to a streaming table, or read a
+  streaming view with batch SQL: set `readMode`, add `once: true`, or use
+  `STREAM()` as the message says.
 
 ## [0.9.3] — 2026-10-20
 
