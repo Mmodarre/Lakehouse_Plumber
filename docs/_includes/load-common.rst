@@ -36,7 +36,7 @@ These fields apply to every load sub-type. ``name``, ``type``, ``source`` and ``
      - string
      - No
      - sub-type
-     - ``batch`` or ``stream``; selects ``spark.read`` vs ``spark.readStream``. Default and constraints vary by sub-type (below). Ignored by ``sql``, ``python``, and ``jdbc``.
+     - ``batch`` or ``stream``; selects ``spark.read`` vs ``spark.readStream``. Default and constraints vary by sub-type (below). Ignored by ``sql``, ``python``, and ``jdbc``. The view this action creates is a stream or a batch view, and later actions in the flowgroup must read it the same way (``LHP-VAL-070``); see :ref:`dq-read-mode`.
    * - ``description``
      - string
      - No

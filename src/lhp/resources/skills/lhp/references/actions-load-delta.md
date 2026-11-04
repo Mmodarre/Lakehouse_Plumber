@@ -34,3 +34,4 @@
 - CDC: `options.readChangeFeed: "true"` requires `readMode: stream`; pair with `startingVersion` / `startingTimestamp`.
 - Time travel (batch): `versionAsOf` or `timestampAsOf`.
 - Other options: `ignoreDeletes`, `skipChangeCommits`, `maxFilesPerTrigger`.
+- The view a delta load creates is a batch view by default and a streaming view with `readMode: stream`; later actions in the flowgroup must read it the same way (`LHP-VAL-070`). A `data_quality` transform with no `readMode` inherits it.

@@ -131,7 +131,12 @@ class InspectionFacade:
         :raises lhp.errors.LHPError: ``LHP-CFG-*`` from substitution-file
             loading, ``LHP-TPL-*`` from template expansion, and
             ``LHP-VAL-*`` from flowgroup-level validation during
-            resolution. Resolution also reads every ``sql_path`` file and
+            resolution (including ``LHP-VAL-070`` for a read that does not
+            match the kind of the view it reads and ``LHP-VAL-071`` for
+            duplicate expectation names on a materialized view), and
+            ``LHP-CFG-001`` / ``LHP-CFG-073`` for an unknown action field or
+            a data-quality field on a non-``data_quality`` action.
+            Resolution also reads every ``sql_path`` file and
             UC ``tags_file`` the flowgroup's code renders: ``LHP-IO-001``
             when one is missing, ``LHP-IO-004`` (not UTF-8) / ``LHP-IO-005``
             (permission denied) when a ``sql_path`` file cannot be read,
@@ -167,8 +172,9 @@ class InspectionFacade:
             (action-generator failure), and ``LHP-IO-*`` when a file the
             flowgroup references is missing (``LHP-IO-001``) or cannot be
             read (``LHP-IO-004`` / ``LHP-IO-005``). Resolution raises the
-            same ``sql_path`` / ``tags_file`` errors as
-            :meth:`process_flowgroup`.
+            same validation, ``sql_path`` and ``tags_file`` errors as
+            :meth:`process_flowgroup`, including ``LHP-VAL-070``,
+            ``LHP-VAL-071`` and ``LHP-CFG-073``.
         """
         target = _locate_flowgroup_by_name(self._orchestrator, flowgroup_name)
         substitution_mgr = _build_substitution_manager_for_env(

@@ -472,7 +472,8 @@
         }
       ],
       "details": [
-        "batch uses a nonstreaming reader; stream uses a streaming reader. This does not set the pipeline’s continuous execution mode."
+        "batch uses a nonstreaming reader; stream uses a streaming reader. This does not set the pipeline’s continuous execution mode.",
+        "The view this load creates is a batch view by default and a streaming view with stream. Later actions in the flowgroup must read it the same way, or validation fails; a data_quality transform with no readMode follows it."
       ],
       "unsetBehavior": "When the resolved action omits this field, the default is batch. A preset may supply a value before generation."
     },
@@ -1660,6 +1661,37 @@
       ]
     },
     {
+      "id": "action.transform.data_quality.readMode",
+      "summary": "Choose a batch or streaming read of the source view.",
+      "sources": [
+        {
+          "file": "src/lhp/resources/skills/lhp/references/actions-transform-data-quality.md"
+        },
+        {
+          "file": "docs/reference/actions/transform/data_quality.rst"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "readMode"
+          ],
+          "subtype": "transform:data_quality"
+        }
+      ],
+      "details": [
+        "In dqe mode, batch reads with spark.read and stream with spark.readStream. Quarantine mode accepts only stream.",
+        "Leave it unset to read the source view the way that view was made, when another load or transform in the flowgroup produces it: a delta load is batch, cloudfiles and kafka loads stream. An external source, or one of unknown kind such as a python load, defaults to stream, so set batch for a batch python loader."
+      ],
+      "examples": [
+        {
+          "label": "YAML example",
+          "yaml": "readMode: batch"
+        }
+      ],
+      "unsetBehavior": "When the resolved action omits this field in dqe mode, it reads the in-flowgroup view it names the way that view was made, and streams when the source is external or of unknown kind. Quarantine mode always streams."
+    },
+    {
       "id": "action.transform.data_quality.mode",
       "summary": "Choose inline expectations or quarantine handling for invalid rows.",
       "sources": [
@@ -2079,7 +2111,8 @@
         }
       ],
       "details": [
-        "standard appends rows; cdc applies ordered changes using keys and sequence information; snapshot_cdc compares full snapshots; replace runs a REPLACE USING flow that overwrites rows matching replace_using keys. Switching mode changes which configuration block is used."
+        "standard appends rows; cdc applies ordered changes using keys and sequence information; snapshot_cdc compares full snapshots; replace runs a REPLACE USING flow that overwrites rows matching replace_using keys. Switching mode changes which configuration block is used.",
+        "Any other value, including null, fails validation."
       ],
       "unsetBehavior": "When the resolved action omits this field, the default is standard. A preset may supply a value before generation."
     },
@@ -3862,6 +3895,37 @@
         {
           "label": "YAML example",
           "yaml": "write_target:\n  table_schema: schemas/orders.yaml\n  tags_file: schemas/orders.yaml"
+        }
+      ]
+    },
+    {
+      "id": "action.write.materialized_view.write_target.expectations_file",
+      "summary": "Enforce data-quality rules on the materialized view.",
+      "sources": [
+        {
+          "file": "src/lhp/resources/skills/lhp/references/actions-write-materialized-view.md"
+        },
+        {
+          "file": "docs/reference/actions/write/materialized-view.rst"
+        }
+      ],
+      "bindings": [
+        {
+          "path": [
+            "write_target",
+            "expectations_file"
+          ],
+          "subtype": "write:materialized_view"
+        }
+      ],
+      "details": [
+        "Each rule's action picks the reaction to a violating row: warn keeps it and logs the violation, drop removes it, fail stops the update. The file uses the same list or mapping formats as a data_quality transform. Rule names must be unique on the view.",
+        "The rules become expectation decorators on the view itself, which lets Databricks keep refreshing it incrementally. A batch data_quality action that feeds a pass-through view is moved onto the view automatically. A view with its own sql that reads a data_quality view is not, and is recomputed in full on every refresh."
+      ],
+      "examples": [
+        {
+          "label": "YAML example",
+          "yaml": "write_target:\n  expectations_file: expectations/orders_gate.yaml"
         }
       ]
     },

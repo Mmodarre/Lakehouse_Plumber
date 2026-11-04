@@ -57,3 +57,7 @@ Common to every test action, regardless of ``test_type``.
 Run ``lhp validate --env dev --include-tests`` and
 ``lhp generate --env dev --include-tests`` to include test actions.
 For result delivery, see :doc:`/reference/config/test-reporting`.
+
+A test action always reads its source with batch SQL. Point it at a table or a
+batch view: a streaming view fails on Databricks, and ``lhp validate`` reports it
+as ``LHP-VAL-070``.
