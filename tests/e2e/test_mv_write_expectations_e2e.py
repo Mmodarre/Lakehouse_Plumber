@@ -209,25 +209,10 @@ class TestMvWriteExpectationsE2E:
         self._assert_validate_fails_with("LHP-VAL-006")
 
     def test_duplicate_expectation_name_on_fused_mv_fails_val_071(self):
-        duplicate_file = self.project_root / "expectations" / "mv_dup_names.json"
-        duplicate_file.write_text(
-            json.dumps(
-                {
-                    "version": "1.0",
-                    "expectations": [
-                        {
-                            "name": "fused_order_key_present",
-                            "constraint": "order_key > 0",
-                            "failureAction": "warn",
-                        }
-                    ],
-                },
-                indent=2,
-            )
-        )
-        content = self._load_flowgroup()
-        write = self._action(content, "write_mv_expect_fused")
-        write["write_target"]["expectations_file"] = "expectations/mv_dup_names.json"
-        self._save_flowgroup(content)
+        # A name repeated inside the fused data_quality action's own rules.
+        dq_file = self.project_root / _DQ_FILE_REL
+        rules = json.loads(dq_file.read_text())
+        rules["order_key > 0"] = {"action": "warn", "name": "fused_order_key_present"}
+        dq_file.write_text(json.dumps(rules, indent=2))
 
         self._assert_validate_fails_with("LHP-VAL-071")

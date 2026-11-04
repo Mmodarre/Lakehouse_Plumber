@@ -29,7 +29,7 @@ from ...errors import ErrorFactory, codes
 from ._schema_tags_warning import warn_if_schema_tags_dropped
 
 if TYPE_CHECKING:
-    from ...core.codegen.dq_fusion import FusedDq
+    from ...core.codegen import FusedDq
 
 logger = logging.getLogger(__name__)
 

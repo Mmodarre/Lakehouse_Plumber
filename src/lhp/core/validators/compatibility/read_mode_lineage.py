@@ -27,6 +27,7 @@ from ...registry import determine_action_subtype
 from ._read_mode_lineage_messages import LineageRead, lineage_error
 
 if TYPE_CHECKING:
+    from ...processing import EnhancedSubstitutionManager
     from ...registry import ActionRegistry
 
 logger = logging.getLogger(__name__)
@@ -37,13 +38,19 @@ class ReadModeLineageValidator:
 
     def __init__(
         self,
-        registry: Optional[ActionRegistry] = None,
+        registry: ActionRegistry,
         project_root: Optional[Path] = None,
     ) -> None:
         self.registry = registry
         self.project_root = project_root
 
-    def validate(self, flowgroup: FlowGroup) -> List[LHPError]:
+    def validate(
+        self,
+        flowgroup: FlowGroup,
+        substitution_mgr: Optional[EnhancedSubstitutionManager] = None,
+    ) -> List[LHPError]:
+        """``substitution_mgr`` substitutes the SQL bodies the check reads, as
+        code generation does."""
         actions = flowgroup.actions
         producers = _view_producers(actions)
         if not producers:
@@ -55,7 +62,7 @@ class ReadModeLineageValidator:
         errors: List[LHPError] = []
         for consumer in actions:
             seen: Set[Tuple[int, str]] = set()
-            for name, read, sql in self._reads(consumer, actions):
+            for name, read, sql in self._reads(consumer, actions, substitution_mgr):
                 producer = producers.get(name.casefold())
                 if producer is None or producer is consumer:
                     continue
@@ -63,50 +70,77 @@ class ReadModeLineageValidator:
                     continue
                 seen.add((id(producer), read))
                 if id(producer) not in kinds:
-                    kinds[id(producer)] = self._kind(producer, actions)
+                    kinds[id(producer)] = self._kind(
+                        producer, actions, substitution_mgr
+                    )
                 kind = kinds[id(producer)]
                 # A batch read in a streaming-table append flow must run once.
                 once = kind == read == "batch" and not sql and _needs_once(consumer)
                 if kind != "unknown" and (kind != read or once):
                     errors.append(
-                        self._error(flowgroup, producer, consumer, kind, read, sql)
+                        self._error(
+                            flowgroup,
+                            producer,
+                            consumer,
+                            (kind, read, sql),
+                            substitution_mgr,
+                        )
                     )
         return errors
 
     def _reads(
-        self, consumer: Action, actions: Sequence[Action]
+        self,
+        consumer: Action,
+        actions: Sequence[Action],
+        substitution_mgr: Optional[EnhancedSubstitutionManager],
     ) -> List[Tuple[str, str, bool]]:
         """``(view name, read, read in SQL)`` for each certain read."""
         # Lazy: lhp.core.dependencies imports a service that imports validators.
-        from ...dependencies import (
-            effective_read_mode,
-            extract_action_sources,
-            sql_source_reads,
-        )
+        from ...dependencies import extract_action_sources, sql_source_reads
 
         if _is_sql(consumer):
-            reads = sql_source_reads(consumer, project_root=self.project_root)
+            reads = sql_source_reads(
+                consumer,
+                project_root=self.project_root,
+                substitution_mgr=substitution_mgr,
+            )
             return [(name, read, True) for name, read in sorted(reads or ())]
-        read = effective_read_mode(
-            consumer, actions, registry=self.registry, project_root=self.project_root
-        )
+        read = self._read(consumer, actions, substitution_mgr)
         if read is None:
             return []
         sources = extract_action_sources(consumer)
         return [(name, read, False) for name in sources if isinstance(name, str)]
 
-    def _kind(self, producer: Action, actions: Sequence[Action]) -> str:
+    def _kind(
+        self,
+        producer: Action,
+        actions: Sequence[Action],
+        substitution_mgr: Optional[EnhancedSubstitutionManager],
+    ) -> str:
         from ...dependencies import producer_kind  # lazy, as in _reads
 
         return producer_kind(
-            producer, actions, registry=self.registry, project_root=self.project_root
+            producer,
+            actions,
+            registry=self.registry,
+            project_root=self.project_root,
+            substitution_mgr=substitution_mgr,
         )
 
-    def _read(self, consumer: Action, actions: Sequence[Action]) -> Optional[str]:
+    def _read(
+        self,
+        consumer: Action,
+        actions: Sequence[Action],
+        substitution_mgr: Optional[EnhancedSubstitutionManager],
+    ) -> Optional[str]:
         from ...dependencies import effective_read_mode  # lazy, as in _reads
 
         return effective_read_mode(
-            consumer, actions, registry=self.registry, project_root=self.project_root
+            consumer,
+            actions,
+            registry=self.registry,
+            project_root=self.project_root,
+            substitution_mgr=substitution_mgr,
         )
 
     def _error(
@@ -114,19 +148,21 @@ class ReadModeLineageValidator:
         flowgroup: FlowGroup,
         producer: Action,
         consumer: Action,
-        kind: str,
-        read: str,
-        sql: bool,
+        found: Tuple[str, str, bool],
+        substitution_mgr: Optional[EnhancedSubstitutionManager],
     ) -> LHPError:
-        """The VAL-070 error, with the ``readMode`` fixes that would work."""
+        """The VAL-070 error, with the ``readMode`` fixes that would work.
+
+        ``found`` is the ``(kind, read, sql)`` of the mismatch."""
+        kind, read, sql = found
         actions = flowgroup.actions
         wanted = "stream" if kind == read else read
         producer_sql = _is_sql(producer)
         producer_can = not producer_sql and wanted == self._kind(
-            producer.model_copy(update={"readMode": wanted}), actions
+            producer.model_copy(update={"readMode": wanted}), actions, substitution_mgr
         )
         consumer_can = not sql and kind == self._read(
-            consumer.model_copy(update={"readMode": kind}), actions
+            consumer.model_copy(update={"readMode": kind}), actions, substitution_mgr
         )
         return lineage_error(
             LineageRead(

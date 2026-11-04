@@ -10,10 +10,8 @@ from __future__ import annotations
 
 import pytest
 
-from lhp.core.dependencies.sql_extraction import (
-    extract_tables_from_sql,
-    sql_table_reads,
-)
+from lhp.core.dependencies import sql_table_reads
+from lhp.core.dependencies.sql_extraction import extract_tables_from_sql
 
 pytestmark = pytest.mark.unit
 

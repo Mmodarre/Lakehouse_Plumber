@@ -19,16 +19,25 @@ import pytest
 from lhp.core.codegen.action_dispatch import ActionDispatcher
 from lhp.core.codegen.context import GenerationContextBuilder
 from lhp.core.codegen.grouping import WriteActionGrouper
-from lhp.core.dependencies import (
-    DependencyResolver,
-    effective_read_mode,
-    producer_kind,
-)
+from lhp.core.dependencies import DependencyResolver
+from lhp.core.dependencies import effective_read_mode as _effective_read_mode
+from lhp.core.dependencies import producer_kind as _producer_kind
 from lhp.core.processing import EnhancedSubstitutionManager
 from lhp.core.registry import ActionRegistry
 from lhp.models import Action, ActionType, FlowGroup, TransformType
 
 pytestmark = pytest.mark.unit
+
+
+def effective_read_mode(action: Action, actions: List[Action], **kwargs: Any):
+    """``effective_read_mode`` with the registry the tests dispatch by."""
+    kwargs.setdefault("registry", ActionRegistry())
+    return _effective_read_mode(action, actions, **kwargs)
+
+
+def producer_kind(action: Action, actions: List[Action], **kwargs: Any):
+    kwargs.setdefault("registry", ActionRegistry())
+    return _producer_kind(action, actions, **kwargs)
 
 
 def _load(target: str, source: Any, read_mode: Optional[str] = None) -> Action:

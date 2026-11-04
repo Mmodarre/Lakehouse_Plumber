@@ -34,11 +34,8 @@ from typing import TYPE_CHECKING, Dict, Optional, Tuple
 
 from ._bindings import ParameterBindings, freeze_bindings
 from ._function_index import FunctionIndex
-from .sql_extraction import (
-    SqlExtractionResult,
-    extract_tables_from_sql,
-    sql_reads_stream,
-)
+from ._sql_stream_reads import sql_reads_stream
+from .sql_extraction import SqlExtractionResult, extract_tables_from_sql
 
 if TYPE_CHECKING:
     from .python_parser import PythonExtractionResult

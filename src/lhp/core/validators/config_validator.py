@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, List
+from typing import TYPE_CHECKING, List, Optional
 
 from lhp.models import Action, ActionType, FlowGroup
 
@@ -41,7 +41,7 @@ from . import (  # noqa: E402  # placed below docstring/comment to keep cold-imp
 )
 
 if TYPE_CHECKING:
-    pass
+    from ..processing import EnhancedSubstitutionManager
 
 
 class ConfigValidator:
@@ -71,6 +71,9 @@ class ConfigValidator:
         self.test_validator = TestActionValidator(
             self.action_registry, self.field_validator
         )
+        # Lazy for the cycle named in the NOTE above: the compatibility package
+        # reads actions through ``lhp.core.dependencies``, whose package init
+        # loads a service that imports this module.
         from .compatibility import MvExpectationsValidator, ReadModeLineageValidator
 
         self.read_mode_lineage_validator = ReadModeLineageValidator(
@@ -122,14 +125,36 @@ class ConfigValidator:
             except Exception as e:
                 logger.debug(f"Dependency validation error: {e}")
                 errors.append(str(e))
-            errors.extend(self.read_mode_lineage_validator.validate(flowgroup))
-            errors.extend(self.mv_expectations_validator.validate(flowgroup))
 
         if flowgroup.use_template and not flowgroup.template_parameters:
             self.logger.warning(
                 f"FlowGroup uses template '{flowgroup.use_template}' but no parameters provided"
             )
 
+        return errors
+
+    def validate_flowgroup_reads(
+        self,
+        flowgroup: FlowGroup,
+        substitution_mgr: Optional["EnhancedSubstitutionManager"] = None,
+    ) -> List[ValidationError]:
+        """The checks that read the flowgroup's SQL bodies: the read-mode
+        lineage (``LHP-VAL-070``) and the names of a fused data_quality action
+        (``LHP-VAL-071``).
+
+        Run after :meth:`validate_flowgroup`, with the environment's
+        ``substitution_mgr`` so a ``sql_path`` file is read as code generation
+        reads it and both commands reach the same fusion decision.
+        """
+        if not flowgroup.actions:
+            return []
+        errors: List[ValidationError] = []
+        errors.extend(
+            self.read_mode_lineage_validator.validate(flowgroup, substitution_mgr)
+        )
+        errors.extend(
+            self.mv_expectations_validator.validate(flowgroup, substitution_mgr)
+        )
         return errors
 
     def validate_action(self, action: Action, index: int) -> List[ValidationError]:

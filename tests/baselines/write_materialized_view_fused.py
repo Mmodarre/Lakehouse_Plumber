@@ -11,6 +11,6 @@ def orders_mv():
     df = spark.read.table("v_orders")
     
     # Add operational metadata columns
-    df = df.withColumn('_loaded_at', F.current_timestamp())
+    df = df.withColumns({        '_loaded_at': F.current_timestamp()    })
     
     return df 

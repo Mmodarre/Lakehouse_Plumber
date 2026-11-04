@@ -8,13 +8,14 @@ from dataclasses import replace
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Optional, Set, Tuple
 
-from lhp.models import Action, FlowGroup
+from lhp.models import Action, ActionType, FlowGroup, TransformType
 from lhp.models.processing import CopiedModuleRecord
 
 from ..processing.substitution import EnhancedSubstitutionManager
-from ..registry import determine_action_subtype
+from ..registry import ReadMode, determine_action_subtype
 
 if TYPE_CHECKING:
+    from ..registry import ActionRegistry
     from .dq_fusion import DqFusionPlan, FusedDq
 
 
@@ -72,18 +73,36 @@ class GenerationContextBuilder:
         env: Optional[str],
         phase_a_records: Optional[List["CopiedModuleRecord"]] = None,
         auxiliary_files: Optional[Mapping[str, str]] = None,
-        effective_read_mode: Optional[str] = None,
-        fused_dq: Optional["FusedDq"] = None,
+        *,
+        action: Optional[Action] = None,
+        fusion_plan: Optional["DqFusionPlan"] = None,
+        action_registry: Optional["ActionRegistry"] = None,
     ) -> Dict[str, Any]:
+        """The context handed to ``action``'s generator.
+
+        ``action`` (the one about to be generated) decides two entries:
+        ``effective_read_mode`` for a data_quality transform, which
+        ``action_registry`` supplies the generator declarations for, and
+        ``fused_dq`` for a write that ``fusion_plan`` fuses a data_quality
+        action onto. Both are ``None`` for any other action.
+        """
         project_root = self.project_root or Path.cwd()
         return {
             # The read the action's code makes, for a generator whose read
             # follows its source view (see :meth:`effective_read_mode`);
             # ``None`` for the others, which read their own declaration.
-            "effective_read_mode": effective_read_mode,
+            "effective_read_mode": self._action_read_mode(
+                action, flowgroup, substitution_mgr, action_registry
+            ),
             # The data_quality action fused onto a materialized view (its
             # rules and source view move onto the view); ``None`` otherwise.
-            "fused_dq": fused_dq,
+            "fused_dq": (
+                fusion_plan.for_write(action)
+                if fusion_plan is not None
+                and action is not None
+                and action.type == ActionType.WRITE
+                else None
+            ),
             "flowgroup": flowgroup,
             "substitution_manager": substitution_mgr,
             "spec_dir": project_root,  # For backward compatibility
@@ -123,13 +142,33 @@ class GenerationContextBuilder:
             "source_parse_cache": self._source_parse_cache,
         }
 
+    def _action_read_mode(
+        self,
+        action: Optional[Action],
+        flowgroup: FlowGroup,
+        substitution_mgr: EnhancedSubstitutionManager,
+        action_registry: Optional["ActionRegistry"],
+    ) -> Optional[ReadMode]:
+        """:meth:`effective_read_mode` of a data_quality transform, else ``None``."""
+        if (
+            action is None
+            or action.type != ActionType.TRANSFORM
+            or action.transform_type != TransformType.DATA_QUALITY
+        ):
+            return None
+        if action_registry is None:
+            raise TypeError("build() needs action_registry for a data_quality action")
+        return self.effective_read_mode(
+            action, flowgroup, substitution_mgr, action_registry
+        )
+
     def effective_read_mode(
         self,
         action: Action,
         flowgroup: FlowGroup,
         substitution_mgr: EnhancedSubstitutionManager,
-        action_registry=None,
-    ) -> Optional[str]:
+        action_registry: "ActionRegistry",
+    ) -> Optional[ReadMode]:
         """The read ``action``'s code makes, among ``flowgroup``'s actions.
 
         :func:`lhp.core.dependencies.effective_read_mode`, reading SQL bodies
@@ -153,7 +192,7 @@ class GenerationContextBuilder:
         flowgroup: FlowGroup,
         substitution_mgr: EnhancedSubstitutionManager,
         preset_config: Dict[str, Any],
-        action_registry,
+        action_registry: "ActionRegistry",
     ) -> "DqFusionPlan":
         """The data_quality actions of ``flowgroup`` that fuse into a
         materialized view (:func:`~.dq_fusion.plan_dq_fusion`), each with the
@@ -182,8 +221,13 @@ class GenerationContextBuilder:
         )
 
     def _with_metadata(
-        self, fusion, flowgroup, substitution_mgr, preset_config, action_registry
-    ):
+        self,
+        fusion: "FusedDq",
+        flowgroup: FlowGroup,
+        substitution_mgr: EnhancedSubstitutionManager,
+        preset_config: Dict[str, Any],
+        action_registry: "ActionRegistry",
+    ) -> "FusedDq":
         generator = action_registry.get_generator(
             fusion.dq_action.type, determine_action_subtype(fusion.dq_action)
         )
