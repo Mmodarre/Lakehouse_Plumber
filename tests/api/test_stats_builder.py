@@ -43,26 +43,26 @@ pytestmark = pytest.mark.unit
 
 _FIXTURE_PATH = Path(__file__).parent.parent / "e2e" / "fixtures" / "testing_project"
 
-# The complete mapping the fixture project produces: 24 pipelines, 79
-# flowgroups, 177 actions.
+# The complete mapping the fixture project produces: 24 pipelines, 80
+# flowgroups, 181 actions.
 _EXPECTED_COUNTS = {
-    "load": 66,
+    "load": 67,
     "load_cloudfiles": 3,
     "load_custom_datasource": 2,
-    "load_delta": 41,
+    "load_delta": 42,
     "load_jdbc": 2,
     "load_kafka": 3,
     "load_python": 2,
     "load_sql": 13,
     "test": 9,
-    "transform": 30,
-    "transform_data_quality": 6,
+    "transform": 31,
+    "transform_data_quality": 7,
     "transform_python": 6,
     "transform_schema": 5,
     "transform_sql": 12,
     "transform_temp_table": 1,
-    "write": 72,
-    "tables": 58,
+    "write": 74,
+    "tables": 60,
     "test_all_lookups_found": 1,
     "test_completeness": 1,
     "test_custom_expectations": 1,
@@ -72,11 +72,11 @@ _EXPECTED_COUNTS = {
     "test_row_count": 1,
     "test_schema_match": 1,
     "test_uniqueness": 1,
-    "write_materialized_view": 16,
+    "write_materialized_view": 18,
     "write_mode_cdc": 4,
     "write_mode_replace": 1,
     "write_mode_snapshot_cdc": 7,
-    "write_mode_standard": 55,
+    "write_mode_standard": 57,
     "write_sink": 5,
     "write_streaming_table": 51,
 }

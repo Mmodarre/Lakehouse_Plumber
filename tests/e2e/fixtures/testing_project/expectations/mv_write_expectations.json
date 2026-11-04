@@ -1,0 +1,16 @@
+{
+  "version": "1.0",
+  "table": "mv_expect_sql_gate",
+  "expectations": [
+    {
+      "name": "gate_price_not_negative",
+      "constraint": "total_price >= 0",
+      "failureAction": "warn"
+    },
+    {
+      "name": "gate_amount_reconciled",
+      "constraint": "amount_reconciled",
+      "failureAction": "fail"
+    }
+  ]
+}
