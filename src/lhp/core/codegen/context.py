@@ -4,13 +4,18 @@
 """
 
 import logging
+from dataclasses import replace
 from pathlib import Path
-from typing import Any, Dict, List, Mapping, Optional, Set, Tuple
+from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Optional, Set, Tuple
 
 from lhp.models import Action, FlowGroup
 from lhp.models.processing import CopiedModuleRecord
 
 from ..processing.substitution import EnhancedSubstitutionManager
+from ..registry import determine_action_subtype
+
+if TYPE_CHECKING:
+    from .dq_fusion import DqFusionPlan, FusedDq
 
 
 class GenerationContextBuilder:
@@ -68,6 +73,7 @@ class GenerationContextBuilder:
         phase_a_records: Optional[List["CopiedModuleRecord"]] = None,
         auxiliary_files: Optional[Mapping[str, str]] = None,
         effective_read_mode: Optional[str] = None,
+        fused_dq: Optional["FusedDq"] = None,
     ) -> Dict[str, Any]:
         project_root = self.project_root or Path.cwd()
         return {
@@ -75,6 +81,9 @@ class GenerationContextBuilder:
             # follows its source view (see :meth:`effective_read_mode`);
             # ``None`` for the others, which read their own declaration.
             "effective_read_mode": effective_read_mode,
+            # The data_quality action fused onto a materialized view (its
+            # rules and source view move onto the view); ``None`` otherwise.
+            "fused_dq": fused_dq,
             "flowgroup": flowgroup,
             "substitution_manager": substitution_mgr,
             "spec_dir": project_root,  # For backward compatibility
@@ -119,11 +128,14 @@ class GenerationContextBuilder:
         action: Action,
         flowgroup: FlowGroup,
         substitution_mgr: EnhancedSubstitutionManager,
+        action_registry=None,
     ) -> Optional[str]:
         """The read ``action``'s code makes, among ``flowgroup``'s actions.
 
         :func:`lhp.core.dependencies.effective_read_mode`, reading SQL bodies
-        under the project root through ``substitution_mgr``.
+        under the project root through ``substitution_mgr`` and each action's
+        generator through ``action_registry``. A spawned worker's default
+        registry is empty, so code generation passes the one it dispatches by.
         """
         # Lazy: lhp.core.dependencies imports services that import codegen.
         from ..dependencies import effective_read_mode
@@ -131,8 +143,59 @@ class GenerationContextBuilder:
         return effective_read_mode(
             action,
             flowgroup.actions,
+            registry=action_registry,
             project_root=self.project_root or Path.cwd(),
             substitution_mgr=substitution_mgr,
+        )
+
+    def dq_fusion_plan(
+        self,
+        flowgroup: FlowGroup,
+        substitution_mgr: EnhancedSubstitutionManager,
+        preset_config: Dict[str, Any],
+        action_registry,
+    ) -> "DqFusionPlan":
+        """The data_quality actions of ``flowgroup`` that fuse into a
+        materialized view (:func:`~.dq_fusion.plan_dq_fusion`), each with the
+        operational-metadata columns its own generator renders.
+
+        The columns come from the data_quality generator's own
+        ``_get_operational_metadata``, so they are the ones validation checks
+        under the data_quality action; the view renders them as given.
+        """
+        from .dq_fusion import plan_dq_fusion
+
+        plan = plan_dq_fusion(
+            flowgroup.actions,
+            registry=action_registry,
+            project_root=self.project_root or Path.cwd(),
+            substitution_mgr=substitution_mgr,
+        )
+        return replace(
+            plan,
+            fusions=tuple(
+                self._with_metadata(
+                    f, flowgroup, substitution_mgr, preset_config, action_registry
+                )
+                for f in plan.fusions
+            ),
+        )
+
+    def _with_metadata(
+        self, fusion, flowgroup, substitution_mgr, preset_config, action_registry
+    ):
+        generator = action_registry.get_generator(
+            fusion.dq_action.type, determine_action_subtype(fusion.dq_action)
+        )
+        before = set(generator.imports)
+        context = self.build(
+            flowgroup, substitution_mgr, preset_config, None, None, None
+        )
+        _, columns = generator._get_operational_metadata(fusion.dq_action, context)
+        return replace(
+            fusion,
+            metadata_columns=dict(columns),
+            metadata_imports=tuple(sorted(set(generator.imports) - before)),
         )
 
     def collect_outputs(self, generator) -> Tuple[Set[str], Set[str]]:

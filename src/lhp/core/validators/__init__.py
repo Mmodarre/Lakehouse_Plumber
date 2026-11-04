@@ -31,6 +31,10 @@ from .field.pipeline_resource_keys import (
     validate_pipeline_resource_keys,
 )
 from .compatibility import (
+    MvExpectationsValidator,
+    dq_source_view,
+    fusion_consumer,
+    is_fusable,
     DltTableOptionsValidator,
     CdcConfigValidator,
     SnapshotCdcConfigValidator,
@@ -55,6 +59,7 @@ __all__ = [
     "ExternalFileTokenValidator",
     "KafkaOptionsValidator",
     "LoadActionValidator",
+    "MvExpectationsValidator",
     "OperationalMetadataExpressionValidator",
     "PipelineSettings",
     "ReplaceFanInCompatibilityValidator",
@@ -66,6 +71,9 @@ __all__ = [
     "TransformActionValidator",
     "WriteActionValidator",
     "action_creates_table",
+    "dq_source_view",
+    "fusion_consumer",
+    "is_fusable",
     "unresolved_setting_token_errors",
     "validate_job_name_format",
     "validate_job_names",

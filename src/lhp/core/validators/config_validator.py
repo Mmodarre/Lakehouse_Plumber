@@ -71,9 +71,12 @@ class ConfigValidator:
         self.test_validator = TestActionValidator(
             self.action_registry, self.field_validator
         )
-        from .compatibility import ReadModeLineageValidator
+        from .compatibility import MvExpectationsValidator, ReadModeLineageValidator
 
         self.read_mode_lineage_validator = ReadModeLineageValidator(
+            self.action_registry, self.project_root
+        )
+        self.mv_expectations_validator = MvExpectationsValidator(
             self.action_registry, self.project_root
         )
 
@@ -120,6 +123,7 @@ class ConfigValidator:
                 logger.debug(f"Dependency validation error: {e}")
                 errors.append(str(e))
             errors.extend(self.read_mode_lineage_validator.validate(flowgroup))
+            errors.extend(self.mv_expectations_validator.validate(flowgroup))
 
         if flowgroup.use_template and not flowgroup.template_parameters:
             self.logger.warning(
