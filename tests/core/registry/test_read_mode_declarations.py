@@ -77,6 +77,34 @@ class TestDeclarations:
             ("test", "custom_expectations"): ("batch", True),
         }
 
+    def test_only_the_loads_with_a_nested_read_mode_fall_back_to_it(self) -> None:
+        fallback = {
+            (category, str(getattr(key, "value", key)))
+            for category, mapping in _REGISTERED_GENERATORS.items()
+            for key, generator in mapping.items()
+            if generator.source_read_mode_fallback
+        }
+
+        assert fallback == {
+            ("load", "cloudfiles"),
+            ("load", "kafka"),
+            ("load", "delta"),
+        }
+        assert BaseActionGenerator.source_read_mode_fallback is False
+
+    @pytest.mark.parametrize("sub_type", ["cloudfiles", "kafka", "delta"])
+    def test_the_fallback_sits_between_the_action_and_the_default(
+        self, sub_type: str
+    ) -> None:
+        generator = _REGISTERED_GENERATORS["load"][sub_type]
+        nested = _load({"type": sub_type, "readMode": "batch"})
+        both = _load({"type": sub_type, "readMode": "batch"}, "stream")
+        neither = _load({"type": sub_type})
+
+        assert generator.read_mode(nested) == "batch"
+        assert generator.read_mode(both) == "stream"
+        assert generator.read_mode(neither) == generator.default_read_mode
+
     def test_base_declares_no_read(self) -> None:
         assert BaseActionGenerator.default_read_mode is None
         assert BaseActionGenerator.fixed_read_mode is False

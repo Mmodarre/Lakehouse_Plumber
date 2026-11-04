@@ -1,7 +1,7 @@
 """Kafka load generator"""
 
 import logging
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 from lhp.errors import ErrorFactory, codes
 from lhp.models import Action
@@ -16,6 +16,7 @@ class KafkaLoadGenerator(BaseActionGenerator):
     renders_operational_metadata = True
     # Always spark.readStream; LoadActionValidator rejects another readMode.
     default_read_mode = "stream"
+    source_read_mode_fallback = True
     fixed_read_mode = True
 
     def __init__(self):
@@ -26,12 +27,6 @@ class KafkaLoadGenerator(BaseActionGenerator):
 
         # Mandatory options that must be present
         self.mandatory_options = {"kafka.bootstrap.servers"}
-
-    @classmethod
-    def read_mode(cls, action: Action) -> Optional[str]:
-        """The action's ``readMode``, else ``source.readMode``, else ``stream``."""
-        source = action.source if isinstance(action.source, dict) else {}
-        return action.readMode or source.get("readMode", cls.default_read_mode)
 
     def generate(self, action: Action, context: Dict[str, Any]) -> str:
         source_config = action.source if isinstance(action.source, dict) else {}
