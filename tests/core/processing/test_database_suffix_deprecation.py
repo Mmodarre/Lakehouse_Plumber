@@ -15,7 +15,7 @@ import pytest
 
 from lhp.core.processing.flowgroup_resolver import FlowgroupResolutionService
 from lhp.errors import codes
-from lhp.models.deprecations import collect_deprecations, drain_deprecations
+from lhp.models.run_warnings import collect_deprecations, drain_deprecations
 
 _apply_suffix = FlowgroupResolutionService._apply_suffix
 

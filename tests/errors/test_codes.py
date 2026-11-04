@@ -102,6 +102,7 @@ from lhp.errors.codes import (
     VAL_064,
     VAL_065,
     VAL_066,
+    VAL_073,
 )
 from lhp.errors.factory import ErrorFactory
 from lhp.errors.types import LHPError
@@ -472,6 +473,21 @@ def test_sandbox_warning_codes():
         assert code.category is ErrorCategory.VALIDATION
         assert code.code == rendered
         assert code in ALL_CODES
+
+
+@pytest.mark.unit
+def test_validation_warning_codes():
+    """Freeze the validation WARNING slot: category, rendered code, registry.
+
+    ``LHP-VAL-073`` (non-deterministic operational metadata upstream of a
+    ``replace_where`` write) is a warning-only advisory recorded by a
+    worker-side validator on ValidationWarningRecord (rides WarningEmitted,
+    category="validation") — registered here but never raised as an error,
+    which the superset scan permits.
+    """
+    assert VAL_073.category is ErrorCategory.VALIDATION
+    assert VAL_073.code == "LHP-VAL-073"
+    assert VAL_073 in ALL_CODES
 
 
 @pytest.mark.unit

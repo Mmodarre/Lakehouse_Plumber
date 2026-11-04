@@ -127,6 +127,13 @@ VAL_070 = ErrorCode(ErrorCategory.VALIDATION, "070")
 # validator) and for a repeat between that file and the rules of a data_quality
 # action fused onto the view (MvExpectationsValidator).
 VAL_071 = ErrorCode(ErrorCategory.VALIDATION, "071")
+# VAL_073: WARNING code — non-deterministic operational metadata upstream of a
+# ``mode: replace_where`` write disables incremental refresh, so every refresh
+# rewrites the whole REPLACE WHERE window; recorded by a worker-side validator
+# via record_validation_warning on ValidationWarningRecord (rides
+# WarningEmitted, category="validation"; counts under --strict), never raised
+# as an error.
+VAL_073 = ErrorCode(ErrorCategory.VALIDATION, "073")
 VAL_902 = ErrorCode(ErrorCategory.VALIDATION, "902")
 VAL_DUPFG = ErrorCode(ErrorCategory.VALIDATION, "DUPFG")
 
@@ -366,6 +373,7 @@ ALL_CODES: tuple[ErrorCode, ...] = (
     VAL_069,
     VAL_070,
     VAL_071,
+    VAL_073,
     VAL_902,
     VAL_DUPFG,
     IO_001,
@@ -589,6 +597,7 @@ __all__ = [
     "VAL_069",
     "VAL_070",
     "VAL_071",
+    "VAL_073",
     "VAL_902",
     "VAL_DUPFG",
     "ErrorCode",

@@ -46,13 +46,14 @@ from lhp.errors import (
     codes,
 )
 from lhp.models import FlowGroupContext
-from lhp.models.deprecations import record_deprecation
 from lhp.models.processing import (
     CopiedModuleRecord,
     DeprecationWarningRecord,
     FlowgroupOutcome,
     PipelineDelta,
+    ValidationWarningRecord,
 )
+from lhp.models.run_warnings import record_deprecation, record_validation_warning
 
 PIPELINE = "pipe_a"
 FLOWGROUP = "fg_one"
@@ -366,6 +367,118 @@ def test_resolution_deprecation_rides_onto_failure_outcome(monkeypatch):
     assert outcome.success is False
     assert isinstance(outcome.lhp_error, LHPValidationError)
     assert [w.code for w in outcome.warnings] == [codes.DEPR_002.code]
+
+
+# Worker → main validation-warning routing (#346)
+#
+# A worker-side validator records a coded WARNING via
+# ``record_validation_warning``; the SAME worker scope that collects
+# deprecations stamps it with the flowgroup's file + name and the wrapper drains
+# it onto ``FlowgroupOutcome.warnings`` as a ``ValidationWarningRecord``.
+class _ValidationRecordingResolver(_FakeResolver):
+    """A resolver whose (stand-in) validation records validation warnings."""
+
+    def __init__(self, *, messages: Sequence[str], **kwargs) -> None:
+        super().__init__(**kwargs)
+        self._messages = messages
+
+    def process_flowgroup(self, ctx, substitution_mgr, include_tests=True):
+        for message in self._messages:
+            record_validation_warning(codes.VAL_073, message=message)
+        return super().process_flowgroup(ctx, substitution_mgr, include_tests)
+
+
+@pytest.mark.unit
+def test_validation_warning_rides_onto_validate_outcome(monkeypatch):
+    """A recorded validation warning lands on the validate outcome as a
+    ``ValidationWarningRecord`` stamped with the ctx's file + flowgroup and the
+    producer's message verbatim."""
+    resolver = _ValidationRecordingResolver(messages=["write_a: current_timestamp"])
+    _install_state(monkeypatch, resolver=resolver)
+
+    src = Path("flowgroups/fg_one.yaml")
+    outcome = _process_one_flowgroup(_ctx(source_yaml=src), mode="validate")
+
+    assert outcome.success is True
+    (warning,) = outcome.warnings
+    assert isinstance(warning, ValidationWarningRecord)
+    assert warning.code == codes.VAL_073.code
+    assert warning.message == "write_a: current_timestamp"
+    assert warning.file == src
+    assert warning.flowgroup == FLOWGROUP
+
+
+@pytest.mark.unit
+def test_validation_warning_rides_onto_generate_outcome(monkeypatch):
+    """The validation warning also rides on a generate-mode ok outcome."""
+    resolver = _ValidationRecordingResolver(messages=["m"])
+    _install_state(
+        monkeypatch,
+        resolver=resolver,
+        code_generator=_FakeCodeGen(code="z = 3\n"),
+    )
+
+    outcome = _process_one_flowgroup(
+        _ctx(source_yaml=Path("flowgroups/fg_one.yaml")), mode="generate"
+    )
+
+    assert outcome.success is True
+    assert outcome.formatted_code == "z = 3\n"
+    assert [(type(w), w.code) for w in outcome.warnings] == [
+        (ValidationWarningRecord, codes.VAL_073.code)
+    ]
+
+
+@pytest.mark.unit
+def test_validation_warning_rides_onto_failure_outcome(monkeypatch):
+    """A validation warning recorded before a failure still rides back."""
+    resolver = _ValidationRecordingResolver(messages=["m"], raise_exc=_val_error())
+    _install_state(monkeypatch, resolver=resolver)
+
+    outcome = _process_one_flowgroup(
+        _ctx(source_yaml=Path("flowgroups/fg_one.yaml")), mode="validate"
+    )
+
+    assert outcome.success is False
+    assert [w.code for w in outcome.warnings] == [codes.VAL_073.code]
+
+
+@pytest.mark.unit
+def test_validation_warning_dedups_by_code_file_keeping_first_message(monkeypatch):
+    """Dedup stays ``(code, file)``: a second VAL-073 for the same flowgroup
+    file is dropped, so a producer must put every offending item into ONE
+    message."""
+    resolver = _ValidationRecordingResolver(messages=["first", "second"])
+    _install_state(monkeypatch, resolver=resolver)
+
+    outcome = _process_one_flowgroup(
+        _ctx(source_yaml=Path("flowgroups/fg_one.yaml")), mode="validate"
+    )
+
+    assert [w.message for w in outcome.warnings] == ["first"]
+
+
+@pytest.mark.unit
+def test_validation_and_deprecation_warnings_share_one_scope(monkeypatch):
+    """Both kinds recorded in one worker run ride back together, in
+    first-seen order, each keeping its concrete record type."""
+
+    class _BothResolver(_FakeResolver):
+        def process_flowgroup(self, ctx, substitution_mgr, include_tests=True):
+            record_deprecation(codes.DEPR_002, title="t.", details="d.")
+            record_validation_warning(codes.VAL_073, message="v")
+            return super().process_flowgroup(ctx, substitution_mgr, include_tests)
+
+    _install_state(monkeypatch, resolver=_BothResolver())
+
+    outcome = _process_one_flowgroup(
+        _ctx(source_yaml=Path("flowgroups/fg_one.yaml")), mode="validate"
+    )
+
+    assert [(type(w), w.code) for w in outcome.warnings] == [
+        (DeprecationWarningRecord, codes.DEPR_002.code),
+        (ValidationWarningRecord, codes.VAL_073.code),
+    ]
 
 
 @pytest.mark.unit
