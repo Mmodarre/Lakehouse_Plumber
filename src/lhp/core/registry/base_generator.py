@@ -1,3 +1,17 @@
+"""The base every per-action code generator extends.
+
+``BaseActionGenerator`` has ten public methods (more than the §3.2 default of
+eight). They are one contract, not ten responsibilities: a generator's
+*declarations* that validation and generation both read (``read_mode``,
+``consumer_read_mode``), its *import collection* (``add_import``, ``imports``,
+``add_imports_from_expression``, ``add_pre_pipeline_statement``,
+``get_pre_pipeline_statements``, ``get_import_manager``) and its *rendering*
+(``generate``, ``render_template``). They share the one per-instance import
+state, and ``ActionRegistry`` exposes the two read-mode declarations per
+action, so splitting them into collaborators would only move that shared
+state around.
+"""
+
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
@@ -34,6 +48,10 @@ class BaseActionGenerator(ABC):
     #: :attr:`default_read_mode` read, whatever ``readMode`` asks for.
     fixed_read_mode: ClassVar[bool] = False
 
+    #: ``True`` when a load's nested ``source.readMode`` is a fallback between
+    #: the action's ``readMode`` and :attr:`default_read_mode`.
+    source_read_mode_fallback: ClassVar[bool] = False
+
     @classmethod
     def read_mode(cls, action: Action) -> Optional[str]:
         """The read mode the action asks for.
@@ -43,9 +61,12 @@ class BaseActionGenerator(ABC):
         with what a :attr:`fixed_read_mode` generator reads. It is returned as
         written: a generator renders it unchanged, and
         :meth:`consumer_read_mode` reports an unrecognised value as not
-        certain. A generator with a further fallback (a load's nested
-        ``source.readMode``) overrides this.
+        certain. A generator that sets :attr:`source_read_mode_fallback` also
+        honours the source's own ``readMode``, between the two.
         """
+        if cls.source_read_mode_fallback:
+            source = action.source if isinstance(action.source, dict) else {}
+            return action.readMode or source.get("readMode", cls.default_read_mode)
         return action.readMode or cls.default_read_mode
 
     @classmethod
