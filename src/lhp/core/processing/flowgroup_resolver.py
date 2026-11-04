@@ -12,7 +12,7 @@ import logging
 from typing import Any, Dict
 
 from lhp.models import ActionType, FlowGroup, FlowGroupContext
-from lhp.models.deprecations import record_deprecation
+from lhp.models.run_warnings import record_deprecation
 
 from ...errors import ErrorFactory, codes
 from ...utils.performance_timer import perf_timer
@@ -352,7 +352,7 @@ class FlowgroupResolutionService(BaseFlowgroupResolutionService):
         Supports both new format (schema) and legacy format (database).
         ``database_suffix`` is deprecated — use ``schema_suffix`` instead; using
         it emits a soft-deprecation warning (``LHP-DEPR-004``) onto the active
-        worker scope (see :mod:`lhp.models.deprecations`).
+        worker scope (see :mod:`lhp.models.run_warnings`).
 
         REMOVE_AT_V1.0.0: Drop database_suffix support entirely.
         """

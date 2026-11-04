@@ -217,7 +217,8 @@ def _consume_generate_stream(
         multi-file write; a partial tree may remain), NOT a §1.4 gap.
 
     * **warnings** — the batch's merged + deduped worker warning records
-      (deprecations, plus sandbox rewrite warnings on a ``sandbox_plan`` run).
+      (deprecations and worker validation warnings, plus sandbox rewrite
+      warnings on a ``sandbox_plan`` run).
       The CALLER (:func:`_stream_pipeline_generation`) emits these as
       :class:`WarningEmitted` events in/after the generate phase; this body
       never emits them itself (the caller owns the shared ``(code, file)`` dedup

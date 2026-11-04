@@ -9,7 +9,7 @@ import pytest
 
 from lhp.core.processing.namespace_normalizer import normalize_namespace_fields
 from lhp.errors import LHPConfigError, codes
-from lhp.models.deprecations import collect_deprecations, drain_deprecations
+from lhp.models.run_warnings import collect_deprecations, drain_deprecations
 
 
 class TestNormalizeWriteTarget:
@@ -365,7 +365,7 @@ class TestDeprecationWarning:
     The deprecation no longer travels on the logging channel (workers run
     under a NullHandler so it would be swallowed) — it is recorded onto the
     active worker scope as a DeprecationWarningRecord (LHP-DEPR-002) via
-    ``lhp.models.deprecations.record_deprecation``. These tests open a
+    ``lhp.models.run_warnings.record_deprecation``. These tests open a
     ``collect_deprecations`` scope (the worker wrapper does this around each
     flowgroup) and assert on the drained records.
     """

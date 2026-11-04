@@ -17,7 +17,7 @@ import re
 from typing import Any, Dict
 
 from ...errors import ErrorFactory, codes
-from ...models.deprecations import record_deprecation
+from ...models.run_warnings import record_deprecation
 
 logger = logging.getLogger(__name__)
 

@@ -7,7 +7,7 @@ from typing import Any, Dict, List
 import yaml
 
 from ..errors import ErrorFactory, codes
-from ..models.deprecations import record_deprecation
+from ..models.run_warnings import record_deprecation
 from ..parsers.yaml_parser import YAMLParser
 from ..utils.spark_identifiers import backtick_quote
 from .yaml_loader import SAFE_LOADER

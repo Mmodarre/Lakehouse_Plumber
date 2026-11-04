@@ -16,7 +16,7 @@ from pathlib import Path
 import pytest
 
 from lhp.errors import codes
-from lhp.models.deprecations import collect_deprecations, drain_deprecations
+from lhp.models.run_warnings import collect_deprecations, drain_deprecations
 from lhp.parsers.schema_transform_parser import SchemaTransformParser
 
 

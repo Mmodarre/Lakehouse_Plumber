@@ -285,8 +285,8 @@ class BasePipelineExecutionService(ABC):
         stream drains cleanly.
 
         RETURNS (via ``StopIteration.value``, captured by a ``yield from``) the
-        batch's worker-attached warnings (deprecation AND sandbox
-        :data:`RunWarningRecord` members), merged + deduped by
+        batch's worker-attached warnings (deprecation, sandbox AND
+        validation :data:`RunWarningRecord` members), merged + deduped by
         ``(code, file)``, for the facade to re-emit as
         :class:`~lhp.api.WarningEmitted` events. Not delivered on the
         gate-raise path (the §1.4 raise closes the stream).
@@ -320,8 +320,8 @@ class BasePipelineExecutionService(ABC):
         completion.
 
         RETURNS (via ``StopIteration.value``, captured by a ``yield from``) the
-        batch's worker-attached warnings (deprecation AND sandbox
-        :data:`RunWarningRecord` members), merged + deduped by
+        batch's worker-attached warnings (deprecation, sandbox AND
+        validation :data:`RunWarningRecord` members), merged + deduped by
         ``(code, file)``, for the facade to re-emit as
         :class:`~lhp.api.WarningEmitted` events.
         """

@@ -9,14 +9,17 @@ from .telemetry import (
     parse_last_cli_command,
     project_names,
 )
+from .validation_warning import inject_worker_validation_warning, write_clean_project
 
 __all__ = [
     "assert_no_names_in_values",
+    "inject_worker_validation_warning",
     "last_cli_command_line",
     "parse_last_cli_command",
     "process_unwrap",
     "project_names",
     "read_generated_pipeline",
     "wrap_in_ctx",
+    "write_clean_project",
     "write_quarantine_project",
 ]
