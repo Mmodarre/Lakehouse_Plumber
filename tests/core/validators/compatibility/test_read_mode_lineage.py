@@ -14,6 +14,7 @@ from typing import Any, List, Optional
 
 import pytest
 
+from lhp.core.dependencies import effective_read_mode
 from lhp.core.processing import EnhancedSubstitutionManager
 from lhp.core.registry import ActionRegistry
 from lhp.core.validators.compatibility import ReadModeLineageValidator
@@ -534,3 +535,85 @@ def test_streaming_sql_view_feeds_a_streaming_table():
     assert _validate(producer, _st("w", "v_in")) == []
     error = _only(_validate(producer, _mv("v_in")))
     assert error.suggestions == ["Remove STREAM() from the SQL of 'transform_v_in'"]
+
+
+# ---- replace_where: a batch consumer (#346) --------------------------------
+
+
+def _replace_where(source: str, read_mode: Optional[str] = None) -> Action:
+    return _st(
+        "write_rw",
+        source,
+        read_mode=read_mode,
+        mode="replace_where",
+        replace_where_config={"replace_where": "d >= '2026-01-01'"},
+    )
+
+
+@pytest.mark.parametrize("read_mode", [None, "batch", "stream"])
+def test_batch_delta_load_feeds_replace_where_ok(read_mode: Optional[str]):
+    # The REPLACE WHERE flow always reads its source with spark.read, so a
+    # batch view matches whatever readMode says. A declared `readMode: stream`
+    # is rejected by the write validator alone, never as a second VAL-070.
+    write = _replace_where("v_in", read_mode)
+    actions = [_delta("v_in"), write]
+
+    assert effective_read_mode(write, actions, registry=ActionRegistry()) == "batch"
+    assert _validate(*actions) == []
+
+
+def test_cloudfiles_stream_feeds_replace_where_val070():
+    error = _only(_validate(_cloudfiles("v_in"), _replace_where("v_in")))
+
+    assert error.title == "Read of view 'v_in' does not match its kind"
+    assert "'write_rw' reads view 'v_in' with spark.read," in error.details
+    assert error.context["View kind"] == "stream"
+    assert error.context["Read"] == "batch (with spark.read)"
+    # cloudfiles always streams and REPLACE WHERE always reads a batch, so no
+    # readMode on either action fixes the read.
+    assert error.suggestions == ["Write 'v_in' to a table and read that table instead"]
+
+
+@pytest.mark.parametrize(
+    ("producer", "dq_fields"),
+    [
+        pytest.param(_cloudfiles("v_in"), {}, id="dqe-inherits-stream"),
+        pytest.param(
+            _delta("v_in", "stream"),
+            {
+                "mode": "quarantine",
+                "quarantine": {"dlq_table": "c.s.dlq", "source_table": "c.s.src"},
+            },
+            id="quarantine",
+        ),
+    ],
+)
+def test_data_quality_view_feeds_replace_where_val070(producer, dq_fields):
+    dq = _transform(
+        TransformType.DATA_QUALITY,
+        "v_in",
+        "v_dq",
+        expectations_file="e.yaml",
+        **dq_fields,
+    )
+
+    error = _only(_validate(producer, dq, _replace_where("v_dq")))
+
+    assert error.context["Producer"] == "transform_v_dq"
+    assert error.context["Consumer"] == "write_rw"
+    assert error.context["View kind"] == "stream"
+    assert error.context["Read"] == "batch (with spark.read)"
+
+
+def test_replace_over_batch_view_val070():
+    # REPLACE USING is the streaming sibling: the batch view replace_where
+    # accepts fails it.
+    replace = _st(
+        "write_r", "v_in", mode="replace", replace_config={"replace_using": ["id"]}
+    )
+
+    error = _only(_validate(_delta("v_in"), replace))
+
+    assert error.context["Consumer"] == "write_r"
+    assert error.context["View kind"] == "batch"
+    assert error.context["Read"] == "stream (with spark.readStream)"
