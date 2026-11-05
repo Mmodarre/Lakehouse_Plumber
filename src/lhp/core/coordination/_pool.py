@@ -81,6 +81,7 @@ from ._flowgroup_pool import (
     _PipelineProgress,
     _process_one_flowgroup,
 )
+from ._project_cross_checks import apply_project_checks
 from ._warning_merge import merge_flowgroup_warnings
 
 if TYPE_CHECKING:
@@ -403,7 +404,8 @@ def _run_flowgroup_pool_core(
 
     # Return in input pipeline order. Every pipeline is present:
     # empty ones were finalized above, non-empty ones on completion.
-    return [results_by_pipeline[p] for p in pipelines if p in results_by_pipeline]
+    results = [results_by_pipeline[p] for p in pipelines if p in results_by_pipeline]
+    return apply_project_checks(results, validation_service, worker_state.partial_run)
 
 
 def _build_validation_issue_records(

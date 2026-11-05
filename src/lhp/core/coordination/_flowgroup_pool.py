@@ -61,6 +61,7 @@ from .._interfaces import BaseCodeGenerationService, BaseFlowgroupResolutionServ
 from ..codegen.formatter import assert_generated_python_valid
 
 if TYPE_CHECKING:
+    from lhp.core.registry import ActionRegistry
     from lhp.core.sandbox import (
         SandboxTableRenames,
     )
@@ -128,11 +129,19 @@ class _FlowgroupWorkerState:
       the worker's D7 rewrite hooks. ``None`` (the default) outside sandbox
       runs — the hooks are skipped entirely. Frozen and picklable, so it
       crosses the spawn boundary on this carrier.
+    - ``action_registry`` / ``project_root`` — both modes; what the worker's
+      REPLACE WHERE fact collection reads delta read modes and ``sql_path``
+      files with (a spawned worker's own ``ActionRegistry()`` is empty). The
+      orchestrator always sets them; a state without a registry collects no
+      facts.
+    - ``partial_run`` — coordinator-side only (the workers ignore it):
+      ``True`` when the run's pipeline selection omits a discovered pipeline
+      (``--pipeline``, a sandbox profile's scope), so the project stage leaves
+      2-part reads unmatched.
 
-    ``project_config`` and ``project_root`` are deliberately absent — inputs
-    to the per-pipeline commit/test-reporting step (coordinator's job, not
-    the worker's); carrying them here would be dead weight across the spawn
-    boundary.
+    ``project_config`` is deliberately absent — an input to the per-pipeline
+    commit/test-reporting step (coordinator's job, not the worker's);
+    carrying it here would be dead weight across the spawn boundary.
     """
 
     processor: BaseFlowgroupResolutionService
@@ -145,6 +154,9 @@ class _FlowgroupWorkerState:
     # Trailing + defaulted so existing positional construction is unaffected
     # (frozen+slots tolerates a defaulted append):
     table_renames: Optional["SandboxTableRenames"] = None
+    action_registry: Optional["ActionRegistry"] = None
+    project_root: Optional[Path] = None
+    partial_run: bool = False
 
 
 # Populated once per spawned worker by :func:`_init_flowgroup_worker`.
@@ -253,6 +265,22 @@ def _process_one_flowgroup_impl(
             from lhp.core.sandbox import rewrite_flowgroup_tables
 
             resolved = rewrite_flowgroup_tables(resolved, state.table_renames)
+        # On the sandbox-rewritten flowgroup; an error fails the flowgroup.
+        # Lazy: lhp.core.dependencies imports this package.
+        from ._replace_where_facts import collect_flowgroup_facts
+
+        producer_facts, stream_read_facts = (
+            collect_flowgroup_facts(
+                resolved,
+                pipeline,
+                registry=state.action_registry,
+                substitution_mgr=substitution_mgr,
+                project_root=state.project_root,
+                table_renames=state.table_renames,
+            )
+            if state.action_registry is not None
+            else ((), ())
+        )
     except Exception as exc:
         return _to_failure(pipeline, flowgroup_name, exc, lhp_error_cls=LHPError)
 
@@ -264,6 +292,8 @@ def _process_one_flowgroup_impl(
             pipeline,
             flowgroup_name,
             resolved_flowgroup=resolved,
+            producer_facts=producer_facts,
+            stream_read_facts=stream_read_facts,
         )
 
     # Generate mode: codegen + syntax guard (no formatting, no disk writes).
@@ -324,6 +354,8 @@ def _process_one_flowgroup_impl(
         # Sandbox LHP-VAL-066 records (empty outside sandbox runs). The
         # wrapper CONCATENATES its drained deprecation records after these.
         warnings=sandbox_warnings,
+        producer_facts=producer_facts,
+        stream_read_facts=stream_read_facts,
     )
 
 

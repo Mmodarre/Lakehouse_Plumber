@@ -102,6 +102,7 @@ from lhp.errors.codes import (
     VAL_064,
     VAL_065,
     VAL_066,
+    VAL_072,
     VAL_073,
 )
 from lhp.errors.factory import ErrorFactory
@@ -488,6 +489,20 @@ def test_validation_warning_codes():
     assert VAL_073.category is ErrorCategory.VALIDATION
     assert VAL_073.code == "LHP-VAL-073"
     assert VAL_073 in ALL_CODES
+
+
+@pytest.mark.unit
+def test_replace_where_stream_read_error_code():
+    """Freeze the project-wide ERROR slot: category, rendered code, registry.
+
+    ``LHP-VAL-072`` (a streaming read of a ``mode: replace_where`` table,
+    anywhere in the project) is built by the cross-flowgroup issue builder's
+    family helper from ``codes.VAL_072.number``, so no literal raise site
+    exists for the scan to find; this pins it in the registry.
+    """
+    assert VAL_072.category is ErrorCategory.VALIDATION
+    assert VAL_072.code == "LHP-VAL-072"
+    assert VAL_072 in ALL_CODES
 
 
 @pytest.mark.unit

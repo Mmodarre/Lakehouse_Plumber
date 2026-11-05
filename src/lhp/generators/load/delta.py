@@ -100,7 +100,9 @@ class DeltaLoadGenerator(BaseActionGenerator):
             f"Delta load '{action.target}': table_ref='{table_ref}', readMode='{readMode}', options_count={len(reader_options)}"
         )
 
-        has_cdf = reader_options.get("readChangeFeed") in ("true", "True", True)
+        from ...core.dependencies import is_change_feed_read  # lazy: heavy package
+
+        has_cdf = is_change_feed_read(reader_options)
         has_skip = reader_options.get("skipChangeCommits") in ("true", "True", True)
         has_starting_version = "startingVersion" in reader_options
         has_starting_timestamp = "startingTimestamp" in reader_options

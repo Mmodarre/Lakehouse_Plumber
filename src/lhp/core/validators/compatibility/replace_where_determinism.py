@@ -25,7 +25,7 @@ from typing import (
 )
 
 from lhp.errors import codes
-from lhp.models import Action, ActionType, FlowGroup, ProjectConfig, WriteTargetType
+from lhp.models import Action, FlowGroup, ProjectConfig
 from lhp.models.run_warnings import record_validation_warning
 
 if TYPE_CHECKING:
@@ -96,12 +96,13 @@ class ReplaceWhereDeterminismValidator:
         :class:`OperationalMetadataExpressionValidator`, which runs first and
         has already rejected any expression that fails to resolve.
         """
-        writes = [a for a in flowgroup.actions if _is_replace_where_write(a)]
-        if not writes:
-            return
         # Lazy: importing lhp.core.dependencies at module level closes a cold
         # import cycle back into this package (see config_validator.py).
-        from lhp.core.dependencies import extract_action_sources
+        from lhp.core.dependencies import extract_action_sources, is_replace_where_write
+
+        writes = [a for a in flowgroup.actions if is_replace_where_write(a)]
+        if not writes:
+            return
 
         producers = {a.target: a for a in flowgroup.actions if a.target}
         resolved: Dict[str, Mapping[str, str]] = {}
@@ -129,16 +130,6 @@ class ReplaceWhereDeterminismValidator:
                 f"non-deterministic metadata column(s) upstream of replace_where"
             )
             record_validation_warning(codes.VAL_073, message=_message(findings))
-
-
-def _is_replace_where_write(action: Action) -> bool:
-    write_target = action.write_target
-    return (
-        action.type == ActionType.WRITE
-        and isinstance(write_target, dict)
-        and write_target.get("type") == WriteTargetType.STREAMING_TABLE
-        and write_target.get("mode") == "replace_where"
-    )
 
 
 def _upstream_actions(

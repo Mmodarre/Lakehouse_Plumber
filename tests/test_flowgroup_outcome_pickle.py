@@ -37,6 +37,8 @@ from lhp.models.processing import (
     CopiedModuleRecord,
     DeprecationWarningRecord,
     FlowgroupOutcome,
+    StreamReadFact,
+    TableProducerFact,
     ValidationWarningRecord,
 )
 
@@ -506,6 +508,73 @@ class TestValidationWarningRecord:
         from lhp.models.processing import RunWarningRecord
 
         assert ValidationWarningRecord in get_args(RunWarningRecord)
+
+
+class TestReplaceWhereFacts:
+    """The VAL-072 facts (#346) ride the outcome across the spawn boundary and
+    survive the coordinator's resolved-flowgroup release."""
+
+    _PRODUCER = TableProducerFact(
+        pipeline="pipe_a",
+        flowgroup="fg_a",
+        action="write_rw",
+        table="c.s.rw",
+        is_replace_where=True,
+    )
+    _READERS = (
+        StreamReadFact(
+            pipeline="pipe_a",
+            flowgroup="fg_a",
+            action="load_rw",
+            table_ref="c.s.rw",
+            via="delta",
+        ),
+        StreamReadFact(
+            pipeline="pipe_a",
+            flowgroup="fg_a",
+            action="transform_x",
+            table_ref=None,
+            via="sql",
+        ),
+    )
+
+    def _outcome(self) -> FlowgroupOutcome:
+        return FlowgroupOutcome.ok(
+            "pipe_a",
+            "fg_a",
+            resolved_flowgroup=_make_flowgroup(),
+            producer_facts=(self._PRODUCER,),
+            stream_read_facts=self._READERS,
+        )
+
+    def test_facts_round_trip_by_value(self):
+        outcome = self._outcome()
+
+        restored = _round_trip(outcome)
+
+        assert restored == outcome
+        assert restored.producer_facts == (self._PRODUCER,)
+        assert restored.stream_read_facts == self._READERS
+
+    def test_facts_survive_the_resolved_flowgroup_release(self):
+        released = replace(self._outcome(), resolved_flowgroup=None)
+
+        assert released.resolved_flowgroup is None
+        assert released.producer_facts == (self._PRODUCER,)
+        assert released.stream_read_facts == self._READERS
+
+    def test_facts_default_to_empty(self):
+        ok = FlowgroupOutcome.ok("pipe_a", "fg_a")
+        failed = FlowgroupOutcome.failure("pipe_a", "fg_a", errors=("x",))
+
+        assert ok.producer_facts == () and ok.stream_read_facts == ()
+        assert failed.producer_facts == () and failed.stream_read_facts == ()
+
+    def test_facts_are_frozen(self):
+        with pytest.raises(FrozenInstanceError):
+            self._PRODUCER.table = "other"
+        with pytest.raises(FrozenInstanceError):
+            self._READERS[0].table_ref = "other"
 
 
 if __name__ == "__main__":  # pragma: no cover

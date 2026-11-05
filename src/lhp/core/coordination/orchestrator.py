@@ -449,6 +449,7 @@ class ActionOrchestrator:
             substitution_managers,
             output_dirs,
             discovery_errors,
+            partial_run,
         ) = build_flowgroup_worklist(
             self,
             pipeline_fields=effective_fields,
@@ -471,6 +472,7 @@ class ActionOrchestrator:
                 table_renames=(
                     sandbox_plan.renames if sandbox_plan is not None else None
                 ),
+                partial_run=partial_run,
             ),
         )
         # The execution service writes UNFORMATTED source and does not format:
@@ -593,6 +595,7 @@ class ActionOrchestrator:
         env: str,
         include_tests: bool,
         table_renames: Optional["SandboxTableRenames"] = None,
+        partial_run: bool = False,
     ) -> _FlowgroupWorkerState:
         """Build the unified worker state for the flat engine (both modes).
 
@@ -609,7 +612,8 @@ class ActionOrchestrator:
         stream or the plan path — after :meth:`generate_pipelines` drains.
         ``table_renames`` is the ``--sandbox`` rename set (``None`` outside
         sandbox runs); it rides the state across the spawn boundary so each
-        worker can apply the D7 rewrite hooks.
+        worker can apply the D7 rewrite hooks. ``partial_run`` (from the
+        worklist builder) tells the project stage the run omits pipelines.
         """
         return _FlowgroupWorkerState(
             processor=self.processing,
@@ -619,6 +623,9 @@ class ActionOrchestrator:
             pipeline_output_dirs={},
             environment=env,
             table_renames=table_renames,
+            action_registry=self.action_registry,
+            project_root=self.project_root,
+            partial_run=partial_run,
         )
 
     def validate_pipelines(
@@ -685,6 +692,7 @@ class ActionOrchestrator:
             substitution_managers,
             output_dirs,
             discovery_errors,
+            partial_run,
         ) = build_flowgroup_worklist(
             self,
             pipeline_fields=effective_fields,
@@ -706,6 +714,7 @@ class ActionOrchestrator:
                 table_renames=(
                     sandbox_plan.renames if sandbox_plan is not None else None
                 ),
+                partial_run=partial_run,
             ),
         )
         return (
@@ -724,6 +733,7 @@ class ActionOrchestrator:
         env: str,
         include_tests: bool,
         table_renames: Optional["SandboxTableRenames"] = None,
+        partial_run: bool = False,
     ) -> _FlowgroupWorkerState:
         """Build the unified worker state for the flat-engine validate path.
 
@@ -733,5 +743,5 @@ class ActionOrchestrator:
         rather than duplicate the constructor (constitution §4.1).
         """
         return self._build_generate_worker_state(
-            env, include_tests, table_renames=table_renames
+            env, include_tests, table_renames=table_renames, partial_run=partial_run
         )
