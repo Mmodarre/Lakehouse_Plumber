@@ -251,14 +251,16 @@ def _expectation_sources(
     project_root: Path,
     fused: Optional["FusedDq"] = None,
 ) -> List[Expectations]:
-    """The view's own file, then the fused data_quality action's rules."""
+    """The view's own file, or else the fused data_quality action's rules."""
     sources: List[Expectations] = []
     expectations_file = target_config.get("expectations_file")
     if expectations_file:
         # WriteActionValidator has already checked the file and its rules.
         sources.append(load_expectations_file(expectations_file, project_root))
     if fused is not None:
-        # The data_quality action's validator has checked its rules, and
-        # MvExpectationsValidator their names against the view's.
+        # Fusion needs a view with no expectations_file of its own, so the
+        # file above and this action are never both sources. The action's
+        # validator has checked its rules, and MvExpectationsValidator their
+        # names among themselves.
         sources.append(load_action_expectations(fused.dq_action, project_root))
     return sources
