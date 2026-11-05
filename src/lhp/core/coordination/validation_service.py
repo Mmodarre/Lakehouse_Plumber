@@ -11,7 +11,8 @@ This class is the sole composer of the cross-flowgroup validators
 (:class:`TableCreationValidator`,
 :class:`CdcFanInCompatibilityValidator`,
 :class:`ReplaceFanInCompatibilityValidator`,
-:class:`SharedDlqSourceTableValidator`). :class:`ConfigValidator` sees
+:class:`SharedDlqSourceTableValidator`) and of the project-wide
+:class:`ReplaceWhereStreamReadValidator`. :class:`ConfigValidator` sees
 one flowgroup at a time and therefore does not — and must not — delegate
 to them.
 
@@ -28,7 +29,7 @@ workers can carry an instance across the ``spawn`` boundary.
 """
 
 from pathlib import Path
-from typing import List, Optional, Sequence
+from typing import Dict, List, Optional, Sequence
 
 from lhp.core._interfaces import (
     BaseValidationService,
@@ -39,6 +40,7 @@ from lhp.core.validators import (
     ConfigValidator,
     LoadActionValidator,
     ReplaceFanInCompatibilityValidator,
+    ReplaceWhereStreamReadValidator,
     SharedDlqSourceTableValidator,
     TableCreationValidator,
     TestActionValidator,
@@ -47,6 +49,7 @@ from lhp.core.validators import (
 )
 from lhp.errors import ErrorFactory, LHPError, codes
 from lhp.models import FlowGroup, ProjectConfig
+from lhp.models.processing import StreamReadFact, TableProducerFact
 
 
 class ValidationService(BaseValidationService):
@@ -117,6 +120,7 @@ class ValidationService(BaseValidationService):
         self._fanin_validator = CdcFanInCompatibilityValidator()
         self._replace_fanin_validator = ReplaceFanInCompatibilityValidator()
         self._shared_dlq_validator = SharedDlqSourceTableValidator()
+        self._replace_where_stream_validator = ReplaceWhereStreamReadValidator()
 
     def build_duplicate_issue(
         self, flowgroups: Sequence[FlowGroup]
@@ -211,3 +215,29 @@ class ValidationService(BaseValidationService):
             cdc_fanin_errors=cdc_errors,
             shared_dlq_errors=shared_dlq_errors,
         )
+
+    def validate_project_stream_reads(
+        self,
+        producers: Sequence[TableProducerFact],
+        readers: Sequence[StreamReadFact],
+        *,
+        match_two_part: bool = True,
+    ) -> Dict[str, CrossFlowgroupCheckResult]:
+        """Check every stream read in the run against every produced table.
+
+        The project-wide counterpart of :meth:`validate_cross_flowgroup`, run
+        once over the facts all workers recorded: a streaming read of a
+        ``mode: replace_where`` table, from any pipeline, is an error. Returns
+        one result per reading pipeline with findings, holding only
+        ``replace_where_stream_errors`` (``LHP-VAL-072`` once built).
+        ``match_two_part=False`` (a run over only some pipelines) leaves
+        2-part reader refs unmatched, since their project-wide uniqueness
+        cannot be assessed.
+        """
+        errors = self._replace_where_stream_validator.validate(
+            producers, readers, match_two_part=match_two_part
+        )
+        return {
+            pipeline: CrossFlowgroupCheckResult(replace_where_stream_errors=messages)
+            for pipeline, messages in errors.items()
+        }

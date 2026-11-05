@@ -127,6 +127,14 @@ VAL_070 = ErrorCode(ErrorCategory.VALIDATION, "070")
 # validator) and for a repeat between that file and the rules of a data_quality
 # action fused onto the view (MvExpectationsValidator).
 VAL_071 = ErrorCode(ErrorCategory.VALIDATION, "071")
+# VAL_072: a streaming read, anywhere in the project, of a ``mode: replace_where``
+# streaming table (a delta load whose effective read is a stream, or a SQL
+# ``STREAM(<table>)``), even with ``skipChangeCommits``; a change-feed read is
+# exempt. Each refresh rewrites rows, which a streaming read cannot follow.
+# Raised by the project stage (ReplaceWhereStreamReadValidator via
+# ValidationService.validate_project_stream_reads), one aggregated error per
+# reading pipeline.
+VAL_072 = ErrorCode(ErrorCategory.VALIDATION, "072")
 # VAL_073: WARNING code — non-deterministic operational metadata upstream of a
 # ``mode: replace_where`` write disables incremental refresh, so every refresh
 # rewrites the whole REPLACE WHERE window; recorded by a worker-side validator
@@ -373,6 +381,7 @@ ALL_CODES: tuple[ErrorCode, ...] = (
     VAL_069,
     VAL_070,
     VAL_071,
+    VAL_072,
     VAL_073,
     VAL_902,
     VAL_DUPFG,
@@ -597,6 +606,7 @@ __all__ = [
     "VAL_069",
     "VAL_070",
     "VAL_071",
+    "VAL_072",
     "VAL_073",
     "VAL_902",
     "VAL_DUPFG",

@@ -1,14 +1,24 @@
 """Public surface of the dependency-analysis sub-package."""
 
+from ._canonical import split_canonical_parts
+from ._change_feed import is_change_feed_read
 from ._combined_writes import combined_write_lead, write_table_key
-from ._producers import build_producer_indexes, match_produced_table
+from ._producers import (
+    build_producer_indexes,
+    index_produced_tables,
+    is_replace_where_write,
+    match_produced_table,
+    produced_tables,
+)
 from ._read_modes import (
     ProducerKind,
     effective_read_mode,
     producer_kind,
     sql_source_reads,
 )
+from ._sql_bodies import rendered_sql
 from ._sql_stream_reads import sql_reads_stream, sql_table_reads
+from ._sql_stream_scan import scan_stream_reads
 from ._table_sites import PythonTableSite, PythonTableSitesResult, SourceSpan
 from .analyzer import DependencyAnalyzer
 from .builder import DependencyGraphBuilder
@@ -37,8 +47,15 @@ __all__ = [
     "combined_write_lead",
     "effective_read_mode",
     "extract_action_sources",
+    "index_produced_tables",
+    "is_change_feed_read",
+    "is_replace_where_write",
     "match_produced_table",
+    "produced_tables",
     "producer_kind",
+    "rendered_sql",
+    "scan_stream_reads",
+    "split_canonical_parts",
     "sql_reads_stream",
     "sql_source_reads",
     "sql_table_reads",

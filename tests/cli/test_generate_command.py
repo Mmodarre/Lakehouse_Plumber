@@ -27,6 +27,7 @@ from conftest import strip_ansi
 from lhp.cli.commands.generate_command import generate
 from tests.helpers import (
     assert_no_names_in_values,
+    inject_replace_where_stream_reader,
     inject_worker_validation_warning,
     last_cli_command_line,
     parse_last_cli_command,
@@ -116,6 +117,20 @@ def test_shared_dlq_source_table_conflict_blocks_generate(
     assert result.exit_code == 1, result.stderr
     assert "LHP-VAL-069" in strip_ansi(result.stderr)
     assert not list((tmp_path / "generated").rglob("*.py"))
+
+
+def test_streaming_read_of_replace_where_table_blocks_generate(
+    project_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A streaming read of a REPLACE WHERE table written by another pipeline
+    stops generate with LHP-VAL-072 before any file is written."""
+    inject_replace_where_stream_reader(project_dir)
+    monkeypatch.chdir(project_dir)
+    result = CliRunner().invoke(generate, ["-e", "dev", "--no-bundle", "--no-progress"])
+
+    assert result.exit_code == 1, result.stderr
+    assert "LHP-VAL-072" in strip_ansi(result.stderr)
+    assert not list((project_dir / "generated").rglob("*.py"))
 
 
 def test_strict_escalates_worker_validation_warning_to_failure(

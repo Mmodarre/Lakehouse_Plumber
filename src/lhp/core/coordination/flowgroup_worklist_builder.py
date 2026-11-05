@@ -11,7 +11,7 @@ The engine's input shape is a *flat* worklist of
 managers and output dirs. This builder produces exactly that, as four
 plain maps returned as a tuple — NOT a new carrier DTO (constitution
 §3.6: no needless carrier; the four maps are passed downstream as
-separate kwargs). It is the flat analogue of
+separate kwargs) — plus whether the selection is partial. It is the flat analogue of
 :func:`work_unit_builder.build_validate_work_units`: it reuses the same
 ``ActionOrchestrator``-owned discovery / grouping primitives
 (``discover_all_flowgroups``, ``discover_flowgroups_by_pipeline_field``,
@@ -60,12 +60,13 @@ def build_flowgroup_worklist(
     Dict[str, "EnhancedSubstitutionManager"],
     Dict[str, Optional[Path]],
     Dict[str, str],
+    bool,
 ]:
     """Discover per-pipeline slices; emit the flat engine's four input maps.
 
     The flat analogue of
     :func:`work_unit_builder.build_validate_work_units`: same discovery /
-    grouping logic, flat output. Returns a 4-tuple of dicts, each keyed by
+    grouping logic, flat output. Returns four dicts, each keyed by
     pipeline field in INPUT order (Python ``dict`` preserves insertion
     order, so the engine — which iterates ``flowgroups_by_pipeline.keys()``
     — observes pipelines in ``pipeline_fields`` order, preserving the
@@ -93,6 +94,10 @@ def build_flowgroup_worklist(
        validate consumer
        (:func:`._pool.assemble_validate_outcomes`) short-circuits
        these to a single-error :class:`PipelineValidationOutcome`.
+    5. ``partial_run``: ``True`` when ``pipeline_fields`` omits a pipeline
+       of the discovered flowgroups (``--pipeline``, a sandbox profile's
+       scope). The project-wide REPLACE WHERE check then sees only the
+       selected facts and leaves 2-part reads unmatched.
 
     Args:
         orchestrator: The owning :class:`ActionOrchestrator` (required —
@@ -109,8 +114,8 @@ def build_flowgroup_worklist(
             fresh ``discover_all_flowgroups`` here.
 
     Returns:
-        The 4-tuple ``(flowgroups_by_pipeline, substitution_managers,
-        output_dirs, discovery_errors)`` described above.
+        The 5-tuple ``(flowgroups_by_pipeline, substitution_managers,
+        output_dirs, discovery_errors, partial_run)`` described above.
     """
     if pre_discovered_all_flowgroups is not None:
         all_flowgroups = pre_discovered_all_flowgroups
@@ -160,9 +165,11 @@ def build_flowgroup_worklist(
         # the facade re-emits as ``WarningEmitted``) — not duplicated here.
         substitution_managers[pipeline_field] = sub_mgr
 
+    partial_run = not {fg.pipeline for fg in all_flowgroups} <= set(pipeline_fields)
     return (
         flowgroups_by_pipeline,
         substitution_managers,
         output_dirs,
         discovery_errors,
+        partial_run,
     )

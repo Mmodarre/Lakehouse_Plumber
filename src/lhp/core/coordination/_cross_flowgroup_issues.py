@@ -7,8 +7,8 @@ raise path (:class:`~lhp.core.coordination.processor.PipelineProcessor`)
 and the ``validate`` fold path
 (:class:`~lhp.core.coordination.executor`) call
 :func:`build_cross_flowgroup_issues`; neither hand-reads the
-``table_creation_errors`` / ``cdc_fanin_errors`` / ``shared_dlq_errors``
-fields again. The two
+``table_creation_errors`` / ``cdc_fanin_errors`` / ``shared_dlq_errors`` /
+``replace_where_stream_errors`` fields again. The two
 paths differ only in how they *surface* the resulting errors (raise the
 first vs. fold them all into an issue list), never in how the errors are
 *constructed*. This is the §9.24 contract: no duplicated validation
@@ -18,7 +18,8 @@ One aggregated :class:`LHPValidationError` per non-empty family — never
 one error per raw string. Families are emitted in precedence order:
 table-creation (``LHP-VAL-009``) first, then CDC fan-in
 (``LHP-VAL-010``), then shared-DLQ ``source_table`` conflicts
-(``LHP-VAL-069``).
+(``LHP-VAL-069``), then streaming reads of REPLACE WHERE tables
+(``LHP-VAL-072``, filled by the project stage for each reading pipeline).
 
 This is a pure function (§3.7): no I/O, no logging, deterministic.
 """
@@ -51,6 +52,15 @@ _SHARED_DLQ_SUGGESTIONS: List[str] = [
     "source_table, for example the table its write action targets, or a "
     "per-source name when several actions write the same table",
     "Or point the actions at different dlq_table values",
+    "Run 'lhp validate' for detailed diagnostics",
+]
+
+
+_REPLACE_WHERE_STREAM_SUGGESTIONS: List[str] = [
+    "Read a REPLACE WHERE table in batch (readMode: batch, or no STREAM() in "
+    'SQL), or stream its change feed with options.readChangeFeed: "true"',
+    "skipChangeCommits does not make the read safe: it silently drops the "
+    "rows each refresh rewrites",
     "Run 'lhp validate' for detailed diagnostics",
 ]
 
@@ -88,6 +98,7 @@ def build_cross_flowgroup_issues(
     1. ``table_creation_errors`` -> ``LHP-VAL-009``
     2. ``cdc_fanin_errors`` -> ``LHP-VAL-010``
     3. ``shared_dlq_errors`` -> ``LHP-VAL-069``
+    4. ``replace_where_stream_errors`` -> ``LHP-VAL-072``
 
     All families empty returns an empty tuple. Callers decide how to
     surface the result (raise the first vs. fold all into an issue list).
@@ -123,6 +134,17 @@ def build_cross_flowgroup_issues(
                 title="Quarantine DLQ source_table conflict",
                 errors=result.shared_dlq_errors,
                 suggestions=_SHARED_DLQ_SUGGESTIONS,
+                pipeline=pipeline,
+            )
+        )
+
+    if result.replace_where_stream_errors:
+        issues.append(
+            _build_family_error(
+                code_number=codes.VAL_072.number,
+                title="Streaming read of a REPLACE WHERE table",
+                errors=result.replace_where_stream_errors,
+                suggestions=_REPLACE_WHERE_STREAM_SUGGESTIONS,
                 pipeline=pipeline,
             )
         )
