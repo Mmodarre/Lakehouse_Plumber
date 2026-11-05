@@ -4,10 +4,10 @@ repos:
     hooks:
       - id: trailing-whitespace
         files: ^(src|tests)/
-        exclude: ^(tests/e2e/fixtures/|tests/fixtures/import_manager/|tests/baselines/|tests/performance/baselines/)
+        exclude: ^(tests/e2e/fixtures/|tests/fixtures/import_manager/|tests/baselines/|tests/performance/baselines/|src/lhp/templates/)
       - id: end-of-file-fixer
         files: ^(src|tests)/
-        exclude: ^(tests/e2e/fixtures/|tests/fixtures/import_manager/|tests/baselines/|tests/performance/baselines/)
+        exclude: ^(tests/e2e/fixtures/|tests/fixtures/import_manager/|tests/baselines/|tests/performance/baselines/|src/lhp/templates/)
       - id: check-yaml
       - id: check-added-large-files
         args: ['--maxkb=500']

@@ -9,27 +9,18 @@ from ...errors import LHPError
 from ._base import ValidationError
 from .field.config_field import ConfigFieldValidator
 
-# Distinct from the sibling :class:`.field.config_field.ConfigFieldValidator`,
-# which performs strict per-field schema validation on individual
-# configuration objects. ``ConfigValidator`` is the per-flowgroup aggregator
-# that composes the action validators (LoadActionValidator,
-# TransformActionValidator, WriteActionValidator, TestActionValidator) to
-# validate one flowgroup's actions end to end. Cross-flowgroup validators
-# (TableCreationValidator, CdcFanInCompatibilityValidator) are composed
-# exclusively by :class:`...coordination.validation_service.ValidationService`
-# where the full flowgroup set is available (§9.24).
+# Distinct from the sibling :class:`.field.config_field.ConfigFieldValidator`
+# (strict per-field schema validation). ``ConfigValidator`` is the
+# per-flowgroup aggregator composing the action validators. Cross-flowgroup
+# validators live in ``coordination.validation_service`` (§9.24).
 
 
-# NOTE: ``ActionRegistry`` and ``DependencyResolver`` are imported lazily
-# inside ``__init__`` (see below). The submodule path
-# ``lhp.core.dependencies.dependency_resolver`` must NOT be collapsed to
-# the package-level ``..dependencies`` import. Module-level imports here
-# would close cycles via:
-#   - validators -> registry -> generators.load -> validators.field.kafka_options
-#   - config_validator -> dependencies/__init__ -> dependencies.service ->
-#     coordination/__init__ -> coordination.validation_service ->
-#     config_validator
-# under cold imports.
+# NOTE: ``ActionRegistry`` and ``DependencyResolver`` are imported lazily in
+# ``__init__``; keep the submodule path ``..dependencies.dependency_resolver``
+# (not the package ``..dependencies``). Module-level imports would close cold
+# import cycles via validators -> registry -> generators.load ->
+# validators.field.kafka_options, and via config_validator ->
+# dependencies.service -> coordination.validation_service -> config_validator.
 
 logger = logging.getLogger(__name__)
 
@@ -71,9 +62,8 @@ class ConfigValidator:
         self.test_validator = TestActionValidator(
             self.action_registry, self.field_validator
         )
-        # Lazy for the cycle named in the NOTE above: the compatibility package
-        # reads actions through ``lhp.core.dependencies``, whose package init
-        # loads a service that imports this module.
+        # Lazy (cycle in the NOTE above): compatibility reads actions through
+        # ``lhp.core.dependencies``, whose init loads a service importing this.
         from .compatibility import MvExpectationsValidator, ReadModeLineageValidator
 
         self.read_mode_lineage_validator = ReadModeLineageValidator(
@@ -138,24 +128,18 @@ class ConfigValidator:
         flowgroup: FlowGroup,
         substitution_mgr: Optional["EnhancedSubstitutionManager"] = None,
     ) -> List[ValidationError]:
-        """The checks that read the flowgroup's SQL bodies: the read-mode
-        lineage (``LHP-VAL-070``) and the names of a fused data_quality action
-        (``LHP-VAL-071``).
+        """The checks that read the flowgroup's SQL bodies: read-mode lineage
+        (``LHP-VAL-070``) and fused data_quality names (``LHP-VAL-071``).
 
         Run after :meth:`validate_flowgroup`, with the environment's
-        ``substitution_mgr`` so a ``sql_path`` file is read as code generation
-        reads it and both commands reach the same fusion decision.
-        """
+        ``substitution_mgr``, so a ``sql_path`` file is read as code generation
+        reads it and both commands reach the same fusion decision."""
         if not flowgroup.actions:
             return []
-        errors: List[ValidationError] = []
-        errors.extend(
-            self.read_mode_lineage_validator.validate(flowgroup, substitution_mgr)
-        )
-        errors.extend(
-            self.mv_expectations_validator.validate(flowgroup, substitution_mgr)
-        )
-        return errors
+        return [
+            *self.read_mode_lineage_validator.validate(flowgroup, substitution_mgr),
+            *self.mv_expectations_validator.validate(flowgroup, substitution_mgr),
+        ]
 
     def validate_action(self, action: Action, index: int) -> List[ValidationError]:
         errors: List[ValidationError] = []
