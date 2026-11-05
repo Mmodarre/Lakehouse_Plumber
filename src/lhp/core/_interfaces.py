@@ -47,7 +47,9 @@ from .processing.substitution import EnhancedSubstitutionManager as Substitution
 class CrossFlowgroupCheckResult:
     """Categorised cross-flowgroup compatibility errors.
 
-    Returned by :meth:`BaseValidationService.validate_cross_flowgroup`.
+    Returned by :meth:`BaseValidationService.validate_cross_flowgroup`, and
+    per reading pipeline by ``ValidationService.validate_project_stream_reads``
+    (which fills only ``replace_where_stream_errors``).
     Categories are preserved (rather than flattened into
     :class:`ValidationIssueView`) so callers — notably the per-pipeline
     worker in :class:`PipelineProcessor` — can re-raise them as
@@ -61,6 +63,7 @@ class CrossFlowgroupCheckResult:
     table_creation_errors: List[str] = field(default_factory=list)
     cdc_fanin_errors: List[str] = field(default_factory=list)
     shared_dlq_errors: List[str] = field(default_factory=list)
+    replace_where_stream_errors: List[str] = field(default_factory=list)
 
 
 if TYPE_CHECKING:

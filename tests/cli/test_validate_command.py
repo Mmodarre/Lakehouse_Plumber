@@ -26,7 +26,13 @@ from conftest import strip_ansi
 
 from lhp.cli.commands.validate_command import validate_command
 from tests.helpers import (
+    OTHER_CATALOG_PIPELINE_FILE,
+    RW_READER_MESSAGE,
+    RW_READER_PIPELINE,
+    TWO_PART_PIPELINE,
     assert_no_names_in_values,
+    inject_replace_where_stream_reader,
+    inject_two_part_stream_readers,
     inject_worker_validation_warning,
     last_cli_command_line,
     parse_last_cli_command,
@@ -225,6 +231,66 @@ def test_shared_dlq_source_table_conflict_in_one_pipeline_reports_val_069(
     assert "orders_eu.dq_orders_eu" in err
     assert "orders_us.dq_orders_us" in err
     assert "c.s.orders_dlq" in err
+
+
+def test_streaming_read_of_replace_where_table_in_another_pipeline_reports_val_072(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A delta load in one pipeline streams (with skipChangeCommits) from a
+    REPLACE WHERE table another pipeline writes: validate fails with
+    LHP-VAL-072 on the reading pipeline. The read is found in a spawned worker,
+    so this also proves the worker reads the delta load's mode through the
+    coordinator's populated generator registry."""
+    project = tmp_path / "testing_project"
+    shutil.copytree(FIXTURE_PROJECT, project)
+    inject_replace_where_stream_reader(project)
+    monkeypatch.chdir(project)
+
+    result = CliRunner().invoke(
+        validate_command, ["--env", "dev", "--no-bundle", "--show-details"]
+    )
+
+    assert result.exit_code == 1, result.stderr
+    err = " ".join(strip_ansi(result.stderr).split())
+    assert "LHP-VAL-072" in err
+    assert RW_READER_MESSAGE in err
+    assert f"{RW_READER_PIPELINE} LHP-VAL-072" in err
+    # The fixture's Kafka SQL transform reads ``$source``, not a table.
+    assert "kafka_sample_pipeline LHP-VAL-072" not in err
+
+
+def test_two_part_stream_read_is_left_unmatched_in_a_filtered_run(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """``edw_silver.orders_rw_2p`` is also written in another catalog by another
+    pipeline. With every pipeline the 2-part read is ambiguous; with ``-p`` the
+    other pipeline is not processed, so the run leaves 2-part reads unmatched
+    rather than mistake the name for unique. The 3-part read is flagged in both
+    runs; once the other catalog's writer is gone, a full run flags both."""
+    project = tmp_path / "testing_project"
+    shutil.copytree(FIXTURE_PROJECT, project)
+    inject_two_part_stream_readers(project)
+    monkeypatch.chdir(project)
+    args = ["--env", "dev", "--no-bundle", "--show-details"]
+    three_part = (
+        "rw_2p_gold.orders_2p.stream_three_part streams from "
+        "'acme_edw_dev.edw_silver.orders_rw_2p'"
+    )
+    two_part = (
+        "rw_2p_gold.orders_2p.stream_two_part streams from 'edw_silver.orders_rw_2p'"
+    )
+
+    full = CliRunner().invoke(validate_command, args)
+    filtered = CliRunner().invoke(validate_command, [*args, "-p", TWO_PART_PIPELINE])
+    (project / OTHER_CATALOG_PIPELINE_FILE).unlink()
+    unique = CliRunner().invoke(validate_command, args)
+
+    for result in (full, filtered, unique):
+        assert result.exit_code == 1, result.stderr
+        assert three_part in " ".join(strip_ansi(result.stderr).split())
+    assert two_part not in " ".join(strip_ansi(full.stderr).split())
+    assert two_part not in " ".join(strip_ansi(filtered.stderr).split())
+    assert two_part in " ".join(strip_ansi(unique.stderr).split())
 
 
 def test_shared_dlq_source_table_across_pipelines_is_not_checked(

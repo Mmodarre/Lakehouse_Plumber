@@ -24,12 +24,18 @@ writes:
   no registered producer and every downstream read of it was wrongly external.
 - kafka / custom / foreachbatch sinks have no table destination -> NO producer
   (they are genuine terminal/external sinks).
+
+:func:`produced_tables` is that per-action rule and :func:`index_produced_tables`
+builds the indexes from ``(table, action_id)`` pairs, so a check over facts
+collected per flowgroup (the REPLACE WHERE stream-read check) indexes exactly
+as dependency analysis and the sandbox do. :func:`is_replace_where_write` names
+the one producer kind whose rows every refresh rewrites.
 """
 
 from collections import defaultdict
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 
-from lhp.models import ActionType, FlowGroup
+from lhp.models import Action, ActionType, FlowGroup, WriteTargetType
 
 from ._canonical import canonicalize_table_ref, split_canonical_parts
 
@@ -47,35 +53,57 @@ def build_producer_indexes(
         A ``(table_producers, table_short_to_catalogs)`` pair (see the module
         docstring for the shape of each index).
     """
+    return index_produced_tables(
+        (table, f"{flowgroup.pipeline}.{flowgroup.flowgroup}.{action.name}")
+        for flowgroup in flowgroups
+        for action in flowgroup.actions
+        for table in produced_tables(action)
+    )
+
+
+def index_produced_tables(
+    entries: Iterable[Tuple[str, str]],
+) -> Tuple[Dict[str, List[str]], Dict[str, Dict[str, List[str]]]]:
+    """Build the canonical producer indexes from ``(table, action_id)`` pairs.
+
+    The facts-based form of :func:`build_producer_indexes`, which delegates
+    here: each ``table`` is registered for its ``action_id`` in entry order.
+    """
     table_producers: Dict[str, List[str]] = defaultdict(list)
     table_short_to_catalogs: Dict[str, Dict[str, List[str]]] = defaultdict(dict)
-
-    for flowgroup in flowgroups:
-        for action in flowgroup.actions:
-            if action.type != ActionType.WRITE or not action.write_target:
-                continue
-            action_id = f"{flowgroup.pipeline}.{flowgroup.flowgroup}.{action.name}"
-            wt = _write_target_as_dict(action.write_target)
-
-            catalog, schema, table = _read_write_target(wt)
-            if catalog and schema and table:
-                _register_table_key(
-                    f"{catalog}.{schema}.{table}",
-                    action_id,
-                    table_producers,
-                    table_short_to_catalogs,
-                )
-
-            sink_ref = _delta_sink_table(wt)
-            if sink_ref:
-                _register_table_key(
-                    sink_ref,
-                    action_id,
-                    table_producers,
-                    table_short_to_catalogs,
-                )
-
+    for table, action_id in entries:
+        _register_table_key(table, action_id, table_producers, table_short_to_catalogs)
     return table_producers, table_short_to_catalogs
+
+
+def produced_tables(action: Action) -> Tuple[str, ...]:
+    """The tables a write action produces, as written (see the module docstring).
+
+    A streaming-table or materialized-view ``catalog.schema.table`` and a
+    delta sink's ``options.tableName``; ``()`` for any other action.
+    """
+    if action.type != ActionType.WRITE or not action.write_target:
+        return ()
+    wt = _write_target_as_dict(action.write_target)
+    tables: List[str] = []
+    catalog, schema, table = _read_write_target(wt)
+    if catalog and schema and table:
+        tables.append(f"{catalog}.{schema}.{table}")
+    sink_ref = _delta_sink_table(wt)
+    if sink_ref:
+        tables.append(sink_ref)
+    return tuple(tables)
+
+
+def is_replace_where_write(action: Action) -> bool:
+    """Whether ``action`` is a ``mode: replace_where`` streaming-table write."""
+    if action.type != ActionType.WRITE or not action.write_target:
+        return False
+    wt = _write_target_as_dict(action.write_target)
+    return (
+        wt.get("type") == WriteTargetType.STREAMING_TABLE
+        and wt.get("mode") == "replace_where"
+    )
 
 
 def _write_target_as_dict(write_target: Any) -> Dict[str, Any]:

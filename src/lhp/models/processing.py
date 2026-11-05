@@ -131,6 +131,41 @@ class ValidationWarningRecord:
     flowgroup: Optional[str]
 
 
+@dataclass(frozen=True, slots=True)
+class TableProducerFact:
+    """One table a write action produces, recorded by the worker (#346).
+
+    ``table`` is the destination as the resolved flowgroup spells it; matching
+    canonicalizes it. ``is_replace_where`` marks a ``mode: replace_where``
+    streaming-table write. Joined project-wide by the LHP-VAL-072 check.
+    """
+
+    pipeline: str
+    flowgroup: str
+    action: str
+    table: str
+    is_replace_where: bool
+
+
+@dataclass(frozen=True, slots=True)
+class StreamReadFact:
+    """One streaming read of a table, recorded by the worker (#346).
+
+    ``via`` is ``"delta"`` for a delta load whose effective read is a stream,
+    ``"sql"`` for a ``STREAM(<table>)`` read in SQL. ``table_ref`` is ``None``
+    for a SQL stream read whose table cannot be determined (the SQL does not
+    parse and the STREAM argument is not classifiable, or the SQL cannot be
+    read); the check then treats it as a possible read of every REPLACE WHERE
+    table.
+    """
+
+    pipeline: str
+    flowgroup: str
+    action: str
+    table_ref: Optional[str]
+    via: Literal["delta", "sql"]
+
+
 # Closed union of the warning records that may ride on
 # ``FlowgroupOutcome.warnings`` back to the main thread. The main thread
 # derives each re-emitted ``WarningEmitted.category`` from the record type.
@@ -343,6 +378,10 @@ class FlowgroupOutcome:
     ``perf`` is an optional in-worker timing/event-export payload attached
     later by the worker pool (via ``dataclasses.replace``); ``None`` by default.
 
+    ``producer_facts`` / ``stream_read_facts`` carry the flowgroup's facts for
+    the project-wide LHP-VAL-072 check; they outlive the resolved-flowgroup
+    release, which drops only ``resolved_flowgroup``.
+
     ``frozen=True, slots=True`` for immutability across the spawn boundary
     and a smaller per-instance footprint (no per-instance ``__dict__``).
     """
@@ -358,6 +397,8 @@ class FlowgroupOutcome:
     lhp_error: Optional["LHPError"] = None
     errors: Tuple[str, ...] = ()
     perf: Optional[Dict[str, Any]] = None
+    producer_facts: Tuple[TableProducerFact, ...] = ()
+    stream_read_facts: Tuple[StreamReadFact, ...] = ()
 
     @classmethod
     def ok(
@@ -370,6 +411,8 @@ class FlowgroupOutcome:
         auxiliary_files: Sequence[Tuple[str, str]] = (),
         copy_records: Sequence[CopiedModuleRecord] = (),
         warnings: Sequence[RunWarningRecord] = (),
+        producer_facts: Sequence[TableProducerFact] = (),
+        stream_read_facts: Sequence[StreamReadFact] = (),
     ) -> "FlowgroupOutcome":
         """Build a success outcome.
 
@@ -388,6 +431,8 @@ class FlowgroupOutcome:
             warnings=tuple(warnings),
             lhp_error=None,
             errors=(),
+            producer_facts=tuple(producer_facts),
+            stream_read_facts=tuple(stream_read_facts),
         )
 
     @classmethod
