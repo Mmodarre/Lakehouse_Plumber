@@ -4,14 +4,15 @@ A non-deterministic operational-metadata column (``current_timestamp()``,
 ``now()``, ``uuid()``, ...) computed anywhere upstream of a ``replace_where``
 write inside the flowgroup makes Databricks run a ``COMPLETE_REPLACE_WHERE``
 (a full rewrite of the window) on every refresh. The validator never fails the
-flowgroup: it records ONE warning per flowgroup on the worker scope, listing
-every offending (write, upstream action, column) triple, because the warning
-channel dedups by ``(code, file)``.
+flowgroup and records nothing: it returns ONE warning message per flowgroup,
+listing every offending (write, upstream action, column) triple, because the
+warning channel its caller records it on dedups by ``(code, file)``. The
+recording is pinned in ``tests/core/processing/``.
 """
 
 import pickle
 from pathlib import Path
-from typing import Any, Dict, List, Mapping, Optional, Tuple, Union
+from typing import Any, Dict, List, Mapping, Optional, Union
 
 import pytest
 
@@ -28,10 +29,6 @@ from lhp.models import (
     ProjectOperationalMetadataConfig,
     TransformType,
 )
-from lhp.models.processing import ValidationWarningRecord
-from lhp.models.run_warnings import collect_deprecations, drain_deprecations
-
-_SOURCE_YAML = Path("pipelines/repro/repro_fg.yaml")
 
 _PROCESSING_TIMESTAMP = {"_processing_timestamp": "F.current_timestamp()"}
 
@@ -136,28 +133,20 @@ def _flowgroup(*actions: Action, operational_metadata=None) -> FlowGroup:
     )
 
 
-def _warnings(
+def _finding(
     validator: ReplaceWhereDeterminismValidator,
     flowgroup: FlowGroup,
     tmp_path: Path,
-) -> Tuple[ValidationWarningRecord, ...]:
-    """Run the validator inside the worker-style scope; return its records."""
-    with collect_deprecations(
-        file=_SOURCE_YAML, flowgroup=flowgroup.flowgroup
-    ) as collector:
-        validator.validate(flowgroup, _mgr(tmp_path), {})
-    records = drain_deprecations(collector)
-    assert all(isinstance(r, ValidationWarningRecord) for r in records)
-    return records  # type: ignore[return-value]  # narrowed by the assert above
+) -> Optional[str]:
+    """The warning message the validator returns for ``flowgroup``."""
+    return validator.validate(flowgroup, _mgr(tmp_path), {})
 
 
-def _single_message(records: Tuple[ValidationWarningRecord, ...]) -> str:
-    assert len(records) == 1, records
-    (record,) = records
-    assert record.code == "LHP-VAL-073"
-    assert record.file == _SOURCE_YAML
-    assert record.flowgroup == "repro_fg"
-    return record.message
+def _single_message(finding: Optional[str]) -> str:
+    """The one message of the flowgroup; it never repeats its header."""
+    assert isinstance(finding, str), finding
+    assert finding.count("COMPLETE_REPLACE_WHERE") == 1, finding
+    return finding
 
 
 @pytest.mark.unit
@@ -168,7 +157,7 @@ class TestReplaceWhereDeterminismValidator:
             _load(operational_metadata=["_processing_timestamp"]), _write()
         )
 
-        message = _single_message(_warnings(validator, flowgroup, tmp_path))
+        message = _single_message(_finding(validator, flowgroup, tmp_path))
 
         assert (
             "write 'write_rw' <- action 'load_raw': column '_processing_timestamp'"
@@ -191,7 +180,7 @@ class TestReplaceWhereDeterminismValidator:
         )
         flowgroup = _flowgroup(_load(), transform, _write(source="v_shaped"))
 
-        message = _single_message(_warnings(validator, flowgroup, tmp_path))
+        message = _single_message(_finding(validator, flowgroup, tmp_path))
 
         assert (
             "write 'write_rw' <- action 'shape_orders': column "
@@ -203,7 +192,7 @@ class TestReplaceWhereDeterminismValidator:
         validator = _validator(_project({"_loaded_at": "F.expr('now()')"}))
         flowgroup = _flowgroup(_load(operational_metadata=["_loaded_at"]), _write())
 
-        message = _single_message(_warnings(validator, flowgroup, tmp_path))
+        message = _single_message(_finding(validator, flowgroup, tmp_path))
 
         assert "column '_loaded_at'" in message
 
@@ -213,7 +202,7 @@ class TestReplaceWhereDeterminismValidator:
         )
         flowgroup = _flowgroup(_load(operational_metadata=["_record_hash"]), _write())
 
-        assert _warnings(validator, flowgroup, tmp_path) == ()
+        assert _finding(validator, flowgroup, tmp_path) is None
 
     def test_action_level_metadata_false_no_warning(self, tmp_path):
         validator = _validator(_project(_PROCESSING_TIMESTAMP))
@@ -223,7 +212,7 @@ class TestReplaceWhereDeterminismValidator:
             operational_metadata=["_processing_timestamp"],
         )
 
-        assert _warnings(validator, flowgroup, tmp_path) == ()
+        assert _finding(validator, flowgroup, tmp_path) is None
 
     def test_external_source_no_warning(self, tmp_path):
         """The write reads a view no action in this flowgroup produces; the
@@ -235,7 +224,7 @@ class TestReplaceWhereDeterminismValidator:
             _write(source="v_from_another_flowgroup"),
         )
 
-        assert _warnings(validator, flowgroup, tmp_path) == ()
+        assert _finding(validator, flowgroup, tmp_path) is None
 
     def test_no_replace_where_skips_resolution(self, tmp_path):
         resolver = _RecordingResolver()
@@ -245,7 +234,7 @@ class TestReplaceWhereDeterminismValidator:
             _write(mode="standard"),
         )
 
-        assert _warnings(validator, flowgroup, tmp_path) == ()
+        assert _finding(validator, flowgroup, tmp_path) is None
         assert resolver.calls == []
 
     def test_two_offending_writes_single_record_listing_both(self, tmp_path):
@@ -257,7 +246,7 @@ class TestReplaceWhereDeterminismValidator:
             _write(source="v_load_b", name="write_b", table="t_b"),
         )
 
-        message = _single_message(_warnings(validator, flowgroup, tmp_path))
+        message = _single_message(_finding(validator, flowgroup, tmp_path))
 
         assert "write 'write_a' <- action 'load_a'" in message
         assert "write 'write_b' <- action 'load_b'" in message
@@ -285,7 +274,7 @@ class TestNonDeterministicExpressionForms:
         validator = _validator(_project({"_col": expression}))
         flowgroup = _flowgroup(_load(operational_metadata=["_col"]), _write())
 
-        assert len(_warnings(validator, flowgroup, tmp_path)) == 1
+        assert _finding(validator, flowgroup, tmp_path) is not None
 
     @pytest.mark.parametrize(
         "expression",
@@ -299,7 +288,7 @@ class TestNonDeterministicExpressionForms:
         validator = _validator(_project({"_col": expression}))
         flowgroup = _flowgroup(_load(operational_metadata=["_col"]), _write())
 
-        assert _warnings(validator, flowgroup, tmp_path) == ()
+        assert _finding(validator, flowgroup, tmp_path) is None
 
 
 @pytest.mark.unit

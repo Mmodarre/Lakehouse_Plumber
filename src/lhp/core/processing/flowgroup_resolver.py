@@ -9,16 +9,19 @@ the canonical concrete implementation of
 
 import dataclasses
 import logging
-from typing import Any, Dict
+from typing import TYPE_CHECKING, Any, Dict, Optional
 
 from lhp.models import ActionType, FlowGroup, FlowGroupContext
-from lhp.models.run_warnings import record_deprecation
+from lhp.models.run_warnings import record_deprecation, record_validation_warning
 
 from ...errors import ErrorFactory, codes
 from ...utils.performance_timer import perf_timer
 from .._interfaces import BaseFlowgroupResolutionService
 from .local_variables import LocalVariableResolver
 from .substitution import EnhancedSubstitutionManager
+
+if TYPE_CHECKING:
+    from ..validators import ReplaceWhereDeterminismValidator
 
 
 class FlowgroupResolutionService(BaseFlowgroupResolutionService):
@@ -39,16 +42,18 @@ class FlowgroupResolutionService(BaseFlowgroupResolutionService):
         secret_validator=None,
         operational_metadata_validator=None,
         file_token_validator=None,
-        replace_where_determinism_validator=None,
+        replace_where_determinism_validator: Optional[
+            "ReplaceWhereDeterminismValidator"
+        ] = None,
     ):
         """``operational_metadata_validator`` resolves the ``lhp.yaml``
         metadata expressions each flowgroup selects; ``file_token_validator``
         rejects unresolved ``${name}`` tokens in the ``sql_path`` and UC
         ``tags_file`` files its code renders;
-        ``replace_where_determinism_validator`` records the ``LHP-VAL-073``
+        ``replace_where_determinism_validator`` finds the ``LHP-VAL-073``
         warning for non-deterministic metadata upstream of a replace_where
-        write. ``None`` skips a check (resolvers whose output never reaches
-        code generation).
+        write, which this service records on the worker scope. ``None`` skips
+        a check (resolvers whose output never reaches code generation).
         """
         self.template_engine = template_engine
         self.preset_manager = preset_manager
@@ -259,9 +264,12 @@ class FlowgroupResolutionService(BaseFlowgroupResolutionService):
                     f"replace_where_determinism [{fg}]",
                     category="replace_where_determinism",
                 ):
-                    self.replace_where_determinism_validator.validate(
+                    finding = self.replace_where_determinism_validator.validate(
                         processed_flowgroup, substitution_mgr, preset_config
                     )
+                if finding is not None:
+                    # One record per flowgroup; the validator itself is pure.
+                    record_validation_warning(codes.VAL_073, message=finding)
 
             if self.file_token_validator is not None:
                 with perf_timer(
