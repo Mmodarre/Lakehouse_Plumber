@@ -36,7 +36,7 @@ These ``write_target`` fields apply to ``streaming_table`` and
    * - ``temporary``
      - bool
      - ``false``
-     - Emitted as ``temporary=``. Rejected by ``replace_where``.
+     - Emitted as ``temporary=``. ``temporary: true`` is rejected by ``replace_where``.
    * - ``private``
      - bool
      - ``false``

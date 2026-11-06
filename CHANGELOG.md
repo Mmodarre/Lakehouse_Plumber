@@ -57,8 +57,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `pipelines.reset.allowed: "false"` unless the YAML or a preset sets it, so a full
   refresh cannot delete the rows outside the predicate. The write needs one batch
   source view and is the only flow on its table; `readMode: stream`, `create_table:
-  false`, `temporary`, action-level `expectations` and a predicate that references a
-  secret are rejected.
+  false`, `temporary: true`, action-level `expectations` and a predicate that
+  references a secret are rejected.
 - **A `validation` warning category (#346).** Warnings that validators record during
   `lhp validate` and `lhp generate` reach the Python API as `WarningEmitted` events
   with `category="validation"`, beside `deprecation` and `sandbox`. Like those, they
