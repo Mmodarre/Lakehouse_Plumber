@@ -6,7 +6,8 @@ column (``current_timestamp()``, ``uuid()``, ...) computed on any action
 upstream of the write inside the flowgroup makes every refresh a
 ``COMPLETE_REPLACE_WHERE``: the whole window is rewritten and incremental
 refresh is silently lost. The pipeline still runs, so this is a warning
-(``LHP-VAL-073``) recorded on the worker scope, never an error.
+(``LHP-VAL-073``), never an error: the validator returns the message and
+the flowgroup resolution service records it on the worker scope.
 """
 
 import logging
@@ -24,9 +25,7 @@ from typing import (
     Tuple,
 )
 
-from lhp.errors import codes
 from lhp.models import Action, FlowGroup, ProjectConfig
-from lhp.models.run_warnings import record_validation_warning
 
 if TYPE_CHECKING:
     from ...processing import EnhancedSubstitutionManager
@@ -59,15 +58,16 @@ _Finding = Tuple[str, str, str, str]
 
 
 class ReplaceWhereDeterminismValidator:
-    """Record ``LHP-VAL-073`` for non-deterministic metadata upstream of REPLACE WHERE.
+    """Find ``LHP-VAL-073``: non-deterministic metadata upstream of REPLACE WHERE.
 
     Walks upstream from each ``replace_where`` write over the actions of its
     own flowgroup, and resolves the metadata columns of every visited action
     whose generator renders them, through the same resolver
     :class:`~lhp.core.validators.OperationalMetadataExpressionValidator` uses.
-    The finding is not fatal, so :meth:`validate` returns nothing and records
-    ONE warning per flowgroup listing every offending (write, upstream action,
-    column): the warning channel keeps one record per ``(code, file)``.
+    The finding is not fatal and the validator records nothing:
+    :meth:`validate` returns ONE warning message per flowgroup listing every
+    offending (write, upstream action, column), because the warning channel
+    the caller records it on keeps one record per ``(code, file)``.
 
     Holds the project configuration, the registry and the bound resolver, all
     picklable, so it crosses the worker ``spawn`` boundary with
@@ -89,10 +89,12 @@ class ReplaceWhereDeterminismValidator:
         flowgroup: FlowGroup,
         substitution_mgr: "EnhancedSubstitutionManager",
         preset_config: Mapping[str, Any],
-    ) -> None:
-        """Record ``LHP-VAL-073`` when ``flowgroup`` has an offending write.
+    ) -> Optional[str]:
+        """The ``LHP-VAL-073`` warning message for ``flowgroup``, or ``None``.
 
-        ``preset_config`` is the flowgroup's resolved preset chain, as for
+        ``None`` when no replace_where write of ``flowgroup`` has
+        non-deterministic metadata upstream. ``preset_config`` is the
+        flowgroup's resolved preset chain, as for
         :class:`OperationalMetadataExpressionValidator`, which runs first and
         has already rejected any expression that fails to resolve.
         """
@@ -102,7 +104,7 @@ class ReplaceWhereDeterminismValidator:
 
         writes = [a for a in flowgroup.actions if is_replace_where_write(a)]
         if not writes:
-            return
+            return None
 
         producers = {a.target: a for a in flowgroup.actions if a.target}
         resolved: Dict[str, Mapping[str, str]] = {}
@@ -124,12 +126,13 @@ class ReplaceWhereDeterminismValidator:
                     for column, expression in sorted(resolved[upstream.name].items())
                     if _NON_DETERMINISTIC_EXPRESSION.search(expression)
                 )
-        if findings:
-            logger.debug(
-                f"Flowgroup '{flowgroup.flowgroup}': {len(findings)} "
-                f"non-deterministic metadata column(s) upstream of replace_where"
-            )
-            record_validation_warning(codes.VAL_073, message=_message(findings))
+        if not findings:
+            return None
+        logger.debug(
+            f"Flowgroup '{flowgroup.flowgroup}': {len(findings)} "
+            f"non-deterministic metadata column(s) upstream of replace_where"
+        )
+        return _message(findings)
 
 
 def _upstream_actions(
