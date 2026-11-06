@@ -32,11 +32,11 @@ These ``write_target`` fields apply to ``streaming_table`` and
    * - ``create_table``
      - bool
      - ``true``
-     - Streaming table only; ``snapshot_cdc`` and ``replace`` force ``true``.
+     - Streaming table only; ``snapshot_cdc`` and ``replace`` force ``true``, and ``replace_where`` rejects ``false``.
    * - ``temporary``
      - bool
      - ``false``
-     - Emitted as ``temporary=``.
+     - Emitted as ``temporary=``. Rejected by ``replace_where``.
    * - ``private``
      - bool
      - ``false``

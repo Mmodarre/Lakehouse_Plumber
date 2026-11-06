@@ -27,6 +27,9 @@ depends on how the data changes and what shape you need downstream.
    * - Keep a current-state table from **partial snapshots** (replace all rows for each grouping key)
      - **Replace** (``mode: replace``)
      - :doc:`streaming-table-replace`
+   * - Keep the history but recompute the **recent rows** (for example the last 7 days) from a batch source on every refresh
+     - **Replace where** (``mode: replace_where``)
+     - :doc:`streaming-table-replace-where`
    * - Serve a query result that Databricks keeps fresh (an aggregate, a join)
      - A **materialized view**
      - :doc:`materialized-view`
@@ -50,5 +53,6 @@ depends on how the data changes and what shape you need downstream.
    CDC (change feed) <streaming-table-cdc>
    CDC (snapshots) <streaming-table-snapshot-cdc>
    Replace (replace using) <streaming-table-replace>
+   Replace where (recent rows) <streaming-table-replace-where>
    Materialized view <materialized-view>
    External sinks <sinks>

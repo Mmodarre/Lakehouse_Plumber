@@ -3000,7 +3000,7 @@
         }
       ],
       "details": [
-        "A SQL predicate written verbatim into the generated flow as the Databricks replace_where= parameter. Rows outside it are left untouched, and source rows outside it never land in the target. Environment tokens are resolved first; secret references are rejected."
+        "A SQL predicate written verbatim into the generated flow as the Databricks replace_where= parameter. Rows outside it are left untouched, and the pipeline applies the predicate when reading the source, so it need not be repeated there. Environment tokens are resolved first; secret references are rejected."
       ],
       "examples": [
         {
@@ -3066,7 +3066,7 @@
         }
       ],
       "details": [
-        "Use this action-level flag for standard append or CDC flows. It is not emitted for snapshot CDC or replace flows and does not set a job schedule or pipeline continuous mode."
+        "Use this action-level flag for standard append or CDC flows. It is not emitted for snapshot CDC, replace or replace_where flows and does not set a job schedule or pipeline continuous mode."
       ],
       "unsetBehavior": "When the resolved action omits this field, the default is false."
     },

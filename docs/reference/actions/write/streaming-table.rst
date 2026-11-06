@@ -38,7 +38,7 @@ Options
    * - ``mode``
      - string
      - ``standard``
-     - One of ``standard``, ``cdc``, ``snapshot_cdc``, ``replace``. Any other value, including a null one, fails with ``LHP-VAL-006``.
+     - One of ``standard``, ``cdc``, ``snapshot_cdc``, ``replace``, ``replace_where``. Any other value, including a null one, fails with ``LHP-VAL-006``.
 
 ``source`` may be a single view or a list of views (multi-source append flow
 into one table).

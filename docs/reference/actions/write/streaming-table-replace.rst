@@ -62,10 +62,10 @@ Options
 
 .. note::
 
-   A batch-read sibling ``mode: replace_where`` (a ``replace_where_config`` block
-   for Databricks' FLOW REPLACE WHERE) is a planned future extension — mirroring
-   ``cdc`` → ``snapshot_cdc``, split by streaming vs batch source read. It is not
-   yet implemented.
+   The batch-read sibling is ``mode: replace_where``: a ``replace_where_config``
+   predicate for Databricks' REPLACE WHERE flow, mirroring ``cdc`` →
+   ``snapshot_cdc``, split by streaming vs batch source read. See
+   :doc:`streaming-table-replace-where`.
 
 .. include:: /_includes/write-target-common.rst
 
