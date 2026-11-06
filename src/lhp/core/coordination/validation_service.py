@@ -18,7 +18,8 @@ to them.
 
 Caller contract:
 
-* MAY call :meth:`validate_duplicates` and :meth:`validate_cross_flowgroup`.
+* MAY call :meth:`validate_duplicates`, :meth:`validate_cross_flowgroup` and
+  :meth:`validate_project_stream_reads`.
 * MAY NOT import anything from ``lhp.core.validators/*`` (including
   ``ConfigValidator``) directly.
 
