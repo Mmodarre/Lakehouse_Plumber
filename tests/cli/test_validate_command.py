@@ -26,18 +26,19 @@ from conftest import strip_ansi
 
 from lhp.cli.commands.validate_command import validate_command
 from tests.helpers import (
+    NONDETERMINISTIC_FINDING,
+    NONDETERMINISTIC_PIPELINE,
     OTHER_CATALOG_PIPELINE_FILE,
     RW_READER_MESSAGE,
     RW_READER_PIPELINE,
     TWO_PART_PIPELINE,
     assert_no_names_in_values,
+    inject_nondeterministic_replace_where,
     inject_replace_where_stream_reader,
     inject_two_part_stream_readers,
-    inject_worker_validation_warning,
     last_cli_command_line,
     parse_last_cli_command,
     project_names,
-    write_clean_project,
     write_quarantine_project,
 )
 
@@ -167,24 +168,29 @@ def test_strict_escalates_worker_validation_warning_to_failure(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """A worker-recorded validation warning (``ValidationWarningRecord``) is
-    surfaced on a clean project and counts under ``--strict``: exit 0 normally,
-    exit 1 with ``--strict``."""
-    write_clean_project(tmp_path)
-    monkeypatch.chdir(tmp_path)
+    surfaced and counts under ``--strict``: exit 0 normally, exit 1 with
+    ``--strict``. The real producer records it: LHP-VAL-073, for a
+    ``_processing_timestamp`` column upstream of a ``mode: replace_where``
+    write, in a copy of the e2e fixture."""
+    root = tmp_path / "testing_project"
+    shutil.copytree(FIXTURE_PROJECT, root)
+    monkeypatch.chdir(root)
     runner = CliRunner()
-    baseline = runner.invoke(
-        validate_command, ["--env", "dev", "--no-bundle", "--strict"]
-    )
-    inject_worker_validation_warning(monkeypatch)
-    lenient = runner.invoke(validate_command, ["--env", "dev", "--no-bundle"])
-    strict = runner.invoke(
-        validate_command, ["--env", "dev", "--no-bundle", "--strict"]
-    )
+    args = ["--env", "dev", "--no-bundle", "-p", NONDETERMINISTIC_PIPELINE]
+    inject_nondeterministic_replace_where(root, metadata="false")
+    baseline = runner.invoke(validate_command, [*args, "--strict"])
+    inject_nondeterministic_replace_where(root)
+    lenient = runner.invoke(validate_command, [*args, "--show-details"])
+    strict = runner.invoke(validate_command, [*args, "--strict"])
 
-    # The project itself is warning-free, so --strict alone passes.
+    # Without the timestamp column the pipeline is warning-free, so --strict
+    # alone passes.
     assert baseline.exit_code == 0, baseline.stderr
     assert lenient.exit_code == 0, lenient.stderr
-    assert "LHP-VAL-073" in strip_ansi(lenient.stderr)
+    # The console may wrap long lines; compare on collapsed whitespace.
+    shown = " ".join(strip_ansi(lenient.stderr).split())
+    assert "LHP-VAL-073" in shown
+    assert NONDETERMINISTIC_FINDING in shown
     assert strict.exit_code == 1, strict.stderr
 
 
