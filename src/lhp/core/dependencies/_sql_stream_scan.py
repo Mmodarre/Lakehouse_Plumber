@@ -18,10 +18,11 @@ literals and comments, and classifies it:
 import re
 from typing import List, Optional, Tuple
 
+from ._sql_stream_reads import _STREAM_WORD
+
 _BLANKED = re.compile(
     r"'(?:[^'\\]|\\.)*'|\"(?:[^\"\\]|\\.)*\"|--[^\n]*|/\*.*?\*/", re.DOTALL
 )
-_STREAM = re.compile(r"\bstream\b", re.IGNORECASE)
 _PART = r"(?:`[^`]*`|\$\{[^}]*\}|[\w$])+"
 _NAME = re.compile(rf"{_PART}(?:\.{_PART})*")
 _PARTS = re.compile(_PART)
@@ -39,7 +40,7 @@ def scan_stream_reads(sql: str) -> Tuple[Optional[str], ...]:
     text = _BLANKED.sub(" ", sql)
     names: List[str] = []
     unknown = False
-    for match in _STREAM.finditer(text):
+    for match in _STREAM_WORD.finditer(text):
         rest = text[match.end() :]
         stripped = rest.lstrip()
         if stripped.startswith("("):
