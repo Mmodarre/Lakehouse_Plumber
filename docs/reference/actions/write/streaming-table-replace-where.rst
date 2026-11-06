@@ -98,7 +98,8 @@ Rules
 
 ``lhp validate`` and ``lhp generate`` enforce these rules. Errors in the
 ``replace_where_config`` block and the write's own settings are listed inside
-``LHP-VAL-007``.
+``LHP-VAL-007``, and so are the ``LHP-VAL-006`` and ``LHP-VAL-070`` errors
+below. Only ``LHP-CFG-004`` and ``LHP-VAL-010`` are reported on their own.
 
 - **One batch source.** ``source`` is a single view: a string, or a list with
   one view. A list of two or more views is rejected.
@@ -111,11 +112,10 @@ Rules
 - **No other flow on the table.** A second write action in the same pipeline
   that targets the table fails: ``LHP-CFG-004`` when it also creates the table,
   and otherwise ``LHP-VAL-010``, with a message that names the REPLACE WHERE
-  flow. Databricks
-  allows a single flow on a REPLACE WHERE target
+  flow. Databricks allows a single flow on a REPLACE WHERE target
   (``UNSUPPORTED_FEATURE.MULTI_FLOW_REPLACE_WHERE_TARGET``).
-- **No temporary table.** ``temporary`` is rejected. Use ``private: true`` for a
-  table that only the pipeline can see.
+- **No temporary table.** ``temporary: true`` is rejected; ``temporary: false``
+  passes. Use ``private: true`` for a table that only the pipeline can see.
 - **No expectations.** Action-level ``expectations`` are rejected. Databricks
   does not support expectations on a REPLACE WHERE target
   (``UNSUPPORTED_FEATURE.REPLACE_WHERE_FLOW_WITH_EXPECTATIONS``).
@@ -168,7 +168,9 @@ To reset a guarded table on purpose, do one of these:
 Incremental refresh
 -------------------
 
-Databricks plans every refresh of a REPLACE WHERE flow as one technique:
+Databricks plans every refresh of a REPLACE WHERE flow as one technique. These
+are the techniques observed; the list is not exhaustive, and Databricks has
+others, such as ``PARTITION_OVERWRITE``:
 
 - ``NO_OP``, ``APPEND_ONLY`` or ``ROW_BASED`` are incremental. Which one is
   chosen depends on what changed in the source: nothing, only inserts, or
@@ -181,6 +183,8 @@ does not hold, that refresh recomputes every row inside the predicate:
 
 - The pipeline runs on **serverless** compute. Incremental refresh is only
   supported there.
+- The query has a **supported shape**: a deterministic query whose operators
+  Databricks can refresh incrementally.
 - The predicate is **deterministic**. Temporal functions such as
   ``current_date()`` are allowed; ``rand()`` is not.
 - The predicate references **base columns of a source table**. A predicate on a
@@ -287,8 +291,8 @@ The check has limits:
 - It is advisory. A missed case never produces wrong data; it only loses
   incremental refresh.
 - Warnings are de-duplicated per code and YAML file. When two flowgroups in
-  one file both trigger it, only the first flowgroup's warning is shown;
-  ``--strict`` still fails the run.
+  one file both trigger it, only the warning of the flowgroup whose name sorts
+  first is shown; ``--strict`` still fails the run.
 
 Downstream readers
 ------------------
@@ -324,10 +328,11 @@ A change-feed read is exempt: a ``delta`` load whose ``options.readChangeFeed``
 is the boolean ``true`` or the string ``"true"`` in any case. Batch reads are not
 checked.
 
-A read names the table as ``catalog.schema.table``, which must match exactly, or
-as ``schema.table``, which matches only when a single catalog in the run
-produces that table. A table of the same name in another catalog is a different
-table.
+A read names the table as ``catalog.schema.table`` or as ``schema.table``. It
+must name the same table as the write, compared without regard to case or
+backticks. A ``schema.table`` read matches only when a single catalog in the
+run produces that table, and only outside a filtered run (see the limits
+below). A table of the same name in another catalog is a different table.
 
 For SQL that LHP cannot parse, such as a ``WATERMARK`` clause or
 ``STREAM(t) WITH (...)`` options, LHP reads the argument of each ``STREAM``
@@ -340,6 +345,8 @@ lexically:
 - Anything else, such as a subquery, is a read LHP cannot identify. When the run
   writes a REPLACE WHERE table, it is reported as ``LHP-VAL-072`` with a second
   message.
+
+SQL that LHP cannot read is reported the same way, with the second message.
 
 The two messages read:
 
@@ -354,12 +361,15 @@ resolve the second, write the streamed table as ``STREAM(catalog.schema.table)``
 so that LHP can check it, or read it through a ``delta`` load action.
 
 ``LHP-VAL-072`` belongs to the reading pipeline, not to a flowgroup. In
-``lhp validate`` output it appears on the pipeline's row, and the
-``--show-details`` panel names only the pipeline:
+``lhp validate`` output it appears on the pipeline's row:
 
 .. code-block:: text
 
-   ✗ gold_orders_stream  LHP-VAL-072  Streaming read of a REPLACE WHERE table
+   ✗ gold_orders  LHP-VAL-072  Streaming read of a REPLACE WHERE table
+
+In the ``--show-details`` panel, the context line names only the pipeline. The
+message names each read, and the write behind it, as
+``pipeline.flowgroup.action``.
 
 The check has limits:
 
@@ -380,9 +390,7 @@ Mirror the table through its change feed
 
 To keep a streaming copy of a REPLACE WHERE table, stream its change data feed
 into an AUTO CDC write. Databricks records each rewrite as ``delete`` and
-``insert`` change events, which AUTO CDC applies to the copy. The recipe below
-was tested on Databricks against an LHP-generated REPLACE WHERE table: the
-mirror matched the table.
+``insert`` change events, which AUTO CDC applies to the copy.
 
 First turn the change data feed on explicitly in the REPLACE WHERE write.
 Adding the property to an existing REPLACE WHERE table does not reset it:
@@ -433,20 +441,26 @@ turn on the change data feed for that log table, because it contains the
 reserved ``_change_type``, ``_commit_version`` and ``_commit_timestamp``
 columns.
 
-Not tested: a reset of the REPLACE WHERE table while a change-feed reader is
-running, schema changes on the REPLACE WHERE table, gaps in the change feed's
-retention when the reader falls behind, and readers that start from a
-``startingVersion``.
+.. note::
+
+   The recipe was tested on Databricks over several refreshes, which rewrote,
+   deleted and inserted rows and narrowed the predicate. The producers were
+   hand-written REPLACE WHERE tables and the consumers were generated by LHP;
+   the mirror matched the table after every refresh. With an LHP-generated
+   producer it was run for one update. Resets, schema changes, change-feed
+   retention gaps and readers that start from a ``startingVersion`` were not
+   tested.
 
 Backfills
 ---------
 
 A REPLACE WHERE table takes a single flow, so a backfill cannot be a second
 flow. To recompute a different range for one update, Databricks takes a
-predicate override when you start the update: ``replace_where_overrides``, with one entry
-per flow giving its ``flow_name`` and a ``predicate_override``. The override
-applies to that update only; later updates use the predicate in the generated
-code. LHP does not generate overrides.
+predicate override when you start the update: ``replace_where_overrides``, with
+one entry per flow giving its ``flow_name`` and a ``predicate_override``. The
+override applies to that update only; later updates use the predicate in the
+generated code. LHP does not generate overrides, and the override was not
+exercised when this feature was tested on Databricks.
 
 The ``flow_name`` is the table's full name, for example
 ``dev_catalog.silver.orders_recent``, because the flow takes the table's name.
