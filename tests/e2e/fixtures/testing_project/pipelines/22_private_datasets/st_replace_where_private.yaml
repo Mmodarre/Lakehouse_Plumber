@@ -1,0 +1,39 @@
+# Golden fixture: private streaming table, replace_where mode (REPLACE WHERE flow).
+# A batch read feeds a single-statement @dp.table(replace_where=...) flow; the engine
+# applies the predicate to the source, so each run recomputes only that slice.
+# No operational metadata and a deterministic predicate, so LHP-VAL-073 stays quiet.
+# Expected generated form:
+#   @dp.table(name="acme_edw_dev.edw_silver.private_customer_replace_where_dim", comment=...,
+#             table_properties={"pipelines.reset.allowed": "false"}, private=True,
+#             replace_where="market_segment = 'AUTOMOBILE'")
+#   def private_customer_replace_where_dim(): return spark.read.table(...)
+pipeline: private_datasets
+flowgroup: st_replace_where_private
+#job_name: j_private
+
+actions:
+  - name: private_replace_where_load
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
+      table: customer
+    target: v_private_replace_where_src
+    description: "Batch read of source rows for the private replace-where streaming table"
+
+  - name: write_private_customer_replace_where_dim
+    type: write
+    source: v_private_replace_where_src
+    write_target:
+      type: streaming_table
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
+      table: "private_customer_replace_where_dim"
+      comment: "Private streaming table (replace_where mode); not published to metastore"
+      private: true
+      mode: "replace_where"
+      replace_where_config:
+        replace_where: "market_segment = 'AUTOMOBILE'"
+    description: "Write private replace-where streaming table"
