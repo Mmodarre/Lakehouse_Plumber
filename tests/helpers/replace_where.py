@@ -10,6 +10,11 @@ own REPLACE WHERE table by a 2-part and a 3-part name, and another pipeline
 that writes the same ``schema.table`` in a different catalog: the 2-part name
 is ambiguous project-wide, and must stay unmatched when ``-p`` hides the other
 pipeline.
+
+:func:`inject_nondeterministic_replace_where` writes the real LHP-VAL-073
+producer: a pipeline whose batch load computes ``_processing_timestamp``
+upstream of a ``mode: replace_where`` write. The spawn workers record the
+warning, so CLI and API tests see it exactly as a user would.
 """
 
 from __future__ import annotations
@@ -191,3 +196,59 @@ def inject_two_part_stream_readers(project_root: Path) -> None:
         target = project_root / path
         target.parent.mkdir(parents=True)
         target.write_text(text, encoding="utf-8")
+
+
+NONDETERMINISTIC_PIPELINE = "rw_metadata_warn"
+NONDETERMINISTIC_FLOWGROUP = "orders_rw_metadata"
+NONDETERMINISTIC_FILE = Path("pipelines/95_rw_metadata_warn/orders_rw_metadata.yaml")
+
+#: What the VAL-073 message lists for the injected flowgroup.
+NONDETERMINISTIC_FINDING = (
+    "write 'write_orders_recent' <- action 'load_orders_batch': "
+    "column '_processing_timestamp'"
+)
+
+# ``{metadata}`` is the load's ``operational_metadata`` selection. The fixture's
+# lhp.yaml defines ``_processing_timestamp`` as ``F.current_timestamp()``.
+_NONDETERMINISTIC_YAML = """\
+pipeline: rw_metadata_warn
+flowgroup: orders_rw_metadata
+
+actions:
+  - name: load_orders_batch
+    type: load
+    readMode: batch
+    operational_metadata: {metadata}
+    source:
+      type: delta
+      catalog: "${{catalog}}"
+      schema: "${{bronze_schema}}"
+      table: customer
+    target: v_orders_source
+
+  - name: write_orders_recent
+    type: write
+    source: v_orders_source
+    write_target:
+      type: streaming_table
+      mode: replace_where
+      catalog: "${{catalog}}"
+      schema: "${{silver_schema}}"
+      table: orders_recent_metadata
+      replace_where_config:
+        replace_where: "order_date >= date_add(current_date(), -7)"
+"""
+
+
+def inject_nondeterministic_replace_where(
+    project_root: Path, *, metadata: str = '["_processing_timestamp"]'
+) -> Path:
+    """Write (or overwrite) the LHP-VAL-073 flowgroup; return its path.
+
+    ``metadata="false"`` writes the same flowgroup without the timestamp
+    column: warning-free, so ``--strict`` passes on it.
+    """
+    path = project_root / NONDETERMINISTIC_FILE
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(_NONDETERMINISTIC_YAML.format(metadata=metadata), encoding="utf-8")
+    return path

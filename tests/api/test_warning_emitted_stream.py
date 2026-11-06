@@ -33,6 +33,7 @@ emission-helper unit test reaches the underscore-prefixed
 from __future__ import annotations
 
 import os
+import shutil
 from pathlib import Path
 
 import pytest
@@ -43,6 +44,10 @@ from lhp.api import (
     ValidationCompleted,
     WarningEmitted,
     collect_response,
+)
+
+_E2E_FIXTURE = (
+    Path(__file__).resolve().parents[1] / "e2e" / "fixtures" / "testing_project"
 )
 
 
@@ -337,9 +342,12 @@ class TestWorkerValidationWarningSurfaces:
     """A worker ``ValidationWarningRecord`` reaches both facade streams as
     ``WarningEmitted(category="validation")``.
 
-    Workers run under ``spawn``, so the record is injected at the main-thread
-    per-pipeline fold (see :mod:`tests.helpers.validation_warning`); the
-    executor merge, the facade emission and the category mapping are real.
+    The real producer records it in the ``spawn`` workers: LHP-VAL-073, for a
+    ``_processing_timestamp`` column upstream of a ``mode: replace_where``
+    write, injected into a copy of the e2e fixture. The worker scope, the
+    executor merge, the facade emission and the category mapping are all real.
+    ``pipeline_filter`` (the CLI's ``-p``) also scopes the main-thread
+    bare-token scan, so the fixture's other files add no ``LHP-DEPR-001``.
     """
 
     @pytest.mark.parametrize("operation", ["validate", "generate"])
@@ -347,31 +355,37 @@ class TestWorkerValidationWarningSurfaces:
         self,
         tmp_path: Path,
         facade_in,
-        monkeypatch: pytest.MonkeyPatch,
         operation: str,
     ) -> None:
-        from tests.helpers import inject_worker_validation_warning, write_clean_project
+        from tests.helpers import (
+            NONDETERMINISTIC_FINDING,
+            NONDETERMINISTIC_FLOWGROUP,
+            NONDETERMINISTIC_PIPELINE,
+            inject_nondeterministic_replace_where,
+        )
 
-        write_clean_project(tmp_path)
-        inject_worker_validation_warning(monkeypatch, message="write_a: op-metadata")
+        shutil.copytree(_E2E_FIXTURE, tmp_path, dirs_exist_ok=True)
+        inject_nondeterministic_replace_where(tmp_path)
         facade = facade_in()
 
         if operation == "validate":
             stream = facade.validation.validate_pipelines(
-                pipeline_fields=["p_clean"], env="dev"
+                pipeline_filter=NONDETERMINISTIC_PIPELINE, env="dev"
             )
         else:
             stream = facade.generation.generate_pipelines(
-                pipeline_fields=["p_clean"],
+                pipeline_filter=NONDETERMINISTIC_PIPELINE,
                 env="dev",
                 output_dir=tmp_path / "generated" / "dev",
             )
         warnings = _drain_warnings(list(stream))
 
-        assert [(w.code, w.category, w.message) for w in warnings] == [
-            ("LHP-VAL-073", "validation", "write_a: op-metadata")
+        assert [(w.code, w.category) for w in warnings] == [
+            ("LHP-VAL-073", "validation")
         ]
-        assert warnings[0].flowgroup == "fg_clean"
+        (warning,) = warnings
+        assert warning.flowgroup == NONDETERMINISTIC_FLOWGROUP
+        assert NONDETERMINISTIC_FINDING in warning.message
 
 
 @pytest.mark.unit
