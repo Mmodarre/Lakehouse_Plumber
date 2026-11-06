@@ -49,6 +49,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `expectations_file`, `quarantine` or `mode` on anything but a `data_quality`
   transform used to be ignored silently. For a write, the error points to
   `write_target.expectations_file`.
+- **`mode: replace_where` on `streaming_table` writes: Databricks REPLACE WHERE flows
+  (#346).** A `replace_where_config.replace_where` SQL predicate generates one
+  `@dp.table(..., replace_where=...)` statement over a batch read of the source view.
+  On every refresh the flow deletes the target rows that match the predicate and
+  recomputes them from the source; other rows are left as they are. LHP sets
+  `pipelines.reset.allowed: "false"` unless the YAML or a preset sets it, so a full
+  refresh cannot delete the rows outside the predicate. The write needs one batch
+  source view and is the only flow on its table; `readMode: stream`, `create_table:
+  false`, `temporary`, action-level `expectations` and a predicate that references a
+  secret are rejected.
+- **A `validation` warning category (#346).** Warnings that validators record during
+  `lhp validate` and `lhp generate` reach the Python API as `WarningEmitted` events
+  with `category="validation"`, beside `deprecation` and `sandbox`. Like those, they
+  fail the run under `--strict` and are not counted in
+  `BatchValidationResponse.total_warnings`.
+- **`LHP-VAL-072`: streaming read of a REPLACE WHERE table (#346).** A `delta` load
+  that streams a table written by `mode: replace_where`, in any pipeline of the run,
+  or a `STREAM(<table>)` read of it in the SQL of a SQL load, SQL transform or
+  `custom_sql` test, fails `lhp validate` and `lhp generate`. Every refresh rewrites
+  rows, which a stream cannot follow, and `skipChangeCommits` silently drops them. A
+  change-feed read (`readChangeFeed: "true"`) is allowed. Runs limited with
+  `--pipeline` or a sandbox profile check only the selected pipelines.
+- **`LHP-VAL-073`: non-deterministic metadata upstream of a REPLACE WHERE table
+  (#346).** A warning when an operational-metadata column such as
+  `F.current_timestamp()` is computed on an action that feeds a `mode: replace_where`
+  write in the same flowgroup: Databricks then rewrites every row inside the predicate
+  on each refresh instead of refreshing incrementally.
 
 ### Changed
 
@@ -66,6 +93,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `endingTimestamp` on a stream read, used to fail only at `lhp generate`.
 - **Quarantine drop-coercion warnings come from the logger
   `lhp.core.validators.field.expectations_file`.** The message is unchanged.
+- **A `delta` load's `readChangeFeed` option is recognised in any case (#346).** The
+  boolean `true` and the string `"true"` in any case, such as `"TRUE"`, now count as a
+  change-feed read, both for the load's change-feed checks (the options it cannot be
+  combined with, and the starting bound a batch read needs) and for `LHP-VAL-072`. A
+  numeric `1` no longer counts. The generated read is unchanged.
 
 ### Fixed
 

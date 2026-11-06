@@ -22,7 +22,7 @@ DOCS_FIXTURES_DIR = REPO_ROOT / "docs" / "_fixtures"
 # generator output. Adding a fixture directory name here extends coverage only
 # for plain fixtures (no sandbox profile, no bundle) whose ``generated/`` tree
 # is the only output of ``lhp generate --env dev``.
-DRIFT_CHECKED_FIXTURES = ["guide_qo_quarantine"]
+DRIFT_CHECKED_FIXTURES = ["guide_qo_quarantine", "guide_write_st_replace_where"]
 
 _MAX_DIFF_LINES = 40
 

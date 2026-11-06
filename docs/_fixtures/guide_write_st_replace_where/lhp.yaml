@@ -1,0 +1,4 @@
+# Lakehouse Plumber project configuration
+name: guide_write_st_replace_where
+version: "1.0"
+description: "Guide: recompute a rolling window of a streaming table with a REPLACE WHERE flow."
