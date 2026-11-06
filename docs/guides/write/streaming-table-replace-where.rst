@@ -22,7 +22,8 @@ You give the write a SQL predicate, such as "orders from the last 7 days". On
 every refresh the REPLACE WHERE flow deletes the target rows that match the
 predicate and recomputes them by re-running the source query for that range.
 Rows that don't match are left exactly as they are. The source is read in
-**batch**, so there is no streaming checkpoint to manage.
+**batch**, so you process new rows without managing streaming concepts such as
+watermarks.
 
 A worked example. The predicate is ``order_date >= date_add(current_date(),
 -7)``, and the refresh runs on 2026-06-10, so it covers 2026-06-03 onwards:
@@ -70,7 +71,8 @@ The batch read is what sets it apart from its streaming sibling,
      - ``mode: replace`` (REPLACE USING)
    * - Rows replaced
      - Every target row that matches a predicate
-     - Every target row of each key that a batch carries
+     - The target rows of each key that a batch carries, when the batch's
+       ``sequence_by`` value is newer
    * - Source read
      - Batch; the predicate's range is recomputed
      - Stream; the new rows are applied
@@ -243,7 +245,9 @@ with ``skipChangeCommits`` it would silently skip the rewritten rows instead.
    Re-run with details: lhp validate --env dev --show-details
 
 The check covers the whole run, so it catches a reader in another pipeline.
-``--show-details`` names the read and the write behind it:
+In the ``--show-details`` panel, the context line names only the pipeline. The
+message names the read, and the write behind it, as
+``pipeline.flowgroup.action``:
 
 .. code-block:: text
 
