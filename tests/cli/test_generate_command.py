@@ -26,13 +26,13 @@ from conftest import strip_ansi
 
 from lhp.cli.commands.generate_command import generate
 from tests.helpers import (
+    NONDETERMINISTIC_PIPELINE,
     assert_no_names_in_values,
+    inject_nondeterministic_replace_where,
     inject_replace_where_stream_reader,
-    inject_worker_validation_warning,
     last_cli_command_line,
     parse_last_cli_command,
     project_names,
-    write_clean_project,
     write_quarantine_project,
 )
 
@@ -134,21 +134,31 @@ def test_streaming_read_of_replace_where_table_blocks_generate(
 
 
 def test_strict_escalates_worker_validation_warning_to_failure(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    project_dir: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """A worker-recorded validation warning (``ValidationWarningRecord``) is
     surfaced by generate and counts under ``--strict``: exit 0 normally, exit 1
-    with ``--strict``."""
-    write_clean_project(tmp_path)
-    monkeypatch.chdir(tmp_path)
+    with ``--strict``. The real producer records it: LHP-VAL-073, for a
+    ``_processing_timestamp`` column upstream of a ``mode: replace_where``
+    write."""
+    monkeypatch.chdir(project_dir)
     runner = CliRunner()
-    args = ["-e", "dev", "--no-bundle", "--no-progress"]
+    args = [
+        "-e",
+        "dev",
+        "--no-bundle",
+        "--no-progress",
+        "-p",
+        NONDETERMINISTIC_PIPELINE,
+    ]
+    inject_nondeterministic_replace_where(project_dir, metadata="false")
     baseline = runner.invoke(generate, [*args, "--strict"])
-    inject_worker_validation_warning(monkeypatch)
+    inject_nondeterministic_replace_where(project_dir)
     lenient = runner.invoke(generate, args)
     strict = runner.invoke(generate, [*args, "--strict"])
 
-    # The project itself is warning-free, so --strict alone passes.
+    # Without the timestamp column the pipeline is warning-free, so --strict
+    # alone passes.
     assert baseline.exit_code == 0, baseline.stderr
     assert lenient.exit_code == 0, lenient.stderr
     assert "LHP-VAL-073" in strip_ansi(lenient.stderr)
