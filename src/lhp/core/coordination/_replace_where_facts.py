@@ -47,7 +47,7 @@ from lhp.core.dependencies import (
 )
 from lhp.core.registry import determine_action_subtype
 from lhp.core.sandbox import match_renamed_table, rename_parts
-from lhp.models import Action, ActionType, FlowGroup, LoadSourceType, TestActionType
+from lhp.models import Action, ActionType, FlowGroup, TestActionType
 from lhp.models.processing import StreamReadFact, TableProducerFact
 
 if TYPE_CHECKING:
@@ -110,9 +110,7 @@ def collect_flowgroup_facts(
 
 def _is_delta_load(action: Action) -> bool:
     return (
-        action.type == ActionType.LOAD
-        and isinstance(action.source, dict)
-        and action.source.get("type") == LoadSourceType.DELTA
+        action.type == ActionType.LOAD and determine_action_subtype(action) == "delta"
     )
 
 
