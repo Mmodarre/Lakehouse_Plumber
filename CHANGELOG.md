@@ -5,7 +5,7 @@ All notable changes to Lakehouse Plumber are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.9.4] — Unreleased
+## [0.9.4] — 2026-11-06
 
 ### Added
 
@@ -109,7 +109,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `mode: cdcc` passed `lhp validate` and `lhp generate` silently rendered a plain
   append flow, dropping the CDC / snapshot CDC / replace behaviour the user asked for.
   `lhp validate` and `lhp generate` now reject a mode other than `standard`, `cdc`,
-  `snapshot_cdc` or `replace`, including a null or non-string value, with
+  `snapshot_cdc`, `replace` or `replace_where`, including a null or non-string value, with
   `LHP-VAL-006` (inside `LHP-VAL-007`). The error names the value and the valid modes
   and adds a "did you mean" suggestion such as `Did you mean 'cdc'?`.
 - **Pipeline `libraries` and job `tasks` no longer silently replace LHP's own
@@ -153,6 +153,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   same checks as a file, and their errors are reported at `lhp validate`. A
   `data_quality` action still needs an `expectations_file` at `lhp generate`:
   inline `expectations` alone do not generate yet.
+- **Quarantine DLQ and outbox sinks failed on serverless when flows ran in
+  parallel (#355).** The generated `foreachBatch` sinks merged with
+  `DeltaTable.forName`, which breaks the serverless session when several flows
+  share one DLQ. Each sink now registers its batch as a fixed per-flow temporary
+  view and runs a plain `spark.sql` `MERGE`. The statement is rendered at
+  generation time, with no runtime string interpolation. The target-only
+  `ON dlq._dlq_source_table = '<source_table>'` filter from #332 is kept, so sinks
+  sharing a DLQ still do not conflict. Generated output changes for every
+  `data_quality` action in `quarantine` mode.
 
 ### Breaking changes
 
@@ -173,6 +182,23 @@ Configurations that used to validate now fail:
   flowgroups that append a batch `delta` load to a streaming table, or read a
   streaming view with batch SQL: set `readMode`, add `once: true`, or use
   `STREAM()` as the message says.
+- `name` or `root_path` in `pipeline_config`, and `name` in a job config, fail with
+  `LHP-CFG-072` (#351). They used to override LHP's own value silently; remove them.
+- A `streaming_table` write mode other than `standard`, `cdc`, `snapshot_cdc`,
+  `replace` or `replace_where` fails with `LHP-VAL-006` (#345). It used to generate
+  a plain append flow.
+
+### Dependencies
+
+- Lock bumps: `pyasn1` 0.6.5, `filelock` 4.2.1, `certifi` 2026.10.19, `mcp` 1.30.0,
+  `claude-agent-sdk` 0.2.121, `virtualenv` 21.14.13 (with `distlib` 0.4.4 and
+  `packaging` 26.3).
+- Release build tooling: `setuptools` 83.0.0 and `wheel` 0.46.2.
+- `web_app` npm dev dependencies: `vite` 8.3.5, `@modelcontextprotocol/sdk` 1.32.1,
+  `source-map-js` 1.2.2, `postcss-selector-parser` 7.1.6, `proxy-addr` 2.0.8,
+  `hono` 4.13.13, `undici` 7.30.1, `fast-uri` 3.1.9 and `qs` 6.17.1.
+- The macOS offline bundle is built on `macos-latest` instead of `macos-14`. Its
+  wheels keep the `macosx_11_0_arm64` tag, so it still installs on macOS 14.
 
 ## [0.9.3] — 2026-10-20
 
@@ -2993,7 +3019,12 @@ follows is a condensation, not a per-version diary.
 For per-commit detail across this era, see
 `git log V0.2.6-alpha..v0.4.1`.
 
-[Unreleased]: https://github.com/Mmodarre/Lakehouse_Plumber/compare/v0.8.6...HEAD
+[Unreleased]: https://github.com/Mmodarre/Lakehouse_Plumber/compare/v0.9.4...HEAD
+[0.9.4]: https://github.com/Mmodarre/Lakehouse_Plumber/compare/v0.9.3...v0.9.4
+[0.9.3]: https://github.com/Mmodarre/Lakehouse_Plumber/compare/v0.9.2...v0.9.3
+[0.9.2]: https://github.com/Mmodarre/Lakehouse_Plumber/compare/v0.9.1...v0.9.2
+[0.9.1]: https://github.com/Mmodarre/Lakehouse_Plumber/compare/v0.9.0...v0.9.1
+[0.9.0]: https://github.com/Mmodarre/Lakehouse_Plumber/compare/v0.8.6...v0.9.0
 [0.8.6]: https://github.com/Mmodarre/Lakehouse_Plumber/compare/v0.8.5...v0.8.6
 [0.8.5]: https://github.com/Mmodarre/Lakehouse_Plumber/compare/v0.8.4...v0.8.5
 [0.8.4]: https://github.com/Mmodarre/Lakehouse_Plumber/compare/v0.8.3...v0.8.4

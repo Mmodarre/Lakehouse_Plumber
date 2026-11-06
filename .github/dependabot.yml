@@ -21,7 +21,7 @@ updates:
   # Python dependencies
   - package-ecosystem: "pip"
     directory: "/"
-    target-branch: "release/V0.9.2"
+    target-branch: "release/V0.9.5"
     schedule:
       interval: "weekly"
       day: "monday"
@@ -46,7 +46,7 @@ updates:
   # GitHub Actions (maintains SHA pins)
   - package-ecosystem: "github-actions"
     directory: "/"
-    target-branch: "release/V0.9.2"
+    target-branch: "release/V0.9.5"
     schedule:
       interval: "weekly"
     groups:
@@ -58,7 +58,7 @@ updates:
   # so those dependencies moved solely when an advisory fired.
   - package-ecosystem: "npm"
     directory: "/web_app"
-    target-branch: "release/V0.9.2"
+    target-branch: "release/V0.9.5"
     schedule:
       interval: "weekly"
       day: "monday"
