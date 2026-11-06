@@ -1,0 +1,44 @@
+# Mirror the REPLACE WHERE table silver.orders_recent into gold, through its change data feed.
+# Action chain: load (delta, change-feed stream of the REPLACE WHERE table) -> write (streaming_table, mode: cdc).
+#
+# A plain streaming read of a REPLACE WHERE table fails validation (LHP-VAL-072):
+# every refresh rewrites rows, which a stream cannot follow. The change feed
+# carries each rewrite as delete and insert events, which AUTO CDC applies.
+pipeline: gold_orders
+flowgroup: orders_recent_mirror
+
+actions:
+  # 1. Load: stream the change feed of the REPLACE WHERE table. The where_clause
+  #    drops update pre-images, so a stale pre-image can never win the tie-break.
+  - name: load_orders_recent_changes
+    type: load
+    readMode: stream
+    source:
+      type: delta
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
+      table: orders_recent
+      options:
+        readChangeFeed: "true"
+      where_clause:
+        - "_change_type != 'update_preimage'"
+    target: v_orders_recent_changes
+
+  # 2. Write: apply the change events onto order_id. Within one commit a key can
+  #    have both a delete and an insert; sorting by _change_type after
+  #    _commit_version makes the insert win.
+  - name: write_orders_recent_mirror
+    type: write
+    source: v_orders_recent_changes
+    write_target:
+      type: streaming_table
+      catalog: "${catalog}"
+      schema: "${gold_schema}"
+      table: orders_recent_mirror
+      mode: cdc
+      cdc_config:
+        keys: ["order_id"]
+        sequence_by: ["_commit_version", "_change_type"]
+        scd_type: 1
+        apply_as_deletes: "_change_type = 'delete'"
+        except_column_list: ["_change_type", "_commit_version", "_commit_timestamp"]

@@ -330,6 +330,12 @@ Validation errors (LHP-VAL)
    * - LHP-VAL-071
      - Two expectations that land on one materialized view share a name: within one ``write_target.expectations_file``, or within the rules of a ``data_quality`` action fused onto the view. Names key the ``@dp.expect_all*`` decorators, so a repeat would replace a rule.
      - Give each expectation its own name. In a list-format file a rule is named by ``message``, then ``name``, then ``Constraint failed: <constraint>``.
+   * - LHP-VAL-072
+     - A streaming read, in any pipeline of the run, of a table that a ``mode: replace_where`` write produces: a ``delta`` load that reads a stream (``skipChangeCommits`` does not exempt it), or a ``STREAM(<table>)`` read in the SQL of a SQL load, a SQL transform or a ``custom_sql`` test. Each refresh rewrites rows, which a streaming read cannot follow. A change-feed read (``options.readChangeFeed`` set to ``true`` or ``"true"`` in any case) is exempt. When the run writes a REPLACE WHERE table, SQL that does not parse and has a ``STREAM`` argument LHP cannot identify is reported too, with a second message. Raised by ``lhp validate`` and ``lhp generate`` (which then writes no files), against the reading pipeline with no flowgroup. A run limited by ``--pipeline`` or a sandbox profile checks only the selected pipelines and skips ``schema.table`` reads.
+     - Read the table in batch (``readMode: batch``, or SQL without ``STREAM()``), or stream its change feed with ``options.readChangeFeed: "true"``. For the second message, write the read as ``STREAM(catalog.schema.table)`` or move it to a ``delta`` load. See :doc:`actions/write/streaming-table-replace-where`.
+   * - LHP-VAL-073
+     - Warning (category validation) — an operational-metadata column with a non-deterministic expression, such as ``F.current_timestamp()``, is computed on an action upstream of a ``mode: replace_where`` write in the same flowgroup. Databricks then recomputes every row inside the predicate on each refresh instead of refreshing incrementally. One warning per flowgroup lists every column found. Warnings are de-duplicated per code and YAML file, so when two flowgroups in one file trigger it only the first is shown. Raised by ``lhp validate`` and ``lhp generate``.
+     - Deselect the listed columns (for example ``operational_metadata: false`` on the action) or make their expressions deterministic; ``--strict`` promotes this warning to a failure. See :doc:`actions/write/streaming-table-replace-where`.
    * - LHP-VAL-902
      - All-or-nothing aggregator — one or more flowgroups failed in a parallel ``lhp generate`` run; no files were written.
      - Fix every listed failure; re-run with ``--verbose`` or ``--log-file``.
@@ -481,3 +487,28 @@ Deprecation warnings (LHP-DEPR)
    * - LHP-DEPR-004
      - The preset ``database_suffix`` field.
      - Use ``catalog`` and ``schema``.
+
+Warning categories
+==================
+
+``lhp validate`` and ``lhp generate`` report deprecation, sandbox and validation
+warnings without failing the run; ``--strict`` fails the run when any of them is
+reported. Through the Python API each one arrives as a ``WarningEmitted`` event
+whose ``category`` names its kind:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 20 80
+
+   * - Category
+     - Codes
+   * - ``deprecation``
+     - ``LHP-DEPR-001`` to ``LHP-DEPR-004``
+   * - ``sandbox``
+     - ``LHP-VAL-065``, ``LHP-VAL-066``, ``LHP-VAL-067``
+   * - ``validation``
+     - ``LHP-VAL-073``
+
+These warnings are de-duplicated per code and YAML file, keeping the first. They
+are not issues of the validation response, so
+``BatchValidationResponse.total_warnings`` does not count them.

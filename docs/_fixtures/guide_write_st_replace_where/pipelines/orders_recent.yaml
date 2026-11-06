@@ -1,0 +1,38 @@
+# Keep a silver table of orders whose last 7 days are recomputed on every refresh.
+# Action chain: load (delta, batch read of the bronze orders) -> write (streaming_table, mode: replace_where).
+#
+# On each refresh the REPLACE WHERE flow deletes the target rows that match the
+# predicate (the last 7 days by order_date) and recomputes them from the source.
+# Rows outside the predicate (older orders) are left as they are.
+pipeline: silver_orders
+flowgroup: orders_recent
+
+actions:
+  # 1. Load: a batch read of the bronze orders table. A REPLACE WHERE flow reads
+  #    its source in batch, so this load must not stream.
+  - name: load_orders
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
+      table: orders
+    target: v_orders
+
+  # 2. Write: recompute the last 7 days of orders on every refresh. The change
+  #    data feed is turned on so a downstream pipeline can follow the table
+  #    (see pipelines/orders_recent_mirror.yaml).
+  - name: write_orders_recent
+    type: write
+    source: v_orders
+    write_target:
+      type: streaming_table
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
+      table: orders_recent
+      mode: replace_where
+      table_properties:
+        delta.enableChangeDataFeed: "true"
+      replace_where_config:
+        replace_where: "order_date >= date_add(current_date(), -7)"

@@ -12,6 +12,7 @@ For worked examples and help choosing a target, see :doc:`/guides/write/index`.
    CDC streaming table <write/streaming-table-cdc>
    Snapshot CDC streaming table <write/streaming-table-snapshot-cdc>
    Replace rows in a streaming table <write/streaming-table-replace>
+   Replace rows matching a predicate <write/streaming-table-replace-where>
    Materialized view <write/materialized-view>
    Sink <write/sink>
 
@@ -42,6 +43,11 @@ mode: replace
 
 :doc:`Replace rows in a streaming table: syntax and options <write/streaming-table-replace>`.
 
+mode: replace_where
+-------------------
+
+:doc:`Replace rows matching a predicate: syntax and options <write/streaming-table-replace-where>`.
+
 Materialized view
 -----------------
 
@@ -66,6 +72,9 @@ Emitted constructs
 - ``replace``: ``dp.create_streaming_table(...)`` (always) plus a single
   ``@dp.replace_flow(target=, name=, replace_using=, sequence_by=, comment=)``
   decorator.
+- ``replace_where``: a single ``@dp.table(name=, comment=, table_properties=,
+  replace_where=)`` decorator over a batch read, with no
+  ``dp.create_streaming_table(...)``; the table and its flow are one statement.
 
 sink_type-specific fields
 -------------------------
